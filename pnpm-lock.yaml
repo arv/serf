@@ -207,9 +207,6 @@ importers:
 
   .:
     dependencies:
-      '@wllama/wllama':
-        specifier: ^3.5.1
-        version: 3.5.1
       solid-js:
         specifier: ^1.9.14
         version: 1.9.14
@@ -769,9 +766,6 @@ packages:
 
   '@vitest/utils@4.1.10':
     resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
-
-  '@wllama/wllama@3.5.1':
-    resolution: {integrity: sha512-m5L0KKtmUTKz5lGvVVa/Y3qRtoobu80Jne51U0CSR6O930aOUURzhMEAolNsN4v0kfQ9u58wi2IdpUicLfaXUw==}
 
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
@@ -1634,8 +1628,6 @@ snapshots:
       '@vitest/pretty-format': 4.1.10
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
-
-  '@wllama/wllama@3.5.1': {}
 
   assertion-error@2.0.1: {}
 

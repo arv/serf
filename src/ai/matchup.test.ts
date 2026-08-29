@@ -6,43 +6,43 @@ import * as MatchState from '../sim/matchStateEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import {tickWorld} from '../sim/tick.ts';
 import {createWorld, type World} from '../sim/world.ts';
-import type {ChatMessage} from './prompt.ts';
-import {LlmStrategist, type ChatEngine} from './strategist.ts';
+import {parseAdvice, toOverride} from './advice.ts';
 import {summarizeForSeat} from './summary.ts';
 
 /**
- * Two LLM-advised seats against each other: the whole strategist pipeline —
- * sim-side summaries on the real cadence, real prompts, real parsing and
- * clamping, real overrides through AiSeats — with only the model itself
- * played by a script. One seat's "model" is a warmonger, the other's a
- * turtle, so the test proves advice actually reaches the field: the two
- * villages must fight visibly different wars than they would unadvised.
+ * Two advised seats against each other: the whole advice pipeline —
+ * sim-side summaries on the real cadence, real parsing and clamping, real
+ * overrides through AiSeats — with the advisor played by a script. One
+ * seat's advisor is a warmonger, the other's a turtle, so the test proves
+ * advice actually reaches the field: the two villages must fight visibly
+ * different wars than they would unadvised.
  *
- * This mirrors simWorker's loop (decide → tick, summaries every
- * ADVICE_PERIOD ticks per seat) rather than importing the worker, which
- * needs a DedicatedWorkerGlobalScope these node tests don't have.
+ * This is the seam the aiLab harness measures through (tools/aiLab), tested
+ * from the src side so a sim change that severs it fails here too.
  */
 
 const ADVICE_PERIOD = 900;
 const ADVICE_STAGGER = 300;
 
-/** A scripted "model": answers every prompt with its one fixed personality. */
-function scriptedEngine(reply: object): ChatEngine {
-  return {complete: () => Promise.resolve(JSON.stringify(reply))};
-}
+/** A scripted advisor: answers every summary with one fixed personality. */
+type Advisor = () => string;
+const scripted =
+  (reply: object): Advisor =>
+  () =>
+    JSON.stringify(reply);
 
 interface MatchResult {
   world: World;
   adviceApplied: Map<number, number>;
-  prompts: Map<number, ChatMessage[][]>;
+  consultations: Map<number, number>;
 }
 
-/** The simWorker loop, headless: both AI seats advised by their engines. */
-async function playAdvisedMatch(
+/** The harness loop, headless: both AI seats advised by their advisors. */
+function playAdvisedMatch(
   seed: number,
-  engines: Map<number, ChatEngine>,
+  advisors: Map<number, Advisor>,
   maxTicks: number,
-): Promise<MatchResult> {
+): MatchResult {
   const world = createWorld({
     seed,
     players: [
@@ -57,31 +57,11 @@ async function playAdvisedMatch(
   });
   const seats = new AiSeats(world);
   const adviceApplied = new Map<number, number>();
-  const prompts = new Map<number, ChatMessage[][]>();
-  const strategists = new Map<number, LlmStrategist>();
-  for (const id of seats.seatIds()) {
-    const engine = engines.get(id);
-    if (!engine) continue;
-    const record: ChatMessage[][] = [];
-    prompts.set(id, record);
-    const strategist = new LlmStrategist({
-      sendAdvice: (playerId, override) => {
-        adviceApplied.set(playerId, (adviceApplied.get(playerId) ?? 0) + 1);
-        seats.applyAdvice(playerId, override);
-      },
-      onStatus: () => {},
-      // The harness sees every prompt on its way to the seat's engine.
-      engineFactory: () =>
-        Promise.resolve({
-          complete: (messages, schema) => {
-            record.push(messages);
-            return engine.complete(messages, schema);
-          },
-        }),
-    });
-    await strategist.start();
-    strategists.set(id, strategist);
-  }
+  const consultations = new Map<number, number>();
+  // The consult bookkeeping the harness keeps (tools/aiLab/match.ts):
+  // replies merge over a standing pile, and only a pile that changed is
+  // sent — an advisor that never changes its mind costs one message.
+  const sentKey = new Map<number, string>();
 
   const summaryDue = new Map(
     seats.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]),
@@ -96,13 +76,21 @@ async function playAdvisedMatch(
       if (world.tick < due) continue;
       summaryDue.set(playerId, world.tick + ADVICE_PERIOD);
       const brain = seats.brainFor(playerId);
-      if (brain)
-        strategists
-          .get(playerId)
-          ?.onSummary(playerId, summarizeForSeat(world, brain));
-      // The consultation is fire-and-forget; a scripted engine resolves in
-      // a microtask, so one yield is the whole "inference latency".
-      await new Promise(r => setTimeout(r, 0));
+      const advisor = advisors.get(playerId);
+      if (!brain || !advisor) continue;
+      consultations.set(playerId, (consultations.get(playerId) ?? 0) + 1);
+      // The summary is taken even though a scripted advisor ignores it —
+      // the cadence and the read are what the loop is exercising.
+      summarizeForSeat(world, brain);
+      const advice = parseAdvice(advisor());
+      if (!advice) continue;
+      const override = toOverride(advice);
+      const key = JSON.stringify(override);
+      if (Object.keys(override).length === 0 || key === sentKey.get(playerId))
+        continue;
+      sentKey.set(playerId, key);
+      adviceApplied.set(playerId, (adviceApplied.get(playerId) ?? 0) + 1);
+      seats.applyAdvice(playerId, override);
     }
     if (world.tick % 500 === 0) {
       expect(
@@ -111,19 +99,19 @@ async function playAdvisedMatch(
       ).toEqual([]);
     }
   }
-  return {world, adviceApplied, prompts};
+  return {world, adviceApplied, consultations};
 }
 
-describe('an LLM-advised match, seat against seat', () => {
-  it('two advised seats fight it out to a winner, advice landing throughout', async () => {
+describe('an advised match, seat against seat', () => {
+  it('two advised seats fight it out to a winner, advice landing throughout', () => {
     // Same playbook on both sides on purpose: whatever difference shows up
     // in how the two seats play, the advice is the only place it can have
     // come from.
-    const engines = new Map<number, ChatEngine>([
+    const advisors = new Map<number, Advisor>([
       // Seat 0's advisor smells blood from the first consultation.
       [
         0,
-        scriptedEngine({
+        scripted({
           armyAttackSize: 4,
           attackCooldown: 300,
           prefersRivals: true,
@@ -133,7 +121,7 @@ describe('an LLM-advised match, seat against seat', () => {
       // Seat 1's advisor builds tall and hides behind the walls.
       [
         1,
-        scriptedEngine({
+        scripted({
           armyAttackSize: 14,
           homeGuard: 14,
           serfTarget: 14,
@@ -142,29 +130,26 @@ describe('an LLM-advised match, seat against seat', () => {
       ],
     ]);
 
-    const {world, adviceApplied, prompts} = await playAdvisedMatch(
+    const {world, adviceApplied, consultations} = playAdvisedMatch(
       42,
-      engines,
+      advisors,
       90_000,
     );
 
-    // Both advisors were consulted with the real prompt, repeatedly, and
-    // their advice reached their seats.
+    // Both advisors were consulted repeatedly, and their advice reached
+    // their seats.
     for (const id of [0, 1]) {
       expect(
-        prompts.get(id)!.length,
+        consultations.get(id)!,
         `seat ${id} consultations`,
       ).toBeGreaterThan(3);
       expect(
         adviceApplied.get(id),
         `seat ${id} advice applied`,
       ).toBeGreaterThanOrEqual(1);
-      const [system, user] = prompts.get(id)![0]!;
-      expect(system!.content).toContain('Choose exactly one posture');
-      expect(user!.content).toContain(`"id":${id},"strategyId":"steward"`);
     }
-    // Advice is a standing override, not a drumbeat: a scripted model that
-    // never changes its mind sends one message per seat and is done.
+    // Advice is a standing override, not a drumbeat: a scripted advisor
+    // that never changes its mind sends one message per seat and is done.
     expect(adviceApplied.get(0)).toBe(1);
     expect(adviceApplied.get(1)).toBe(1);
 
@@ -179,8 +164,8 @@ describe('an LLM-advised match, seat against seat', () => {
     expect((world.outcome as {winner: number | null}).winner).not.toBeNull();
   }, 240_000);
 
-  it('plays a different war than the same seats unadvised', async () => {
-    // The control: identical seed, identical playbooks, no strategists.
+  it('plays a different war than the same seats unadvised', () => {
+    // The control: identical seed, identical playbooks, no advisors.
     const control = createWorld({
       seed: 42,
       players: [
@@ -203,18 +188,18 @@ describe('an LLM-advised match, seat against seat', () => {
       tickWorld(control, controlSeats.decide(control));
     }
 
-    const engines = new Map<number, ChatEngine>([
+    const advisors = new Map<number, Advisor>([
       [
         0,
-        scriptedEngine({
+        scripted({
           armyAttackSize: 4,
           attackCooldown: 300,
           prefersRivals: true,
         }),
       ],
-      [1, scriptedEngine({armyAttackSize: 14, homeGuard: 14, serfTarget: 14})],
+      [1, scripted({armyAttackSize: 14, homeGuard: 14, serfTarget: 14})],
     ]);
-    const {world: advised} = await playAdvisedMatch(42, engines, 16_000);
+    const {world: advised} = playAdvisedMatch(42, advisors, 16_000);
 
     // Same valley, same tick horizon — different game on the field. (Tick
     // counts can differ only if one match already ended; the state digest

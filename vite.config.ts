@@ -53,15 +53,11 @@ const crossOriginIsolation = {
  * keep their own file names across such a deploy, and the browser (and the
  * service worker's shell precache, which fetches through the HTTP cache)
  * keeps what it already has.
- *
- * 'llm' is the name build/swPlugin.ts looks for: the wllama chunk is kept
- * out of the all-or-nothing shell precache, since only the opt-in LLM
- * opponent ever fetches it (the 7 MB wasm keeps its own name as an asset).
+
  */
 const VENDOR_CHUNKS: [inside: RegExp, chunk: string][] = [
   [/node_modules[\\/]three[\\/]/, 'three'],
   [/node_modules[\\/]solid-js[\\/]/, 'solid'],
-  [/node_modules[\\/]@wllama[\\/]wllama[\\/]/, 'llm'],
 ];
 
 function vendorChunk(id: string): string | undefined {
@@ -96,9 +92,6 @@ export default defineConfig({
       },
     },
   },
-  // Prebundling the engine in dev drags a multi-MB dependency through
-  // esbuild on every cold start for a feature most sessions never touch.
-  optimizeDeps: {exclude: ['@wllama/wllama']},
   // ES-format workers, because the sim worker code-splits: the campaign's
   // mission maps (sim/defs/missionMaps.ts) arrive as dynamic chunks when a
   // mission boots, and the default iife worker build cannot split at all.

@@ -9,8 +9,8 @@
  *
  * Deliberately NOT part of the boot Promise.all: decodeAudioData needs a
  * live AudioContext, a live context needs the unlock gesture, and no part
- * of boot may wait on either. Fire-and-forget, like the LLM strategist —
- * cues upgrade from synth to sample as buffers land.
+ * of boot may wait on either. Fire-and-forget — cues upgrade from synth to
+ * sample as buffers land.
  */
 
 import {type CueDef, type CueId, CUES} from './cues';

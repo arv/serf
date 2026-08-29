@@ -193,6 +193,9 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
           id: p.id,
           kind: p.kind,
           alive: p.alive,
+          // The playbook is public knowledge — the lobby shows the deal —
+          // and the herald toast names its lord by it (messages.ts).
+          ...(p.strategy !== undefined ? {strategy: p.strategy} : {}),
           stock: {},
           // Open posts are a build plan read the same way the head count is.
           toolWants: {},
@@ -210,11 +213,15 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
   );
 }
 
-/** Raid warnings and damage are addressed; eliminations and the result are
- * public. Damage stays private so fights don't leak through rivals' fog. */
+/** Raid warnings, heralds and damage are addressed; eliminations and the
+ * result are public. Damage stays private so fights don't leak through
+ * rivals' fog; a herald is a taunt with an address, and eavesdropping on a
+ * rival's would leak who is marching on whom. */
 function eventsFor(events: GameEvent[], seatId: number): GameEvent[] {
   return events.filter(e =>
-    e.kind === GameEventKind.raidIncoming || e.kind === GameEventKind.damage
+    e.kind === GameEventKind.raidIncoming ||
+    e.kind === GameEventKind.damage ||
+    e.kind === GameEventKind.heraldIncoming
       ? e.player === seatId
       : true,
   );

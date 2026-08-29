@@ -4,8 +4,10 @@ import * as AiStrategyIdNs from './aiStrategyIdEnum.ts';
 
 export type AiStrategyId = Enum<typeof AiStrategyIdNs>;
 import * as PlayerKind from '../playerKindEnum.ts';
+import type {StancePick} from './aiPostures.ts';
 import * as BuildAnchorNs from './buildAnchorEnum.ts';
 import * as BuildingTypeId from './buildingTypeIdEnum.ts';
+import * as PostureId from './postureIdEnum.ts';
 import * as TechId from './techIdEnum.ts';
 import * as UnitTypeId from './unitTypeIdEnum.ts';
 
@@ -98,6 +100,59 @@ export interface AiStrategy {
   houseLimit: number;
 
   // — War —
+  /**
+   * The seat's stance cascade — the Age-of-Empires split, written as data:
+   * the playbook's printed knobs are its strategic numbers, and stances
+   * (defs/aiPostures.ts) are moods laid over the WAR knobs as the match
+   * turns. The brain's stance engine (systems/ai.ts) reads this; only the
+   * five stance knobs move, so a playbook's economy identity survives its
+   * moods.
+   *
+   * The cascade is deliberately tiny — three states, measured shapes only:
+   *
+   * - **opening** — held until a rival castle stands on explored ground.
+   *   Unset means the printed playbook IS the opening, which keeps the
+   *   campaign sweep's world: a solo map has no rival castles, so a
+   *   campaign seat lives its whole match here (plus fortify break-ins).
+   * - **underAttackBreak** — whether a hostile in the yard breaks stance to
+   *   `fortify` (army recalled, barracks deep). The one deviation the
+   *   posture sweeps kept; a personality that fights on through a raid
+   *   says false, and that refusal is itself legible.
+   * - **found** — the stance once a rival castle is found. The sweeps'
+   *   standing lesson: aggression ends games (siege 68.4% as a constant;
+   *   a found-seat that waits loses to one that goes).
+   * - **foundAfterArmy** — soldiers standing before `found` takes over;
+   *   until then the opening holds. How a late-push personality is spelled.
+   */
+  stances: {
+    opening?: StancePick;
+    underAttackBreak: boolean;
+    found: StancePick;
+    foundAfterArmy?: number;
+  };
+  /**
+   * Harassment sorties (systems/ai.ts #manageSortie): while the muster
+   * builds, a small party is sent at a rival's economy — the nearest
+   * non-castle building on explored ground, the grudge's owner first — and
+   * pulled home when the target falls, the party bleeds, the odds read as
+   * a rout, or `maxAge` ticks pass. Unset is a personality that does not
+   * harass, and that refusal reads as clearly through the fog as the
+   * raids do.
+   */
+  harass?: {size: number; cooldown: number; maxAge: number};
+  /**
+   * Does a losing march turn home? A marched army at under half the
+   * strength it left with, against defenders the odds read as a rout,
+   * either withdraws (true) or fights to the end (false). Character, not
+   * smarts: the sweeps' standing lesson is that hesitation loses, so the
+   * seats that keep the aggressive constant keep it — whether a lord
+   * retreats IS his personality, and both answers are meant to be seen.
+   */
+  retreats: boolean;
+  /** Doorstep re-scout cadence, overriding AI_INTEL.refreshAfter: how
+   * often this lord walks a rival's yard to re-read it. Short is nosy,
+   * long is insular, and the difference is when you first meet them. */
+  scoutRefreshAfter?: number;
   /** Forge assignment by smith age: recipeOptions index [spear, sword, bow].
    * Smiths past the end of the list all take the last entry. */
   weaponMix: number[];
@@ -237,6 +292,19 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     growthAfter: TechId.soldiery,
     housingHeadroom: 3,
     houseLimit: 4,
+    // The textbook cascade: play the printed line, defend the yard when
+    // raided, and once a rival castle is found, go and take it — the
+    // sweeps' one unambiguous lesson (siege as a constant beat every rule
+    // that waited).
+    stances: {
+      underAttackBreak: true,
+      found: {posture: PostureId.siege},
+    },
+    // Measured, unhurried pressure: a party of four on a long cooldown —
+    // the textbook probes, it does not swarm. And a losing march turns
+    // home: the steward husbands what it has.
+    harass: {size: 4, cooldown: 1200, maxAge: 800},
+    retreats: true,
     weaponMix: [1, 0], // first smith on swords, the rest on spears
     trainPreference: [UnitTypeId.knight],
     trainFallback: UnitTypeId.spearman,
@@ -375,6 +443,24 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     growthAfter: null,
     housingHeadroom: 3,
     houseLimit: 4,
+    // The rusher's cascade, and the deck's one unbroken nerve: a raid on
+    // the village does NOT recall the army — the warlord answers pressure
+    // with pressure, which is exactly the failure mode a player can punish
+    // and exactly the personality the blurb promises. A found rival is
+    // pounced on: march at five with whatever is standing, the measured
+    // best constant on the build that added it (56.6%, and 8/240 undecided
+    // against the rule's 19 — aggression ends games).
+    stances: {
+      underAttackBreak: false,
+      found: {posture: PostureId.pounce},
+    },
+    // Relentless: three swords at your woodcutters every thirty seconds,
+    // an obsessive scout that finds you early (2500 against the stock
+    // 4000), and no march ever turns around — the warlord's whole game is
+    // pressure the player can feel, and punish.
+    harass: {size: 3, cooldown: 600, maxAge: 800},
+    retreats: false,
+    scoutRefreshAfter: 2500,
     weaponMix: [1], // every forge on swords: knights or nothing
     trainPreference: [UnitTypeId.knight],
     trainFallback: UnitTypeId.spearman,
@@ -555,6 +641,23 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     growthAfter: null,
     housingHeadroom: 4,
     houseLimit: 5,
+    // The turtle's cascade: walls first, and the push comes late but whole.
+    // A found rival changes nothing until ten soldiers stand — the printed
+    // line's own muster, kept as the gate — and then the seat commits to a
+    // real siege instead of trickling. The push keeps a token homeGuard so
+    // "late but whole" never reads as "abandoned the walls it spent the
+    // whole match building".
+    stances: {
+      underAttackBreak: true,
+      found: {posture: PostureId.siege, hold: {homeGuard: 6}},
+      foundAfterArmy: 10,
+    },
+    // No harassment — a turtle that never pokes you is a turtle you can
+    // read — and an insular scout (6000 against the stock 4000): the abbot
+    // is the neighbour you forget about until the bells. A losing push
+    // turns home to the walls it never should have left.
+    retreats: true,
+    scoutRefreshAfter: 6000,
     // Swords at the first forge, bowstaves at the second: this is the one
     // plan running two weapon lines, because it wants knights in the field
     // and archers on the walls.
@@ -702,6 +805,31 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     growthAfter: TechId.soldiery,
     housingHeadroom: 3,
     houseLimit: 4,
+    // The skirmisher's cascade: the raid stance's short cooldown keeps the
+    // archers working — camp after camp with barely a rest — while two
+    // printed knobs are held against it. The muster bar, because this
+    // playbook already learned the hard way that marching under ten
+    // between raid waves is a wipe (see armyAttackSize below); and the
+    // homeGuard, so the tower line stays covered. A found rival is
+    // besieged like anyone's, bows and all.
+    stances: {
+      opening: {
+        posture: PostureId.raid,
+        hold: {armyAttackSize: 10, homeGuard: 10},
+      },
+      underAttackBreak: true,
+      found: {posture: PostureId.siege},
+    },
+    // Hit-and-run is the whole identity: three archers, gone before the
+    // counterblow lands — and no march retreats, because a skirmisher's
+    // army IS the retreat, rejoining the next volley. The clock started at
+    // 500 and measured as too much of a good thing: the first matchup
+    // sweep read 9.4 sorties a match and the fletcher beating the steward
+    // and the warlord about 3-to-1 — cheap bows made attrition the deck's
+    // best strategy. 900 keeps the identity and returns the deck to a
+    // contest.
+    harass: {size: 3, cooldown: 900, maxAge: 800},
+    retreats: false,
     weaponMix: [2], // every forge on bowstaves
     // The spear in the armory arms the first defender; after that the queue
     // waits on bows, since no iron chain is coming.

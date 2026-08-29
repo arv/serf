@@ -6,6 +6,15 @@ tooling. Phase 2 is an honest null — the intelligence got measurably
 better and the win rate did not follow. See each phase's checkboxes, and
 the sections added to `tools/aiLab/README.md`.
 
+> **Sequel (2026-08-29): the fun-and-realism work** picked this file's
+> findings up and shipped them: the LLM is removed (see phase 3b's update),
+> and the posture lesson lives in the brain now as per-playbook stance
+> cascades (`AiStrategy.stances`, `src/sim/defs/aiPostures.ts`,
+> `#updateStance` in `src/sim/systems/ai.ts`) — the fortify break-in on
+> raids, the found-rival aggression, the warlord's refusal to recall.
+> `--stances off` keeps the pre-stance null reachable, and the README's
+> "The stance engine" section says what the recorded rows mean now.
+
 Three phases, deliberately ordered — a seat that freezes cannot adapt, and a
 seat that cannot adapt has nothing worth searching for. That ordering held
 up, but the dependency ran the other way too: phase 2's classifier reads
@@ -332,6 +341,17 @@ author.
       because they are discarded. Novelty tolerates a model that is
       sometimes wrong; strategy does not — which is the whole lesson of the
       posture work.
+
+> **Update (2026-08-29): the in-game LLM is gone.** The strategist, its
+> prompt, the wllama pipeline and the start-menu toggle were removed on
+> this file's own evidence — the model never beat the free rule reading
+> the same summary, and stance-picking's wins belonged to the stances,
+> not the picker. The advice seam (`src/ai/advice.ts`,
+> `AiSeats.applyAdvice`) and the whole aiLab harness stay, digest-verified
+> against the old pipeline. If a proposal operator is ever wanted, it runs
+> *outside* the game against that seam — an HTTP engine can be
+> resurrected in the lab from this repo's history; nothing about 3b needs
+> code in the shipped client.
 
 ### 3c. Do not fool yourself
 

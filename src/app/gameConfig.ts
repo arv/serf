@@ -11,13 +11,6 @@ import {missionWorldConfig, type WorldConfig} from '../sim/world';
  */
 export interface GameConfig extends WorldConfig {
   myPlayerId: number;
-  /**
-   * Opt-in LLM strategist for the AI seats (solo only). On GameConfig
-   * rather than WorldConfig on purpose: the flag must not perturb world
-   * creation, the strategy deal, or saves — it only decides whether the
-   * main thread boots the strategist (src/ai/) beside the match.
-   */
-  llmOpponent?: boolean;
 }
 
 export function configFromUrl(search: string): GameConfig {
@@ -81,8 +74,5 @@ export function configFromUrl(search: string): GameConfig {
     adminEnabled: true, // solo modes keep the sandbox switches live
     // ?bandits=0 turns the neutral hostiles off (the start screen's toggle).
     banditsEnabled: params.get('bandits') !== '0',
-    // ?llm=1 boots the LLM strategist beside the AI seats — meaningless
-    // without any, so the flag rides only where it has someone to advise.
-    llmOpponent: params.get('llm') === '1' && aiSeats > 0,
   };
 }

@@ -265,20 +265,25 @@ manifest from the finished build, and registration lives in
 `src/app/serviceWorker.ts` — dev unregisters instead, so `pnpm dev` is never
 served yesterday's bundle.
 
-The optional **LLM strategist** (the "LLM strategist" toggle in the start
-menu) runs a small language model on-device — llama.cpp via wllama, CPU
-wasm so the renderer keeps the GPU — and lets it steer the AI seats'
-posture knobs on a slow cadence. Whether a given model's advice actually
-wins games is a measurable question, and `tools/aiLab/` is the measuring
-instrument: a seed-sweeping, seat-mirrored bake-off with error bars
-(`pnpm bakeoff --help`, and the README there).
+The **AI opponents** are the Age of Empires shape: a playbook of strategic
+numbers per personality, a stance engine that switches its war knobs as
+the match turns (`src/sim/defs/aiPostures.ts`, `AiStrategy.stances`), and
+a set of reactive war verbs — harassment sorties, grudges, outpost
+defense, retreats for the lords that retreat, heralds that announce a full
+assault fifteen seconds before it moves. Every layer is measured before it
+ships, and `tools/aiLab/` is the measuring instrument: a seed-sweeping,
+seat-mirrored bake-off with error bars, per-behavior ablation flags and a
+per-playbook FINGERPRINTS table (`pnpm bakeoff --help`, and the README
+there — which also records why the on-device LLM strategist that once
+advised the seats was removed: it never beat the rule reading the same
+summary).
 
 ```sh
 pnpm test        # headless suite: sim, editor, server, aiLab (800+ tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
 pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
-pnpm bakeoff     # LLM strategist bake-off (tools/aiLab)
+pnpm bakeoff     # AI bake-off (tools/aiLab)
 ```
 
 Formatting is [oxfmt](https://oxc.rs/docs/guide/usage/formatter)

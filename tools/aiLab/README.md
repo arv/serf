@@ -1,21 +1,28 @@
-# aiLab — the LLM strategist bake-off
+# aiLab — the AI bake-off
 
-Does putting a model in the strategist's seat (`src/ai/`) actually win more
-games than the printed playbook? This harness exists to answer that with a
+Does an advisor over a seat's playbook (`src/ai/`) actually win more games
+than the printed playbook alone? This harness exists to answer that with a
 number that has error bars, instead of a feeling.
+
+**The model era is over (2026-08-29).** This file's measurements are why:
+the browser LLM never beat the free rule reading the same summary
+(`posture`, below), so the strategist, its prompt, and the wllama pipeline
+were removed from the game. The harness stayed, because the advice seam it
+measures through — replies as JSON through `parseAdvice`, applied via
+`AiSeats.applyAdvice` — is how every AI change here gets judged, model or
+not. The `http` engine went with the model; every recorded model row below
+is kept as history. An engine now consults on the seat's summary directly
+(`LabEngine.advise(summary)`), which reproduces the old pipeline's matches
+digest-for-digest for `none`, `random` and `posture`.
 
 ```sh
 # 1. calibrate — must print exactly 50.0%
 pnpm bakeoff --engine none --seeds 1-12
 
-# 2. the noise floor every model has to clear
+# 2. the noise floor every advisor has to clear
 pnpm bakeoff --engine random --seeds 1-40 --out runs/random.jsonl
 
-# 3. real weights, via llama.cpp's own server (same GGUF the browser runs)
-#    llama-server -m qwen2.5-0.5b-instruct-q4_k_m.gguf -c 2048 --port 8080
-pnpm bakeoff --engine http://localhost:8080/v1 --seeds 1-40 --out runs/qwen.jsonl
-
-# 4. one playbook against another — no model involved. --no-control because
+# 3. one playbook against another — nobody advised. --no-control because
 #    with --engine none a seating's control and its arms are the same match.
 pnpm bakeoff --engine none --no-control --strategy steward:warlord --seeds 1-80
 
@@ -49,17 +56,8 @@ The standing baseline, 64 seeds across two ranges: abbot 59, steward 53,
 warlord 51, fletcher 52 with its housing fixed (49 before). Warlord and
 fletcher are the deck's thin end now; abbot is comfortably its strongest.
 
-Sim-only sweeps run one match per `--jobs` process (`--jobs max` uses the
-machine); results are byte-identical to `--jobs 1` for every engine except
-`http`, where it also means concurrent requests — size the server's
-`--parallel` to match.
-
-> `llama-server` splits `-c` *across* its parallel slots, so `-c 2048
-> --parallel 4` gives each slot 512 tokens and every consultation comes
-> back `400 exceed_context_size_error` against this ~850-token prompt.
-> Multiply: `-c 8192 --parallel 4`. The startup line to check is
-> `n_ctx_slot = 2048`. A sweep that hits this still prints a win rate —
-> a meaningless one — so read ENGINE HEALTH before believing any number.
+Sweeps run one match per `--jobs` process (`--jobs max` uses the machine);
+results are byte-identical to `--jobs 1` for every engine.
 
 ## The experiment
 
@@ -76,10 +74,14 @@ the advice in half the trials and plays control in the other half. The
 report scores the advised side's win rate against that bar, with a Wilson
 95% interval, and refuses to call an interval that straddles 50% a result.
 
-Matches run the *real* pipeline — `LlmStrategist`, `buildMessages`,
-`parseAdvice`, `AiSeats.applyAdvice` — with only the `ChatEngine` seam
-swapped, so what is measured is what ships. Undecided matches are reported
-and excluded, never awarded. Crashed trials are printed next to the rate.
+Matches run the real advice path — `parseAdvice`, standing-pile merge,
+`AiSeats.applyAdvice` — with only the advisor behind `LabEngine.advise`
+swapped, so what is measured is what a seat can actually be told. (Until
+2026-08-29 the same path ran through the shipped `LlmStrategist`; the
+consult semantics — merge over a standing pile, a repeat costs no message —
+were kept verbatim when it was removed, verified digest-for-digest.)
+Undecided matches are reported and excluded, never awarded. Crashed trials
+are printed next to the rate.
 
 ## Two playbooks, and two different nulls
 
@@ -133,36 +135,103 @@ There is no `bakeoff:compare` step for a playbook matchup: the pairing is
 - **Sample size.** A ±5-point read on the win rate needs ~385 trials
   (~193 seeds). Forty seeds (80 trials) resolves about ±11 points. The
   verdict line prints what your run can and cannot see.
-- **Latency.** By default advice lands instantly (`--latency 0`), which
-  hands the model a small oracle advantage — in the game, CPU inference
-  takes tens of seconds while the valley keeps moving. Read the report's
-  p50 latency, then re-run with `--latency measured` (realistic, not
-  reproducible) or `--latency <ticks>` (reproducible) to make advice pay
-  for its thinking time.
+- **Latency.** By default advice lands instantly (`--latency 0`), which is
+  what every recorded run used. The model era priced its tens of seconds of
+  CPU inference back in with this flag; a rule engine answers for free, so
+  0 is honest now — the flag stays for any advisor that would not be.
 - **Advice can be structurally inert.** Most economy knobs sit behind the
   playbook's `growthAfter` research and the war knobs behind a mustered
   army, so advice to a seat that never gets that far changes nothing — on
   some seeds one seat dies before its knobs ever gate a decision. That is
   a fact about the game, not a bug in the harness; the mirrored arms
   average it out.
-- **What HTTP inference does not measure:** wasm speed. `llama-server`
-  runs the same GGUF through the same llama.cpp grammar-constrained
-  decoding as wllama in the browser, so the *decisions* transfer; the
-  *milliseconds* don't. For browser-honest latency, measure in the game
-  and feed the number to `--latency`.
 
 ## Engines
 
 | spec | what it is |
 | --- | --- |
-| `none` | no strategist — calibration; must score exactly 50% |
-| `random[:seed]` | valid advice by dice — the noise floor; a model must beat this, not just 50% |
-| `posture` | the stances picked by rule, no model — the bar a model has to be *worth*, not just beat |
+| `none` | no advisor — calibration; must score exactly 50% |
+| `random[:seed]` | valid advice by dice — the noise floor; an advisor must beat this, not just 50% |
+| `posture` | the stances picked by rule — the reference every recorded number was measured under, and the test bench for candidate stance rules |
 | `rules` (flag, not an engine) | `--rules <ids>` narrows which economy rules the seats run; `--rules none` turns the layer off entirely |
 | `posture-reads` | the same rule conditioned on an opponent archetype. Measured against `posture` and it does not pay (p = 0.50), so it is the experiment, not the reference |
 | `posture:<id>` | one stance held all match (`posture:siege`) — ablation, and it says what each stance is worth alone |
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
-| `http://…/v1` | any OpenAI-compatible server (llama-server, Ollama, LM Studio, vLLM); `--model` names the model, `OPENAI_API_KEY` is sent if set |
+| `stances` (flag, not an engine) | `--stances off` pins every seat to its printed playbook — the pre-stance-engine null (see below) |
+
+(`http://…/v1` — any OpenAI-compatible server — was an engine until
+2026-08-29 and produced every model row below; it left with the model.)
+
+## The stance engine, and what the nulls mean now (2026-08-29)
+
+The measured lesson of every sweep below — aggression ends games, and a
+found rival should be marched on — now ships inside the brain instead of
+riding as advice: each playbook carries a stance cascade
+(`AiStrategy.stances`, knob tables in `src/sim/defs/aiPostures.ts`) and the
+brain switches moods as the match turns (`#updateStance` in
+`src/sim/systems/ai.ts`). Three things change about reading this file:
+
+- **`--engine none` is still THE calibration null** — the mirror pins it at
+  exactly 50.0% whatever the brains do, because both seats run identical
+  brains. Its *meaning* moved: "unadvised" now includes the seat's own
+  stance engine. The pre-stance game is `--stances off`, and the engine's
+  worth is the paired comparison between the two.
+- **`--engine posture` is the test bench, not the shipped brain.** It
+  overrides a seat's knobs wholesale on the advice cadence, stance engine
+  underneath. Write a candidate cascade as a `choosePosture` variant, run
+  it here, and only a paired win earns it a place in the playbook data.
+- **Every recorded row below predates the stance engine** — measured
+  against printed playbooks, i.e. today's `--stances off`. They stay as
+  history; re-measure before comparing anything new against them.
+
+### What the engine and the war verbs measured (2026-08-29, map 96, seeds 1-80)
+
+Every layer of the fun-and-realism arc was gated the same way: calibration
+must stay exactly 50.0%, undecided must not rise, the campaign sweep must
+not regress on any of three ranges (101 / 1000 / 5000, the last never tuned
+against), and the layer's own off-switch must reproduce the layer-less game
+so the comparison is paired, not remembered.
+
+| layer | flips winner (of 160 paired) | undecided | campaign (384 games) |
+| --- | --- | --- | --- |
+| stance engine (`--stances off` as null) | 44 (22 each way, p = 1.00) | 0 → 0 | +2 / −2 / ±0 |
+| war behaviors (`--war none` as null) | 22 (11 each way, p = 1.00) | 0 → 0 | ±0 / ±0 / −1 |
+| the herald's march-hold (all-but-`heraldMarch` as null) | 20 (10 each way, p = 1.00) | 0 → 0 | ±0 (range 101) |
+
+Read the flips column the way the archetype experiment's "the branch is
+live" check was read: both seats carry every layer, so the mirror pins the
+advised rate at 50% by construction and strength is not what these sweeps
+can see — what they establish is that the layers genuinely change games
+(a quarter of them, for the stances) at zero cost to the guardrails. The
+`--stances off` arm also reproduced the pre-stance tree digest-for-digest
+(240/240), which is what makes it a null rather than a hope.
+
+**The fingerprints are the point** (`war` per seat in every JSONL line;
+first matchup sweep, seeds 1-24 both seatings, six pairings): the abbot
+sortied 0.00 times a match and retreated its losing pushes; the fletcher
+sortied 9.37 times and never retreated; the steward probed at 3.57 with
+the deck's best strike rate; the warlord marched three minutes before
+anyone (median 13345 against the abbot's 16825), wore 0.9 moods a match
+against everyone else's 5-7, and mostly struck unannounced — pounce
+musters at five, under the herald's minimum of six, so the rusher gives
+less warning and the abbot's twelve-strong push always announces. Four
+playbooks, four different games, visible through a rival's own fog — the
+`archetypePersonality` test pins the direction of that read in CI.
+
+That first sweep also raised two alarms, and running the SAME pairings on
+the pre-arc tree (a worktree at the arc's base commit, same seeds) is what
+told the inherited from the introduced. The fletcher beating the steward
+about 3-to-1 turned out to be the deck as the arc found it — 25% pooled
+for the steward at the base commit, 26% after the arc — a balance drift
+that predates this work and is not of it. The abbot-fletcher standoff is
+also ancient (the fletcher-cannot-crack-walls class this file has recorded
+since the playbook shipped), and there the arc is a repair: 20 of 96
+matches undecided at the base commit, 10 after — aggression ends games,
+again. The two corrections the sweep prompted stay on their own numbers
+(sorties stand down once the impatience ramp is walking the muster bar;
+the fletcher's harass clock eased 500 → 900, cutting the arc's own first
+cut from 14 undecided to 10): harassment is an opening behavior now in
+fact as well as spirit.
 
 ## Measurements (2026-08-18, map 96, bandits on, `steward` both seats)
 
@@ -530,13 +599,13 @@ Two sanity checks came out of the same runs:
   one does at 12.
 - `--jobs 1` and `--jobs 3` still agree match for match on every digest.
 
-## Comparing two models
+## Comparing two runs
 
 Two runs over the same seeds are far more comparable than their two
 intervals suggest, because they are *paired*:
 
 ```sh
-pnpm bakeoff:compare runs/qwen.jsonl runs/lfm.jsonl
+pnpm bakeoff:compare runs/posture.jsonl runs/candidate.jsonl
 ```
 
 joins the runs on (seed, advised seat), discards the pairs where both
@@ -596,6 +665,7 @@ The report prints to stdout; per-match progress goes to stderr. With
 `--out runs/x.jsonl` every match becomes one JSON line (`kind`:
 `control` / `arm` / `report`) carrying consultations, latencies, parse
 failures, final standings and a determinism digest. Add `--trace` to keep
-every prompt and reply — that is the raw material for a fine-tuning set.
+every advisor reply verbatim — the raw material for auditing exactly what
+an engine told a seat.
 
 Files under `runs/` are gitignored.

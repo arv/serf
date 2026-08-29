@@ -24,6 +24,7 @@ import {
   effectiveSpeed,
 } from './defs/units.ts';
 import {BANDIT, type Owner} from './entities.ts';
+import * as GameEventKind from './gameEventKindEnum.ts';
 import {findPath, nearestWalkable} from './path.ts';
 import {hasRoomToHire} from './population.ts';
 import {banditsSystem} from './systems/bandits.ts';
@@ -186,6 +187,24 @@ export function applyCommand(
       if (cmd.x === undefined || cmd.y === undefined) break;
       if (!inBounds(cmd.x, cmd.y, world.map.size)) break;
       b.rally = {x: cmd.x, y: cmd.y};
+      break;
+    }
+    case CommandKind.herald: {
+      // A taunt with an address. What is validated here is world state:
+      // the target must be a living rival, and a herald to nobody says
+      // nothing. The payload's shape — note in the enum, count clamped —
+      // is sanitizeCommand's screen, and every outside path passes it:
+      // socket frames on the server, and a replay's log at load
+      // (app/replay.ts). In-process senders speak the enums by type.
+      const target = world.players[cmd.target];
+      if (!target || !target.alive || cmd.target === playerId) break;
+      world.pendingEvents.push({
+        kind: GameEventKind.heraldIncoming,
+        player: cmd.target,
+        attacker: playerId,
+        note: cmd.note,
+        ...(cmd.count !== undefined ? {count: cmd.count} : {}),
+      });
       break;
     }
     case CommandKind.admin:

@@ -1,243 +1,63 @@
-import type {Enum} from '../shared/enum.ts';
+import {POSTURES, type PostureId} from '../sim/defs/aiPostures.ts';
+import * as PostureIdNs from '../sim/defs/postureIdEnum.ts';
 import type {StrategyAdvice} from './advice.ts';
 import {readOpponent} from './archetype.ts';
 import * as Archetype from './archetypeEnum.ts';
-import * as PostureIdNs from './postureIdEnum.ts';
 import type {AiWorldSummary} from './summary.ts';
-export type PostureId = Enum<typeof PostureIdNs>;
 
 /**
- * Postures: the strategist's vocabulary, a handful of named stances instead
- * of eleven loose dials.
+ * The advice side of the stance system.
  *
- * The bake-off is why this exists. Asking a small model to *author* knob
- * values put qwen2.5-0.5b below the random noise floor (33.8% advised win
- * rate against a 46.7% floor) and reduced lfm2.5-350m to echoing the
- * prompt back — across 862 consultations it emitted two distinct replies,
- * one of which was the playbook's own `trainPreference` restated, so not
- * one of its eighty matches diverged from its control by a single tick.
- * Authoring eleven independent numbers is a generation task, and a
- * few-hundred-million-parameter model is not a generator. Choosing among a
- * half-dozen labelled stances is a classification task, which it is.
+ * The stance data itself — the knob table, the spellings, the ids — lives
+ * in sim (src/sim/defs/aiPostures.ts) because the brain's stance engine
+ * reads it, and everything that steers commands belongs inside the
+ * replay-version hash surface. This module re-exports it for the advice
+ * seam and keeps the two things that are advice-only:
  *
- * So the model no longer says how far to turn anything. It names a stance;
- * the numbers under that stance are authored here, once, by someone who
- * can read the sim. That trade — the model picks, the table decides — is
- * the whole idea, and it is also what makes a seat play less like a
- * playbook: what reads as adaptive is a lord who *switches stance* when
- * the valley turns, not one whose serfTarget drifts by two.
- *
- * Every posture sets the same key set on purpose. Advice merges over the
- * standing pile in LlmStrategist, so a posture that left a knob unset
- * would leave the *previous* posture's value in place and the seat would
- * play a blend of two stances that nobody authored. Identical keys mean
- * switching posture actually switches.
- *
- * Not in the table: marchConfidence, which is the brain's own march gate and is
- * measured on its own rather than folded into a stance — the recorded posture
- * numbers all assume it off. Nor trainPreference and weaponMix. The brain already
- * counter-forges against sighted army compositions on its own, and it
- * reads fresher intel than a 90-second consultation cadence can. Posture
- * steers how big the army is and when it marches; the captain keeps the
- * choice of what to arm it with.
+ * - `postureAdvice`, which expands a stance name into StrategyAdvice for
+ *   parseAdvice's `{"posture":"siege"}` reply shape;
+ * - the two rule-based stance pickers the lab runs as engines
+ *   (`--engine posture` / `posture-reads`), kept as the reference every
+ *   recorded number was measured under and as the test bench for candidate
+ *   cascades — a rule that wins here, paired, earns a place in playbook
+ *   data (AiStrategy.stances); one that loses stays an experiment.
  */
-
-/** Menu order — also the order quoted to the model, economy first. */
-export const POSTURE_ORDER: readonly PostureId[] = [
-  PostureIdNs.expand,
-  PostureIdNs.fortify,
-  PostureIdNs.raid,
-  PostureIdNs.muster,
-  PostureIdNs.siege,
-  PostureIdNs.pounce,
-];
+export {
+  isPostureId,
+  POSTURE_KEYS,
+  POSTURE_ORDER,
+  postureFromKey,
+  POSTURES,
+  type Posture,
+  type PostureKnobs,
+} from '../sim/defs/aiPostures.ts';
+export type {PostureId} from '../sim/defs/aiPostures.ts';
 
 /**
- * The spelling of each stance. Load-bearing at both ends of the model's
- * turn: the menu is quoted into the prompt in words, and the reply comes
- * back as a word. Inside the seat a posture is a number like the rest.
+ * The knob set every posture carries is exactly the advisable set minus the
+ * keys the table's header explains away — asserted here from the advice
+ * side, so the sim table and the advice contract cannot drift apart: a new
+ * StrategyAdvice knob without a posture entry (or the reverse) is a type
+ * error on this line.
  */
-export const POSTURE_KEYS: Readonly<Record<PostureId, string>> = {
-  [PostureIdNs.expand]: 'expand',
-  [PostureIdNs.fortify]: 'fortify',
-  [PostureIdNs.raid]: 'raid',
-  [PostureIdNs.muster]: 'muster',
-  [PostureIdNs.siege]: 'siege',
-  [PostureIdNs.pounce]: 'pounce',
-};
-
-const POSTURE_BY_KEY = new Map<string, PostureId>(
-  POSTURE_ORDER.map(id => [POSTURE_KEYS[id], id]),
-);
-
-/** The stance a word names, or undefined — the read side of POSTURE_KEYS. */
-export function postureFromKey(key: unknown): PostureId | undefined {
-  return typeof key === 'string' ? POSTURE_BY_KEY.get(key) : undefined;
-}
-
-export interface Posture {
-  id: PostureId;
-  /** One line, quoted verbatim into the prompt's menu. Written as the
-   * condition to pick it under, not as a description of the knobs — the
-   * model is matching a situation, not reading a spec. */
-  when: string;
-  /** The stance, as knobs. Same keys in every posture (see the header) —
-   * `Required` is what enforces that, so adding a stance that forgets one
-   * is a type error rather than a seat playing a blend of two. */
-  knobs: Readonly<
-    Required<
-      Omit<
-        StrategyAdvice,
-        | 'trainPreference'
-        | 'weaponMix'
-        | 'reason'
-        | 'posture'
-        | 'marchConfidence'
+const _POSTURES_COVER_ADVICE: Record<
+  PostureId,
+  {
+    knobs: Readonly<
+      Required<
+        Omit<
+          StrategyAdvice,
+          | 'trainPreference'
+          | 'weaponMix'
+          | 'reason'
+          | 'posture'
+          | 'marchConfidence'
+        >
       >
-    >
-  >;
-}
-
-/**
- * The stances. Values are relative to `steward`'s printed line
- * (serfTarget 10, armyAttackSize 7, attackCooldown 900, homeGuard 0,
- * prefersRivals false, houseLimit 4, housingHeadroom 3, researchReserve
- * 10, barracksQueueDepth 2) — each posture pushes that baseline somewhere
- * deliberate rather than everywhere at once.
- */
-export const POSTURES: Record<PostureId, Posture> = {
-  [PostureIdNs.expand]: {
-    id: PostureIdNs.expand,
-    when: 'the valley is quiet and you are still small — grow the village before it fights',
-    knobs: {
-      serfTarget: 16,
-      armyAttackSize: 10,
-      attackCooldown: 1200,
-      homeGuard: 0,
-      prefersRivals: false,
-      barracksQueueDepth: 1,
-      houseLimit: 7,
-      housingHeadroom: 5,
-      researchReserve: 16,
-    },
-  },
-  [PostureIdNs.fortify]: {
-    id: PostureIdNs.fortify,
-    when: 'enemies are at your gates, or a rival fields more soldiers than you do',
-    knobs: {
-      serfTarget: 10,
-      armyAttackSize: 6,
-      attackCooldown: 1600,
-      homeGuard: 14,
-      prefersRivals: false,
-      barracksQueueDepth: 4,
-      houseLimit: 4,
-      housingHeadroom: 3,
-      researchReserve: 6,
-    },
-  },
-  [PostureIdNs.raid]: {
-    id: PostureIdNs.raid,
-    when: 'bandit camps are near and no rival castle is found yet — keep the army working',
-    knobs: {
-      serfTarget: 11,
-      armyAttackSize: 5,
-      attackCooldown: 400,
-      homeGuard: 0,
-      prefersRivals: false,
-      barracksQueueDepth: 3,
-      houseLimit: 4,
-      housingHeadroom: 3,
-      researchReserve: 8,
-    },
-  },
-  [PostureIdNs.muster]: {
-    id: PostureIdNs.muster,
-    when: 'a rival is found but your army is too thin to take a castle — build it up first',
-    knobs: {
-      serfTarget: 13,
-      armyAttackSize: 14,
-      attackCooldown: 900,
-      homeGuard: 6,
-      prefersRivals: false,
-      barracksQueueDepth: 4,
-      houseLimit: 5,
-      housingHeadroom: 4,
-      researchReserve: 10,
-    },
-  },
-  [PostureIdNs.siege]: {
-    id: PostureIdNs.siege,
-    when: 'you have the soldiers and a rival castle is found — go and raze it',
-    knobs: {
-      serfTarget: 11,
-      armyAttackSize: 12,
-      attackCooldown: 500,
-      homeGuard: 0,
-      prefersRivals: true,
-      barracksQueueDepth: 4,
-      houseLimit: 4,
-      housingHeadroom: 3,
-      researchReserve: 4,
-    },
-  },
-  /**
-   * `siege` with the muster bar dropped to five: march on their castle with
-   * whatever is standing.
-   *
-   * This exists for exactly one situation and must not be read as a general
-   * appetite. A muster bar of four, taken blind, scores 43.4% at eighty
-   * seeds — well under the noise floor — and that replicates (tools/aiLab/
-   * README.md). The finding attached to it is the reason this stance is in
-   * the table at all: "marching sooner is worth something only if something
-   * knows when". `readOpponent` is the something; a rival that has been
-   * found, has been watched, and has shown nothing that could hold a wall is
-   * the when.
-   *
-   * Held constant for whole matches it scores 56.6% (86/152) at eighty
-   * seeds, which is the best arm measured on this build — and it beats
-   * neither rule when paired (p = 0.324 against `posture`), so that is
-   * a hint and not a finding. What is *not* ambiguous is the horizon: a seat
-   * that marches at five leaves 8 of 240 matches undecided against the
-   * rule's 19. Aggression ends games, which is phase 1's problem answered
-   * from an unexpected direction.
-   */
-  [PostureIdNs.pounce]: {
-    id: PostureIdNs.pounce,
-    when: 'a rival castle is found and they have no army worth the name — go now, before they do',
-    knobs: {
-      serfTarget: 11,
-      armyAttackSize: 5,
-      attackCooldown: 400,
-      homeGuard: 0,
-      prefersRivals: true,
-      barracksQueueDepth: 4,
-      houseLimit: 4,
-      housingHeadroom: 3,
-      researchReserve: 4,
-    },
-  },
-};
-
-/**
- * What the strategist asks a real engine to constrain generation to. One
- * enum and one string: a grammar this narrow cannot emit an out-of-range
- * knob, so the clamping in parseAdvice becomes a second line of defence
- * rather than the only one.
- */
-export const POSTURE_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    posture: {type: 'string', enum: POSTURE_ORDER.map(id => POSTURE_KEYS[id])},
-    reason: {type: 'string'},
-  },
-  required: ['posture'],
-  additionalProperties: false,
-} as const;
-
-export function isPostureId(raw: unknown): raw is PostureId {
-  return typeof raw === 'number' && Object.hasOwn(POSTURES, raw);
-}
+    >;
+  }
+> = POSTURES;
+void _POSTURES_COVER_ADVICE;
 
 /** A posture's knobs as advice. Copied, because the caller merges into it
  * and the table is shared across every seat in the process. */
@@ -246,21 +66,14 @@ export function postureAdvice(id: PostureId): StrategyAdvice {
 }
 
 /**
- * The rule-based selector, and the reference the harness means by
- * `--engine posture`: stances chosen from the summary, without a model and
- * without reading the opponent.
+ * The rule-based stance picker the lab means by `--engine posture`: stances
+ * chosen from the summary, without reading the opponent.
  *
  * It is the reference on the evidence. `choosePostureReadingOpponent` below
  * conditions the same cascade on an archetype and does not beat it — 0 won,
  * 2 lost, p = 0.50 over eighty seeds — so the simpler rule holds the name
  * that every recorded number was measured under, and the classifier waits
  * behind `--engine posture-reads` until a fair test says otherwise.
- *
- * It is also the honest opponent for a model to beat. `random` proves advice-shaped noise
- * moves win rates; this proves how much of the win is in the *vocabulary*
- * versus in the judgement picking from it. A model that cannot beat a
- * dozen lines of if/else is not reading the valley, and shipping it would
- * be paying 400 MB and a CPU core for something a switch statement does.
  *
  * The shape of this cascade is measured, not reasoned. Its first draft was
  * the intuitive one — grow while small, raid while nothing is found, siege
@@ -276,16 +89,16 @@ export function postureAdvice(id: PostureId): StrategyAdvice {
  * Paired McNemar over the same seeds: siege beat the draft rule (p =
  * 0.012) and beat expand (p = 0.0024); the draft rule did not beat random
  * at all (p = 0.63). A cascade losing to its own best constant means the
- * *picking* was the problem, not the menu — so the picking now defaults to
+ * *picking* was the problem, not the menu — so the picking defaults to
  * the aggressive end and deviates only where standing pat is untenable.
+ * The shipped playbooks' stance cascades (AiStrategy.stances) are this
+ * lesson written into data.
  *
  * The lesson under the numbers is about this valley: matches resolve in
  * about eleven minutes, so an economy stance spends the decisive window
  * paying for growth that never gets to fight. `expand` and `raid` stay in
- * the table because the *model* may still name them — they are honest
- * options on maps and seat counts the bake-off has not swept, and one map
- * at forty seeds is not enough evidence to delete a stance — but nothing
- * in this function chooses them.
+ * the table because they are honest options on maps and seat counts the
+ * bake-off has not swept — but nothing in this function chooses them.
  */
 export function choosePosture(summary: AiWorldSummary): PostureId {
   // Someone is in the yard. The only situation worth breaking stance for:

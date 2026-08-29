@@ -15,6 +15,12 @@ import {
 } from '../../src/sim/economyRules.ts';
 import type {Owner} from '../../src/sim/entities.ts';
 import {
+  ALL_WAR_BEHAVIORS,
+  WAR_BEHAVIOR_KEYS,
+  warBehaviorFromKey,
+  type WarBehaviorId,
+} from '../../src/sim/systems/ai.ts';
+import {
   buildEngine,
   describeSpec,
   parseEngineSpec,
@@ -32,7 +38,7 @@ import {renderReport, type ReportHeader} from './report.ts';
 import {summarize, type LayoutRun, type SeedRun} from './stats.ts';
 
 /**
- * The bake-off: does putting a model in the strategist's seat beat not
+ * The bake-off: does putting an advisor over a seat's playbook beat not
  * putting one there?
  *
  * Per seed it plays up to three matches on one valley, all with the same
@@ -71,11 +77,11 @@ import {summarize, type LayoutRun, type SeedRun} from './stats.ts';
  *                      else means the harness is leaking state between
  *                      matches.
  *   --engine random    the noise floor. Turning knobs at random inside the
- *                      same ranges moves win rates on its own; a model
+ *                      same ranges moves win rates on its own; an advisor
  *                      that cannot clear this line is not reading the
  *                      summary, it is just jostling the playbook.
  *
- * Only then is a real model's number worth reading.
+ * Only then is any arm's number worth reading.
  */
 
 interface Options {
@@ -88,13 +94,16 @@ interface Options {
   maxTicks: number;
   advicePeriod: number;
   adviceStagger: number;
-  latency: number | 'measured';
-  timeoutMs: number | undefined;
+  latency: number;
   control: boolean;
   trace: boolean;
   checkInvariantsEvery: number;
   /** Undefined runs the whole table; a subset ablates. */
   economyRules?: readonly EconomyRuleId[];
+  /** False pins seats to their printed playbooks (--stances off). */
+  stances: boolean;
+  /** Undefined runs the whole set; a subset ablates (--war). */
+  warBehaviors?: readonly WarBehaviorId[];
   out: string | undefined;
   jobs: number;
   /** Wall-clock ceiling per --jobs child before the parent kills it and
@@ -103,13 +112,12 @@ interface Options {
 }
 
 const USAGE = `
-serf-valley LLM strategist bake-off
+serf-valley AI bake-off
 
   node --experimental-strip-types tools/aiLab/bakeoff.ts [options]
 
   --engine <spec>      none | random[:n] | posture[:id] | posture-reads | script:{...}
-                       | http://host:port/v1  (default: random)
-  --model <name>       model name sent to an http engine (default: local-model)
+                       (default: random)
   --seeds <spec>       1-24, or 1,4,9, or a mix (default: 1-24)
   --map <n>            grid side length (default: 96, the shipped default)
   --no-bandits         no bandit faction (default: bandits on)
@@ -123,29 +131,29 @@ serf-valley LLM strategist bake-off
   --max-ticks <n>      give up and call it undecided (default: 120000)
   --advice-period <n>  ticks between one seat's consultations (default: 1800)
   --advice-stagger <n> offset between the seats' cadences (default: 300)
-  --latency <n|measured>
-                       ticks between a consultation starting and its advice
-                       landing. 0 gives the model hindsight the shipped one
-                       does not have; 'measured' uses the engine's own wall
-                       clock, which is realistic but not reproducible.
+  --latency <n>        ticks between a consultation and its advice landing.
+                       0 is an oracle; the recorded baselines all use it.
                        (default: 0)
-  --timeout-ms <n>     per-consultation deadline (default: the strategist's 60000)
   --rules <ids|none>   economy rules the seats run, comma-separated
                        (default: all of them). --rules none turns the layer
                        off; a subset ablates — sweep without one rule and the
                        difference is what that rule was worth.
+  --stances <on|off>   the seats' stance engine (default: on, what ships).
+                       off pins every seat to its printed playbook — the
+                       pre-stance null for paired comparisons.
+  --war <ids|none>     war behaviors the seats run, comma-separated
+                       (default: all of them). --war none turns the layer
+                       off; a subset ablates one verb at a time.
   --no-control         skip the unadvised control match per seed
-  --trace              keep every prompt and reply in the JSONL
+  --trace              keep every advisor reply in the JSONL
   --check <n>          run sim invariants every n ticks, 0 to disable (default: 0)
   --jobs <n|max>       matches to play in parallel, each in its own process
-                       (default: 1). Identical results to --jobs 1 for every
-                       engine except http, where it also means concurrent
-                       requests — size the server's --parallel to match.
+                       (default: 1). Identical results to --jobs 1 for
+                       every engine.
   --match-timeout-ms <n>
                        wall-clock ceiling per --jobs child before it is
                        killed and its trial scored crashed (default:
-                       600000). One wedged match must not hang the sweep;
-                       raise this if an http engine is merely slow.
+                       600000). One wedged match must not hang the sweep.
   --out <path>         write one JSON line per match here
   --help
 
@@ -161,10 +169,6 @@ serf-valley LLM strategist bake-off
 
     # ...and the same rule with the opponent unread: the null for it
     ... bakeoff.ts --engine posture-reads --seeds 1-80
-
-    # real weights, through llama.cpp's own server
-    #   llama-server -m qwen2.5-0.5b-instruct-q4_k_m.gguf -c 2048 --port 8080
-    ... bakeoff.ts --engine http://localhost:8080/v1 --seeds 1-40 --out runs/qwen.jsonl
 
     # one playbook against another, nobody advised
     ... bakeoff.ts --engine none --strategy steward:warlord --seeds 1-80
@@ -242,9 +246,12 @@ export function parseArgs(argv: string[]): Options {
     );
   }
   const latencyRaw = get('--latency') ?? '0';
-  if (latencyRaw !== 'measured' && !Number.isFinite(Number(latencyRaw))) {
+  // Non-negative, validated here: a negative delay would only be clamped
+  // to zero downstream, and a flag that silently means something else is
+  // worse than a refusal.
+  if (!Number.isFinite(Number(latencyRaw)) || Number(latencyRaw) < 0) {
     throw new Error(
-      `--latency wants a number of ticks or "measured", got "${latencyRaw}"`,
+      `--latency wants a non-negative number of ticks, got "${latencyRaw}"`,
     );
   }
   const rulesRaw = get('--rules');
@@ -266,19 +273,29 @@ export function parseArgs(argv: string[]): Options {
             return rule;
           });
 
-  const timeoutRaw = get('--timeout-ms');
-  // Validated like every other number rather than passed through: an unparsed
-  // --timeout-ms reaches LlmStrategist as NaN, where every comparison against
-  // it is false, so the deadline silently never fires.
-  const timeoutMs = timeoutRaw === undefined ? undefined : Number(timeoutRaw);
-  if (
-    timeoutMs !== undefined &&
-    (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
-  ) {
-    throw new Error(
-      `--timeout-ms wants a positive number of milliseconds, got "${timeoutRaw}"`,
-    );
+  const stancesRaw = get('--stances') ?? 'on';
+  if (stancesRaw !== 'on' && stancesRaw !== 'off') {
+    throw new Error(`--stances wants on or off, got "${stancesRaw}"`);
   }
+
+  const warRaw = get('--war');
+  const warBehaviors =
+    warRaw === undefined
+      ? undefined
+      : warRaw === 'none'
+        ? []
+        : warRaw.split(',').map(id => {
+            const trimmed = id.trim();
+            const behavior = warBehaviorFromKey(trimmed);
+            if (behavior === undefined) {
+              throw new Error(
+                `--war does not know "${trimmed}" (have: ${ALL_WAR_BEHAVIORS.map(
+                  b => WAR_BEHAVIOR_KEYS[b],
+                ).join(', ')})`,
+              );
+            }
+            return behavior;
+          });
 
   const matchTimeoutMs = num('--match-timeout-ms', 600_000);
   if (matchTimeoutMs <= 0) {
@@ -288,10 +305,7 @@ export function parseArgs(argv: string[]): Options {
   }
 
   return {
-    spec: parseEngineSpec(
-      get('--engine') ?? 'random',
-      get('--model') ?? 'local-model',
-    ),
+    spec: parseEngineSpec(get('--engine') ?? 'random'),
     seeds: parseSeeds(seedLabel),
     seedLabel,
     mapSize: num('--map', 96),
@@ -300,12 +314,13 @@ export function parseArgs(argv: string[]): Options {
     maxTicks: num('--max-ticks', 120_000),
     advicePeriod: num('--advice-period', 1800),
     adviceStagger: num('--advice-stagger', 300),
-    latency: latencyRaw === 'measured' ? 'measured' : Number(latencyRaw),
-    timeoutMs: timeoutRaw === undefined ? undefined : timeoutMs,
+    latency: Number(latencyRaw),
     control: !argv.includes('--no-control'),
     trace: argv.includes('--trace'),
     checkInvariantsEvery: num('--check', 0),
     ...(economyRules !== undefined ? {economyRules} : {}),
+    stances: stancesRaw === 'on',
+    ...(warBehaviors !== undefined ? {warBehaviors} : {}),
     out: get('--out'),
     jobs,
     matchTimeoutMs,
@@ -367,8 +382,7 @@ async function playHere(
 }
 
 /** Play one trial in a child process — the --jobs N path. The child gets
- * the same salt the serial path would use, so N and 1 agree byte for byte
- * (http engines aside, which sample). */
+ * the same salt the serial path would use, so N and 1 agree byte for byte. */
 function playInWorker(
   t: Trial,
   opts: Options,
@@ -515,8 +529,11 @@ export async function runBakeoff(
     ...(opts.economyRules !== undefined
       ? {economyRules: opts.economyRules}
       : {}),
+    stances: opts.stances,
+    ...(opts.warBehaviors !== undefined
+      ? {warBehaviors: opts.warBehaviors}
+      : {}),
     trace: opts.trace,
-    ...(opts.timeoutMs !== undefined ? {timeoutMs: opts.timeoutMs} : {}),
   };
 
   // Two seatings only when the playbooks differ. Identical ones make the
