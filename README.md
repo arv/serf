@@ -302,8 +302,17 @@ a `<reference>` TypeScript no longer reads is a silent one.
 
 ## Credits
 
-- 3D models: [KayKit Medieval Hexagon Pack](https://kaylousberg.itch.io/kaykit-medieval-hexagon)
-  by Kay Lousberg (CC0) — `public/models/kaykit/`
+The game carries its own credits page — `/docs/credits` in the field guide,
+also linked from the start screen's footer — with logos and links.
+
+- 3D models: [KayKit](https://kaylousberg.itch.io/kaykit-medieval-hexagon)
+  packs by Kay Lousberg (CC0) — Medieval Hexagon foremost, plus the
+  Adventurers characters, Dungeon Remastered, Forest Nature, Restaurant
+  Bits and RPG Tools — `public/models/kaykit/`
 - Audio samples: [Kenney](https://kenney.nl) impact / RPG / interface /
   jingle packs (CC0) — `public/audio/`; every cue also has a synthesized
   fallback, so the samples only ever improve what is already audible
+- Renderer: [three.js](https://threejs.org) (MIT)
+- UI runtime: [SolidJS](https://www.solidjs.com) (MIT)
+- Typeface: [Space Grotesk](https://github.com/floriankarsten/space-grotesk)
+  by Florian Karsten (OFL 1.1) — `public/fonts/`

@@ -41,6 +41,12 @@ export function IndexPage(): JSX.Element {
             Opening stock, hiring, repairs and the raid clock
           </span>
         </DocLink>
+        <DocLink href="/docs/credits" class="tile">
+          <span class="t-name">Credits</span>
+          <span class="t-sub">
+            The models, sounds and code the valley is built on
+          </span>
+        </DocLink>
       </div>
     </>
   );

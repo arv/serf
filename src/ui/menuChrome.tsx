@@ -189,6 +189,8 @@ export const MENU_STYLE = `
 
 #menu .footer { display: flex; align-items: center; justify-content: flex-start;
   padding: 0 20px var(--safe-bottom); font-size: 11px; color: #5f6159; letter-spacing: 0.06em; }
+#menu .footer a { color: #85857c; text-decoration: none; }
+#menu .footer a:hover { color: #cbbd93; text-decoration: underline; }
 
 /* Phones and short windows: same DOM, tighter stack, bigger touch targets. */
 @media (max-width: 560px) {
