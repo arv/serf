@@ -1540,7 +1540,28 @@ export function StartMenu(props: StartMenuProps) {
               ? 'server lobby'
               : online()
                 ? 'local sim'
-                : 'local sim · offline'}
+                : 'local sim · offline'}{' '}
+            ·{' '}
+            {/* A real anchor with the DocLink handshake: middle-click and
+                copy-link work, a plain click stays in the document. */}
+            <a
+              href="/docs/credits"
+              onClick={e => {
+                if (
+                  e.button !== 0 ||
+                  e.metaKey ||
+                  e.ctrlKey ||
+                  e.shiftKey ||
+                  e.altKey
+                )
+                  return;
+                e.preventDefault();
+                releaseMenuBackdrop();
+                goto('/docs/credits');
+              }}
+            >
+              Credits
+            </a>
           </span>
         </div>
       </div>

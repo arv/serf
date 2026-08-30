@@ -6,6 +6,7 @@ import {BasicsPage} from './pages/BasicsPage';
 import {BuildingPage} from './pages/BuildingPage';
 import {BuildingsPage} from './pages/BuildingsPage';
 import {CommandsPage} from './pages/CommandsPage';
+import {CreditsPage} from './pages/CreditsPage';
 import {GoodPage} from './pages/GoodPage';
 import {GoodsPage} from './pages/GoodsPage';
 import {IndexPage} from './pages/IndexPage';
@@ -37,6 +38,7 @@ const NAV: {href: string; label: string; section: DocsRoute['page'][]}[] = [
   {href: '/docs/techs', label: 'Research', section: ['techs']},
   {href: '/docs/commands', label: 'Commands', section: ['commands']},
   {href: '/docs/basics', label: 'Basics', section: ['basics']},
+  {href: '/docs/credits', label: 'Credits', section: ['credits']},
 ];
 
 function pageTitle(route: DocsRoute): string {
@@ -61,6 +63,8 @@ function pageTitle(route: DocsRoute): string {
       return 'Commands';
     case 'basics':
       return 'Basics';
+    case 'credits':
+      return 'Credits';
     case 'missing':
       return 'Not found';
   }
@@ -155,6 +159,9 @@ function DocsApp(props: {route: Accessor<DocsRoute>}): JSX.Element {
             </Match>
             <Match when={props.route().page === 'basics'}>
               <BasicsPage />
+            </Match>
+            <Match when={props.route().page === 'credits'}>
+              <CreditsPage />
             </Match>
             <Match
               when={(() => {

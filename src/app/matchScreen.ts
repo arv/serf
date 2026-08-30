@@ -55,6 +55,7 @@ import {
   setDebugJobs,
   setInvariantViolations,
   setOutcome,
+  setSimTick,
   setPlayersMeta,
   setSelectedBuilding,
   setPopulation,
@@ -560,6 +561,7 @@ export async function runMatch(
     // rest of the match while the sim ran on.
     // Rosters are optional: a frame that carries only map news leaves the
     // HUD's signals (and their subscribers) untouched.
+    setSimTick(msg.tick);
     const mine = msg.players?.[myPlayerId()];
     if (mine) {
       setStock(mine.stock);
