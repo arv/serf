@@ -21,6 +21,7 @@ import {
   selection,
   selectionGroup,
   setTechPanelOpen,
+  simTick,
   stock,
   techs,
 } from './store';
@@ -108,6 +109,25 @@ function reachTip(
     ? 'Loads of wood still standing inside the square its woodcutter searches. Felled tiles regrow, so a hut with room to breathe holds its number rather than running down to nothing.'
     : 'Loads still in the ground inside the square its worker searches — every one of them a trip, and none of them replaced. When it reaches zero the building is done wherever it stands.';
 }
+
+/**
+ * A booked pickup nobody has claimed, held this long: the one state where
+ * a staffed hut on good ground still makes nothing (its shelf fills and
+ * production stops on the full-buffer rule), and the one the card used to
+ * be silent about — it reads identically to a treeless hut from the
+ * outside. Alarmed only after a real wait: the matcher books pickups
+ * seconds before a hand frees up in a village's ordinary churn, and a
+ * card that cried over that would teach the player to ignore it.
+ */
+const HAUL_STARVED_AFTER = 10 * TICKS_PER_SECOND;
+
+const HAUL_STARVED_TIP =
+  'Loads sit here with a pickup booked and no serf free to come — and a ' +
+  'hut downs tools the moment its shelf fills, so an uncollected pile is ' +
+  'a stopped saw. Construction and workshop errands outrank carrying ' +
+  'goods home, so a village short of hands starves its storehouse first. ' +
+  'Hire serfs at the castle, or let the sites and workshops ahead of ' +
+  'this pile finish.';
 
 export function SelectionPanel(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
@@ -205,6 +225,12 @@ export function SelectionPanel(props: {
            so a felled tree cannot nudge the line it sits on. */
         .sel-reach .num { display: inline-block; min-width: 4ch; text-align: right; }
         .sel-reach .spent { color: #d98a6a; }
+        /* Hauler starvation, in the worked-out alarm's color: both are
+           "this hut makes nothing", and the words carry the difference.
+           The seconds keep a slot so a wait crossing 99s cannot rewrap
+           the line. */
+        .sel-starved { color: #d98a6a; font-size: 12px; }
+        .sel-starved .num { display: inline-block; min-width: 3ch; text-align: right; }
 
         .sel-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         #ui .sel-row button { min-height: 0; padding: 3px 10px; }
@@ -1019,6 +1045,45 @@ export function SelectionPanel(props: {
                         </Show>
                       </span>
                     </TipWrap>
+                    {/* The other way a hut makes nothing: a booked pickup
+                        no free hand has come for. Worked-out says the
+                        ground failed the hut; this says the village did.
+                        Deliberately not gated on the shelf being AT its
+                        cap — a starved hut oscillates one load under it
+                        every time a hauler finally snatches one, and an
+                        alarm that blinked off on that beat would read as
+                        five different problems instead of one. The wait
+                        is measured here against the frame clock, because
+                        the roster ships a stable tick on purpose (see
+                        BuildingSnap.outWaitingSince). */}
+                    <Show
+                      when={
+                        b().state === BuildingState.built &&
+                        b().outWaitingSince !== undefined &&
+                        simTick() - b().outWaitingSince! >= HAUL_STARVED_AFTER
+                      }
+                    >
+                      <TipWrap
+                        tip={() => (
+                          <TextTip
+                            title="Nobody is hauling"
+                            body={HAUL_STARVED_TIP}
+                          />
+                        )}
+                      >
+                        <span class="sel-starved">
+                          {' '}
+                          · no hauler for{' '}
+                          <span class="num">
+                            {Math.floor(
+                              (simTick() - b().outWaitingSince!) /
+                                TICKS_PER_SECOND,
+                            )}
+                          </span>
+                          s
+                        </span>
+                      </TipWrap>
+                    </Show>
                   </div>
                 )}
               </Show>
