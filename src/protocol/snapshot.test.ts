@@ -1,4 +1,6 @@
 import {describe, expect, it} from 'vitest';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {findResourceNear} from '../sim/map.ts';
 import {
   addBuiltHut,
@@ -45,5 +47,63 @@ describe('snapBuilding: resourceLeft', () => {
     const world = bareWorld();
     const store = addStorehouse(world, 20, 20, {});
     expect(snapBuilding(world, store).resourceLeft).toBeUndefined();
+  });
+});
+
+/**
+ * The hauler-starvation readout: how long the oldest unclaimed pickup from
+ * this building has sat on the board. It has to mean "a load is here and
+ * nobody has come" — a job with a serf already walking is being answered,
+ * and counting it would alarm the card over ordinary churn.
+ */
+describe('snapBuilding: outWaiting', () => {
+  it('reports the oldest unclaimed pickup, and only from this building', () => {
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30, false);
+    const store = addStorehouse(world, 20, 20, {});
+    world.tick = 500;
+    world.jobs.set(1, {
+      id: 1,
+      good: GoodId.wood,
+      from: hut.id,
+      to: store.id,
+      owner: 0,
+      priority: 3,
+      createdTick: 260,
+      phase: HaulPhase.open,
+    });
+    world.jobs.set(2, {
+      id: 2,
+      good: GoodId.wood,
+      from: hut.id,
+      to: store.id,
+      owner: 0,
+      priority: 3,
+      createdTick: 100, // older, but claimed: a serf is on his way
+      phase: HaulPhase.toPickup,
+      serfId: 99,
+    });
+    expect(snapBuilding(world, hut).outWaiting).toBe(240);
+    // Jobs TO a building are its suppliers' story, not its own.
+    expect(snapBuilding(world, store).outWaiting).toBeUndefined();
+  });
+
+  it('is absent when every booked pickup has a hand walking', () => {
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30, false);
+    const store = addStorehouse(world, 20, 20, {});
+    world.tick = 500;
+    world.jobs.set(1, {
+      id: 1,
+      good: GoodId.wood,
+      from: hut.id,
+      to: store.id,
+      owner: 0,
+      priority: 3,
+      createdTick: 100,
+      phase: HaulPhase.toDropoff,
+      serfId: 99,
+    });
+    expect(snapBuilding(world, hut).outWaiting).toBeUndefined();
   });
 });

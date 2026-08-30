@@ -125,6 +125,14 @@ export interface BuildingSnap {
    * nowhere else.
    */
   resourceLeft?: number;
+  /**
+   * Ticks the oldest unclaimed pickup FROM this building has sat on the
+   * board — a booked haul no free hand has come for. Absent when nothing
+   * is waiting (no pickups booked, or every one has a serf walking). The
+   * card reads it to say a full hut is starved of haulers rather than of
+   * ground; the full jobs feed stays debug-only (JobSnap below).
+   */
+  outWaiting?: number;
 }
 
 /** Debug-overlay row for a haul job. */
