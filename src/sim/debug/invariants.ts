@@ -54,8 +54,8 @@ export function checkInvariants(world: World): InvariantReport {
         !serf.dead &&
         serf.carrying !== job.good
       ) {
-        // A carrier killed mid-haul is not a violation yet: killUnit ledgers
-        // the cargo away immediately, and the job waits (at most
+        // A carrier killed mid-haul is not a violation yet: killUnit drops
+        // the cargo as salvage immediately, and the job waits (at most
         // MATCHER_INTERVAL ticks, well inside the corpse's linger) for the
         // next reconcile pass to abort it. Only a LIVE serf whose hands
         // disagree with the job is broken bookkeeping.

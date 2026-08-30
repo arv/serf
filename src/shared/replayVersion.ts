@@ -34,10 +34,20 @@
  * idle soldiers besiege one), and razing a real building still burns its
  * goods — a sacking is not a sale. This retires version 25's rescue set
  * (tool + a site's hammer), which teleported those two goods home.
- * Any log that sells a building re-runs differently from that tick on:
- * the refund arrives by carrier instead of instantly, the freed ground
- * stays occupied until the pile clears, and every haul near the wreck
- * re-times around the new jobs.
+ *
+ * Death drops ride the same bump: what the fallen held no longer dies
+ * with them. A serf killed mid-haul drops the good on his shoulders, and
+ * a killed resident worker drops the tool he took up at binding (until
+ * now "the raid's second bite of damage") — each as a salvage pile on
+ * the tile where he fell, merged into a neighbouring pile when one
+ * stands, burned (ledgered) only when no clear tile is in reach or the
+ * owner has no economy (bandits). Denying the village its axes now takes
+ * holding the ground they fell on, not one arrow.
+ *
+ * Any log that sells a building or loses a serf re-runs differently from
+ * that tick on: refunds and drops arrive by carrier instead of instantly
+ * or never, ground stays occupied while piles stand on it, and every
+ * haul near a wreck or a battlefield re-times around the new jobs.
  */
 /**
  * 34: two changes, developed apart, that never shipped apart — one bump

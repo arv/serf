@@ -103,10 +103,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // 35 for the sale leaving salvage on the field: the refund and the
 // whole shelf are piled where the building stood (a new building type,
 // id 20) and carted home by serfs instead of teleporting — retiring the
-// two-good rescue set. A logged sale re-runs differently from that tick
-// on (see replayVersion.ts).
+// two-good rescue set. Death drops ride the same bump: a killed serf's
+// cargo and a killed worker's tool fall as salvage where he stood
+// instead of dying with him. A logged sale or serf loss re-runs
+// differently from that tick on (see replayVersion.ts).
 const EXPECTED_VERSION = 35;
-const EXPECTED_HASH = '552b4f33840e7e1f3349bc4bf42ef3f3';
+const EXPECTED_HASH = 'e1a4453eac3563195cd47f2b184a2e07';
 
 /**
  * Everything a replay's playback depends on, as raw source:

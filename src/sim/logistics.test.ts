@@ -152,7 +152,7 @@ describe('cancellation table', () => {
     expectClean(world, initial);
   });
 
-  it('serf dies mid-dropoff: job aborts, carried good ledgered as lost', () => {
+  it('serf dies mid-dropoff: job aborts, carried good drops where he fell', () => {
     const {world, initial} = setupHaul();
     let guard = 0;
     while (
@@ -170,7 +170,13 @@ describe('cancellation table', () => {
     run(world, 10);
 
     expect(world.jobs.get(job.id)).toBeUndefined();
-    expect(world.ledger.consumed[GoodId.wood] ?? 0).toBeGreaterThan(0);
+    // The plank is not ledgered away — it lies in a salvage pile on the
+    // road, waiting for whoever is left to pick it up.
+    expect(world.ledger.consumed[GoodId.wood] ?? 0).toBe(0);
+    const pile = [...world.buildings.values()].find(
+      b => !b.dead && b.type === BuildingTypeId.salvage,
+    );
+    expect(pile?.stock[GoodId.wood]).toBe(1);
     expectClean(world, initial);
   });
 

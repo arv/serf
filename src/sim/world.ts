@@ -10,13 +10,24 @@ import {
 import {Rng} from '../shared/rng.ts';
 import {dealStrategies, type AiStrategyId} from './defs/aiStrategies.ts';
 import {START_SERFS, START_STOCK, firstRaidTickFor} from './defs/balance.ts';
-import {buildingDef, gatherOrigin, gatherRecipeOf} from './defs/buildings.ts';
+import {
+  TOOL_OF,
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+} from './defs/buildings.ts';
 import {type GoodAmounts, goodKeys, goodEntries} from './defs/goods.ts';
 import {loadMissionMap} from './defs/missionMaps.ts';
 import {MISSION_DEFS, type MissionId} from './defs/missions.ts';
 import type {TechId} from './defs/techs.ts';
 import {UNIT_DEFS} from './defs/units.ts';
-import {BANDIT, type Building, type EntityId, type Owner} from './entities.ts';
+import {
+  BANDIT,
+  isPlayerOwner,
+  type Building,
+  type EntityId,
+  type Owner,
+} from './entities.ts';
 import * as GameEventKindNs from './gameEventKindEnum.ts';
 import * as HaulPhaseNs from './haulPhaseEnum.ts';
 import {
@@ -901,18 +912,106 @@ export function canPlace(
 }
 
 /**
- * Kill a unit: marked dead now, removed at end of tick. A carried good dies
- * with it (ledgered); job/link cleanup happens in logistics reconcile.
+ * The order tiles are tried when goods drop where a unit fell: the tile
+ * under them first, then its eight neighbours row-major — fixed, so every
+ * client agrees on which tile the axe landed on.
+ */
+const DROP_SCAN: readonly [number, number][] = [
+  [0, 0],
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+  [-1, 0],
+  [1, 0],
+  [-1, 1],
+  [0, 1],
+  [1, 1],
+];
+
+/**
+ * Leave goods on the ground where someone fell. They merge into a live
+ * salvage pile of the same owner on the tile (or one beside it), else a
+ * fresh 1x1 pile takes the first clear, unblocked tile at or around the
+ * spot. A death so hemmed in that nothing fits — or an owner with no
+ * economy to reclaim anything (bandits) — burns the goods instead,
+ * ledgered, which is the fate everything dropped used to meet.
+ */
+export function dropSalvage(
+  world: World,
+  owner: Owner,
+  x: number,
+  y: number,
+  goods: GoodAmounts,
+): void {
+  let total = 0;
+  for (const [, n] of goodEntries(goods)) total += n;
+  if (total <= 0) return;
+  if (isPlayerOwner(owner)) {
+    for (const [dx, dy] of DROP_SCAN) {
+      const tx = x + dx;
+      const ty = y + dy;
+      if (!inPlayArea(world.map, tx, ty)) continue;
+      const i = tileIdx(tx, ty, world.map.size);
+      const at = world.map.buildingAt[i]!;
+      if (at >= 0) {
+        const pile = world.buildings.get(at);
+        if (
+          pile &&
+          !pile.dead &&
+          pile.type === BuildingTypeId.salvage &&
+          pile.owner === owner
+        ) {
+          for (const [good, n] of goodEntries(goods)) {
+            pile.stock[good] = (pile.stock[good] ?? 0) + n;
+          }
+          return;
+        }
+        continue;
+      }
+      if (world.map.blocked[i]) continue;
+      spawnSalvage(world, owner, tx, ty, 1, 1, goods);
+      return;
+    }
+  }
+  for (const [good, n] of goodEntries(goods)) {
+    world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
+  }
+}
+
+/**
+ * Kill a unit: marked dead now, removed at end of tick. What the fallen
+ * held does not die with them — the good on a serf's shoulders and the
+ * tool a resident worker took up (consumePostTool) drop as salvage where
+ * they fell, for whoever is left to cart home. Job/link cleanup happens in
+ * logistics reconcile.
  */
 export function killUnit(world: World, unit: Unit): void {
   if (unit.dead) return;
   unit.dead = true;
   unit.deathTick = world.tick;
+  const drops: GoodAmounts = {};
   if (unit.carrying !== undefined) {
-    world.ledger.consumed[unit.carrying] =
-      (world.ledger.consumed[unit.carrying] ?? 0) + 1;
+    // Already counted on the carrier's shoulders: a move to the ground,
+    // no ledger entry (dropSalvage ledgers the burn if nothing can drop).
+    drops[unit.carrying] = 1;
     unit.carrying = undefined;
   }
+  // The resident's tool was consumed when he took the post up, and until
+  // now it was buried with him — the raid's second bite of damage. It
+  // falls where he does instead (minted, mirroring unbindWorker's
+  // hand-back), so denying it takes holding the ground, not one arrow.
+  // Built posts only: a site's builder never took the tool up — it waits
+  // in the site's rack for the completion he now won't see.
+  const home =
+    unit.homeId !== undefined ? world.buildings.get(unit.homeId) : undefined;
+  if (home && home.workerId === unit.id && home.state === BuildingState.built) {
+    const tool = TOOL_OF[home.type];
+    if (tool !== undefined) {
+      drops[tool] = (drops[tool] ?? 0) + 1;
+      world.ledger.produced[tool] = (world.ledger.produced[tool] ?? 0) + 1;
+    }
+  }
+  dropSalvage(world, unit.owner, Math.floor(unit.x), Math.floor(unit.y), drops);
 }
 
 /**
