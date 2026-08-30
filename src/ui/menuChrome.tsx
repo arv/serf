@@ -569,13 +569,15 @@ export function spotlight(el: HTMLElement): void {
   el.addEventListener('pointerleave', out);
   // A finger leaves no pointer behind, so nothing else would put it out.
   el.addEventListener('pointercancel', out);
-  el.addEventListener('pointerup', e => {
+  const up = (e: PointerEvent): void => {
     if (e.pointerType !== 'mouse') out();
-  });
+  };
+  el.addEventListener('pointerup', up);
   onCleanup(() => {
     el.removeEventListener('pointermove', move);
     el.removeEventListener('pointerleave', out);
     el.removeEventListener('pointercancel', out);
+    el.removeEventListener('pointerup', up);
   });
 }
 
