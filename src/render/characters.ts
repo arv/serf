@@ -656,13 +656,42 @@ function packToolProp(
   return g;
 }
 
+/**
+ * The pack scythe, re-gripped. Its origin sits just under the blade
+ * collar rather than mid-haft — dropped in raw, the farmer's fist landed
+ * ON the collar and he swung the thing like a sword by the wrong end,
+ * snath trailing as a counterweight. The inner offset slides the grip
+ * down to the haft's middle, and the pitch carries the head forward so
+ * the sweep runs at the stalks instead of level at the hip.
+ */
+function packScytheProp(): THREE.Group {
+  if (!kkAssets?.props.get('weapons/scythe')) return scytheProp();
+  const inner = packToolProp('weapons/scythe', 0.8, scytheProp);
+  // Slide the grip: 0.10 puts the fist on the haft's middle wrapping,
+  // just under halfway up. More reads better still in the swing but the
+  // surplus hangs BELOW the fist everywhere else — at idle the arm
+  // points the head at the ground, and by 0.22 the tool stood buried to
+  // the wrappings with the blade tip surfacing a step away like a shark.
+  inner.position.y = 0.1;
+  // A modest pitch about the fist drops the blade toward the stalks
+  // through the sweep. Tuned against the whole wardrobe, not one clip:
+  // -0.45 cut lower still, and stood the idle scythe out behind the
+  // farmer's back where nothing of it showed at all.
+  const pivot = new THREE.Group();
+  pivot.rotation.z = -0.2;
+  pivot.add(inner);
+  const g = new THREE.Group();
+  g.add(pivot);
+  return g;
+}
+
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
   3: () => packToolProp('tools/hammer', 0.52, malletProp), // WORK.hammer
   2: () => packToolProp('tools/pickaxe', 0.58, pickaxeProp), // WORK.pickaxe
   4: spadeProp, // WORK.dig
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
   7: fishingPoleProp, // WORK.fish
-  8: () => packToolProp('weapons/scythe', 0.8, scytheProp), // WORK.mow
+  8: packScytheProp, // WORK.mow
 };
 
 /** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,
@@ -802,7 +831,7 @@ const PROF_LOOKS = new Map<number, ProfLook>([
     1,
     {
       spec: {file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a},
-      tool: () => packToolProp('weapons/scythe', 0.8, scytheProp),
+      tool: packScytheProp,
       toolWorkKind: 8, // WORK.mow
       strawHat: true,
     },

@@ -95,6 +95,7 @@ function farmer(
   scene.add(made.group);
   if (!made.visual) return;
   setWorkTool(made.visual, WORK.mow);
+  tunePose(made.visual.defaultTool);
   playAnimation(made.visual, clip, 0);
   const action = made.visual.actions.get(clip);
   if (action) action.time = phase * action.getClip().duration;
@@ -115,10 +116,29 @@ function figure(
   scene.add(made.group);
   if (!made.visual) return;
   setWorkTool(made.visual, WORK.mow);
+  tunePose(made.visual.defaultTool);
   playAnimation(made.visual, clip, 0);
   const action = made.visual.actions.get(clip);
   if (action) action.time = phase * action.getClip().duration;
   made.visual.mixer.update(0);
+}
+
+/**
+ * Live knobs for the scythe's grip fix-up (packScytheProp): ?sy= slides
+ * the grip along the haft, ?rx=/?rz= re-pitch about the fist — the same
+ * three numbers the builder hard-codes, overridable per shot so a hold
+ * can be tuned from screenshots without touching src between takes.
+ */
+function tunePose(tool: THREE.Object3D | undefined): void {
+  const pivot = tool?.children[0];
+  const inner = pivot?.children[0];
+  if (!pivot || !inner) return;
+  const sy = params.get('sy');
+  const rx = params.get('rx');
+  const rz = params.get('rz');
+  if (sy !== null) inner.position.y = Number(sy);
+  if (rx !== null) pivot.rotation.x = Number(rx);
+  if (rz !== null) pivot.rotation.z = Number(rz);
 }
 
 const strip = params.get('strip');
