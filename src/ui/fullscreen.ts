@@ -364,11 +364,12 @@ export function armFullscreen(): void {
 }
 
 /**
- * Alt+Enter, the switch every RTS since Warcraft II has put there — and the
- * one shortcut this game can afford to spend on fullscreen. The obvious
- * alternative, F, is a letter, and letters here are already spoken for: F
- * lifts a replay's fog, and a key that means two things in two screens is
- * the kind that quietly stops working. A chord means nothing has to move.
+ * Alt+Enter, the chord this game's neighbours toggle the screen on —
+ * Blizzard's titles and Age of Empires alike — and the one shortcut it can
+ * afford to spend on fullscreen. The obvious alternative, F, is a letter,
+ * and letters here are already spoken for: F lifts a replay's fog, and a
+ * key that means two things in two screens is the kind that quietly stops
+ * working. A chord means nothing has to move.
  *
  * Bound at boot rather than inside a match, because the offer is not the
  * match's: the start menu, the council, the map editor and the field guide

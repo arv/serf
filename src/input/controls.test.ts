@@ -1048,28 +1048,31 @@ describe('playback keys', () => {
     vi.unstubAllGlobals();
   });
 
-  it('holds the village on P, and lets it go again on P', () => {
+  it('holds the village on −, and lets it go again on +', () => {
+    // The pause is the bottom rung, so the pair that walks the ladder is
+    // the pair that pauses — no third key, and none advertised.
     const h = harness();
     controls = h.controls;
 
-    h.type('P');
+    h.key('Minus', '-');
     expect(h.gears).toEqual([0]);
     expect(speed()).toBe(0);
 
-    h.type('P');
+    h.key('Equal', '+');
     expect(h.gears).toEqual([0, 1]);
     expect(speed()).toBe(1);
   });
 
-  it('comes back off the hold at the gear it was watching at', () => {
+  it('leaves P alone, and every other stray letter with it', () => {
+    // P was a pause key here once. Nothing should have taken its place:
+    // a letter that quietly moves the clock is worse than no letter.
     const h = harness();
     controls = h.controls;
 
-    h.key('Equal', '+');
-    h.type('P');
     h.type('P');
 
-    expect(speed()).toBe(3);
+    expect(h.gears).toEqual([]);
+    expect(speed()).toBe(1);
   });
 
   it('steps a gear on + and -, and stops at the ends', () => {
@@ -1118,7 +1121,6 @@ describe('playback keys', () => {
     controls = h.controls;
     setNetMode(true);
 
-    h.type('P');
     h.key('Equal', '+');
     h.key('Minus', '-');
 

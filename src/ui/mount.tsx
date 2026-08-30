@@ -61,9 +61,9 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           actions.deselect();
         }}
         // The one action not spelled out here, click sound and all: the
-        // keyboard drives the same gears (P, + and −), so the three writes
-        // a speed change makes live in ui/speedControl.ts, where the key
-        // handler can reach them too.
+        // keyboard walks the same gears (+ and −), so the writes a speed
+        // change makes live in ui/speedControl.ts, where the key handler
+        // can reach them too.
         onSpeed={speed => applySpeed(host, speed)}
         onPlace={type => {
           play('uiClick');

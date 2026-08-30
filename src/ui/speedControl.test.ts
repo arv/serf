@@ -19,7 +19,6 @@ import {
   nudgeSpeed,
   speedGears,
   stepSpeed,
-  togglePause,
 } from './speedControl';
 import {resetMatchState, setReplayMode, setSpeed, speed} from './store';
 
@@ -41,7 +40,8 @@ describe('the speed ladder', () => {
   });
 
   it('stops at the ends rather than wrapping', () => {
-    // + must never be the key that pauses, and − never the one that bolts.
+    // − is how the village is held, so a + that wrapped round would be the
+    // fast forward key pausing the game.
     expect(stepSpeed(0, -1, false)).toBe(0);
     expect(stepSpeed(3, 1, false)).toBe(3);
   });
@@ -69,35 +69,34 @@ describe('the clock', () => {
     expect(speed()).toBe(3);
   });
 
-  it('comes back off a pause at the gear it was watching at', () => {
+  it('holds the village on one press of −, and lets it go on +', () => {
+    // The whole pause story: the bottom rung is the hold, so the pair that
+    // walks the ladder is the pair that pauses — there is no third key.
     const host = fakeHost();
-    applySpeed(host, 3);
-    togglePause(host);
+    nudgeSpeed(host, -1);
     expect(speed()).toBe(0);
-    togglePause(host);
-    expect(speed()).toBe(3);
+    nudgeSpeed(host, 1);
+    expect(speed()).toBe(1);
   });
 
-  it('remembers a gear the buttons set, not just one a key set', () => {
+  it('climbs out of a hold the HUD took, not just one a key took', () => {
     // The HUD's own speed clicks land here too (ui/mount.tsx), which is
-    // the whole reason the memory lives in this module.
+    // why the keys read the clock rather than a memory of their own.
     const host = fakeHost();
-    applySpeed(host, 3);
     applySpeed(host, 0);
-    togglePause(host);
-    expect(speed()).toBe(3);
+    nudgeSpeed(host, 1);
+    expect(speed()).toBe(1);
   });
 
-  it('resumes at walking pace when the remembered gear is gone', () => {
+  it('walks a replay all the way down from its extra rung', () => {
     const host = fakeHost();
     setReplayMode(true);
     applySpeed(host, REPLAY_GEAR);
-    togglePause(host);
-    // The replay ends and a skirmish takes the same signals: 8× is not a
-    // gear this ladder holds any more.
-    setReplayMode(false);
-    togglePause(host);
-    expect(speed()).toBe(1);
+    nudgeSpeed(host, -1);
+    expect(speed()).toBe(3);
+    nudgeSpeed(host, -1);
+    nudgeSpeed(host, -1);
+    expect(speed()).toBe(0);
   });
 
   it('nudges from wherever the clock actually is', () => {

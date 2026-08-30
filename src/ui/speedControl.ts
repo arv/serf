@@ -1,22 +1,16 @@
 import {play} from '../audio/audio';
-import {
-  replayMode,
-  resumeSpeed,
-  setResumeSpeed,
-  setSpeed,
-  speed,
-} from './store';
+import {replayMode, setSpeed, speed} from './store';
 
 /**
  * The clock, and the one road to it.
  *
  * The speed cluster used to be the HUD's alone: three buttons, and
  * `mount.tsx` wiring each click to the worker and the store. The keyboard
- * wants the same gears (P, + and −), and a second copy of "tell the worker,
- * then tell the store, and remember what to come back to" is a copy that
- * drifts — the pause key would resume at a gear the buttons had moved off.
- * So the gears and the three writes live here, and every road goes through
- * them: the HUD's buttons, the mission briefing's Begin, the keys.
+ * wants the same gears, and a second copy of "tell the worker, then tell
+ * the store" is a copy that drifts — a key and a button disagreeing about
+ * what the fastest gear is, in the one screen (a replay) where the answer
+ * differs. So the gears and both writes live here, and every road goes
+ * through them: the HUD's buttons, the mission briefing's Begin, the keys.
  *
  * Numbers only, deliberately. The input layer imports this, and what a gear
  * looks like (its icon, its label) is the HUD's business — `Hud.tsx` hangs
@@ -44,7 +38,8 @@ export function speedGears(replay = replayMode()): readonly number[] {
 
 /**
  * The gear one rung up (`dir` 1) or down (−1), stopping at the ends rather
- * than wrapping: + is "faster" and must never be the key that pauses.
+ * than wrapping: − is how the village is held, and a + that wrapped round
+ * to the hold would be the fast forward key pausing the game.
  *
  * A gear the ladder does not hold steps from where it would sit — a replay
  * paused at 8× whose window then becomes a skirmish is the case, and
@@ -63,30 +58,24 @@ export function stepSpeed(
 }
 
 /**
- * Change the clock: the worker's timer, the HUD's signal, and the gear a
- * pause remembers. The click is here rather than on the callers for the
- * same reason the rest is — a new way to change speed cannot forget it.
+ * Change the clock: the worker's timer and the HUD's signal. The click is
+ * here rather than on the callers for the same reason the rest is — a new
+ * way to change speed cannot forget it.
  */
 export function applySpeed(host: SpeedHost, value: number): void {
   play('uiClick');
-  if (value !== 0) setResumeSpeed(value);
   host.setSpeed(value);
   setSpeed(value);
 }
 
-/** Hold, or let go again at the gear the hold interrupted. */
-export function togglePause(host: SpeedHost): void {
-  applySpeed(host, speed() === 0 ? resumeGear() : 0);
-}
-
-/** One rung faster, or slower. */
+/**
+ * One rung faster, or slower — the whole of what the keyboard does to the
+ * clock. There is no separate pause key: the bottom rung *is* the pause, so
+ * − holds the village and + lets it go again, and one pair of keys carries
+ * the strip end to end. A dedicated toggle would have been a second road to
+ * the rung − already reaches in a press, and a second road that then has to
+ * remember which gear it interrupted.
+ */
 export function nudgeSpeed(host: SpeedHost, dir: 1 | -1): void {
   applySpeed(host, stepSpeed(speed(), dir));
-}
-
-/** What a resume lands on, clamped to the ladder actually in force: the
- * remembered gear may be a replay's 8× and this may no longer be one. */
-function resumeGear(): number {
-  const want = resumeSpeed();
-  return speedGears().includes(want) ? want : 1;
 }

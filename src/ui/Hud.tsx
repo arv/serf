@@ -110,10 +110,9 @@ type GoodId = Enum<typeof GoodId>;
  * ladder the P/+/− keys could walk off the end of. */
 const [PAUSED, NORMAL, FAST] = SPEED_GEARS;
 
-/** What the keyboard offers for a gear, appended to its tooltip where
- * there is a keyboard to offer it to. P is the hold; + and − are the
- * ladder, so they belong to every rung above the hold. */
-const PAUSE_KEYS = '(P)';
+/** What the keyboard offers, appended to every gear's tooltip where there
+ * is a keyboard to offer it to. One pair walks the whole strip, the pause
+ * at the bottom of it included, so every rung wears the same hint. */
 const GEAR_KEYS = '(+ / −)';
 
 const SPEEDS = [
@@ -122,21 +121,18 @@ const SPEEDS = [
     icon: PauseIcon,
     label: 'Pause',
     hint: 'Orders you give still queue up.',
-    keys: PAUSE_KEYS,
   },
   {
     value: NORMAL,
     icon: PlayIcon,
     label: 'Normal speed',
     hint: undefined as string | undefined,
-    keys: GEAR_KEYS,
   },
   {
     value: FAST,
     icon: FastIcon,
     label: 'Fast forward',
     hint: 'Runs the village at 3× speed.',
-    keys: GEAR_KEYS,
   },
 ];
 
@@ -147,15 +143,14 @@ const REPLAY_SPEED = {
   icon: FastestIcon,
   label: 'Full gallop',
   hint: 'Replay only — runs the recording at 8× speed.',
-  keys: GEAR_KEYS,
 };
 
-/** A gear's tooltip body: what it does, then the key that does it. The
+/** A gear's tooltip body: what it does, then the keys that get to it. The
  * keys are dropped whole on a device with no keyboard, the way every other
- * hint in the HUD is — and 'Normal speed' has no prose at all, so the hint
+ * hint in the HUD is — and 'Normal speed' has no prose at all, so the body
  * may be nothing but the keys. */
-function gearBody(s: {hint?: string; keys: string}): string | undefined {
-  const parts = [s.hint, hasKeyboard() ? s.keys : undefined].filter(Boolean);
+function gearBody(hint?: string): string | undefined {
+  const parts = [hint, hasKeyboard() ? GEAR_KEYS : undefined].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : undefined;
 }
 
@@ -1779,7 +1774,7 @@ export function Hud(props: {
                           class="icon"
                           classList={{active: speed() === s.value}}
                           {...tooltip(() => (
-                            <TextTip title={s.label} body={gearBody(s)} />
+                            <TextTip title={s.label} body={gearBody(s.hint)} />
                           ))}
                           onClick={() => props.onSpeed(s.value)}
                         >
@@ -1803,7 +1798,7 @@ export function Hud(props: {
                         }
                         body={
                           'Taps cycle play, fast forward, pause.' +
-                          (hasKeyboard() ? ' (P, + / −)' : '')
+                          (hasKeyboard() ? ' ' + GEAR_KEYS : '')
                         }
                       />
                     ))}

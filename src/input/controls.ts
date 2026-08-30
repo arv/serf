@@ -31,7 +31,7 @@ import {
 import {fullscreen, guardEsc} from '../ui/fullscreen';
 import {techName, unitName} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
-import {nudgeSpeed, togglePause} from '../ui/speedControl';
+import {nudgeSpeed} from '../ui/speedControl';
 import {
   bandArm,
   buildChord,
@@ -502,7 +502,7 @@ export class Controls {
     // Playback: the same gears the HUD's speed cluster holds. A networked
     // match runs on one shared clock, so there is nothing here to press —
     // which is why the HUD hides those buttons there too.
-    if (!netMode() && this.#playbackKey(e, letter)) return;
+    if (!netMode() && this.#playbackKey(e)) return;
 
     if (letter === RESEARCH_KEY) {
       // Not contextual: the tree is a sheet to read, not an order to give.
@@ -563,31 +563,28 @@ export class Controls {
   };
 
   /**
-   * The clock's keys — P to hold and let go again, + and − a gear at a
-   * time — or false for a key that meant something else.
+   * The clock's keys — + and − a gear at a time — or false for a key that
+   * meant something else.
    *
-   * P is a toggle rather than a pair, because that is the reflex every
-   * pause key in every medium has taught: one key down, one key back up,
-   * and the gear you were watching at is the gear you return to
-   * (ui/speedControl.ts remembers it). + and − are the ladder itself, so
-   * fast forward and the way back off it are the same two keys in a replay
-   * — where the ladder is a rung taller — as in a skirmish.
+   * One pair, and no pause key beside it: the bottom rung of the ladder is
+   * the pause, so − from walking pace holds the village in a single press
+   * and + lets it go again. A P would have been a second road to a rung
+   * that already takes one keystroke to reach, and one that then has to
+   * remember which gear it interrupted.
    *
-   * Not letters, the two of them, and that is the point: every letter this
-   * game binds is one the HUD prints inside a word, and "Fast forward" has
-   * no free letter left to bold (F lifts a replay's fog). The +/− pair is
-   * what the strategy games that ran out of letters landed on too, and it
-   * reads off the keycap without a legend.
+   * Not letters, and that is the point: every letter this game binds is one
+   * the HUD prints inside a word, and "Fast forward" has no free letter
+   * left to bold (F lifts a replay's fog). The +/− pair is what the grand
+   * strategy games bind their clock to — Paradox's, where Stellaris takes
+   * this same spread of spellings — and it reads off the keycap without a
+   * legend. It is not the RTS convention: StarCraft has no speed key at
+   * all, and its pause, where it has one, is the Pause key itself.
    *
    * Both spellings of each, for the reason keyLetter gives. `+` needs
    * Shift on most layouts and none on some, so the unshifted `=` is taken
    * as the same key — the way a browser's own zoom does.
    */
-  #playbackKey(e: KeyboardEvent, letter: string): boolean {
-    if (letter === 'P') {
-      togglePause(this.#host);
-      return true;
-    }
+  #playbackKey(e: KeyboardEvent): boolean {
     if (e.key === '+' || e.key === '=' || e.code === 'Equal') {
       nudgeSpeed(this.#host, 1);
       return true;
