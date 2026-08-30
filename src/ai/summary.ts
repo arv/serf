@@ -178,6 +178,12 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
   let nearestCamp = -1;
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
+    // A salvage pile is goods lying on the ground, not a roof: it neither
+    // counts toward this seat's own village nor reads as a rival's
+    // development — classifyRival weighs `buildings` against its village
+    // threshold, and a battlefield littered with dropped axes must not
+    // make the loser look like a boomer.
+    if (b.type === BuildingTypeId.salvage) continue;
     if (b.owner === playerId) {
       const key = BUILDING_KEYS[b.type];
       buildings[key] = (buildings[key] ?? 0) + 1;

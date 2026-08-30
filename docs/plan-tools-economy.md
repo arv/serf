@@ -28,6 +28,16 @@
 > forge sits with the weapons it makes and the ore it eats. The reasoning
 > lives in `src/ui/buildMenu.ts`; the tab names in §3 (Industry, Village)
 > no longer exist.
+>
+> Later still (2026-08-30, v0.9.0), and noted here because the decisions
+> table and the staffing section below still say otherwise: **tool
+> recovery changed when salvage landed.** "Lost when the worker dies" is
+> no longer true — a killed worker drops his tool where he falls, as a
+> salvage pile the village must hold the ground to recover (`killUnit` in
+> `src/sim/world.ts`), and a sold building leaves its whole shelf plus
+> half its materials as salvage on the field instead of teleporting
+> anything home. Only a building razed in combat still burns what its
+> racks and shelf hold — a sacking is not a sale.
 
 ## Context
 

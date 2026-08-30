@@ -84,6 +84,9 @@ function pickTarget(world: World, rng: Rng): Building | undefined {
   const storehouses: Building[] = [];
   for (const b of world.buildings.values()) {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
+    // Not the salvage piles: a raid sent against ankle-high goods would
+    // wander the village burning planks instead of pressuring anybody.
+    if (b.type === BuildingTypeId.salvage) continue;
     targets.push(b);
     if (b.type === BuildingTypeId.storehouse) storehouses.push(b);
   }

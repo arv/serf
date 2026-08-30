@@ -2401,6 +2401,9 @@ export class AiBrain {
       for (const b of world.buildings.values()) {
         if (b.dead || b.owner === this.playerId || !isPlayerOwner(b.owner))
           continue;
+        // Goods on the ground, not development — see the same exclusion
+        // in summary.ts's building counts.
+        if (b.type === BuildingTypeId.salvage) continue;
         if (!this.#vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
         counts.set(b.owner, (counts.get(b.owner) ?? 0) + 1);
       }

@@ -117,7 +117,8 @@ describe('the population economy', () => {
   it('a dead worker is replaced from the serf pool', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
-    // The replacement's scythe: the first worker's died with him.
+    // The replacement's scythe: the first worker's fell where he died
+    // (a salvage pile out in the field), so the rack holds a fresh one.
     farm.inputs[GoodId.scythe] = 1;
     const worker = staffBuilding(world, farm);
     const spare = addSerf(world, 35, 35);

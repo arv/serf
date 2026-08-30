@@ -187,9 +187,13 @@ interface BuildingVisual {
   /**
    * A road: flat ground once it is laid, and a thing units walk along
    * rather than a thing anyone clicks. Its scaffolding is not worth a pick
-   * box — see heightOf.
+   * box — see heightOf. Salvage piles carry the flag too, for the same
+   * ground-level treatment.
    */
   road: boolean;
+  /** A salvage pile: no model, only piles — and no collapse when it
+   * clears, because the goods left one by one on serfs' shoulders. */
+  salvage: boolean;
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
   /** Physical stock piles against the front wall. */
@@ -554,6 +558,14 @@ export class BuildingSync {
   #beginTeardown(id: number): void {
     const v = this.#visuals.get(id);
     if (!v) return;
+    // A spent salvage pile just stops being there: the goods left one by
+    // one on serfs' shoulders (#syncPiles already emptied it), so a
+    // collapse cue and a dust cloud would announce a demolition where
+    // nothing stood.
+    if (v.salvage) {
+      this.#dispose(id);
+      return;
+    }
     this.#visuals.delete(id);
     // The rumble belongs to the dust cloud below — and only where the
     // cloud is drawn (fog guard — see onCue).
@@ -645,6 +657,13 @@ export class BuildingSync {
         model.scale.setScalar(GHOST_SEED_SCALE);
         root.add(model);
       }
+    } else if (b.type === BuildingTypeId.salvage) {
+      // Salvage is nothing but its piles (#syncPiles): the walls already
+      // came down with the building it was, so there is no model — and no
+      // road-pile marker either, which would read as a structure standing
+      // where only goods lie.
+      model = new THREE.Group();
+      root.add(model);
     } else {
       // Roads are the one type without a GLB — their 'built' form is the
       // terrain itself, so the pile marker covers the site moment only.
@@ -669,13 +688,20 @@ export class BuildingSync {
 
     const topY = clip
       ? clip.height
-      : new THREE.Box3().setFromObject(model).max.y;
+      : b.type === BuildingTypeId.salvage
+        ? // An empty group's bbox has no max to read — and the pile is
+          // ankle-high anyway.
+          0
+        : new THREE.Box3().setFromObject(model).max.y;
     // Where this building's roof will reach when it is finished, which is
     // what the pick walk wants as its ceiling: a site's finished height
     // (topY is already that for a clipped one, and the seed scale away from
     // it for a ghost), never less than the frame it stands in while it gets
     // there, and all of it over the ground this one stands on.
-    const road = buildingDef(b.type).isRoad === true;
+    // Salvage shares the road's ground-level treatment — no pick box, no
+    // claim on the camera ceiling; the tile pick still selects it.
+    const road =
+      buildingDef(b.type).isRoad === true || b.type === BuildingTypeId.salvage;
     const finished =
       b.state === BuildingState.site
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
@@ -714,6 +740,7 @@ export class BuildingSync {
       owner: b.owner,
       volleyRange: 0,
       levied: false,
+      salvage: b.type === BuildingTypeId.salvage,
     };
   }
 
@@ -1375,8 +1402,13 @@ export class BuildingSync {
 
     const piles = new THREE.Group();
     // Just outside the front wall, Settlers-style — goods wait at the door
-    // (they're ankle-high; carriers step over them).
-    piles.position.set(0, 0, b.h / 2 + 0.3);
+    // (they're ankle-high; carriers step over them). A salvage pile has no
+    // wall to wait outside: its goods lie where the building stood.
+    piles.position.set(
+      0,
+      0,
+      b.type === BuildingTypeId.salvage ? 0 : b.h / 2 + 0.3,
+    );
     for (const [good, n] of shown) {
       const lane = lanes.get(good)!;
       // The lattice grows with the props (PILE_SCALE), or the fatter

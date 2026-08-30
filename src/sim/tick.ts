@@ -11,9 +11,10 @@ import {
   HIRE_QUEUE_CAP,
   HIRE_SERF_COST,
 } from './defs/balance.ts';
-import {AUTO_RECIPE, TOOL_OF, buildingDef} from './defs/buildings.ts';
+import {AUTO_RECIPE, buildingDef} from './defs/buildings.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
-import {GOODS, goodEntries} from './defs/goods.ts';
+import {GOODS, goodEntries, type GoodAmounts} from './defs/goods.ts';
 import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
 import {
@@ -61,6 +62,7 @@ import {
   destroyBuilding,
   killUnit,
   placeSite,
+  spawnSalvage,
   spawnUnit,
   type World,
 } from './world.ts';
@@ -112,6 +114,7 @@ export function tickWorld(
   researchSystem(world);
   productionSystem(world, rng);
   logisticsSystem(world);
+  clearSpentSalvage(world);
   constructionSystem(world);
   staffingSystem(world);
   trainingSystem(world);
@@ -126,6 +129,22 @@ export function tickWorld(
 
   world.rngState = rng.state;
   world.tick++;
+}
+
+/**
+ * A salvage pile whose last good has been carried off gives its ground
+ * back. Right after logistics (the system that empties piles), so a pile
+ * frees its footprint the tick after its final pickup — an empty pile with
+ * jobs still walking toward it cannot exist, because a pickup reservation
+ * requires stock. destroyBuilding on an empty building ledgers nothing.
+ */
+function clearSpentSalvage(world: World): void {
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.type !== BuildingTypeId.salvage) continue;
+    let total = 0;
+    for (const [, n] of goodEntries(b.stock)) total += n;
+    if (total === 0) destroyBuilding(world, b);
+  }
 }
 
 /**
@@ -350,8 +369,9 @@ export function applyCommand(
       break;
     }
     case CommandKind.sellBuilding: {
-      // Tear a building down for half its cost back, floored per good.
-      // Sites refund half of what was actually delivered. The resident
+      // Tear a building down for half its materials back — as SALVAGE on
+      // the ground, never as a deposit that teleports to the stores.
+      // Sites yield half of what was actually delivered. The resident
       // walks out a serf again before the wrecking starts — demolition is
       // an economic decision, not an execution. The storehouse is not
       // sellable: it is the elimination token, and cashing it in would be
@@ -368,41 +388,37 @@ export function applyCommand(
       // rule the resident gets, and for the same reason: tearing a tower
       // down is an economic decision, not an execution.
       evictGarrison(world, b, b.garrison ?? 0);
-      const sh = findStorehouse(world, playerId);
-      if (sh) {
-        for (const [good, n] of goodEntries(def.cost)) {
-          const delivered =
-            b.state === BuildingState.site ? n - (b.siteNeeds?.[good] ?? 0) : n;
-          const refund = Math.floor(delivered / 2);
-          if (refund <= 0) continue;
-          sh.stock[good] = (sh.stock[good] ?? 0) + refund;
-          // Ledgered as production so the conservation invariant stays
-          // honest — the same bookkeeping grantGoods uses.
-          world.ledger.produced[good] =
-            (world.ledger.produced[good] ?? 0) + refund;
-        }
-        // The kit walks away from the wreck: the post's own tool (left on
-        // the shelf by the unbind above, or still waiting in the rack of a
-        // post that never staffed) and the hammer a half-built site had
-        // borrowed — so the hammer only rides along for a SITE, where it
-        // is a loan and nothing else. Unconditional, it also walked a
-        // built Smith's forged hammers out of the sale while the axes and
-        // cauldrons on the same shelf were lost, and the rule two lines up
-        // is the rule: a sold Smith loses its forged stock the way a sold
-        // bakery loses its bread. A move, not a mint, so no ledger entry.
-        const rescue = new Set<GoodId>();
-        if (b.state === BuildingState.site) rescue.add(GoodId.hammer);
-        const postTool = TOOL_OF[b.type];
-        if (postTool) rescue.add(postTool);
-        for (const good of rescue) {
-          const n = (b.stock[good] ?? 0) + (b.inputs[good] ?? 0);
+      // What the wreck leaves on the field: half the construction cost
+      // (floored per good — this is the sale's yield, minted here and
+      // ledgered as production so the conservation invariant stays
+      // honest), plus everything the place held — piled output, unspent
+      // recipe inputs, the post's tool, a site's borrowed hammer. The
+      // held goods are a move, not a mint: zeroed on the building before
+      // destroyBuilding, which would otherwise ledger them as consumed.
+      const left: GoodAmounts = {};
+      for (const [good, n] of goodEntries(def.cost)) {
+        const delivered =
+          b.state === BuildingState.site ? n - (b.siteNeeds?.[good] ?? 0) : n;
+        const yielded = Math.floor(delivered / 2);
+        if (yielded <= 0) continue;
+        left[good] = (left[good] ?? 0) + yielded;
+        world.ledger.produced[good] =
+          (world.ledger.produced[good] ?? 0) + yielded;
+      }
+      for (const goods of [b.stock, b.inputs]) {
+        for (const [good, n] of goodEntries(goods)) {
           if (n <= 0) continue;
-          sh.stock[good] = (sh.stock[good] ?? 0) + n;
-          b.stock[good] = 0;
-          b.inputs[good] = 0;
+          left[good] = (left[good] ?? 0) + n;
+          goods[good] = 0;
         }
       }
       destroyBuilding(world, b);
+      // The pile stands where the building stood, on its exact footprint,
+      // and serfs cart it home through the ordinary evacuation hauls (or
+      // straight into a nearby site — a salvage pile is a supply like any
+      // other). Nothing teleports; razing in combat keeps burning the
+      // lot, because a sacking is not a sale.
+      spawnSalvage(world, playerId, b.x, b.y, b.w, b.h, left);
       break;
     }
     case CommandKind.hireSerf: {
