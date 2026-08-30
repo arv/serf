@@ -337,12 +337,15 @@ describe("the mill's sails", () => {
 });
 
 describe("the bakery's smoke", () => {
-  const bakery = (working?: true): BuildingSnap =>
-    snap({type: BuildingTypeId.bakery, working});
+  const bakery = (over: Partial<BuildingSnap> = {}): BuildingSnap =>
+    snap({type: BuildingTypeId.bakery, ...over});
+  /** Mid-batch with the baker at the oven — the state that smokes. */
+  const baking = (): BuildingSnap =>
+    bakery({working: true, staffing: StaffingState.staffed});
 
   it('rises over the flue while a batch bakes', () => {
     const {sync, scene} = makeSync();
-    sync.update([bakery(true)]);
+    sync.update([baking()]);
     // The column is built on first need, not with the visual.
     expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
     for (let i = 0; i < 30; i++) sync.frame(0.1);
@@ -366,25 +369,46 @@ describe("the bakery's smoke", () => {
 
   it('lingers past the batch, then goes out and rewinds for the next', () => {
     const {sync, scene} = makeSync();
-    sync.update([bakery(true)]);
+    sync.update([baking()]);
     for (let i = 0; i < 30; i++) sync.frame(0.1);
     const smoke = scene.getObjectByName('chimneySmoke')!;
 
     // Batch over: the oven banks rather than going out — the column is
     // still standing shortly after, only thinner...
-    sync.update([bakery()]);
+    sync.update([bakery({staffing: StaffingState.staffed})]);
     sync.frame(0.1);
     expect(smoke.visible).toBe(true);
     // ...but a cold oven ends up with no smoke at all, and the births
     // rewound so the next batch climbs out of the flue again.
     for (let i = 0; i < 100; i++) sync.frame(0.1);
     expect(smoke.visible).toBe(false);
-    sync.update([bakery(true)]);
+    sync.update([baking()]);
     sync.frame(0.1);
     expect(smoke.visible).toBe(true);
     expect(smoke.children.filter(p => p.visible).length).toBeLessThan(
       smoke.children.length,
     );
+  });
+
+  it('holds no smoke over a frozen batch nobody is tending', () => {
+    // A convert whose worker dies mid-batch freezes rather than finishing
+    // (production.ts skips unstaffed posts), but prodTicksLeft stays set,
+    // so the snapshot still reports working. The smoke reads staffing too
+    // — an abandoned oven must not keep puffing over a frozen batch.
+    const {sync, scene} = makeSync();
+    sync.update([bakery({working: true})]); // mid-batch, nobody at the post
+    for (let i = 0; i < 20; i++) sync.frame(0.1);
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
+
+    // The replacement arrives and the batch resumes: the fire relights...
+    sync.update([baking()]);
+    for (let i = 0; i < 20; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    expect(smoke.visible).toBe(true);
+    // ...and banks out again when the baker walks off mid-batch.
+    sync.update([bakery({working: true})]);
+    for (let i = 0; i < 100; i++) sync.frame(0.1);
+    expect(smoke.visible).toBe(false);
   });
 
   it('never smokes over a bakery that has not baked', () => {
@@ -396,7 +420,13 @@ describe("the bakery's smoke", () => {
 
   it("rises off the Smith's forge chimney too, on the same cue", () => {
     const {sync, scene} = makeSync();
-    sync.update([snap({type: BuildingTypeId.weaponsmith, working: true})]);
+    sync.update([
+      snap({
+        type: BuildingTypeId.weaponsmith,
+        working: true,
+        staffing: StaffingState.staffed,
+      }),
+    ]);
     for (let i = 0; i < 30; i++) sync.frame(0.1);
     const smoke = scene.getObjectByName('chimneySmoke')!;
     expect(smoke.visible).toBe(true);

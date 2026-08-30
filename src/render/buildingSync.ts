@@ -994,16 +994,22 @@ export class BuildingSync {
    * flue while a batch is on the fire — the bakery's oven and the Smith's
    * forge, via the 'smokeFlue' mark each model carries.
    *
-   * The cue is the batch itself (BuildingSnap.working), same as the mill's
-   * sails — the worker inside was consumed by staffing, so there is no
-   * unit to watch. The thickness eases rather than snapping: up briskly
-   * when the batch lights, down at a third of that when it ends, because
-   * an oven banks rather than going out — and the lingering trickle
-   * bridges the one-tick gap between back-to-back batches, which would
-   * otherwise read as the fire dying between every two loaves.
+   * The cue is the batch (BuildingSnap.working) AND someone at the post.
+   * Working alone — the mill's cue — is not enough here: a convert whose
+   * worker dies mid-batch freezes rather than finishing (production.ts
+   * skips unstaffed posts), but prodTicksLeft stays set, so the snapshot
+   * still says working. Staffing gates the smoke the way it gates the
+   * fishery's shoal; the mill keeps its working-only cue because the wind
+   * is its worker and its batches never freeze this way. The thickness
+   * eases rather than snapping: up briskly when the batch lights, down at
+   * a third of that when it ends, because an oven banks rather than going
+   * out — and the lingering trickle bridges the one-tick gap between
+   * back-to-back batches, which would otherwise read as the fire dying
+   * between every two loaves.
    */
   #smokeFrame(v: BuildingVisual, dt: number): void {
-    const target = v.working && v.state === BuildingState.built ? 1 : 0;
+    const target =
+      v.working && v.staffed && v.state === BuildingState.built ? 1 : 0;
     v.smokeLevel +=
       (target - v.smokeLevel) *
       Math.min(1, dt * (target > v.smokeLevel ? 1.6 : 0.55));
