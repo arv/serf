@@ -177,13 +177,15 @@ const DECOR_PROP_FILES = [
   'extra/boatrack',
   'extra/building_docks_green',
   'fish/fish',
-  // RPG Tools Bits (CC0): the tool goods, carried and piled. The scythe
-  // has no model in the pack and stays procedural (models.ts carryProto).
+  // RPG Tools Bits (CC0): the tool goods, carried and piled.
   'tools/axe',
   'tools/pickaxe',
   'tools/hammer',
   'tools/bucket_metal',
   'tools/fishing_rod',
+  // Fantasy Weapons Bits (CC0): the one tool RPG Tools does not ship —
+  // the scythe good, carried and piled like its five siblings above.
+  'weapons/scythe',
 ];
 
 /**

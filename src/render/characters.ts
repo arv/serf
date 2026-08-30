@@ -57,6 +57,13 @@ const KK_PROP_FILES = [
   // and the procedural builds stay as the not-yet-loaded fallback.
   'tools/hammer',
   'tools/pickaxe',
+  // Fantasy Weapons Bits (CC0), vendored at last: the real scythe for the
+  // farmer and the plain spear the spearProp comment spent a release
+  // waiting for. Both authored like every pack prop — grip at the origin,
+  // up +Y — so they ride the same anchors; the procedural builds stay as
+  // their not-yet-loaded fallbacks.
+  'weapons/scythe',
+  'weapons/spear_A',
 ];
 
 const KK_CLIP_NAMES: Record<AnimKey, string> = {
@@ -96,9 +103,10 @@ interface KKSpec {
   right?: string;
   /** Euler fix-up for right-hand props that load facing the wrong way. */
   rightRot?: [number, number, number];
-  /** Right-hand weapon we build ourselves, for what the packs don't ship
-   * (spearProp). Authored in the pack props' frame, so it drops into the
-   * handslot at identity exactly like `right`. */
+  /** Right-hand weapon from a builder function rather than a prop file —
+   * for anything needing a fallback or fix-up beyond what `right` offers
+   * (spearHand). Its result is authored in the pack props' frame, so it
+   * drops into the handslot at identity exactly like `right`. */
   rightBuilt?: () => THREE.Group;
   /** The right-hand prop is a work tool, not a standing weapon: hidden
    * except while performing this WORK.* kind. */
@@ -142,9 +150,9 @@ const KK_SPECS = new Map<number, KKSpec>([
     {
       file: 'Knight',
       hide: ['Knight_Cape', 'Knight_HelmetVisor'],
-      // A spear, built here: the pack's wizard staff stood in for one and
-      // the crystal on its head gave the game away (see spearProp).
-      rightBuilt: spearProp,
+      // The pack spear, at handslot identity (see spearHand; the wizard
+      // staff stood in for one once, and the hand-built spear after it).
+      rightBuilt: spearHand,
       jog: true,
       attackClip: 'Melee_1H_Attack_Stab',
     },
@@ -527,12 +535,13 @@ function spadeProp(): THREE.Group {
 }
 
 function scytheProp(): THREE.Group {
-  // Same frame as every tool: grip at the origin, snath up +Y, business
-  // end at the top. The blade is a flattened arc hooked out sideways from
-  // the snath's head, so the two-handed slice carries it flat through the
-  // stalks — a blade authored hanging down (the way a real scythe mows)
-  // pointed at the sky through the whole swing, because the handslot
-  // leads with the prop's +Y.
+  // The pre-load fallback for the Fantasy Weapons Bits scythe (see
+  // WORK_TOOLS), in the same frame as every tool: grip at the origin,
+  // snath up +Y, business end at the top. The blade is a flattened arc
+  // hooked out sideways from the snath's head, so the two-handed slice
+  // carries it flat through the stalks — a blade authored hanging down
+  // (the way a real scythe mows) pointed at the sky through the whole
+  // swing, because the handslot leads with the prop's +Y.
   const g = new THREE.Group();
   const lower = toolMesh(
     new THREE.CylinderGeometry(0.024, 0.03, 0.36, 6),
@@ -653,7 +662,7 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
   4: spadeProp, // WORK.dig
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
   7: fishingPoleProp, // WORK.fish
-  8: scytheProp, // WORK.mow
+  8: () => packToolProp('weapons/scythe', 0.8, scytheProp), // WORK.mow
 };
 
 /** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,
@@ -690,15 +699,29 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
 // --- Weapons the packs don't ship ---------------------------------------
 
 /**
- * A spear.
+ * The spearman's spear: Fantasy Weapons Bits' plain spear_A now that the
+ * pack is vendored, exactly as the note below promised, with the
+ * hand-built one kept as the not-yet-loaded fallback the way the mallet
+ * and pickaxe stand behind their modeled tools. spear_A is authored like
+ * every pack prop — grip at the origin, shaft up +Y, rig-compatible units
+ * (3.1 from butt to point against the character's 2.54) — so it drops
+ * into the handslot at identity and the stab clip drives its point at the
+ * enemy unchanged.
+ */
+function spearHand(): THREE.Group {
+  const spear = kkAssets?.props.get('weapons/spear_A');
+  return spear ? (spear.clone() as THREE.Group) : spearProp();
+}
+
+/**
+ * A spear, built by hand — spearHand's pre-load fallback.
  *
  * The spearman carried the pack's `staff` before this, borrowed for its
  * long shaft — but it is the *Mage's* staff, and the crystal knot on the
  * head of it gave the game away: at anything closer than village zoom the
- * levy's spearman was a wizard marching to war. The free packs ship no
- * spear (KayKit's Fantasy Weapons Bits does; if that pack is ever
- * vendored, its file drops into KK_PROP_FILES and this build gives way to
- * it, the way the modeled hammer and pickaxe took over from theirs).
+ * levy's spearman was a wizard marching to war. It was built when the
+ * free packs shipped no spear; Fantasy Weapons Bits does, and now that it
+ * is vendored the modeled one takes the hand.
  *
  * Built in the pack props' own frame, so it drops into the handslot at
  * identity like any of them: grip at the origin, shaft up +Y, rig units —
@@ -779,7 +802,7 @@ const PROF_LOOKS = new Map<number, ProfLook>([
     1,
     {
       spec: {file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a},
-      tool: scytheProp,
+      tool: () => packToolProp('weapons/scythe', 0.8, scytheProp),
       toolWorkKind: 8, // WORK.mow
       strawHat: true,
     },
