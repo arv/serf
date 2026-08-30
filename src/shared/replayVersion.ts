@@ -20,6 +20,36 @@
  * directly.
  */
 /**
+ * 35: a sale leaves salvage on the field — nothing teleports. Selling
+ * used to destroy everything the building held (the goods the render
+ * piles against its front wall went down with walls they were never
+ * inside) and mint the half-cost refund straight into the storehouse.
+ * Both halves are physical now: the refund and everything the building
+ * held — piled output, unspent inputs, the post's tool, a site's
+ * borrowed hammer — are left as a salvage pile (a new system building
+ * type, id 20) standing on the wreck's own footprint. Serfs cart it home
+ * through the ordinary evacuation hauls, nearby sites may draw from it
+ * as a supply, the ground stays claimed until the last good leaves, and
+ * the pile then clears itself. Combat ignores piles (neither raids nor
+ * idle soldiers besiege one), and razing a real building still burns its
+ * goods — a sacking is not a sale. This retires version 25's rescue set
+ * (tool + a site's hammer), which teleported those two goods home.
+ *
+ * Death drops ride the same bump: what the fallen held no longer dies
+ * with them. A serf killed mid-haul drops the good on his shoulders, and
+ * a killed resident worker drops the tool he took up at binding (until
+ * now "the raid's second bite of damage") — each as a salvage pile on
+ * the tile where he fell, merged into a neighbouring pile when one
+ * stands, burned (ledgered) only when no clear tile is in reach or the
+ * owner has no economy (bandits). Denying the village its axes now takes
+ * holding the ground they fell on, not one arrow.
+ *
+ * Any log that sells a building or loses a serf re-runs differently from
+ * that tick on: refunds and drops arrive by carrier instead of instantly
+ * or never, ground stays occupied while piles stand on it, and every
+ * haul near a wreck or a battlefield re-times around the new jobs.
+ */
+/**
  * 34: two changes, developed apart, that never shipped apart — one bump
  * covers both because no replay was ever recorded under either half
  * alone.
@@ -298,4 +328,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 34;
+export const REPLAY_VERSION = 35;

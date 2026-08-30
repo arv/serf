@@ -12,6 +12,13 @@ the sections added to `tools/aiLab/README.md`.
 > cascades (`AiStrategy.stances`, `src/sim/defs/aiPostures.ts`,
 > `#updateStance` in `src/sim/systems/ai.ts`) — the fortify break-in on
 > raids, the found-rival aggression, the warlord's refusal to recall.
+>
+> **Sale semantics moved under this file (2026-08-30, v0.9.0):** the
+> re-site finding below says a sale pays "half its cost back" into the
+> stores; since the salvage change nothing teleports — the yield is left
+> piled on the wreck's footprint and arrives by carrier (or feeds a
+> nearby site directly), so a re-sited hut's refund lags by the hauls.
+> The rule's two guards still hold as written; only the timing moved.
 > `--stances off` keeps the pre-stance null reachable, and the README's
 > "The stance engine" section says what the recorded rows mean now.
 

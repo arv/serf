@@ -321,6 +321,14 @@ function match(world: World): void {
       for (const tool of TOOL_GOODS) {
         if ((b.stock[tool] ?? 0) > 0) evac.add(tool);
       }
+      // A salvage pile ships everything it holds — the whole point of the
+      // wreck is that its goods go home on someone's shoulders (or into a
+      // nearby site, which pulls from it as a supply directly).
+      if (b.type === BuildingTypeId.salvage) {
+        for (const good of goodKeys(b.stock)) {
+          if ((b.stock[good] ?? 0) > 0) evac.add(good);
+        }
+      }
       for (const good of evac) {
         const surplus = availableOut(b, good);
         if (surplus > 0) {

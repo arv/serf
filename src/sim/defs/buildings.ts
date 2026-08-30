@@ -712,6 +712,30 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     isRoad: true,
     systemOnly: true,
   },
+  [B.salvage]: {
+    id: B.salvage,
+    name: 'Salvage',
+    // What a demolition leaves behind: the goods the building held and
+    // half its materials, piled on the ground where it stood, waiting for
+    // serfs to cart them home (the sale spawns it — see sellBuilding in
+    // tick.ts — and logistics evacuates its whole stock). Nominal 1x1:
+    // the sale stamps the wreck's real footprint onto the record, so the
+    // ground stays occupied — and unbuildable — exactly until the last
+    // good leaves and the pile clears itself.
+    w: 1,
+    h: 1,
+    cost: {},
+    buildTicks: 0,
+    // Enough that a stray arrow doesn't torch the pile, little enough
+    // that razing it deliberately is trivial. Combat never targets it on
+    // its own (ankle-high goods are not a structure — see
+    // nearestEnemyBuilding and the raid's pickTarget).
+    hp: 60,
+    sight: 0,
+    // Piles are ankle-high; carriers step over them.
+    noBlock: true,
+    systemOnly: true,
+  },
 };
 
 export function buildingDef(id: BuildingTypeId): BuildingDef {
@@ -863,6 +887,7 @@ export const BUILDING_TYPES: readonly BuildingTypeId[] = [
   B.barracks,
   B.guardTower,
   B.roadSite,
+  B.salvage,
 ];
 
 /** The spelling of each id, for docs URLs and the strategist's prompt. */
@@ -886,6 +911,7 @@ export const BUILDING_KEYS: Readonly<Record<BuildingTypeId, string>> = {
   [B.barracks]: 'barracks',
   [B.guardTower]: 'guardTower',
   [B.roadSite]: 'roadSite',
+  [B.salvage]: 'salvage',
 };
 
 const BUILDING_BY_KEY = new Map<string, BuildingTypeId>(

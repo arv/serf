@@ -47,3 +47,5 @@ export const guardTower = 18 as const;
 export type guardTower = typeof guardTower;
 export const roadSite = 19 as const;
 export type roadSite = typeof roadSite;
+export const salvage = 20 as const;
+export type salvage = typeof salvage;

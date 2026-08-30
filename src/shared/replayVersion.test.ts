@@ -100,8 +100,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // counter caps as it counts instead of at the read, and the stretch
 // multiplies by a shifted small factor instead of shifting the clock —
 // the same numbers for every reachable value, spelled safely.
-const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = '4f5fdb0900d41700a11d88cbd970dec6';
+// 35 for the sale leaving salvage on the field: the refund and the
+// whole shelf are piled where the building stood (a new building type,
+// id 20) and carted home by serfs instead of teleporting — retiring the
+// two-good rescue set. Death drops ride the same bump: a killed serf's
+// cargo and a killed worker's tool fall as salvage where he stood
+// instead of dying with him. A logged sale or serf loss re-runs
+// differently from that tick on (see replayVersion.ts).
+const EXPECTED_VERSION = 35;
+const EXPECTED_HASH = 'e1a4453eac3563195cd47f2b184a2e07';
 
 /**
  * Everything a replay's playback depends on, as raw source:

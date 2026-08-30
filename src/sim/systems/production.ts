@@ -611,8 +611,9 @@ export function unbindWorker(world: World, worker: Unit): void {
     // where evacuation hauls it home for whoever needs it next. Into
     // stock rather than back into the input rack on purpose: a dismissal
     // is usually the player freeing the tool as much as the man. Death
-    // never comes through here: a killed worker takes the tool with him,
-    // which is the raid's second bite of damage.
+    // never comes through here: a killed worker drops the tool where he
+    // falls instead (killUnit), a salvage pile the village must hold the
+    // ground to recover.
     const tool = TOOL_OF[home.type];
     if (tool && !home.dead && home.state === BuildingState.built) {
       home.stock[tool] = (home.stock[tool] ?? 0) + 1;
