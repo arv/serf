@@ -832,14 +832,16 @@ function field(g: THREE.Group): void {
   for (const z of ROWS_BACK) bed(BACK_X0, BACK_X1, z);
   g.add(mesh(mergeGeometries(beds), KAY.soilDark));
 
-  // Standing wheat: each row a near-touching run of clumps, merged to
-  // one mesh — a field is one draw, not thirty. Every clump is a frustum
-  // that WIDENS as it rises — heavy heads over stalks — with a seeded
-  // stagger in height, seat and turn, so a row reads as a hedge of grain
-  // with a crenellated top instead of a rank of crates (the boxes this
-  // started as read as exactly that). Knee-high on the villager; the
-  // ramp then falls the gold into its own base shadow, so a man in the
-  // lane beside it reads as IN the crop without wading through geometry.
+  // Standing wheat, in the pack's own grain language: Kay's grain tile
+  // (Medieval Hexagon building_grain) is one continuous slab of gold
+  // with a ragged, chipped rim, its flat top broken by a few taller
+  // tufts, over a visible band of earth. Each row here is that tile in
+  // miniature: overlapping frustums close ranks into one running slab —
+  // the height barely wavers, the SIDES do (per-clump depth jitter is
+  // what chips the rim) — and sparse thin nubs stand proud of the top
+  // the way his do. Merged to one mesh: a field is one draw, not sixty.
+  // Knee-high on the villager; the ramp falls the gold into its own base
+  // shadow, so a man in the lane beside it reads as IN the crop.
   const tufts: THREE.BufferGeometry[] = [];
   let n = 0;
   const row = (x0: number, x1: number, z: number): void => {
@@ -847,18 +849,32 @@ function field(g: THREE.Group): void {
     const pitch = (x1 - x0) / COUNT;
     for (let i = 0; i < COUNT; i++) {
       n++;
-      const h = 0.072 + hash2(n, 29) * 0.024;
-      // A whisker of overlap: the clumps close ranks into one hedge of
-      // grain, and only the staggered crowns say where one ends.
-      const w = pitch * 1.03;
-      const geo = frustumGeo(w * 0.62, 0.048, w, 0.09, h);
-      geo.rotateY((hash2(n, 31) - 0.5) * 0.2);
+      const h = 0.075 + hash2(n, 29) * 0.012;
+      // Overlapped into one slab: only the chipped flanks say where one
+      // clump ends, never the crowns.
+      const w = pitch * 1.12;
+      const d = 0.062 + hash2(n, 41) * 0.026;
+      const geo = frustumGeo(w * 0.66, d * 0.62, w, d, h);
+      geo.rotateY((hash2(n, 31) - 0.5) * 0.1);
       geo.translate(
         x0 + pitch * (i + 0.5),
         PAD_TOP + 0.012,
-        z + (hash2(n, 37) - 0.5) * 0.016,
+        z + (hash2(n, 37) - 0.5) * 0.014,
       );
       tufts.push(geo);
+      // Kay's tell: every few paces a taller tuft breaks the slab's top.
+      if (hash2(n, 43) < 0.3) {
+        const nub = new THREE.BoxGeometry(0.022, 0.05, 0.022).toNonIndexed();
+        // The frustums carry no uv (applyRamps writes them); a merge of
+        // mismatched attribute sets returns nothing at all.
+        nub.deleteAttribute('uv');
+        nub.translate(
+          x0 + pitch * (i + 0.5) + (hash2(n, 47) - 0.5) * pitch * 0.5,
+          PAD_TOP + 0.012 + h,
+          z + (hash2(n, 53) - 0.5) * 0.05,
+        );
+        tufts.push(nub);
+      }
     }
   };
   for (const z of ROWS_FRONT) row(ROW_X0, ROW_X1, z);
