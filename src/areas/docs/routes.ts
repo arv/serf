@@ -34,6 +34,7 @@ export type DocsRoute =
   | {page: 'techs'}
   | {page: 'commands'}
   | {page: 'basics'}
+  | {page: 'credits'}
   | {page: 'missing'; path: string};
 
 /** Own-property lookup, like sanitizeCommand's isDefined: 'constructor' is
@@ -82,6 +83,9 @@ export function parseDocsPath(pathname: string): DocsRoute {
       return {page: 'missing', path: pathname};
     case 'basics':
       if (id === undefined) return {page: 'basics'};
+      return {page: 'missing', path: pathname};
+    case 'credits':
+      if (id === undefined) return {page: 'credits'};
       return {page: 'missing', path: pathname};
     default:
       return {page: 'missing', path: pathname};

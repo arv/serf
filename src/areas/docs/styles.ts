@@ -166,6 +166,23 @@ export const DOCS_STYLE = `
 
 #docs .missing { padding: 40px 20px; text-align: center; color: #a9a698; }
 
+/* Credits: one card per project, the mark on the left, the thanks on the
+   right. The art box keeps one size whatever it holds — a PNG badge, an
+   inline SVG, two letters of the page's own typeface. */
+#docs .credits { display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
+#docs .credit { display: flex; gap: 16px; padding: 16px;
+  background: rgba(14,16,15,0.74); border: 1px solid rgba(255,255,255,0.09); border-radius: 16px; }
+#docs .credit .c-art { flex: none; width: 96px; height: 96px; display: grid; place-items: center;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px;
+  color: #e4e1d6; }
+#docs .credit .c-art img { display: block; width: 88px; height: 88px; }
+#docs .credit .c-aa { font-size: 40px; font-weight: 500; color: #f2efe4; }
+#docs .credit .c-name { font-size: 15px; font-weight: 600; color: #f2efe4; }
+#docs .credit .c-what { margin: 4px 0 8px; color: #b3b1a6; text-wrap: pretty; }
+#docs .credit .c-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12.5px; }
+#docs .c-note { margin-top: 18px; font-size: 12.5px; color: #85857c; max-width: 62ch; text-wrap: pretty; }
+#docs .c-note code { font-size: 11.5px; color: #a9a698; }
+
 @media (max-width: 720px) {
   #docs .doc-body { grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 12px; }
   #docs .doc-nav { position: static; flex-direction: row; flex-wrap: wrap; gap: 4px; }
@@ -187,6 +204,12 @@ export const DOCS_STYLE = `
   #docs .doc-head .back { font-size: 12px; }
   #docs .tiles { grid-template-columns: minmax(0, 1fr); }
   #docs .stats { padding: 4px 12px; }
+  /* The narrowest phones: a 96px mark beside prose leaves the prose one
+     word wide, so the mark gives up size rather than the words. */
+  #docs .credit .c-art { width: 64px; height: 64px; }
+  #docs .credit .c-art img { width: 56px; height: 56px; }
+  #docs .credit .c-art svg { width: 44px; height: 44px; }
+  #docs .credit .c-aa { font-size: 28px; }
   #docs .anim-bar button { padding: 8px 4px; font-size: 11.5px; letter-spacing: 0; }
 }
 `;
