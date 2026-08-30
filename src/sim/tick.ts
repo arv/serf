@@ -11,7 +11,7 @@ import {
   HIRE_QUEUE_CAP,
   HIRE_SERF_COST,
 } from './defs/balance.ts';
-import {AUTO_RECIPE, TOOL_OF, buildingDef} from './defs/buildings.ts';
+import {AUTO_RECIPE, buildingDef} from './defs/buildings.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import {GOODS, goodEntries} from './defs/goods.ts';
 import * as ModifierKey from './defs/modifierKeyEnum.ts';
@@ -381,25 +381,22 @@ export function applyCommand(
           world.ledger.produced[good] =
             (world.ledger.produced[good] ?? 0) + refund;
         }
-        // The kit walks away from the wreck: the post's own tool (left on
-        // the shelf by the unbind above, or still waiting in the rack of a
-        // post that never staffed) and the hammer a half-built site had
-        // borrowed — so the hammer only rides along for a SITE, where it
-        // is a loan and nothing else. Unconditional, it also walked a
-        // built Smith's forged hammers out of the sale while the axes and
-        // cauldrons on the same shelf were lost, and the rule two lines up
-        // is the rule: a sold Smith loses its forged stock the way a sold
-        // bakery loses its bread. A move, not a mint, so no ledger entry.
-        const rescue = new Set<GoodId>();
-        if (b.state === BuildingState.site) rescue.add(GoodId.hammer);
-        const postTool = TOOL_OF[b.type];
-        if (postTool) rescue.add(postTool);
-        for (const good of rescue) {
-          const n = (b.stock[good] ?? 0) + (b.inputs[good] ?? 0);
-          if (n <= 0) continue;
-          sh.stock[good] = (sh.stock[good] ?? 0) + n;
-          b.stock[good] = 0;
-          b.inputs[good] = 0;
+        // The goods walk away from the wreck: everything the place holds
+        // — piled output, unspent recipe inputs, the post's tool, a
+        // site's borrowed hammer — is carted to the stores rather than
+        // torn down with the walls. The piles stand OUTSIDE the door
+        // (the render draws stock and inputs stacked against the front
+        // wall), and the wreckers were only ever paid for the walls.
+        // A move, not a mint, so no ledger entry — and it must run
+        // before destroyBuilding, which ledgers whatever is still on the
+        // building as consumed. Razing in combat keeps burning the lot;
+        // this path is a sale, not a sacking.
+        for (const goods of [b.stock, b.inputs]) {
+          for (const [good, n] of goodEntries(goods)) {
+            if (n <= 0) continue;
+            sh.stock[good] = (sh.stock[good] ?? 0) + n;
+            goods[good] = 0;
+          }
         }
       }
       destroyBuilding(world, b);

@@ -20,6 +20,18 @@
  * directly.
  */
 /**
+ * 35: a sale banks the yard. Everything a sold building holds — piled
+ * output, unspent recipe inputs, the post's tool, a site's borrowed
+ * hammer — now moves to the storehouse with the refund instead of being
+ * destroyed with the walls. The goods were never inside the walls to
+ * begin with: the render piles stock and inputs against the front door,
+ * and tearing them down with a building the player chose to sell read
+ * as the wreckers stealing the yard. This retires version 25's rescue
+ * set (tool + a site's hammer), which was the same idea applied to two
+ * goods; razing in combat still burns everything. Any log that sells a
+ * building holding goods banks more from that tick on.
+ */
+/**
  * 34: two changes, developed apart, that never shipped apart — one bump
  * covers both because no replay was ever recorded under either half
  * alone.
@@ -298,4 +310,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 34;
+export const REPLAY_VERSION = 35;

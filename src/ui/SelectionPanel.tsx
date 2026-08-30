@@ -525,7 +525,7 @@ export function SelectionPanel(props: {
                       tip={() => (
                         <TextTip
                           title="Sell building"
-                          body="Tears it down for half its build cost back, floored per good — a half-built site refunds half of what was delivered. The worker walks out a serf; anything stocked inside is lost."
+                          body="Tears it down for half its build cost back, floored per good — a half-built site refunds half of what was delivered. The worker walks out a serf, and the goods piled outside go back to the stores."
                         />
                       )}
                     >

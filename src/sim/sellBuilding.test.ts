@@ -22,8 +22,9 @@ function run(world: World, ticks: number): void {
 
 /**
  * Selling a building: half the construction cost back (floored per good),
- * the resident walks out a serf, the footprint frees up. The escape hatch
- * when the village is built into a corner.
+ * the resident walks out a serf, the goods piled outside the door walk
+ * back to the stores, the footprint frees up. The escape hatch when the
+ * village is built into a corner.
  */
 describe('selling a building', () => {
   it('refunds half the cost, frees the worker and the ground', () => {
@@ -31,6 +32,7 @@ describe('selling a building', () => {
     const sh = addStorehouse(world, 30, 30, {[GoodId.wood]: 0});
     addResourceTile(world, 40, 30); // a grove in reach, or the hut is illegal ground
     const hut = addBuiltHut(world, 36, 30);
+    hut.stock = {[GoodId.wood]: 4}; // the pile stacked outside the door
     const workerId = hut.workerId!;
     const initial = countGoods(world);
 
@@ -40,8 +42,10 @@ describe('selling a building', () => {
     );
     run(world, 2);
 
+    // Half the cost back, plus the gathered wood that stood stacked
+    // outside — a sale wrecks the walls, not the yard.
     const cost = buildingDef(BuildingTypeId.woodcutter).cost[GoodId.wood]!;
-    expect(sh.stock[GoodId.wood]).toBe(Math.floor(cost / 2));
+    expect(sh.stock[GoodId.wood]).toBe(Math.floor(cost / 2) + 4);
     const worker = world.units.get(workerId)!;
     expect(worker.dead).toBe(false);
     expect(worker.kind).toBe(UnitTypeId.serf);
@@ -69,16 +73,17 @@ describe('selling a building', () => {
     expect(world.buildings.get(site.id)).toBeUndefined();
   });
 
-  it('a sold Smith loses its forged stock, hammers included', () => {
-    // The rescue set exists for the post's own tool and a site's borrowed
-    // hammer. A built Smith works with no tool and its hammers are forged
-    // STOCK — an unconditional hammer rescue walked them out of the sale
-    // while the axes on the same shelf were lost.
+  it("a sold Smith's shelf and larder walk back to the stores", () => {
+    // Everything the place holds is piled outside the door (the render
+    // draws stock and inputs against the front wall), and a sale wrecks
+    // the walls, not the yard: forged goods and unspent inputs alike are
+    // moved to the storehouse, not destroyed with the building.
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {
       [GoodId.wood]: 0,
       [GoodId.hammer]: 0,
       [GoodId.axe]: 0,
+      [GoodId.iron]: 0,
     });
     const smith = placeBuiltBuilding(
       world,
@@ -88,12 +93,16 @@ describe('selling a building', () => {
       30,
     );
     smith.stock = {[GoodId.hammer]: 3, [GoodId.axe]: 2};
+    smith.inputs = {[GoodId.iron]: 2};
+    const initial = countGoods(world);
     tickWorld(
       world,
       cmds({kind: CommandKind.sellBuilding, buildingId: smith.id}),
     );
-    expect(sh.stock[GoodId.hammer] ?? 0).toBe(0); // lost with the rest of the shelf
-    expect(sh.stock[GoodId.axe] ?? 0).toBe(0);
+    expect(sh.stock[GoodId.hammer]).toBe(3);
+    expect(sh.stock[GoodId.axe]).toBe(2);
+    expect(sh.stock[GoodId.iron]).toBe(2);
+    expect(checkLedger(world, initial)).toEqual([]);
   });
 
   it("a sold site's borrowed hammer walks back to the stores", () => {

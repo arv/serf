@@ -100,8 +100,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // counter caps as it counts instead of at the read, and the stretch
 // multiplies by a shifted small factor instead of shifting the clock —
 // the same numbers for every reachable value, spelled safely.
-const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = '4f5fdb0900d41700a11d88cbd970dec6';
+// 35 for the sale banking the yard: a sold building's whole shelf —
+// stock and inputs alike — moves to the storehouse instead of burning
+// with the walls, retiring the two-good rescue set. A logged sale of
+// any building holding goods banks more from that tick on (see
+// replayVersion.ts).
+const EXPECTED_VERSION = 35;
+const EXPECTED_HASH = '66424e21dc0cef042d81291d7e4423dd';
 
 /**
  * Everything a replay's playback depends on, as raw source:
