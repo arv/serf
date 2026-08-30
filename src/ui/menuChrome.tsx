@@ -236,6 +236,9 @@ export const MENU_STYLE = `
 #menu .pills button:hover { color: #f0ede4; }
 #menu .pills button.on { color: var(--gold-lit); }
 #menu .pills button:active { transform: translateY(1px); transition-duration: var(--press-in); }
+/* A count the table has no room for: dimmed, and it does not take a press. */
+#menu .pills button:disabled { cursor: default; color: #55564f; }
+#menu .pills button:disabled:active { transform: none; }
 
 #menu .opponents { display: flex; flex-direction: column; gap: 6px; }
 /* A select is not "chosen and lifted out" — it is a field with a value
