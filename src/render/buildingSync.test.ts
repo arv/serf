@@ -53,6 +53,14 @@ vi.mock('./assets', () => ({
       fan.name = 'millFan';
       group.add(fan);
     }
+    // The real bakehouse carries its flue mouth as a named empty
+    // (procBuildings.ts); frame() stands the smoke column on it.
+    if (type === BuildingTypeId.bakery) {
+      const flue = new THREE.Group();
+      flue.name = 'bakeryFlue';
+      flue.position.y = 2;
+      group.add(flue);
+    }
     return group;
   },
 }));
@@ -324,6 +332,65 @@ describe("the mill's sails", () => {
     sync.update([snap({type: BuildingTypeId.mill})]);
     for (let i = 0; i < 10; i++) sync.frame(0.1);
     expect(scene.getObjectByName('millFan')!.rotation.z).toBe(0);
+  });
+});
+
+describe("the bakery's smoke", () => {
+  const bakery = (working?: true): BuildingSnap =>
+    snap({type: BuildingTypeId.bakery, working});
+
+  it('rises over the flue while a batch bakes', () => {
+    const {sync, scene} = makeSync();
+    sync.update([bakery(true)]);
+    // The column is built on first need, not with the visual.
+    expect(scene.getObjectByName('bakerySmoke')).toBeUndefined();
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('bakerySmoke')!;
+    expect(smoke.visible).toBe(true);
+    // It stands on the flue mouth, which the mock parks two units up.
+    expect(smoke.position.y).toBeCloseTo(2);
+    // By now the staggered births are through: every puff is airborne,
+    // spread through the column rather than stacked at the mouth.
+    const born = smoke.children.filter(p => p.visible);
+    expect(born.length).toBe(smoke.children.length);
+    const heights = born.map(p => p.position.y);
+    expect(Math.max(...heights)).toBeGreaterThan(0.5);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.3);
+    for (const p of born) {
+      expect(
+        (p as THREE.Mesh & {material: THREE.Material}).material.opacity,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it('lingers past the batch, then goes out and rewinds for the next', () => {
+    const {sync, scene} = makeSync();
+    sync.update([bakery(true)]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('bakerySmoke')!;
+
+    // Batch over: the oven banks rather than going out — the column is
+    // still standing shortly after, only thinner...
+    sync.update([bakery()]);
+    sync.frame(0.1);
+    expect(smoke.visible).toBe(true);
+    // ...but a cold oven ends up with no smoke at all, and the births
+    // rewound so the next batch climbs out of the flue again.
+    for (let i = 0; i < 100; i++) sync.frame(0.1);
+    expect(smoke.visible).toBe(false);
+    sync.update([bakery(true)]);
+    sync.frame(0.1);
+    expect(smoke.visible).toBe(true);
+    expect(smoke.children.filter(p => p.visible).length).toBeLessThan(
+      smoke.children.length,
+    );
+  });
+
+  it('never smokes over a bakery that has not baked', () => {
+    const {sync, scene} = makeSync();
+    sync.update([bakery()]);
+    for (let i = 0; i < 10; i++) sync.frame(0.1);
+    expect(scene.getObjectByName('bakerySmoke')).toBeUndefined();
   });
 });
 

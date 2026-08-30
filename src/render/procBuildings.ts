@@ -663,6 +663,15 @@ function oven(g: THREE.Group): void {
   box(g, 0.3, 0.038, 0.26, KAY.stonePale, OX, 1.12, OZ);
   box(g, 0.19, 0.045, 0.16, KAY.slate, OX, 1.162, OZ);
 
+  // The flue's mouth, as a named empty on the cap — buildingSync stands a
+  // smoke column on it while the oven works, the way the mill's sails hang
+  // off 'millFan'. An empty, not a mesh: it must survive normalize and the
+  // team-color split untouched and add nothing to the model's bounds.
+  const flue = new THREE.Group();
+  flue.name = 'bakeryFlue';
+  flue.position.set(OX, 1.185, OZ);
+  g.add(flue);
+
   // --- The arch. Everything above exists to hold this up.
   const zf = OZ + 0.21; // the front face of the bottom stage, near its foot
   const OPEN = 0.32;

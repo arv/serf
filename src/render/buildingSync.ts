@@ -162,6 +162,15 @@ interface BuildingVisual {
   /** Current sail speed, eased toward grinding/idle — heavy sails spin up
    * and coast down instead of snapping with the batch boundary. */
   fanSpeed: number;
+  /** The bakehouse's flue mouth, harvested from the model by name — where
+   * the smoke stands while the oven bakes. */
+  flue?: THREE.Object3D;
+  /** The smoke column over that flue: built the first time the oven
+   * works, then recycled — a bakery that never bakes never pays for it. */
+  smoke?: {group: THREE.Group; puffs: SmokePuff[]};
+  /** Smoke thickness 0..1, eased toward baking/idle — an oven lights and
+   * banks rather than snapping with the batch boundary (see #smokeFrame). */
+  smokeLevel: number;
   shoal?: THREE.Object3D;
   /** The fishery's pier decor — the deck the fisherman walks out on. */
   pier?: THREE.Object3D;
@@ -230,6 +239,25 @@ const MILL_FAN_SPEED = 1.5;
 
 /** One low-poly ball shared by every dust puff; scaled per puff. */
 const PUFF_GEO = new THREE.IcosahedronGeometry(1, 0);
+
+/** One puff of the bakery's chimney smoke. `t` is its life phase 0..1 —
+ * born at the flue, gone about a unit up. Negative = not yet born: the
+ * births are staggered so a lighting oven's column climbs out of the flue
+ * one puff at a time instead of appearing full-grown in the air. */
+interface SmokePuff {
+  mesh: THREE.Mesh;
+  t: number;
+  /** Per-puff hash seed, for the sway and tumble. */
+  seed: number;
+}
+
+/** How many puffs stand in one chimney's column at a time. */
+const SMOKE_PUFFS = 6;
+/** One puff's life, seconds. With six puffs a fresh one leaves the flue
+ * about twice a second — a steady breathing pace, not a house fire. */
+const SMOKE_LIFE = 2.6;
+/** How far a puff rises over its life, world units. */
+const SMOKE_RISE = 0.95;
 
 /** Scratch color for hp tinting — callers copy out of it immediately. */
 const HP_COLOR = new THREE.Color();
@@ -618,6 +646,8 @@ export class BuildingSync {
       crank: model.getObjectByName('wellCrank') ?? undefined,
       fan: model.getObjectByName('millFan') ?? undefined,
       fanSpeed: 0,
+      flue: model.getObjectByName('bakeryFlue') ?? undefined,
+      smokeLevel: 0,
       shoal,
       pier: model.getObjectByName('fisheryPier') ?? undefined,
       facing: b.facing ?? 0,
@@ -777,7 +807,8 @@ export class BuildingSync {
    * is nothing building-side to key them off; sceneSync turns each one under
    * the serf that came to draw from it. */
   /**
-   * Per-frame decor: sails, shoals and the watch on the roof.
+   * Per-frame decor: sails, shoals, chimney smoke and the watch on the
+   * roof.
    *
    * `bounds` is the camera's view rectangle. Everything this loop drives is
    * decoration on a building the player is looking at, so a building that
@@ -808,7 +839,7 @@ export class BuildingSync {
     for (const v of this.#visuals.values()) {
       // Most of a settlement is huts and warehouses with nothing that
       // moves; this loop used to walk all of them to find that out.
-      if (!v.fan && !v.shoal && v.manned.length === 0) continue;
+      if (!v.fan && !v.shoal && !v.flue && v.manned.length === 0) continue;
       if (!v.root.visible) continue; // fogged: remembered, not watched
       if (bounds !== undefined) {
         const bx = v.root.position.x;
@@ -834,6 +865,7 @@ export class BuildingSync {
         v.fanSpeed += (target - v.fanSpeed) * Math.min(1, dt * 1.6);
         if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
       }
+      if (v.flue) this.#smokeFrame(v, dt);
       if (v.shoal && v.staffed && v.state === BuildingState.built) {
         // Each fish carries its own circle, direction and depth. Advancing
         // the phase and pointing the nose down the tangent is the whole
@@ -953,6 +985,97 @@ export class BuildingSync {
       this.#freeGpu(d.visual);
       this.#dying.splice(i, 1);
     }
+  }
+
+  /**
+   * The bakery's chimney smoke, per frame: a short column of soft grey
+   * puffs off the flue while the oven works.
+   *
+   * The cue is the batch itself (BuildingSnap.working), same as the mill's
+   * sails — the baker inside was consumed by staffing, so there is no unit
+   * to watch. The thickness eases rather than snapping: up briskly when
+   * the batch lights, down at a third of that when it ends, because an
+   * oven banks rather than going out — and the lingering trickle bridges
+   * the one-tick gap between back-to-back batches, which would otherwise
+   * read as the fire dying between every two loaves.
+   */
+  #smokeFrame(v: BuildingVisual, dt: number): void {
+    const target = v.working && v.state === BuildingState.built ? 1 : 0;
+    v.smokeLevel +=
+      (target - v.smokeLevel) *
+      Math.min(1, dt * (target > v.smokeLevel ? 1.6 : 0.55));
+    const smoke = v.smoke;
+    if (v.smokeLevel < 0.02) {
+      // Cold oven. Hide the column and rewind the births, so the next
+      // batch's smoke climbs out of the flue puff by puff instead of
+      // reappearing full-grown in the air where the last one faded.
+      if (smoke && smoke.group.visible) {
+        smoke.group.visible = false;
+        smoke.puffs.forEach((p, i) => {
+          p.t = -i / smoke.puffs.length;
+          p.mesh.visible = false;
+        });
+      }
+      return;
+    }
+    const s = (v.smoke ??= this.#makeSmoke(v));
+    s.group.visible = true;
+    for (const p of s.puffs) {
+      p.t += dt / SMOKE_LIFE;
+      if (p.t >= 1) p.t -= 1;
+      p.mesh.visible = p.t >= 0;
+      if (p.t < 0) continue; // not born yet — see SmokePuff.t
+      const t = p.t;
+      // Rise on a light sway that loosens with age, leaning gently
+      // downwind (+x) the way every chimney in a village leans together.
+      p.mesh.position.set(
+        t * 0.14 + Math.sin(t * 5.1 + p.seed * 9.4) * 0.05 * (0.4 + t),
+        t * SMOKE_RISE,
+        Math.cos(t * 4.3 + p.seed * 6.3) * 0.04 * (0.4 + t),
+      );
+      p.mesh.rotation.y = p.seed * 7 + t * 1.4;
+      // Growing as it thins: narrower than the flue at birth, half a tile
+      // of loose haze by the time it goes.
+      p.mesh.scale.setScalar(0.07 + t * 0.17);
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity =
+        0.5 * v.smokeLevel * Math.min(1, t * 6) * (1 - t);
+    }
+  }
+
+  /**
+   * Build one bakery's puff column, parked in root space over the flue.
+   *
+   * Off the root rather than off the anchor for the same reason the roof
+   * archers are: the model carries the footprint's scale and the puffs are
+   * already sized in world units. Built on first need — this can run
+   * before a render has ticked world matrices, so settle them first (the
+   * same move as #measurePier).
+   */
+  #makeSmoke(v: BuildingVisual): {group: THREE.Group; puffs: SmokePuff[]} {
+    v.root.updateWorldMatrix(true, true);
+    v.flue!.getWorldPosition(SCRATCH_POS);
+    v.root.worldToLocal(SCRATCH_POS);
+    const group = new THREE.Group();
+    group.name = 'bakerySmoke';
+    group.position.copy(SCRATCH_POS);
+    const puffs: SmokePuff[] = [];
+    for (let i = 0; i < SMOKE_PUFFS; i++) {
+      // Pale warm greys, a shade apart so the column reads as puffs
+      // rather than as one wobbling blob.
+      const grey = 0.76 + hash2(i, 27) * 0.14;
+      const mat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(grey, grey, grey * 1.02),
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(PUFF_GEO, mat);
+      mesh.visible = false;
+      group.add(mesh);
+      puffs.push({mesh, t: -i / SMOKE_PUFFS, seed: hash2(i, 31)});
+    }
+    v.root.add(group);
+    return {group, puffs};
   }
 
   /**
@@ -1323,6 +1446,13 @@ export class BuildingSync {
     // teardown pass is the other caller.
     for (const man of v.manned) disposeTree(man.group);
     v.manned.length = 0;
+    // The smoke's per-puff materials are this visual's alone too (the
+    // ball geometry is the shared PUFF_GEO and stays).
+    if (v.smoke) {
+      for (const p of v.smoke.puffs)
+        (p.mesh.material as THREE.Material).dispose();
+      v.smoke = undefined;
+    }
     if (v.clip) {
       v.model.traverse(o => {
         // eachMaterial, not `.dispose()` on the field: faction-colored
