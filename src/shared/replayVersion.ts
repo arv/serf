@@ -20,16 +20,24 @@
  * directly.
  */
 /**
- * 35: a sale banks the yard. Everything a sold building holds — piled
- * output, unspent recipe inputs, the post's tool, a site's borrowed
- * hammer — now moves to the storehouse with the refund instead of being
- * destroyed with the walls. The goods were never inside the walls to
- * begin with: the render piles stock and inputs against the front door,
- * and tearing them down with a building the player chose to sell read
- * as the wreckers stealing the yard. This retires version 25's rescue
- * set (tool + a site's hammer), which was the same idea applied to two
- * goods; razing in combat still burns everything. Any log that sells a
- * building holding goods banks more from that tick on.
+ * 35: a sale leaves salvage on the field — nothing teleports. Selling
+ * used to destroy everything the building held (the goods the render
+ * piles against its front wall went down with walls they were never
+ * inside) and mint the half-cost refund straight into the storehouse.
+ * Both halves are physical now: the refund and everything the building
+ * held — piled output, unspent inputs, the post's tool, a site's
+ * borrowed hammer — are left as a salvage pile (a new system building
+ * type, id 20) standing on the wreck's own footprint. Serfs cart it home
+ * through the ordinary evacuation hauls, nearby sites may draw from it
+ * as a supply, the ground stays claimed until the last good leaves, and
+ * the pile then clears itself. Combat ignores piles (neither raids nor
+ * idle soldiers besiege one), and razing a real building still burns its
+ * goods — a sacking is not a sale. This retires version 25's rescue set
+ * (tool + a site's hammer), which teleported those two goods home.
+ * Any log that sells a building re-runs differently from that tick on:
+ * the refund arrives by carrier instead of instantly, the freed ground
+ * stays occupied until the pile clears, and every haul near the wreck
+ * re-times around the new jobs.
  */
 /**
  * 34: two changes, developed apart, that never shipped apart — one bump

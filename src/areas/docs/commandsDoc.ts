@@ -35,7 +35,8 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     payload: 'no fields',
   },
   [CommandKind.sellBuilding]: {
-    summary: 'Tear a building down for half its materials back.',
+    summary:
+      'Tear a building down; half its materials and everything it held are left as a salvage pile to cart home.',
     payload: 'buildingId',
   },
   [CommandKind.setBuildingPaused]: {

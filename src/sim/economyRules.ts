@@ -134,8 +134,9 @@ export interface EconomyRule {
  * that will never yield again — tree groves regrow only on standing tiles
  * (`systems/production.ts` `regrow`), so a woodcutter that cleared its
  * radius sits on dead earth for the rest of the match, and a seam is simply
- * finished. Selling it is the whole move: the sale hands back half the
- * materials AND the resident, and the build order maintains standing counts,
+ * finished. Selling it is the whole move: the sale frees the resident and
+ * leaves half the materials as salvage for the haulers to cart home (plus
+ * whatever was piled in the yard), and the build order maintains standing counts,
  * so the next beat places the replacement — against a live deposit, because
  * `spotFor` anchors on `nearestResource`, which only counts tiles with
  * amount left.

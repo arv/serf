@@ -741,6 +741,36 @@ export function placeBuiltBuilding(
   return b;
 }
 
+/**
+ * The pile a demolition leaves behind: a salvage building stamped with the
+ * wreck's own footprint, holding whatever the sale left on the field. Its
+ * tiles stay claimed (buildingAt — so nothing is raised on top of real
+ * goods) but walkable (the def is noBlock; the piles are ankle-high), and
+ * logistics evacuates the stock like any producer's. It clears itself when
+ * the last good is carried off (clearSpentSalvage in tick.ts). Nothing to
+ * leave means nothing spawns and the ground frees immediately.
+ */
+export function spawnSalvage(
+  world: World,
+  owner: Owner,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  goods: GoodAmounts,
+): Building | undefined {
+  let total = 0;
+  for (const [, n] of goodEntries(goods)) total += n;
+  if (total <= 0) return undefined;
+  const b = makeBuildingRecord(world, BuildingTypeId.salvage, owner, x, y);
+  b.w = w;
+  b.h = h;
+  b.stock = {...goods};
+  world.buildings.set(b.id, b);
+  occupyFootprint(world, b);
+  return b;
+}
+
 /** Player-placed construction site: blocks tiles now, needs materials hauled. */
 export function placeSite(
   world: World,

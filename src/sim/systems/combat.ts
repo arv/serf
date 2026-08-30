@@ -693,6 +693,9 @@ function nearestEnemyBuilding(
   const uy = unit.y;
   for (const b of buildings) {
     if (b.dead || b.owner === unit.owner) continue;
+    // Ankle-high goods are not a structure: besieging a rival's salvage
+    // pile would burn real goods to win nothing.
+    if (b.type === BuildingTypeId.salvage) continue;
     const dx = b.x + b.w / 2 - ux; // centerOf(b), inlined: identical arithmetic
     const dy = b.y + b.h / 2 - uy;
     if (dx * dx + dy * dy > rejectSq) continue;

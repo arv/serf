@@ -100,13 +100,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // counter caps as it counts instead of at the read, and the stretch
 // multiplies by a shifted small factor instead of shifting the clock —
 // the same numbers for every reachable value, spelled safely.
-// 35 for the sale banking the yard: a sold building's whole shelf —
-// stock and inputs alike — moves to the storehouse instead of burning
-// with the walls, retiring the two-good rescue set. A logged sale of
-// any building holding goods banks more from that tick on (see
-// replayVersion.ts).
+// 35 for the sale leaving salvage on the field: the refund and the
+// whole shelf are piled where the building stood (a new building type,
+// id 20) and carted home by serfs instead of teleporting — retiring the
+// two-good rescue set. A logged sale re-runs differently from that tick
+// on (see replayVersion.ts).
 const EXPECTED_VERSION = 35;
-const EXPECTED_HASH = '66424e21dc0cef042d81291d7e4423dd';
+const EXPECTED_HASH = '552b4f33840e7e1f3349bc4bf42ef3f3';
 
 /**
  * Everything a replay's playback depends on, as raw source:
