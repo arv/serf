@@ -53,10 +53,12 @@ describe('the speed ladder', () => {
     expect(stepSpeed(REPLAY_GEAR, -1, true)).toBe(3);
   });
 
-  it('steps a gear the ladder no longer holds from where it would sit', () => {
-    // A replay paused at 8× whose window becomes a skirmish: refusing to
-    // move would be the one answer with no way out.
-    expect(stepSpeed(REPLAY_GEAR, -1, false)).toBe(1);
+  it('steps to the next rung past a gear the ladder does not hold', () => {
+    // A replay's 8× carried into a skirmish ladder that stops at 3. The
+    // rung below 8 is 3, not 1: counting by index used to land on 3 and
+    // then step down again, skipping a gear on a single press of −.
+    expect(stepSpeed(REPLAY_GEAR, -1, false)).toBe(3);
+    // Nothing above it, so + stays on the top rung.
     expect(stepSpeed(REPLAY_GEAR, 1, false)).toBe(3);
   });
 });

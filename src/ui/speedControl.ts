@@ -37,13 +37,16 @@ export function speedGears(replay = replayMode()): readonly number[] {
 }
 
 /**
- * The gear one rung up (`dir` 1) or down (−1), stopping at the ends rather
- * than wrapping: − is how the village is held, and a + that wrapped round
- * to the hold would be the fast forward key pausing the game.
+ * The nearest gear above (`dir` 1) or below (−1) this one, stopping at the
+ * ends rather than wrapping: − is how the village is held, and a + that
+ * wrapped round to the hold would be the fast forward key pausing the game.
  *
- * A gear the ladder does not hold steps from where it would sit — a replay
- * paused at 8× whose window then becomes a skirmish is the case, and
- * refusing to move at all would be the one answer with no way out.
+ * Asked as "the next rung past `from`" rather than "the rung `from` sits on,
+ * plus one", because those two differ for a gear the ladder does not hold —
+ * a replay's 8× carried into a skirmish ladder that stops at 3. Counting by
+ * index landed on 3 and *then* stepped down, so one press of − answered 1
+ * and skipped a gear; reading the ladder directly cannot, whether or not
+ * `from` is one of its rungs.
  */
 export function stepSpeed(
   from: number,
@@ -51,10 +54,10 @@ export function stepSpeed(
   replay = replayMode(),
 ): number {
   const ladder = speedGears(replay);
-  const found = ladder.indexOf(from);
-  const at = found >= 0 ? found : ladder.filter(g => g <= from).length - 1;
-  const next = Math.min(ladder.length - 1, Math.max(0, at + dir));
-  return ladder[next]!;
+  const next =
+    dir > 0 ? ladder.find(g => g > from) : ladder.findLast(g => g < from);
+  // Past the last rung in that direction, stay on it.
+  return next ?? (dir > 0 ? ladder[ladder.length - 1]! : ladder[0]!);
 }
 
 /**

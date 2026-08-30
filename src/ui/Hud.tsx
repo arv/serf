@@ -107,7 +107,7 @@ type GoodId = Enum<typeof GoodId>;
 
 /** The gears' faces. The numbers themselves come from speedControl, which
  * is what the keyboard steps through too — a second list here would be a
- * ladder the P/+/− keys could walk off the end of. */
+ * ladder the +/− keys could walk off the end of. */
 const [PAUSED, NORMAL, FAST] = SPEED_GEARS;
 
 /** What the keyboard offers, appended to every gear's tooltip where there
