@@ -665,10 +665,11 @@ function oven(g: THREE.Group): void {
 
   // The flue's mouth, as a named empty on the cap — buildingSync stands a
   // smoke column on it while the oven works, the way the mill's sails hang
-  // off 'millFan'. An empty, not a mesh: it must survive normalize and the
-  // team-color split untouched and add nothing to the model's bounds.
+  // off 'millFan'. The Smith's pack model carries the same mark (assets.ts
+  // adds it at load). An empty, not a mesh: it must survive normalize and
+  // the team-color split untouched and add nothing to the model's bounds.
   const flue = new THREE.Group();
-  flue.name = 'bakeryFlue';
+  flue.name = 'smokeFlue';
   flue.position.set(OX, 1.185, OZ);
   g.add(flue);
 

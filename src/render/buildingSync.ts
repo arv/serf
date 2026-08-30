@@ -162,13 +162,14 @@ interface BuildingVisual {
   /** Current sail speed, eased toward grinding/idle — heavy sails spin up
    * and coast down instead of snapping with the batch boundary. */
   fanSpeed: number;
-  /** The bakehouse's flue mouth, harvested from the model by name — where
-   * the smoke stands while the oven bakes. */
+  /** The flue mouth — the bakehouse's oven cap, the Smith's forge chimney
+   * — harvested from the model by name ('smokeFlue'). Where the smoke
+   * stands while a batch is on the fire. */
   flue?: THREE.Object3D;
-  /** The smoke column over that flue: built the first time the oven
-   * works, then recycled — a bakery that never bakes never pays for it. */
+  /** The smoke column over that flue: built the first time the fire
+   * lights, then recycled — a post that never works never pays for it. */
   smoke?: {group: THREE.Group; puffs: SmokePuff[]};
-  /** Smoke thickness 0..1, eased toward baking/idle — an oven lights and
+  /** Smoke thickness 0..1, eased toward working/idle — a fire lights and
    * banks rather than snapping with the batch boundary (see #smokeFrame). */
   smokeLevel: number;
   shoal?: THREE.Object3D;
@@ -240,10 +241,11 @@ const MILL_FAN_SPEED = 1.5;
 /** One low-poly ball shared by every dust puff; scaled per puff. */
 const PUFF_GEO = new THREE.IcosahedronGeometry(1, 0);
 
-/** One puff of the bakery's chimney smoke. `t` is its life phase 0..1 —
- * born at the flue, gone about a unit up. Negative = not yet born: the
- * births are staggered so a lighting oven's column climbs out of the flue
- * one puff at a time instead of appearing full-grown in the air. */
+/** One puff of chimney smoke (the bakery's oven, the Smith's forge). `t`
+ * is its life phase 0..1 — born at the flue, gone about a unit up.
+ * Negative = not yet born: the births are staggered so a lighting fire's
+ * column climbs out of the flue one puff at a time instead of appearing
+ * full-grown in the air. */
 interface SmokePuff {
   mesh: THREE.Mesh;
   t: number;
@@ -646,7 +648,7 @@ export class BuildingSync {
       crank: model.getObjectByName('wellCrank') ?? undefined,
       fan: model.getObjectByName('millFan') ?? undefined,
       fanSpeed: 0,
-      flue: model.getObjectByName('bakeryFlue') ?? undefined,
+      flue: model.getObjectByName('smokeFlue') ?? undefined,
       smokeLevel: 0,
       shoal,
       pier: model.getObjectByName('fisheryPier') ?? undefined,
@@ -988,16 +990,17 @@ export class BuildingSync {
   }
 
   /**
-   * The bakery's chimney smoke, per frame: a short column of soft grey
-   * puffs off the flue while the oven works.
+   * Chimney smoke, per frame: a short column of soft grey puffs off the
+   * flue while a batch is on the fire — the bakery's oven and the Smith's
+   * forge, via the 'smokeFlue' mark each model carries.
    *
    * The cue is the batch itself (BuildingSnap.working), same as the mill's
-   * sails — the baker inside was consumed by staffing, so there is no unit
-   * to watch. The thickness eases rather than snapping: up briskly when
-   * the batch lights, down at a third of that when it ends, because an
-   * oven banks rather than going out — and the lingering trickle bridges
-   * the one-tick gap between back-to-back batches, which would otherwise
-   * read as the fire dying between every two loaves.
+   * sails — the worker inside was consumed by staffing, so there is no
+   * unit to watch. The thickness eases rather than snapping: up briskly
+   * when the batch lights, down at a third of that when it ends, because
+   * an oven banks rather than going out — and the lingering trickle
+   * bridges the one-tick gap between back-to-back batches, which would
+   * otherwise read as the fire dying between every two loaves.
    */
   #smokeFrame(v: BuildingVisual, dt: number): void {
     const target = v.working && v.state === BuildingState.built ? 1 : 0;
@@ -1043,7 +1046,7 @@ export class BuildingSync {
   }
 
   /**
-   * Build one bakery's puff column, parked in root space over the flue.
+   * Build one building's puff column, parked in root space over its flue.
    *
    * Off the root rather than off the anchor for the same reason the roof
    * archers are: the model carries the footprint's scale and the puffs are
@@ -1056,7 +1059,7 @@ export class BuildingSync {
     v.flue!.getWorldPosition(SCRATCH_POS);
     v.root.worldToLocal(SCRATCH_POS);
     const group = new THREE.Group();
-    group.name = 'bakerySmoke';
+    group.name = 'chimneySmoke';
     group.position.copy(SCRATCH_POS);
     const puffs: SmokePuff[] = [];
     for (let i = 0; i < SMOKE_PUFFS; i++) {

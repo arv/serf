@@ -53,11 +53,12 @@ vi.mock('./assets', () => ({
       fan.name = 'millFan';
       group.add(fan);
     }
-    // The real bakehouse carries its flue mouth as a named empty
-    // (procBuildings.ts); frame() stands the smoke column on it.
-    if (type === BuildingTypeId.bakery) {
+    // The real bakehouse authors its flue mouth as a named empty
+    // (procBuildings.ts), and assets.ts pins the same mark onto the
+    // Smith's pack model; frame() stands the smoke column on it.
+    if (type === BuildingTypeId.bakery || type === BuildingTypeId.weaponsmith) {
       const flue = new THREE.Group();
-      flue.name = 'bakeryFlue';
+      flue.name = 'smokeFlue';
       flue.position.y = 2;
       group.add(flue);
     }
@@ -343,9 +344,9 @@ describe("the bakery's smoke", () => {
     const {sync, scene} = makeSync();
     sync.update([bakery(true)]);
     // The column is built on first need, not with the visual.
-    expect(scene.getObjectByName('bakerySmoke')).toBeUndefined();
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
     for (let i = 0; i < 30; i++) sync.frame(0.1);
-    const smoke = scene.getObjectByName('bakerySmoke')!;
+    const smoke = scene.getObjectByName('chimneySmoke')!;
     expect(smoke.visible).toBe(true);
     // It stands on the flue mouth, which the mock parks two units up.
     expect(smoke.position.y).toBeCloseTo(2);
@@ -367,7 +368,7 @@ describe("the bakery's smoke", () => {
     const {sync, scene} = makeSync();
     sync.update([bakery(true)]);
     for (let i = 0; i < 30; i++) sync.frame(0.1);
-    const smoke = scene.getObjectByName('bakerySmoke')!;
+    const smoke = scene.getObjectByName('chimneySmoke')!;
 
     // Batch over: the oven banks rather than going out — the column is
     // still standing shortly after, only thinner...
@@ -390,7 +391,16 @@ describe("the bakery's smoke", () => {
     const {sync, scene} = makeSync();
     sync.update([bakery()]);
     for (let i = 0; i < 10; i++) sync.frame(0.1);
-    expect(scene.getObjectByName('bakerySmoke')).toBeUndefined();
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
+  });
+
+  it("rises off the Smith's forge chimney too, on the same cue", () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({type: BuildingTypeId.weaponsmith, working: true})]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    expect(smoke.visible).toBe(true);
+    expect(smoke.children.filter(p => p.visible).length).toBeGreaterThan(0);
   });
 });
 
