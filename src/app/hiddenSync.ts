@@ -1,6 +1,6 @@
 /**
  * The page's hidden state, fanned out to everything that freezes with it —
- * the sim worker's pump, the net worker's stream, the LLM strategist.
+ * the sim worker's pump, the net worker's stream.
  *
  * visibilitychange is the primary signal, but it is not a guarantee: mobile
  * browsers (iOS Safari on quick app switches and the lock screen most of

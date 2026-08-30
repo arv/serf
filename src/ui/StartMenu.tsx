@@ -1,6 +1,5 @@
 import {For, Index, Show, createSignal, onCleanup, onMount} from 'solid-js';
 import {createStore, reconcile} from 'solid-js/store';
-import * as LlmState from '../ai/llmStateEnum.ts';
 import {BUILD_LABEL} from '../app/buildInfo';
 import type {ImportResult, StoredFileInfo} from '../app/fileStore';
 import {
@@ -559,89 +558,6 @@ export function StartMenu(props: StartMenuProps) {
   const [ai, setAi] = createSignal(2);
   // One entry per opponent seat; undefined means 'let the seed deal it'.
   const [bots, setBots] = createSignal<(AiStrategyId | undefined)[]>([]);
-  // The LLM strategist (an on-device model advising the AI seats). Off by
-  // default — it is a ~400 MB first-time download. CPU inference, so it
-  // needs no WebGPU; the wasm threads ride the cross-origin isolation the
-  // app already requires to boot.
-  //
-  // The choice is remembered: a defeat's "Play again" reloads straight into
-  // the match and keeps ?llm=1, but any road that passes back through this
-  // menu — quit, a lost match restarted by hand, tomorrow's session — used
-  // to land on a toggle silently reset to off. Remembered also means the
-  // warm-up resumes on arrival, so a download the last session never
-  // finished keeps going while the player picks opponents.
-  const LLM_PREF_KEY = 'serf-llm';
-  /** Storage access can throw wholesale (site data blocked, some
-   * embeddings) — the same tolerance rememberedMode shows above, because
-   * this read runs in the component body: unguarded, it took the whole
-   * start menu down to the fatal-error card. */
-  const storedLlmPref = (): boolean => {
-    try {
-      return localStorage.getItem(LLM_PREF_KEY) === '1';
-    } catch {
-      return false;
-    }
-  };
-  const [llm, setLlm] = createSignal(storedLlmPref());
-  // The menu is the waiting room: while the toggle is on, the model
-  // downloads right here, so the GGUF is cached (or well underway) by the
-  // time the match boots. The warm-up survives the launch reload —
-  // wllama's ModelManager writes into cache storage, no engine involved
-  // (see warmModel in strategist.ts) — and toggling off cancels it.
-  const [llmWarm, setLlmWarm] = createSignal<
-    import('../ai/strategist').LlmStatus | null
-  >(null);
-  let warmHandle: {dispose: () => void} | null = null;
-  // Set at cleanup: the dynamic import below may resolve after the menu
-  // has handed over to a match, and a warm-up started then would download
-  // with nobody left to dispose it.
-  let menuGone = false;
-  const beginWarm = (): void => {
-    void import('../ai/strategist')
-      .then(({warmModel}) => {
-        // The toggle may have flipped back — or the menu may be gone —
-        // while the chunk loaded.
-        if (llm() && !warmHandle && !menuGone)
-          warmHandle = warmModel(setLlmWarm);
-      })
-      .catch(() => {
-        // The strategist chunk itself failed to fetch (offline, deploy in
-        // flight): same story as a failed model download.
-        if (!menuGone)
-          setLlmWarm({
-            state: LlmState.failed,
-            reason: 'strategist code failed to load',
-          });
-      });
-  };
-  const setLlmAndWarm = (on: boolean): void => {
-    setLlm(on);
-    try {
-      if (on) localStorage.setItem(LLM_PREF_KEY, '1');
-      else localStorage.removeItem(LLM_PREF_KEY);
-    } catch {
-      // Storage full or denied: the choice just doesn't outlive the session.
-    }
-    warmHandle?.dispose();
-    warmHandle = null;
-    setLlmWarm(null);
-    if (on) beginWarm();
-  };
-  if (llm()) beginWarm();
-  onCleanup(() => {
-    menuGone = true;
-    warmHandle?.dispose();
-  });
-  const llmHint = (): string => {
-    const s = llmWarm();
-    if (s?.state === LlmState.loading)
-      return `Downloading the model — ${s.pct}%`;
-    if (s?.state === LlmState.ready)
-      return 'Model ready — opponents will consult it from the start';
-    if (s?.state === LlmState.failed)
-      return 'Download failed — opponents will use standard tactics';
-    return 'Opponents consult an on-device language model (~400 MB one-time download)';
-  };
   // One roll per visit to this screen, which is one roll per launch:
   // launching leaves the menu, and coming back builds it again.
   const seed = rollSeed();
@@ -970,7 +886,6 @@ export function StartMenu(props: StartMenuProps) {
     // is dealt from the seed at the other end.
     const named = bots().slice(0, ai());
     if (named.some(Boolean)) p.set('bots', named.map(b => b ?? '').join(','));
-    if (ai() > 0 && llm()) p.set('llm', '1');
     p.set('seed', String(seed));
     if (!bandits()) p.set('bandits', '0');
     return '?' + p.toString();
@@ -1573,24 +1488,6 @@ export function StartMenu(props: StartMenuProps) {
                     </div>
                   </div>
                 </Show>
-
-                <Show when={ai() > 0}>
-                  <div class="row">
-                    <div>
-                      <div class="row-label">LLM strategist (experimental)</div>
-                      <div class="row-hint">{llmHint()}</div>
-                    </div>
-                    <button
-                      class={`toggle ${llm() ? 'on' : ''}`}
-                      role="switch"
-                      aria-checked={llm()}
-                      aria-label="LLM strategist"
-                      onClick={() => setLlmAndWarm(!llm())}
-                    >
-                      <span />
-                    </button>
-                  </div>
-                </Show>
               </Show>
 
               <Show when={isSingle() && OPTIONS.showBanditsRow}>
@@ -1801,7 +1698,28 @@ export function StartMenu(props: StartMenuProps) {
               ? 'server lobby'
               : online()
                 ? 'local sim'
-                : 'local sim · offline'}
+                : 'local sim · offline'}{' '}
+            ·{' '}
+            {/* A real anchor with the DocLink handshake: middle-click and
+                copy-link work, a plain click stays in the document. */}
+            <a
+              href="/docs/credits"
+              onClick={e => {
+                if (
+                  e.button !== 0 ||
+                  e.metaKey ||
+                  e.ctrlKey ||
+                  e.shiftKey ||
+                  e.altKey
+                )
+                  return;
+                e.preventDefault();
+                releaseMenuBackdrop();
+                goto('/docs/credits');
+              }}
+            >
+              Credits
+            </a>
           </span>
         </div>
       </div>

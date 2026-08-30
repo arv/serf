@@ -85,6 +85,11 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     summary: 'Sandbox tweaks from the admin panel (single-player only).',
     payload: 'action',
   },
+  [CommandKind.herald]: {
+    summary:
+      'A taunt with an address: announce a coming march (or vengeance) to one rival. The AI seats send these before a full assault; the note is a number the screen turns into words, never free text.',
+    payload: 'target, note (marchComing · retribution · finalAssault), count?',
+  },
 };
 
 export const ADMIN_DOCS: Record<AdminAction, string> = {

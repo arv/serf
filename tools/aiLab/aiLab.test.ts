@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {parseAdvice} from '../../src/ai/advice.ts';
-import {POSTURE_ORDER} from '../../src/ai/posture.ts';
+import {POSTURE_KEYS, POSTURE_ORDER} from '../../src/ai/posture.ts';
 import {Rng} from '../../src/shared/rng.ts';
 import {
   AI_STRATEGIES,
@@ -50,6 +50,7 @@ import {
   type ReportHeader,
 } from './report.ts';
 import {
+  fingerprintsOf,
   matchupOf,
   summarize,
   trialsForPrecision,
@@ -135,11 +136,6 @@ describe('engine specs', () => {
       kind: 'script',
       reply: {homeGuard: 9},
     });
-    expect(parseEngineSpec('http://localhost:8080/v1/', 'qwen')).toEqual({
-      kind: 'http',
-      baseUrl: 'http://localhost:8080/v1',
-      model: 'qwen',
-    });
   });
 
   it('labels the posture arms apart — the ablation lives in this text', () => {
@@ -182,11 +178,12 @@ describe('engine specs', () => {
       'posture',
       'posture-reads',
       'script',
-      'http',
     ]) {
       expect(message, `refusal should mention ${name}`).toContain(name);
     }
-    for (const id of POSTURE_ORDER) expect(message).toContain(id);
+    // The stances by their KEYS — a refusal that prints the numeric ids
+    // documents nothing (the very bug this line once let through).
+    for (const id of POSTURE_ORDER) expect(message).toContain(POSTURE_KEYS[id]);
   });
 
   it('builds nothing for the unadvised control', () => {
@@ -200,15 +197,15 @@ describe('the advice queue', () => {
     dueTick,
     playerId: 0,
     override: {serfTarget: label},
-    consult: {playerId: 0, tick: 0, ms: 0, promptChars: 0, replyChars: 0},
+    consult: {playerId: 0, tick: 0, ms: 0, replyChars: 0},
   });
   const order = (q: PendingAdvice[]): number[] =>
     q.map(e => e.override.serfTarget!);
 
   it('keeps the queue ordered by when advice lands', () => {
-    // The case --latency measured produces: a slow consultation lands after
-    // a fast one asked later. Drained from the front, an appended queue
-    // would hold the fast advice back behind the slow one.
+    // A caller handing consultations different delays: a slow one lands
+    // after a fast one asked later. Drained from the front, an appended
+    // queue would hold the fast advice back behind the slow one.
     const q: PendingAdvice[] = [];
     queueAdvice(q, entry(100, 1)); // slow: 5s of thinking
     queueAdvice(q, entry(54, 2)); // fast: asked later, due sooner
@@ -239,27 +236,32 @@ describe('the advice queue', () => {
   });
 });
 
+/** random and script never read the summary, and these tests exercise the
+ * dice and the validator alone — no world, no summary to take. */
+const NO_SUMMARY =
+  null as unknown as import('../../src/ai/summary.ts').AiWorldSummary;
+
 describe('the random baseline', () => {
-  it('replays exactly, so a noise floor is reproducible', async () => {
+  it('replays exactly, so a noise floor is reproducible', () => {
     const a = randomEngine(99);
     const b = randomEngine(99);
     const c = randomEngine(100);
-    const roll = async (e: LabEngine): Promise<string[]> => {
+    const roll = (e: LabEngine): string[] => {
       const out: string[] = [];
-      for (let i = 0; i < 5; i++) out.push(await e.complete([], '{}'));
+      for (let i = 0; i < 5; i++) out.push(e.advise(NO_SUMMARY));
       return out;
     };
-    expect(await roll(a)).toEqual(await roll(b));
-    expect(await roll(randomEngine(99))).not.toEqual(await roll(c));
+    expect(roll(a)).toEqual(roll(b));
+    expect(roll(randomEngine(99))).not.toEqual(roll(c));
   });
 
-  it('only ever rolls advice the validator would keep unchanged', async () => {
-    // The point of the baseline is that it differs from a model in
+  it('only ever rolls advice the validator would keep unchanged', () => {
+    // The point of the baseline is that it differs from a judged advisor in
     // judgment alone — never in whether the reply survives the gate, and
     // never by being clamped into a different value than it asked for.
     const engine = randomEngine(7);
     for (let i = 0; i < 200; i++) {
-      const raw = await engine.complete([], '{}');
+      const raw = engine.advise(NO_SUMMARY);
       const advice = parseAdvice(raw);
       expect(advice, raw).not.toBeNull();
       const asked = JSON.parse(raw) as Record<string, unknown>;
@@ -323,7 +325,7 @@ describe('a headless match', () => {
     expect(tooLate.consults.every(c => c.appliedTick === undefined)).toBe(true);
   }, 60_000);
 
-  it('runs the real prompt and the real validator over every reply', async () => {
+  it('runs the real validator over every reply', async () => {
     const record = await playMatch(
       config({
         engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]),
@@ -332,9 +334,7 @@ describe('a headless match', () => {
     );
     expect(record.consults.length).toBeGreaterThan(3);
     const first = record.consults[0]!;
-    // prompt.ts's glossary and summary.ts's seat block, not a stand-in.
-    expect(first.prompt![0]!.content).toContain('Choose exactly one posture');
-    expect(first.prompt![1]!.content).toContain('"strategyId":"steward"');
+    expect(first.reply).toBe(JSON.stringify(WARMONGER));
     expect(first.parsed).toBe(true);
     expect(first.knobs).toBe(3);
     // Standing advice repeated verbatim costs one message, not one a turn.
@@ -362,11 +362,14 @@ describe('a headless match', () => {
     expect(now[0]!.appliedTick).toBe(now[0]!.tick);
   });
 
-  it('scores a model that cannot hold the format, and reports the giving up', async () => {
+  it('scores an engine that cannot hold the format without letting it steer', async () => {
+    // The model era's three-strikes babysitting is gone with the model: a
+    // deterministic engine that emits prose emits it every consultation,
+    // and every one is counted — but none of it reaches a brain, because
+    // parseAdvice is still the gate.
     const broken: LabEngine = {
       label: 'broken',
-      usage: [],
-      complete: () => Promise.resolve('Sure! Here is my advice: attack now.'),
+      advise: () => 'Sure! Here is my advice: attack now.',
     };
     const record = await playMatch(
       config({
@@ -374,12 +377,8 @@ describe('a headless match', () => {
         advicePeriod: 400,
       }),
     );
-    const replies = record.consults.filter(c => !c.skipped);
-    expect(replies.length).toBe(3); // three strikes, then inert
-    expect(replies.every(c => c.parsed === false)).toBe(true);
-    expect(record.failures[0]!.reason).toMatch(/giving up after 3/);
-    // Once it has given up, later summaries are declined rather than sent.
-    expect(record.consults.some(c => c.skipped)).toBe(true);
+    expect(record.consults.length).toBeGreaterThan(3);
+    expect(record.consults.every(c => c.parsed === false)).toBe(true);
     expect(record.adviceApplied['0']).toBeUndefined();
   });
 
@@ -438,6 +437,7 @@ function fake(
     winner,
     standings: [],
     stalls: [],
+    war: [],
     consults: [],
     adviceApplied: {},
     failures: [],
@@ -550,14 +550,13 @@ describe('aggregation', () => {
     expect(report.advised.trials).toBe(3);
   });
 
-  it('separates a model that broke from a model with nothing to say', () => {
+  it('separates an engine that broke from one with nothing to say', () => {
     const runs = mirrored([[0, 1]], [0]);
     runs[0]!.layouts[0]!.arms[0]!.record.consults = [
       {
         playerId: 0,
         tick: 1,
         ms: 10,
-        promptChars: 100,
         replyChars: 5,
         parsed: false,
       },
@@ -565,7 +564,6 @@ describe('aggregation', () => {
         playerId: 0,
         tick: 2,
         ms: 20,
-        promptChars: 100,
         replyChars: 2,
         parsed: true,
         knobs: 0,
@@ -574,26 +572,74 @@ describe('aggregation', () => {
         playerId: 0,
         tick: 3,
         ms: 30,
-        promptChars: 100,
         replyChars: 0,
-        error: 'timeout',
-      },
-      {
-        playerId: 0,
-        tick: 4,
-        ms: 0,
-        promptChars: 0,
-        replyChars: 0,
-        skipped: true,
+        error: 'engine threw',
       },
     ];
     const {health} = summarize(runs, 1);
-    expect(health.consultations).toBe(4);
+    expect(health.consultations).toBe(3);
     expect(health.parseFailures).toBe(1);
     expect(health.emptyAdvice).toBe(1);
     expect(health.errors).toBe(1);
-    expect(health.skipped).toBe(1);
-    expect(health.latencyMs.max).toBe(30);
+  });
+});
+
+describe('the fingerprints', () => {
+  const war = (
+    playerId: Owner,
+    over: Partial<MatchRecord['war'][number]> = {},
+  ): MatchRecord['war'][number] => ({
+    playerId,
+    firstMarchTick: -1,
+    sorties: 0,
+    sortieStrikes: 0,
+    sortieWithdrawals: 0,
+    outpostDefenses: 0,
+    marchRetreats: 0,
+    scoutFled: 0,
+    heralds: 0,
+    stanceSwitches: 0,
+    ...over,
+  });
+
+  it('pools each playbook’s conduct over the unadvised sample', () => {
+    const runs = seated([
+      [0, 1],
+      [0, 1],
+    ]);
+    // Seating 0: steward at seat 0, warlord at seat 1 — and mirrored.
+    for (const run of runs) {
+      for (const layout of run.layouts) {
+        const stewardSeat =
+          layout.control!.strategies[0] === AiStrategyId.steward ? 0 : 1;
+        layout.control!.war = [
+          war(stewardSeat as Owner, {sorties: 4, firstMarchTick: 16_000}),
+          war((1 - stewardSeat) as Owner, {
+            sorties: 1,
+            firstMarchTick: 13_000,
+            heralds: 1,
+          }),
+        ];
+      }
+    }
+    const prints = fingerprintsOf(runs);
+    const steward = prints.find(f => f.strategy === AiStrategyId.steward)!;
+    const warlord = prints.find(f => f.strategy === AiStrategyId.warlord)!;
+    // Four seats each: two seeds, two seatings, one unadvised match apiece.
+    expect(steward.seats).toBe(4);
+    expect(warlord.seats).toBe(4);
+    expect(steward.sorties).toBe(4);
+    expect(warlord.sorties).toBe(1);
+    expect(steward.medianFirstMarch).toBe(16_000);
+    expect(warlord.medianFirstMarch).toBe(13_000);
+    expect(warlord.heralds).toBe(1);
+  });
+
+  it('a seat that never marched reads as —, not as tick zero', () => {
+    const runs = mirrored([[0, 1]], [0]);
+    runs[0]!.layouts[0]!.control!.war = [war(0), war(1)];
+    const prints = fingerprintsOf(runs);
+    expect(prints[0]!.medianFirstMarch).toBe(-1);
   });
 });
 
@@ -1015,9 +1061,7 @@ describe('the mutation space', () => {
         ]),
       }),
     );
-    expect(record.consults.every(c => c.skipped || c.parsed === true)).toBe(
-      true,
-    );
+    expect(record.consults.every(c => c.parsed === true)).toBe(true);
     expect(record.adviceApplied['1']).toBe(1);
   });
 
@@ -1048,10 +1092,16 @@ describe('the command line', () => {
     expect(() => parseArgs(['--seeds', '6-3'])).toThrow(/backwards/);
   });
 
-  it('takes latency as ticks or as the engine’s own clock', () => {
+  it('takes latency as a non-negative number of ticks, nothing else', () => {
     expect(parseArgs(['--latency', '120']).latency).toBe(120);
-    expect(parseArgs(['--latency', 'measured']).latency).toBe('measured');
-    expect(() => parseArgs(['--latency', 'soon'])).toThrow(/measured/);
+    expect(parseArgs(['--latency', '0']).latency).toBe(0);
+    // 'measured' died with the model: a synchronous engine has no wall
+    // clock worth pricing in, so the flag takes ticks alone now.
+    expect(() => parseArgs(['--latency', 'measured'])).toThrow(/number/);
+    expect(() => parseArgs(['--latency', 'soon'])).toThrow(/number/);
+    // Negative delay would only be clamped to zero downstream — refused
+    // here instead, so the flag never silently means something else.
+    expect(() => parseArgs(['--latency', '-5'])).toThrow(/non-negative/);
   });
 
   it('arms the match watchdog with a sane ceiling', () => {

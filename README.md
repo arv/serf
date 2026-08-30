@@ -265,20 +265,25 @@ manifest from the finished build, and registration lives in
 `src/app/serviceWorker.ts` — dev unregisters instead, so `pnpm dev` is never
 served yesterday's bundle.
 
-The optional **LLM strategist** (the "LLM strategist" toggle in the start
-menu) runs a small language model on-device — llama.cpp via wllama, CPU
-wasm so the renderer keeps the GPU — and lets it steer the AI seats'
-posture knobs on a slow cadence. Whether a given model's advice actually
-wins games is a measurable question, and `tools/aiLab/` is the measuring
-instrument: a seed-sweeping, seat-mirrored bake-off with error bars
-(`pnpm bakeoff --help`, and the README there).
+The **AI opponents** are the Age of Empires shape: a playbook of strategic
+numbers per personality, a stance engine that switches its war knobs as
+the match turns (`src/sim/defs/aiPostures.ts`, `AiStrategy.stances`), and
+a set of reactive war verbs — harassment sorties, grudges, outpost
+defense, retreats for the lords that retreat, heralds that announce a full
+assault fifteen seconds before it moves. Every layer is measured before it
+ships, and `tools/aiLab/` is the measuring instrument: a seed-sweeping,
+seat-mirrored bake-off with error bars, per-behavior ablation flags and a
+per-playbook FINGERPRINTS table (`pnpm bakeoff --help`, and the README
+there — which also records why the on-device LLM strategist that once
+advised the seats was removed: it never beat the rule reading the same
+summary).
 
 ```sh
 pnpm test        # headless suite: sim, editor, server, aiLab (800+ tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
 pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
-pnpm bakeoff     # LLM strategist bake-off (tools/aiLab)
+pnpm bakeoff     # AI bake-off (tools/aiLab)
 ```
 
 Formatting is [oxfmt](https://oxc.rs/docs/guide/usage/formatter)
@@ -297,8 +302,17 @@ a `<reference>` TypeScript no longer reads is a silent one.
 
 ## Credits
 
-- 3D models: [KayKit Medieval Hexagon Pack](https://kaylousberg.itch.io/kaykit-medieval-hexagon)
-  by Kay Lousberg (CC0) — `public/models/kaykit/`
+The game carries its own credits page — `/docs/credits` in the field guide,
+also linked from the start screen's footer — with logos and links.
+
+- 3D models: [KayKit](https://kaylousberg.itch.io/kaykit-medieval-hexagon)
+  packs by Kay Lousberg (CC0) — Medieval Hexagon foremost, plus the
+  Adventurers characters, Dungeon Remastered, Forest Nature, Restaurant
+  Bits and RPG Tools — `public/models/kaykit/`
 - Audio samples: [Kenney](https://kenney.nl) impact / RPG / interface /
   jingle packs (CC0) — `public/audio/`; every cue also has a synthesized
   fallback, so the samples only ever improve what is already audible
+- Renderer: [three.js](https://threejs.org) (MIT)
+- UI runtime: [SolidJS](https://www.solidjs.com) (MIT)
+- Typeface: [Space Grotesk](https://github.com/floriankarsten/space-grotesk)
+  by Florian Karsten (OFL 1.1) — `public/fonts/`

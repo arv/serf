@@ -180,10 +180,19 @@ function siegeStandoff(): {world: World; brain: AiBrain} {
     spawnUnit(world, UnitTypeId.knight, 1, 45.5, 28.5 + i * 0.4);
   spawnUnit(world, UnitTypeId.knight, 0, 42.5, 30.5); // the scout
   world.tick = 1000; // past the steward's attack cooldown
-  return {
-    world,
-    brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size),
-  };
+  const brain = new AiBrain(
+    0,
+    AI_STRATEGIES[AiStrategyId.steward],
+    world.map.size,
+  );
+  // These fixtures measure the ODDS gate against the printed muster of
+  // seven. The stance engine would switch this found-castle world into
+  // siege (bar twelve) and hide the gate behind a headcount hold, and the
+  // herald would hold the march it allows — so both are pinned off; the
+  // aiStances and aiWar tests own those behaviors.
+  brain.setStancePolicy(false);
+  brain.setWarBehaviors([]);
+  return {world, brain};
 }
 
 describe('strategist overrides', () => {
@@ -337,6 +346,8 @@ describe('strategist overrides', () => {
       AI_STRATEGIES[AiStrategyId.steward],
       world.map.size,
     );
+    brain.setStancePolicy(false); // the printed bar of seven is the subject
+    brain.setWarBehaviors([]); // and the herald would hold the march
     expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // headcount says wait
     brain.setOverride({marchConfidence: 60});
     expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);

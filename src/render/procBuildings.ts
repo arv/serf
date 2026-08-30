@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {hash2} from '../shared/math';
 import type {PieceFactory} from './assets';
 
 /**
@@ -74,6 +76,19 @@ interface Paint {
 const KAY = {
   /** House masonry: the dark half of the grey ramp. */
   stone: {cell: [0, 2], from: 0.54, to: 0.92},
+  /** Worked earth, for the farm's plot. (3,7) is off the buildings' own
+   * six-cell diet, deliberately: a field is ground, not architecture, and
+   * the pack's grounds — its dirt hexes — live on exactly these warm
+   * taupes. */
+  soil: {cell: [3, 7], from: 0.34, to: 0.72},
+  /** The turned beds the rows stand in, a darker slice of the same earth. */
+  soilDark: {cell: [3, 7], from: 0.58, to: 0.9},
+  /** Standing wheat: the gold ramp the pack paints its grain in — light
+   * heads over stalks falling into their own shadow. The loaves below
+   * take the same cell, which is the joke of the bread chain. */
+  wheat: {cell: [1, 3], from: 0.16, to: 0.78},
+  /** Cut hay in the barn, straw-beige. */
+  hay: {cell: [2, 3], from: 0.2, to: 0.65},
   /** The corner footings, a step lighter so they read as separate stones. */
   stonePale: {cell: [0, 2], from: 0.4, to: 0.72},
   /** The oven mass: the light half of the same ramp. It used to be a warm
@@ -663,6 +678,16 @@ function oven(g: THREE.Group): void {
   box(g, 0.3, 0.038, 0.26, KAY.stonePale, OX, 1.12, OZ);
   box(g, 0.19, 0.045, 0.16, KAY.slate, OX, 1.162, OZ);
 
+  // The flue's mouth, as a named empty on the cap — buildingSync stands a
+  // smoke column on it while the oven works, the way the mill's sails hang
+  // off 'millFan'. The Smith's pack model carries the same mark (assets.ts
+  // adds it at load). An empty, not a mesh: it must survive normalize and
+  // the team-color split untouched and add nothing to the model's bounds.
+  const flue = new THREE.Group();
+  flue.name = 'smokeFlue';
+  flue.position.set(OX, 1.185, OZ);
+  g.add(flue);
+
   // --- The arch. Everything above exists to hold this up.
   const zf = OZ + 0.21; // the front face of the bottom stage, near its foot
   const OPEN = 0.32;
@@ -715,4 +740,333 @@ function oven(g: THREE.Group): void {
   box(g, 0.22, 0.09, 0.04, KAY.slate, OX, 0.07, zf + 0.035);
   box(g, 0.26, 0.03, 0.05, KAY.ovenDark, OX, 0.135, zf + 0.04);
   box(g, 0.44, 0.03, 0.15, KAY.stone, OX, 0.015, zf + 0.1);
+}
+
+// --- The farmstead ---------------------------------------------------------
+
+/**
+ * The wheat farm: an open field the resident actually mows.
+ *
+ * It replaced the pack's farm_plot.glb, which was one waist-high slab of
+ * wheat filling the whole footprint — scenery a farmer could only stand
+ * beside. This is the same plot turned into a place of work: a soil pad,
+ * five raised rows of standing wheat with lanes wide enough to walk, a
+ * post-and-rail fence that leaves the front open, and a low open-fronted
+ * hay barn in the back corner wearing the team color on its roof. The
+ * field is most of the composition on purpose — the field is what says
+ * farm; the barn only has to say building.
+ *
+ * The lanes are load-bearing: sceneSync walks the farmer along them,
+ * scythe swinging, while a batch runs. Where he walks is authored HERE,
+ * as named empties ('mowGate', 'mowPath0'..N in visiting order), and
+ * buildingSync measures their world positions once the building stands —
+ * so the circuit can never drift from the rows the way a table of
+ * coordinates in another file would.
+ */
+
+/** Pad: the worked plot, a hair inside the unit square. */
+const PAD_TOP = 0.02;
+/** Barn body: center and extents, back-west corner of the plot. Sized a
+ * head under a house on purpose — the field is the farm; the barn only
+ * has to say building (and carry the team roof). The ridge runs along z,
+ * so the open bay is a gable end presented to the field and the camera
+ * reads gable-plus-slope the way it reads every pack house, instead of
+ * one whole slope face-on (which read as a leaning sign). */
+const BNX = -0.28;
+const BNZ = -0.33;
+const BNW = 0.34;
+const BND = 0.3;
+const BN_EAVE = 0.17;
+const BN_SPAN = BNW / 2 + 0.035; // roof half-span, Kay's 45 degrees
+const BN_RISE = BN_SPAN;
+const BN_SLOPE = Math.hypot(BN_SPAN, BN_RISE);
+
+/** Front-field wheat rows (z), and the pair tucked back-east. */
+const ROWS_FRONT = [-0.04, 0.12, 0.28];
+const ROWS_BACK = [-0.22, -0.38];
+/** Row extents along x. */
+const ROW_X0 = -0.34;
+const ROW_X1 = 0.34;
+const BACK_X0 = 0.04;
+const BACK_X1 = 0.34;
+
+/**
+ * The mowing circuit: one lane on the walker's side of each front row,
+ * serpentine, turning on the headlands just past the row ends. Visited in
+ * order and then walked back (sceneSync ping-pongs it). The last lane
+ * runs the front of the barn, so the round ends at the door he'd carry
+ * the sheaves through.
+ *
+ * The turns sit a clear step INSIDE the flank fences (rails at 0.475),
+ * not against them: at 0.44 the farmer stood into the fence at every
+ * turn, hat through the rail. The rows give up the same margin, so the
+ * headland he turns on stays a walked strip and not a hedge.
+ */
+const MOW_LANES = [0.36, 0.2, 0.04, -0.12];
+const MOW_TURN_X = 0.38;
+
+export function makeFarmstead(
+  _piece: PieceFactory,
+  packMaterial: THREE.Material | null,
+): THREE.Group {
+  atlas = packMaterial;
+  const g = new THREE.Group();
+  field(g);
+  barn(g);
+  fences(g);
+  marks(g);
+  applyRamps(g);
+  return g;
+}
+
+/** The plot, its beds, and the standing wheat. */
+function field(g: THREE.Group): void {
+  // The pad leans in as it rises like every pack mass, one finger high:
+  // a worked plot sits IN the grass, not on a plinth.
+  const pad = mesh(frustumGeo(1.0, 1.0, 0.965, 0.965, PAD_TOP), KAY.soil);
+  g.add(pad);
+
+  // A turned bed under each row, darker earth standing off the pad.
+  const beds: THREE.BufferGeometry[] = [];
+  const bed = (x0: number, x1: number, z: number): void => {
+    const geo = new THREE.BoxGeometry(x1 - x0 + 0.06, 0.016, 0.11);
+    geo.translate((x0 + x1) / 2, PAD_TOP + 0.008, z);
+    beds.push(geo);
+  };
+  for (const z of ROWS_FRONT) bed(ROW_X0, ROW_X1, z);
+  for (const z of ROWS_BACK) bed(BACK_X0, BACK_X1, z);
+  g.add(mesh(mergeGeometries(beds), KAY.soilDark));
+
+  // Standing wheat, in the pack's own grain language: Kay's grain tile
+  // (Medieval Hexagon building_grain) is one continuous slab of gold
+  // with a ragged, chipped rim, its flat top broken by a few taller
+  // tufts, over a visible band of earth. Each row here is that tile in
+  // miniature: overlapping frustums close ranks into one running slab —
+  // the height barely wavers, the SIDES do (per-clump depth jitter is
+  // what chips the rim) — and sparse thin nubs stand proud of the top
+  // the way his do. Merged to one mesh: a field is one draw, not sixty.
+  // Knee-high on the villager; the ramp falls the gold into its own base
+  // shadow, so a man in the lane beside it reads as IN the crop.
+  const tufts: THREE.BufferGeometry[] = [];
+  let n = 0;
+  const row = (x0: number, x1: number, z: number): void => {
+    const COUNT = Math.round((x1 - x0) / 0.095);
+    const pitch = (x1 - x0) / COUNT;
+    for (let i = 0; i < COUNT; i++) {
+      n++;
+      const h = 0.075 + hash2(n, 29) * 0.012;
+      // Overlapped into one slab: only the chipped flanks say where one
+      // clump ends, never the crowns.
+      const w = pitch * 1.12;
+      const d = 0.062 + hash2(n, 41) * 0.026;
+      const geo = frustumGeo(w * 0.66, d * 0.62, w, d, h);
+      geo.rotateY((hash2(n, 31) - 0.5) * 0.1);
+      geo.translate(
+        x0 + pitch * (i + 0.5),
+        PAD_TOP + 0.012,
+        z + (hash2(n, 37) - 0.5) * 0.014,
+      );
+      tufts.push(geo);
+      // Kay's tell: every few paces a taller tuft breaks the slab's top.
+      if (hash2(n, 43) < 0.3) {
+        const nub = new THREE.BoxGeometry(0.022, 0.05, 0.022).toNonIndexed();
+        // The frustums carry no uv (applyRamps writes them); a merge of
+        // mismatched attribute sets returns nothing at all.
+        nub.deleteAttribute('uv');
+        nub.translate(
+          x0 + pitch * (i + 0.5) + (hash2(n, 47) - 0.5) * pitch * 0.5,
+          PAD_TOP + 0.012 + h,
+          z + (hash2(n, 53) - 0.5) * 0.05,
+        );
+        tufts.push(nub);
+      }
+    }
+  };
+  for (const z of ROWS_FRONT) row(ROW_X0, ROW_X1, z);
+  for (const z of ROWS_BACK) row(BACK_X0, BACK_X1, z);
+  g.add(mesh(mergeGeometries(tufts), KAY.wheat));
+}
+
+/**
+ * The hay barn: an open-fronted timber shelter — plank walls down the
+ * flanks and across the back, the front a bay standing open under its
+ * gable with the cut hay showing inside, under a team-colored roof at
+ * Kay's 45 degrees. Low on purpose: a barn is the field's outbuilding,
+ * not a second house.
+ */
+function barn(g: THREE.Group): void {
+  // Corner posts carry the roof; the walls hang between them.
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      box(
+        g,
+        0.06,
+        BN_EAVE,
+        0.06,
+        KAY.timber,
+        BNX + sx * (BNW / 2 - 0.03),
+        PAD_TOP + BN_EAVE / 2,
+        BNZ + sz * (BND / 2 - 0.03),
+      );
+    }
+  }
+  // Plank walls under the flank eaves and across the back, to the wall
+  // plate; the front bay stays open — the hay inside is the story, and a
+  // shut box would be a shed.
+  const WALL_H = BN_EAVE - 0.03;
+  box(
+    g,
+    BNW - 0.09,
+    WALL_H,
+    0.035,
+    KAY.timber,
+    BNX,
+    PAD_TOP + WALL_H / 2,
+    BNZ - BND / 2 + 0.028,
+  );
+  for (const sx of [-1, 1]) {
+    box(
+      g,
+      0.035,
+      WALL_H,
+      BND - 0.09,
+      KAY.timber,
+      BNX + sx * (BNW / 2 - 0.028),
+      PAD_TOP + WALL_H / 2,
+      BNZ,
+    );
+  }
+
+  // The winter's hay, mounded out of the bay's shadow into the light.
+  const hayA = mesh(new THREE.BoxGeometry(0.16, 0.105, 0.13), KAY.hay);
+  hayA.position.set(BNX - 0.04, PAD_TOP + 0.052, BNZ + 0.01);
+  hayA.rotation.y = 0.18;
+  const hayB = mesh(new THREE.BoxGeometry(0.12, 0.07, 0.1), KAY.hay);
+  hayB.position.set(BNX + 0.08, PAD_TOP + 0.035, BNZ + 0.06);
+  hayB.rotation.y = -0.3;
+  g.add(hayA, hayB);
+
+  // Gable ends over the eave line, plank like the walls (a plastered
+  // gable would out-dress the field it stands in). The front one crowns
+  // the open bay, and a tie beam runs under it post to post — without
+  // the beam the triangle floated on air and the bay read as a gap in
+  // the building rather than a doorway through it.
+  for (const sz of [-1, 1]) {
+    const tri = mesh(gableGeo(BNW, BN_RISE, 0.04), KAY.timber);
+    tri.position.set(BNX, PAD_TOP + BN_EAVE, BNZ + sz * (BND / 2 - 0.02));
+    g.add(tri);
+  }
+  box(
+    g,
+    BNW - 0.02,
+    0.045,
+    0.045,
+    KAY.timber,
+    BNX,
+    PAD_TOP + BN_EAVE - 0.022,
+    BNZ + BND / 2 - 0.03,
+  );
+
+  // The roof: each slope laid as three strips at slightly different
+  // heights and lengths — the bakehouse's own treatment, at barn scale.
+  // It started as one slab per slope ("a barn earns no kinked strips")
+  // and read as exactly what that is: a flat green board leaning on
+  // posts. Kay's roofs are never a plane (see the STRIPS note over the
+  // bakehouse), and the kinked seams are what make this one read as laid
+  // too. Rake boards down the gable edges, a ridge beam capping the
+  // pair. Cell (3,3) — the team slot — so a rival's farm reads at a
+  // glance.
+  const ROOF_D = BND + 0.08;
+  const STRIPS: {frac: number; dy: number; dlen: number}[] = [
+    {frac: 0.36, dy: 0, dlen: 0},
+    {frac: 0.3, dy: 0.014, dlen: 0.02},
+    {frac: 0.34, dy: 0.005, dlen: -0.012},
+  ];
+  for (const sx of [-1, 1]) {
+    const panel = new THREE.Group();
+    panel.position.set(
+      BNX + (sx * BN_SPAN) / 2,
+      PAD_TOP + BN_EAVE + BN_RISE / 2,
+      BNZ,
+    );
+    panel.rotation.z = -sx * (Math.PI / 4);
+    g.add(panel);
+    let z = -ROOF_D / 2;
+    for (const st of STRIPS) {
+      const d = ROOF_D * st.frac;
+      const slab = mesh(
+        new THREE.BoxGeometry(BN_SLOPE + st.dlen, 0.035, d),
+        KAY.roof,
+      );
+      slab.position.set((sx * st.dlen) / 2, st.dy, z + d / 2);
+      panel.add(slab);
+      z += d;
+    }
+    for (const sz of [-1, 1]) {
+      const verge = mesh(
+        new THREE.BoxGeometry(BN_SLOPE + 0.04, 0.05, 0.034),
+        KAY.timber,
+      );
+      verge.position.set(sx * 0.008, 0.01, sz * (ROOF_D / 2 + 0.014));
+      panel.add(verge);
+    }
+  }
+  box(
+    g,
+    0.065,
+    0.05,
+    ROOF_D + 0.05,
+    KAY.timber,
+    BNX,
+    PAD_TOP + BN_EAVE + BN_RISE + 0.016,
+    BNZ,
+  );
+}
+
+/**
+ * Post-and-rail along the flanks and the back, merged to two meshes. The
+ * front edge carries no fence at all: it is the working edge — the gate
+ * mark stands in the middle of it, the stock piles land on it, and the
+ * farmer walks in over it.
+ */
+function fences(g: THREE.Group): void {
+  const posts: THREE.BufferGeometry[] = [];
+  const rails: THREE.BufferGeometry[] = [];
+  const run = (x0: number, z0: number, x1: number, z1: number): void => {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const segs = Math.max(1, Math.round(len / 0.155));
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const p = new THREE.BoxGeometry(0.03, 0.135, 0.03);
+      p.translate(x0 + (x1 - x0) * t, PAD_TOP + 0.0675, z0 + (z1 - z0) * t);
+      posts.push(p);
+    }
+    const r = new THREE.BoxGeometry(len, 0.028, 0.022);
+    r.rotateY(-Math.atan2(z1 - z0, x1 - x0));
+    r.translate((x0 + x1) / 2, PAD_TOP + 0.112, (z0 + z1) / 2);
+    rails.push(r);
+  };
+  for (const sx of [-1, 1]) run(sx * 0.475, -0.46, sx * 0.475, 0.46);
+  // Back edge only east of the barn — its own wall holds the west end.
+  run(-0.09, -0.475, 0.46, -0.475);
+  g.add(mesh(mergeGeometries(posts), KAY.timber));
+  g.add(mesh(mergeGeometries(rails), KAY.timberLight));
+}
+
+/** The walk's waypoints: empties buildingSync finds by name. */
+function marks(g: THREE.Group): void {
+  const mark = (name: string, x: number, z: number): void => {
+    const m = new THREE.Group();
+    m.name = name;
+    m.position.set(x, PAD_TOP, z);
+    g.add(m);
+  };
+  mark('mowGate', 0, 0.5);
+  let i = 0;
+  for (const [li, z] of MOW_LANES.entries()) {
+    // Serpentine: even lanes run west-to-east, odd ones back.
+    const xs =
+      li % 2 === 0 ? [-MOW_TURN_X, MOW_TURN_X] : [MOW_TURN_X, -MOW_TURN_X];
+    for (const x of xs) mark(`mowPath${i++}`, x, z);
+  }
 }

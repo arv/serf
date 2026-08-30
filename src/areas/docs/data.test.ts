@@ -122,6 +122,7 @@ describe('the docs router', () => {
     expect(parseDocsPath('/docs/techs')).toEqual({page: 'techs'});
     expect(parseDocsPath('/docs/commands')).toEqual({page: 'commands'});
     expect(parseDocsPath('/docs/basics')).toEqual({page: 'basics'});
+    expect(parseDocsPath('/docs/credits')).toEqual({page: 'credits'});
   });
 
   it('turns typos into the missing page, not a throw', () => {

@@ -72,7 +72,7 @@ function columns(): Column[] {
         code: def.id,
         profession: 1,
         label: 'Farmer',
-        workKind: WORK.dig,
+        workKind: WORK.mow,
       });
       out.push({
         code: def.id,
@@ -102,6 +102,7 @@ const WORK_ANIM: Record<number, AnimKey> = {
   [WORK.tend]: AnimKey.tend,
   [WORK.draw]: AnimKey.draw,
   [WORK.fish]: AnimKey.fish,
+  [WORK.mow]: AnimKey.mow,
 };
 
 /** The overlay's mode buttons. A label rather than an id because that is

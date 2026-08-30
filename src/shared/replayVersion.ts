@@ -20,7 +20,11 @@
  * directly.
  */
 /**
- * 34: a mixed squad's move order is dealt out in battle order, and the
+ * 34: two changes, developed apart, that never shipped apart — one bump
+ * covers both because no replay was ever recorded under either half
+ * alone.
+ *
+ * A mixed squad's move order is dealt out in battle order, and the
  * squad marches as one. The spread tiles a group move fans out over used
  * to go to whichever ids happened to come first in the command; they now
  * go by arm — knights on the edge facing the march, spearmen behind them,
@@ -34,6 +38,16 @@
  * a mixed group — every AI seat's army does — puts its soldiers on
  * different tiles on a different clock from that order on, and every
  * fight they walk into re-runs differently.
+ *
+ * And the herald — a fifteenth command kind (a taunt with an address:
+ * sender, structured note, optional strength boast) and a sixth game
+ * event (heraldIncoming) it lands as. Pure format: nothing about how a
+ * tick executes moved, and every command an old log holds still applies
+ * exactly as it did. The bump is for the file — a log recorded on this
+ * build can hold herald frames an older sanitizeCommand screens out, and
+ * a replay that silently drops the taunts is not the match that was
+ * played. (The AI seats send heralds before full assaults on rival
+ * castles, so skirmish logs carry them routinely.)
  */
 /**
  * 33: every id in the sim is a number. Goods, buildings, units, techs,

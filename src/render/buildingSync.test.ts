@@ -53,6 +53,37 @@ vi.mock('./assets', () => ({
       fan.name = 'millFan';
       group.add(fan);
     }
+    // The real farmstead authors its walk marks as named empties
+    // (makeFarmstead); farmFields() only needs their world positions.
+    // Two lanes' worth, serpentine like the real circuit.
+    if (type === BuildingTypeId.wheatFarm) {
+      const gate = new THREE.Group();
+      gate.name = 'mowGate';
+      gate.position.set(0, 0.06, 1.6);
+      group.add(gate);
+      (
+        [
+          [-1.4, 1.1],
+          [1.4, 1.1],
+          [1.4, 0.6],
+          [-1.4, 0.6],
+        ] as const
+      ).forEach(([x, z], i) => {
+        const m = new THREE.Group();
+        m.name = `mowPath${i}`;
+        m.position.set(x, 0.06, z);
+        group.add(m);
+      });
+    }
+    // The real bakehouse authors its flue mouth as a named empty
+    // (procBuildings.ts), and assets.ts pins the same mark onto the
+    // Smith's pack model; frame() stands the smoke column on it.
+    if (type === BuildingTypeId.bakery || type === BuildingTypeId.weaponsmith) {
+      const flue = new THREE.Group();
+      flue.name = 'smokeFlue';
+      flue.position.y = 2;
+      group.add(flue);
+    }
     return group;
   },
 }));
@@ -203,6 +234,53 @@ describe("the fishery's pier", () => {
   });
 });
 
+describe("the farm's field", () => {
+  it('reports the circuit in world space, gate first, bounds around it', () => {
+    const {sync} = makeSync();
+    sync.update([snap({type: BuildingTypeId.wheatFarm, w: 3, h: 3})]);
+    const fields = sync.farmFields();
+    expect(fields.length).toBe(1);
+    const f = fields[0]!;
+    expect(f.bx).toBeCloseTo(11.5);
+    expect(f.bz).toBeCloseTo(11.5);
+    // The gate stands on the open front edge, the pad's height under it.
+    expect(f.gateX).toBeCloseTo(11.5);
+    expect(f.gateZ).toBeCloseTo(13.1);
+    expect(f.padY).toBeCloseTo(0.06);
+    // The circuit came out in authored order: a lane west to east, then
+    // the next lane back — the serpentine the farmer ping-pongs.
+    expect(f.points.length).toBe(4);
+    expect(f.points[0]!.x).toBeCloseTo(10.1);
+    expect(f.points[0]!.z).toBeCloseTo(12.6);
+    expect(f.points[1]!.x).toBeCloseTo(12.9);
+    expect(f.points[3]!.x).toBeCloseTo(10.1);
+    expect(f.points[3]!.z).toBeCloseTo(12.1);
+    // Bounds hold the whole circuit with a margin to spare, so the entry
+    // leg hands over a step before the first lane.
+    expect(f.minX).toBeLessThan(10.1);
+    expect(f.maxX).toBeGreaterThan(12.9);
+    expect(f.minZ).toBeLessThan(12.1);
+    expect(f.maxZ).toBeGreaterThan(13.1);
+    // Measured once: buildings do not move, so asking again returns the
+    // cached line.
+    expect(sync.farmFields()[0]).toBe(f);
+  });
+
+  it('is absent while the farm is still a site', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.wheatFarm,
+        w: 3,
+        h: 3,
+        state: BuildingState.site,
+        siteNeeds: {},
+      }),
+    ]);
+    expect(sync.farmFields().length).toBe(0);
+  });
+});
+
 describe('the damage bars', () => {
   /** The orientation baked into the first bar instance. The bars are
    * instanced, so the matrix is where the camera's angle actually ends up. */
@@ -324,6 +402,104 @@ describe("the mill's sails", () => {
     sync.update([snap({type: BuildingTypeId.mill})]);
     for (let i = 0; i < 10; i++) sync.frame(0.1);
     expect(scene.getObjectByName('millFan')!.rotation.z).toBe(0);
+  });
+});
+
+describe("the bakery's smoke", () => {
+  const bakery = (over: Partial<BuildingSnap> = {}): BuildingSnap =>
+    snap({type: BuildingTypeId.bakery, ...over});
+  /** Mid-batch with the baker at the oven — the state that smokes. */
+  const baking = (): BuildingSnap =>
+    bakery({working: true, staffing: StaffingState.staffed});
+
+  it('rises over the flue while a batch bakes', () => {
+    const {sync, scene} = makeSync();
+    sync.update([baking()]);
+    // The column is built on first need, not with the visual.
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    expect(smoke.visible).toBe(true);
+    // It stands on the flue mouth, which the mock parks two units up.
+    expect(smoke.position.y).toBeCloseTo(2);
+    // By now the staggered births are through: every puff is airborne,
+    // spread through the column rather than stacked at the mouth.
+    const born = smoke.children.filter(p => p.visible);
+    expect(born.length).toBe(smoke.children.length);
+    const heights = born.map(p => p.position.y);
+    expect(Math.max(...heights)).toBeGreaterThan(0.5);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.3);
+    for (const p of born) {
+      expect(
+        (p as THREE.Mesh & {material: THREE.Material}).material.opacity,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it('lingers past the batch, then goes out and rewinds for the next', () => {
+    const {sync, scene} = makeSync();
+    sync.update([baking()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+
+    // Batch over: the oven banks rather than going out — the column is
+    // still standing shortly after, only thinner...
+    sync.update([bakery({staffing: StaffingState.staffed})]);
+    sync.frame(0.1);
+    expect(smoke.visible).toBe(true);
+    // ...but a cold oven ends up with no smoke at all, and the births
+    // rewound so the next batch climbs out of the flue again.
+    for (let i = 0; i < 100; i++) sync.frame(0.1);
+    expect(smoke.visible).toBe(false);
+    sync.update([baking()]);
+    sync.frame(0.1);
+    expect(smoke.visible).toBe(true);
+    expect(smoke.children.filter(p => p.visible).length).toBeLessThan(
+      smoke.children.length,
+    );
+  });
+
+  it('holds no smoke over a frozen batch nobody is tending', () => {
+    // A convert whose worker dies mid-batch freezes rather than finishing
+    // (production.ts skips unstaffed posts), but prodTicksLeft stays set,
+    // so the snapshot still reports working. The smoke reads staffing too
+    // — an abandoned oven must not keep puffing over a frozen batch.
+    const {sync, scene} = makeSync();
+    sync.update([bakery({working: true})]); // mid-batch, nobody at the post
+    for (let i = 0; i < 20; i++) sync.frame(0.1);
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
+
+    // The replacement arrives and the batch resumes: the fire relights...
+    sync.update([baking()]);
+    for (let i = 0; i < 20; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    expect(smoke.visible).toBe(true);
+    // ...and banks out again when the baker walks off mid-batch.
+    sync.update([bakery({working: true})]);
+    for (let i = 0; i < 100; i++) sync.frame(0.1);
+    expect(smoke.visible).toBe(false);
+  });
+
+  it('never smokes over a bakery that has not baked', () => {
+    const {sync, scene} = makeSync();
+    sync.update([bakery()]);
+    for (let i = 0; i < 10; i++) sync.frame(0.1);
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
+  });
+
+  it("rises off the Smith's forge chimney too, on the same cue", () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.weaponsmith,
+        working: true,
+        staffing: StaffingState.staffed,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    expect(smoke.visible).toBe(true);
+    expect(smoke.children.filter(p => p.visible).length).toBeGreaterThan(0);
   });
 });
 

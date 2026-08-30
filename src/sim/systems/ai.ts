@@ -12,6 +12,7 @@ import {
 } from '../combatOdds.ts';
 import * as CommandKind from '../commandKindEnum.ts';
 import type {SimCommand} from '../commands.ts';
+import {stanceWarKnobs, type StanceKnobs} from '../defs/aiPostures.ts';
 import type {AiStrategy, BuildStep} from '../defs/aiStrategies.ts';
 import {HIRE_QUEUE_CAP, HIRE_SERF_COST} from '../defs/balance.ts';
 import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
@@ -27,6 +28,7 @@ import {
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries, type GoodAmounts} from '../defs/goods.ts';
+import * as PostureId from '../defs/postureIdEnum.ts';
 import {TECH_DEFS, type TechId} from '../defs/techs.ts';
 import * as UnitClass from '../defs/unitClassEnum.ts';
 import {UNIT_DEFS, WEAPON_OF} from '../defs/units.ts';
@@ -43,6 +45,7 @@ import {
   type EntityId,
   type Owner,
 } from '../entities.ts';
+import * as HeraldNote from '../heraldNoteEnum.ts';
 import {
   findResourcesNear,
   nearestResource,
@@ -58,7 +61,10 @@ import * as TileResource from '../tileResourceEnum.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {SeatVision} from '../visibility.ts';
+import * as WarBehaviorIdNs from '../warBehaviorIdEnum.ts';
 import {campCorners, startLayout, canPlace, type World} from '../world.ts';
+
+export type WarBehaviorId = Enum<typeof WarBehaviorIdNs>;
 
 type BuildAnchor = Enum<typeof BuildAnchor>;
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -222,6 +228,37 @@ export const AI_STALL = {
 } as const;
 
 /**
+ * The stance engine's clocks (see AiStrategy.stances and #updateStance).
+ *
+ * A stance is a mood, and a mood that flaps is no personality at all:
+ * `hostileNear` flickers per beat as a raider walks in and out of a radius,
+ * and every stance switch moves the pacing knobs the march and rally
+ * cooldowns read. So wanted-stance is re-read on a slow clock, and a held
+ * stance keeps its seat for at least `dwell` ticks — with one exception,
+ * the fortify break-in, which fires the same beat hostiles reach the yard,
+ * because danger is the one thing a mood must not be slow about. Reverting
+ * OUT of fortify still waits out the clocks, so the army does not bounce
+ * between the yard and the road while a raid dissolves.
+ */
+export const AI_STANCE = {
+  /** Ticks between wanted-stance evaluations. */
+  evalPeriod: 500,
+  /** A switch holds at least this long (the break-in excepted). */
+  dwell: 1000,
+} as const;
+
+/** The stance engine's three states. What each maps to lives in the
+ * playbook (AiStrategy.stances); an unset opening means the printed
+ * playbook itself. */
+export const STANCE_OPENING = 0;
+export const STANCE_FORTIFY = 1;
+export const STANCE_FOUND = 2;
+type StanceState =
+  | typeof STANCE_OPENING
+  | typeof STANCE_FORTIFY
+  | typeof STANCE_FOUND;
+
+/**
  * How battered a building has to be before a seat pays to mend it. Not every
  * scratch is worth a mason: the bill is charged per point of damage, so
  * repairing at the first arrow costs the same materials in the end and spends
@@ -261,6 +298,17 @@ export const AI_INTEL = {
    * attack landing rather than a patrol. Same scale as the summary's
    * underAttack radius — this is the AI's own definition of "at my gates". */
   raidRadius: 12,
+  /**
+   * Each scout lost on a rival's errand — dead on the walk, or fled at
+   * half blood — doubles that rival's refresh clock, up to this many
+   * doublings; a completed read clears the debt. A doorstep behind a
+   * garrison or a tower stays worth reading EVENTUALLY, which is why it
+   * is a backoff and not the write-off #unreachable applies to discovery
+   * goals — but walking a fresh soldier down the same lethal road every
+   * `refreshAfter` is not intelligence work, it is tribute, and one seat
+   * paid its whole barracks output that way across a match.
+   */
+  scoutBurnCap: 3,
 } as const;
 
 /**
@@ -344,6 +392,9 @@ interface RivalPicture {
   /** First-contact facts, all ticks, all -1 until they happen. */
   firstSoldierTick: number;
   firstAttackTick: number;
+  /** Last tick a real force of theirs stood at our gates — the grudge's
+   * clock, where firstAttackTick is the archetype's. -1 = never. */
+  lastRaidTick: number;
   /** Their buildings on our explored ground when the fifth minute struck;
    * -1 before it does. */
   buildingsAtFive: number;
@@ -399,6 +450,73 @@ const MILITARY = new Set<UnitTypeId>([
  * seat into emptying its yard. */
 const MIN_SORTIE = 3;
 
+/** The war behaviors, spelled — the lab's `--war` flag and its traces. */
+export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
+  [WarBehaviorIdNs.harassSortie]: 'harassSortie',
+  [WarBehaviorIdNs.grudge]: 'grudge',
+  [WarBehaviorIdNs.defendOutpost]: 'defendOutpost',
+  [WarBehaviorIdNs.retreatMarch]: 'retreatMarch',
+  [WarBehaviorIdNs.scoutFlees]: 'scoutFlees',
+  [WarBehaviorIdNs.heraldMarch]: 'heraldMarch',
+};
+
+export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
+  WarBehaviorIdNs.harassSortie,
+  WarBehaviorIdNs.grudge,
+  WarBehaviorIdNs.defendOutpost,
+  WarBehaviorIdNs.retreatMarch,
+  WarBehaviorIdNs.scoutFlees,
+  WarBehaviorIdNs.heraldMarch,
+];
+
+const WAR_BEHAVIOR_BY_KEY = new Map<string, WarBehaviorId>(
+  ALL_WAR_BEHAVIORS.map(id => [WAR_BEHAVIOR_KEYS[id], id]),
+);
+
+export function warBehaviorFromKey(key: string): WarBehaviorId | undefined {
+  return WAR_BEHAVIOR_BY_KEY.get(key);
+}
+
+/**
+ * The war behaviors' constants, together so their scales can be read
+ * against each other. Radii are manhattan, like every other reach here.
+ */
+export const AI_WAR = {
+  /** A building this far from the castle is an outpost — the warlord's
+   * gold mine is the archetype — and worth its own defenders when raiders
+   * reach it. Past the homeGuard's largest radius, so the two rules never
+   * argue over the same ground. */
+  outpostRange: 16,
+  /** How close a hostile has to stand to an outpost to call its defense. */
+  outpostAlarm: 8,
+  /** Ticks between outpost dispatches — one call per emergency, not one
+   * per beat while the raider stands there. */
+  outpostCooldown: 200,
+  /** Soldiers sent to a called outpost, at most. */
+  outpostParty: 3,
+  /** A sortie breaks off below this expected-survivors percentage
+   * (combatOdds.shouldCommit) — a small party has real routs to refuse,
+   * which is the fight-picking the all-in march never needed. */
+  sortieBreak: 50,
+  /** A marched army under half its sent strength turns home below this
+   * expected-survivors percentage — for the personalities that retreat. */
+  retreatBreak: 25,
+  /** How long a raid stays worth avenging: the grudge names the rival
+   * whose force reached our yard most recently inside this window. */
+  grudgeFor: 6_000,
+  /**
+   * The herald's telegraph: a full assault on a rival CASTLE is announced
+   * this many ticks before the army moves — fifteen seconds a defender can
+   * actually act on, which is the whole point of a warning. A deliberate
+   * small tax on tempo, paid for drama; measured as a guardrail, and the
+   * lead shrinks before the telegraph ever goes.
+   */
+  heraldLead: 300,
+  /** Marches smaller than this go unannounced: a forlorn pair of archers
+   * limping at a castle is not an assault worth a herald's breath. */
+  heraldMin: 6,
+} as const;
+
 const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, number>> = {
   [BuildAnchor.wood]: TileResource.Wood,
   [BuildAnchor.rock]: TileResource.Rock,
@@ -428,13 +546,70 @@ export class AiBrain {
   #oddsBlind = 0;
   #oddsCamps = 0;
   /**
-   * Knobs laid over the playbook — the LLM strategist's dial (src/ai/).
-   * Worker memory only, never serialized: the world's determinism story is
-   * untouched because overrides reach the sim solely through the commands
-   * this brain already emits, and a reloaded save simply runs the printed
-   * playbook until the next advice lands.
+   * Knobs laid over the playbook — the advice seam's dial (src/ai/,
+   * tools/aiLab). Worker memory only, never serialized: the world's
+   * determinism story is untouched because overrides reach the sim solely
+   * through the commands this brain already emits, and a reloaded save
+   * simply runs the printed playbook until the next advice lands. Advice
+   * merges over the stance too — the lab's whole-match steering outranks
+   * the seat's own moods.
    */
   #override: Partial<AiStrategy> | null = null;
+  /**
+   * The stance engine's whole memory (AiStrategy.stances, AI_STANCE):
+   * which of the three states the seat is in, since when, and when the
+   * wanted stance is next re-read. Brain-local like everything else here —
+   * a reloaded save re-enters the opening and re-finds the rival within an
+   * eval period, which is the same story vision and intel already tell.
+   */
+  #stanceState: StanceState = STANCE_OPENING;
+  #stanceSince = 0;
+  #stanceEvalDue = 0;
+  /** Diagnostics: switches made, so the lab's fingerprints can tell a seat
+   * that lived one mood from a seat that swung with the match. */
+  #stanceSwitches = 0;
+  /** The lab's ablation handle (`--stances off`): false pins the seat to
+   * its printed playbook, which is the pre-stance-engine null. */
+  #stancePolicy = true;
+  /**
+   * Which war behaviors this seat runs (warBehaviorIdEnum, AI_WAR). Every
+   * behavior by default, which is what ships; the lab narrows it to ablate
+   * one at a time (`--war <ids>`), and an empty set is the pre-reactive
+   * brain. Brain-local like every other field here.
+   */
+  #warBehaviors: ReadonlySet<WarBehaviorId> = new Set(ALL_WAR_BEHAVIORS);
+  /** The harassment party out right now, or null: who was sent, at what,
+   * since when, and how much blood it left with — the withdrawal reads
+   * all four. */
+  #sortie: {
+    ids: EntityId[];
+    targetId: EntityId;
+    since: number;
+    sentHp: number;
+  } | null = null;
+  /** Tick of the last sortie LAUNCH — the harass cooldown's clock. */
+  #lastSortieTick = 0;
+  /** Tick of the last outpost dispatch (AI_WAR.outpostCooldown). */
+  #lastOutpostTick = 0;
+  /** Tick the standing herald went out, -1 when none is pending — the
+   * march it announced holds until AI_WAR.heraldLead has passed. */
+  #heraldTick = -1;
+  /** Soldiers the last all-in march left with, and what it marched at —
+   * what the retreat compares the survivors and the garrison against. */
+  #marchedCount = 0;
+  #marchTargetId: EntityId = -1;
+  /** War fingerprints, for warReport(): when the first all-in march left,
+   * and how often each behavior actually spoke. A behavior that never
+   * fires and one that fires without paying print the same win rate, and
+   * telling them apart is the whole reason these exist. */
+  #firstMarchTick = -1;
+  #sorties = 0;
+  #sortieStrikes = 0;
+  #sortieWithdrawals = 0;
+  #outpostDefenses = 0;
+  #marchRetreats = 0;
+  #scoutFled = 0;
+  #heralds = 0;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
   #vision: SeatVision;
@@ -467,6 +642,14 @@ export class AiBrain {
   /** The rival whose doorstep the scout is walking to read, -1 when the
    * scout is on discovery (or home). */
   #scoutIntel: Owner = -1;
+  /** Consecutive scouts a rival's errand has cost — dead or fled with the
+   * read unfinished — and not yet redeemed by a completed one. The number
+   * of doublings that rival's refresh clock is owed; #burnScout caps it
+   * at AI_INTEL.scoutBurnCap as it counts, so a long war never grows the
+   * number past what the clock can spend. See that constant for why it is
+   * a backoff and not a write-off. Bounded by the seat count, like
+   * #intelAttempt. */
+  #scoutsLost = new Map<Owner, number>();
   /**
    * Per tower: the tick its levy may stand down, set forward every beat an
    * enemy is still in sight of it.
@@ -506,6 +689,18 @@ export class AiBrain {
     this.#rules = new Set(ids);
   }
 
+  /** Turn the stance engine off (the lab's `--stances off`); the game never
+   * calls it, so a shipped seat always plays its moods. */
+  setStancePolicy(on: boolean): void {
+    this.#stancePolicy = on;
+  }
+
+  /** Run only these war behaviors. The lab's ablation handle; the game
+   * never calls it, so a shipped seat always runs the whole set. */
+  setWarBehaviors(ids: readonly WarBehaviorId[]): void {
+    this.#warBehaviors = new Set(ids);
+  }
+
   constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
     this.playerId = playerId;
     this.strategy = strategy;
@@ -519,10 +714,10 @@ export class AiBrain {
   }
 
   /**
-   * What this seat has observed, for the LLM strategist's summary
-   * (src/ai/summary.ts) — the strategist must know exactly what the brain
-   * knows, no more. As of the last decision beat, so at most one beat
-   * stale; read-only by convention.
+   * What this seat has observed, for the seat summary (src/ai/summary.ts)
+   * — an advisor must know exactly what the brain knows, no more. As of
+   * the last decision beat, so at most one beat stale; read-only by
+   * convention.
    */
   get vision(): SeatVision {
     return this.#vision;
@@ -549,6 +744,54 @@ export class AiBrain {
       beats: this.#stalledBeats,
       recoveries: this.#recoveries,
       stalled: this.#windowIsFlat(),
+    };
+  }
+
+  /** Where the stance engine stands, for the lab's fingerprints and the
+   * tests: the state, spelled; the tick it was entered; switches so far. */
+  stanceReport(): {
+    state: 'opening' | 'fortify' | 'found';
+    since: number;
+    switches: number;
+  } {
+    const names = ['opening', 'fortify', 'found'] as const;
+    return {
+      state: names[this.#stanceState],
+      since: this.#stanceSince,
+      switches: this.#stanceSwitches,
+    };
+  }
+
+  /**
+   * The seat's war fingerprints — how this personality actually played,
+   * in counts the lab can put side by side: when it first marched in
+   * force, how often it harassed and how those sorties ended, what it
+   * defended, when it turned back, when its scout ran, how many moods it
+   * wore. Same reason oddsReport() exists: the difference between "the
+   * behavior never fires" and "it fires and buys nothing" is invisible in
+   * a win rate.
+   */
+  warReport(): {
+    firstMarchTick: number;
+    sorties: number;
+    sortieStrikes: number;
+    sortieWithdrawals: number;
+    outpostDefenses: number;
+    marchRetreats: number;
+    scoutFled: number;
+    heralds: number;
+    stanceSwitches: number;
+  } {
+    return {
+      firstMarchTick: this.#firstMarchTick,
+      sorties: this.#sorties,
+      sortieStrikes: this.#sortieStrikes,
+      sortieWithdrawals: this.#sortieWithdrawals,
+      outpostDefenses: this.#outpostDefenses,
+      marchRetreats: this.#marchRetreats,
+      scoutFled: this.#scoutFled,
+      heralds: this.#heralds,
+      stanceSwitches: this.#stanceSwitches,
     };
   }
 
@@ -595,9 +838,6 @@ export class AiBrain {
   /** Read the world, emit this beat's commands. Pure apart from the brain's
    * own pacing memory. */
   decide(world: World): SimCommand[] {
-    const s = this.#override
-      ? {...this.strategy, ...this.#override}
-      : this.strategy;
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== MatchState.playing) return [];
     this.#vision.recompute(world, this.playerId);
@@ -614,6 +854,18 @@ export class AiBrain {
     if (!sh) return commands; // one tick from elimination; nothing to do
     const baseX = sh.x + 1;
     const baseY = sh.y + 1;
+
+    // --- The stance, then the strategy it colors -----------------------------
+    // Three layers, later over earlier: the printed playbook is the seat's
+    // identity, the stance is its mood (war knobs only — see aiPostures.ts),
+    // and advice through the seam outranks both, so the lab's steering
+    // still measures what it always measured.
+    this.#updateStance(world, baseX, baseY);
+    const s: AiStrategy = {
+      ...this.strategy,
+      ...(this.#stanceKnobs() ?? {}),
+      ...(this.#override ?? {}),
+    };
     const stock = sh.stock;
     const techs = p.techs;
     const researched = (id: TechId): boolean => techs.researched.includes(id);
@@ -901,6 +1153,21 @@ export class AiBrain {
       baseY,
       s.prefersRivals,
     );
+
+    // --- The war behaviors (AI_WAR, warBehaviorIdEnum) -----------------------
+    // The sortie's fate is settled before anything re-orders its people; a
+    // routed march goes home and spends the whole beat doing it; a raided
+    // outpost calls its defenders. Each is its own ablatable verb.
+    // `spokenFor` is this beat's claim board: a unit ordered out by one
+    // verb must not be re-ordered home by the garrison rally in the same
+    // beat — tasks only change when commands apply, so "idle" cannot be
+    // trusted between two pushes.
+    const spokenFor = new Set<EntityId>();
+    this.#manageSortie(world, commands, baseX, baseY);
+    if (this.#retreatIfRouted(world, army, commands, baseX, baseY)) {
+      return commands;
+    }
+    this.#defendOutposts(world, mine, army, commands, baseX, baseY, spokenFor);
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
     const idleFor = world.tick - this.#lastAttackTick;
     const cooled = idleFor > s.attackCooldown;
@@ -964,8 +1231,34 @@ export class AiBrain {
     if (this.#scoutId >= 0 && (!scout || scout.dead)) {
       if (this.#scoutGoal >= 0 && this.#scoutIntel < 0)
         this.#unreachable.add(this.#scoutGoal);
-      if (this.#scoutIntel >= 0) this.#stampIntel(world, this.#scoutIntel);
+      if (this.#scoutIntel >= 0) {
+        this.#stampIntel(world, this.#scoutIntel);
+        this.#burnScout(this.#scoutIntel);
+      }
       this.#clearScout();
+    } else if (
+      scout &&
+      this.#warOn(WarBehaviorIdNs.scoutFlees) &&
+      scout.hp * 2 < UNIT_DEFS[scout.kind].hp
+    ) {
+      // Half his blood is answer enough: file whatever the errand was for
+      // and run — the same safe-latitude step the recall below takes,
+      // because the way home from a watch point can path right past the
+      // guards that did this. A dead scout feeds the tower that killed
+      // him; one that runs gets to be a scout again. Either way the errand
+      // cost blood with the read unfinished, and the backoff counts it.
+      if (this.#scoutIntel >= 0) {
+        this.#stampIntel(world, this.#scoutIntel);
+        this.#burnScout(this.#scoutIntel);
+      }
+      commands.push({
+        kind: CommandKind.moveUnits,
+        unitIds: [scout.id],
+        x: Math.floor(scout.x),
+        y: Math.max(0, Math.floor(scout.y) - GATE_NORTH),
+      });
+      this.#clearScout();
+      this.#scoutFled++;
     } else if (scout && target && this.#scoutIntel < 0 && staleRival < 0) {
       // Not straight home: the way home from a camp's watch point can be
       // pathfound right past its guards (the same detour hazard the gate
@@ -981,10 +1274,48 @@ export class AiBrain {
     }
 
     if (target && mustered && !vetoed) {
+      // The herald's hold: a full assault on a rival CASTLE is announced
+      // AI_WAR.heraldLead ticks before the army moves. The warning is the
+      // drama the fog otherwise swallows — the player hears the horn, looks
+      // up, and has fifteen seconds to be somewhere. Camps are stormed
+      // unannounced (bandits get no courtesies), and so are forlorn scraps
+      // under heraldMin. The hold expires rather than re-arming: once the
+      // lead has passed, the march fires on the next beat the bar holds.
+      const announced =
+        this.#warOn(WarBehaviorIdNs.heraldMarch) &&
+        isPlayerOwner(target.owner) &&
+        army.length >= AI_WAR.heraldMin;
+      if (announced && this.#heraldTick < 0) {
+        this.#heraldTick = world.tick;
+        this.#heralds++;
+        const grudge = this.#grudge(world);
+        commands.push({
+          kind: CommandKind.herald,
+          target: target.owner,
+          note:
+            grudge === target.owner
+              ? HeraldNote.retribution
+              : army.length >= 12
+                ? HeraldNote.finalAssault
+                : HeraldNote.marchComing,
+          count: army.length,
+        });
+        return commands; // the army stands while the words land
+      }
+      if (announced && world.tick - this.#heraldTick < AI_WAR.heraldLead) {
+        return commands; // the telegraph is still in the air
+      }
+      this.#heraldTick = -1;
       this.#attacking = true;
       this.#sweepGoal = -1;
       this.#lastAttackTick = world.tick;
       this.#armyGrewTick = world.tick;
+      // The all-in march absorbs any sortie still out — one war at a time —
+      // and stamps what the retreat rule will later compare against.
+      this.#sortie = null;
+      this.#marchedCount = army.length;
+      this.#marchTargetId = target.id;
+      if (this.#firstMarchTick < 0) this.#firstMarchTick = world.tick;
       commands.push({
         kind: CommandKind.moveUnits,
         unitIds: army.map(u => u.id),
@@ -995,7 +1326,23 @@ export class AiBrain {
       s.homeGuard > 0 &&
       army.length > 0 &&
       rallyReady &&
-      hostileNear(world, this.#vision, this.playerId, baseX, baseY, s.homeGuard)
+      hostileNear(
+        world,
+        this.#vision,
+        this.playerId,
+        baseX,
+        baseY,
+        s.homeGuard,
+        // A march already out is not abandoned for a straggler. The recall
+        // reads any lone fighter while the army is home — chasing off a
+        // scout is what a homeGuard is for — but yanking an announced
+        // assault back costs the whole attack, and a rival's stray patrol
+        // at the gates was doing exactly that on every march: herald,
+        // march, recall, re-herald, for as long as anyone wandered by.
+        // Mid-march the alarm wants a real force, and minSighting is
+        // already where the intel draws that line.
+        this.#attacking ? AI_INTEL.minSighting : 1,
+      )
     ) {
       // Someone is at the gates and the muster is not ready: everyone home,
       // including whoever is still out on the last march. Checked after the
@@ -1003,6 +1350,8 @@ export class AiBrain {
       // lingering raider could pin the army at home for the whole game.
       // And ahead of the searches: defense outranks exploration.
       this.#attacking = false;
+      this.#sortie = null; // the recall takes the harassers home too
+      this.#heraldTick = -1; // an announced march the defense preempted
       this.#clearScout();
       this.#sweepGoal = -1;
       this.#lastRallyTick = world.tick;
@@ -1023,6 +1372,7 @@ export class AiBrain {
       // whatever is hiding out there has already killed or outlasted him.
       // In force, but not to the last man: see SWEEP_GARRISON.
       this.#clearScout();
+      this.#sortie = null; // the full muster absorbs the harassers
       // The castle is never left empty for it: the nearest few soldiers stay
       // as a garrison and the rest are the party. Ties break on id, so the
       // split is as deterministic as everything else here.
@@ -1141,6 +1491,9 @@ export class AiBrain {
             // match while the picture he was sent for never updates.
             if (exactDist(su.x - gx, su.y - gy) <= UNIT_DEFS[su.kind].sight) {
               this.#stampIntel(world, this.#scoutIntel);
+              // A read that came back paid the road's toll off: the next
+              // walk goes on the ordinary clock again.
+              this.#scoutsLost.delete(this.#scoutIntel);
               this.#clearScoutGoal();
             }
           } else if (
@@ -1209,11 +1562,26 @@ export class AiBrain {
           }
         }
       }
+      // --- Harassment: a small party at their economy while the muster builds
+      // Only while the muster is genuinely building: once the impatience
+      // ramp has started walking the bar down (a game that ought to be
+      // ending), every hand belongs to the muster. Without this gate the
+      // fletcher-abbot pairing bled three archers at a time into the
+      // towers forever — 14 of 96 matches undecided at the 120k horizon,
+      // a standoff the ramp exists to break and harassment was quietly
+      // re-feeding.
+      if (bar >= s.armyAttackSize) {
+        this.#launchSortie(world, army, commands, baseX, baseY, spokenFor);
+      }
       if (!this.#attacking && army.length > 0 && rallyReady) {
         // Garrison duty: stand by the storehouse so auto-acquire covers it.
         this.#lastRallyTick = world.tick;
         const idle = army.filter(
-          u => u.task.t === UnitTaskKind.idle && u.id !== this.#scoutId,
+          u =>
+            u.task.t === UnitTaskKind.idle &&
+            u.id !== this.#scoutId &&
+            !spokenFor.has(u.id) &&
+            !this.#sortie?.ids.includes(u.id),
         );
         if (idle.length > 0) {
           commands.push({
@@ -1227,6 +1595,78 @@ export class AiBrain {
     }
 
     return commands;
+  }
+
+  /**
+   * Advance the stance engine (AiStrategy.stances, AI_STANCE): the fortify
+   * break-in on any beat, the wanted-stance read on the slow clock, and the
+   * dwell that keeps a mood from flapping. State only — what the stance
+   * means in knobs is #stanceKnobs' business.
+   */
+  #updateStance(world: World, baseX: number, baseY: number): void {
+    const st = this.strategy.stances;
+    const tick = world.tick;
+    const underAttack = (): boolean =>
+      hostileNear(
+        world,
+        this.#vision,
+        this.playerId,
+        baseX,
+        baseY,
+        AI_INTEL.raidRadius,
+      );
+    // The break-in: danger is the one thing a mood must not be slow about.
+    // Same-beat, every beat — but only INTO fortify; the way back out goes
+    // through the clocks below.
+    if (
+      st.underAttackBreak &&
+      this.#stanceState !== STANCE_FORTIFY &&
+      underAttack()
+    ) {
+      this.#stanceState = STANCE_FORTIFY;
+      this.#stanceSince = tick;
+      this.#stanceSwitches++;
+      return;
+    }
+    if (tick < this.#stanceEvalDue) return;
+    this.#stanceEvalDue = tick + AI_STANCE.evalPeriod;
+    if (tick - this.#stanceSince < AI_STANCE.dwell) return;
+    const want: StanceState =
+      st.underAttackBreak && underAttack()
+        ? STANCE_FORTIFY
+        : rivalCastleFound(world, this.#vision, this.playerId) &&
+            this.#armyCount(world) >= (st.foundAfterArmy ?? 0)
+          ? STANCE_FOUND
+          : STANCE_OPENING;
+    if (want === this.#stanceState) return;
+    this.#stanceState = want;
+    this.#stanceSince = tick;
+    this.#stanceSwitches++;
+  }
+
+  /** The war knobs the current stance lays over the playbook, or null for
+   * "the printed line as written" — an unset opening, or the lab running
+   * `--stances off`. */
+  #stanceKnobs(): StanceKnobs | null {
+    if (!this.#stancePolicy) return null;
+    const st = this.strategy.stances;
+    const pick =
+      this.#stanceState === STANCE_FORTIFY
+        ? {posture: PostureId.fortify}
+        : this.#stanceState === STANCE_FOUND
+          ? st.found
+          : st.opening;
+    return pick ? stanceWarKnobs(pick) : null;
+  }
+
+  /** Soldiers standing, tower garrisons included — the stance gate's count,
+   * not a muster (the march does its own arithmetic). */
+  #armyCount(world: World): number {
+    let n = 0;
+    for (const u of world.units.values()) {
+      if (!u.dead && u.owner === this.playerId && MILITARY.has(u.kind)) n++;
+    }
+    return n;
   }
 
   /**
@@ -1598,6 +2038,298 @@ export class AiBrain {
     };
   }
 
+  #warOn(id: WarBehaviorId): boolean {
+    return this.#warBehaviors.has(id);
+  }
+
+  /** A party as a Force, for the odds arithmetic. Live hp: armour research
+   * and old wounds both count, exactly as the march gate counts them. */
+  #forceOf(units: readonly Unit[]): Force {
+    const f: Force = {heavy: 0, light: 0, ranged: 0, hp: 0};
+    for (const u of units) {
+      const cls = UNIT_DEFS[u.kind].combat?.class;
+      if (cls === undefined) continue;
+      tallyClass(f, cls);
+      f.hp += u.hp;
+    }
+    return f;
+  }
+
+  /**
+   * The rival most recently at our gates in force, or -1 — who a sortie
+   * avenges. Reads the clock #observeRivals stamps: a raid is `minSighting`
+   * of them at once inside the gate radius, and the memory of it holds for
+   * AI_WAR.grudgeFor. Raid an AI and its next sortie comes back at YOU.
+   */
+  #grudge(world: World): Owner {
+    if (!this.#warOn(WarBehaviorIdNs.grudge)) return -1;
+    let best: Owner = -1;
+    let bestTick = -1;
+    for (const [owner, pic] of this.#intel) {
+      if (pic.lastRaidTick < 0) continue;
+      if (world.tick - pic.lastRaidTick > AI_WAR.grudgeFor) continue;
+      if (!world.players[owner]?.alive) continue;
+      if (
+        pic.lastRaidTick > bestTick ||
+        (pic.lastRaidTick === bestTick && owner < best)
+      ) {
+        bestTick = pic.lastRaidTick;
+        best = owner;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Settle the standing sortie's fate: home when the target has fallen
+   * (a strike), and home when the party has bled to half, outstayed its
+   * welcome, or reads the yard as a rout (a withdrawal). The pull-back is
+   * a PLAIN move — flee without reengaging, the same promise the launch's
+   * attack:'half' made on the way out. A party wiped to the last man
+   * simply ends; there is nobody left to order.
+   */
+  #manageSortie(
+    world: World,
+    commands: SimCommand[],
+    baseX: number,
+    baseY: number,
+  ): void {
+    const st = this.#sortie;
+    if (!st) return;
+    const alive: Unit[] = [];
+    for (const id of st.ids) {
+      const u = world.units.get(id);
+      if (u && !u.dead) alive.push(u);
+    }
+    if (alive.length === 0) {
+      this.#sortie = null;
+      return;
+    }
+    const maxAge = this.strategy.harass?.maxAge ?? 800;
+    const target = world.buildings.get(st.targetId);
+    const struck = !target || target.dead;
+    let breaking = false;
+    if (!struck) {
+      let hpNow = 0;
+      for (const u of alive) hpNow += u.hp;
+      if (hpNow * 2 < st.sentHp || world.tick - st.since > maxAge) {
+        breaking = true;
+      } else {
+        const defenders = this.#defendersAt(world, target);
+        breaking =
+          defenders !== null &&
+          !shouldCommit(this.#forceOf(alive), defenders, AI_WAR.sortieBreak);
+      }
+    }
+    if (!struck && !breaking) return;
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: alive.map(u => u.id),
+      x: baseX,
+      y: baseY + 4,
+    });
+    if (struck) this.#sortieStrikes++;
+    else this.#sortieWithdrawals++;
+    this.#sortie = null;
+  }
+
+  /**
+   * Send a small party at a rival's economy while the muster builds — the
+   * harassment that makes a personality legible through fog long before
+   * the one big march. Only from the not-mustered beat, so it can never
+   * fight the all-in; only idle hands, so it never strips a wall or the
+   * scout; and never the whole army — at least one soldier stays, and the
+   * muster bar above this window is the real reserve (a party this rule
+   * spends is a party the bar makes the barracks replace).
+   */
+  #launchSortie(
+    world: World,
+    army: Unit[],
+    commands: SimCommand[],
+    baseX: number,
+    baseY: number,
+    spokenFor: Set<EntityId>,
+  ): void {
+    if (!this.#warOn(WarBehaviorIdNs.harassSortie)) return;
+    const cfg = this.strategy.harass;
+    if (!cfg || this.#sortie) return;
+    if (world.tick - this.#lastSortieTick <= cfg.cooldown) return;
+    if (army.length <= cfg.size) return;
+    const target = pickHarassTarget(
+      world,
+      this.#vision,
+      this.playerId,
+      baseX,
+      baseY,
+      this.#grudge(world),
+    );
+    if (!target) return;
+    const cx = target.x + target.w / 2;
+    const cy = target.y + target.h / 2;
+    const party = army
+      .filter(
+        u =>
+          u.task.t === UnitTaskKind.idle &&
+          u.id !== this.#scoutId &&
+          !spokenFor.has(u.id),
+      )
+      .sort(
+        (a, z) =>
+          Math.abs(a.x - cx) +
+            Math.abs(a.y - cy) -
+            (Math.abs(z.x - cx) + Math.abs(z.y - cy)) || a.id - z.id,
+      )
+      .slice(0, cfg.size);
+    if (party.length < cfg.size) return;
+    // The withdrawal's own gate, read at the door. #manageSortie breaks a
+    // party the beat the defenders' odds say rout, so a launch that fails
+    // that reading today is a twenty-tick walk out the gate and back —
+    // and with the cooldown spent on it, a seat facing a garrisoned rival
+    // did exactly that on every harass clock for a whole match. Launching
+    // into ignorance is unchanged: no defenders seen means go, the same
+    // generosity the march gate (#oddsSay) extends to the dark.
+    const defenders = this.#defendersAt(world, target);
+    if (
+      defenders !== null &&
+      !shouldCommit(this.#forceOf(party), defenders, AI_WAR.sortieBreak)
+    )
+      return;
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: party.map(u => u.id),
+      attack: 'half',
+      x: Math.floor(cx),
+      y: Math.floor(cy),
+    });
+    let sentHp = 0;
+    for (const u of party) {
+      sentHp += u.hp;
+      spokenFor.add(u.id);
+    }
+    this.#sortie = {
+      ids: party.map(u => u.id),
+      targetId: target.id,
+      since: world.tick,
+      sentHp,
+    };
+    this.#lastSortieTick = world.tick;
+    this.#sorties++;
+  }
+
+  /**
+   * A raided outpost calls its defenders. The homeGuard already answers
+   * for the castle; this is for the buildings past its reach — the gold
+   * mine in the middle of the map most of all — which used to burn while
+   * the army stood in the yard watching. One call per emergency
+   * (AI_WAR.outpostCooldown), never during a march, and never the last
+   * men at home.
+   */
+  #defendOutposts(
+    world: World,
+    mine: readonly Building[],
+    army: Unit[],
+    commands: SimCommand[],
+    baseX: number,
+    baseY: number,
+    spokenFor: Set<EntityId>,
+  ): void {
+    if (!this.#warOn(WarBehaviorIdNs.defendOutpost)) return;
+    if (this.#attacking) return; // the march outranks a shed
+    if (world.tick - this.#lastOutpostTick <= AI_WAR.outpostCooldown) return;
+    if (army.length <= SWEEP_GARRISON) return;
+    for (const b of mine) {
+      const bx = b.x + b.w / 2;
+      const by = b.y + b.h / 2;
+      if (Math.abs(bx - baseX) + Math.abs(by - baseY) <= AI_WAR.outpostRange)
+        continue;
+      if (
+        !hostileNear(
+          world,
+          this.#vision,
+          this.playerId,
+          bx,
+          by,
+          AI_WAR.outpostAlarm,
+        )
+      )
+        continue;
+      // Already answered: soldiers standing close are its guard, and a
+      // second call before the first arrives would drain the yard.
+      let guards = 0;
+      for (const u of army) {
+        if (Math.abs(u.x - bx) + Math.abs(u.y - by) <= DEFENDER_RADIUS)
+          guards++;
+      }
+      if (guards >= 2) continue;
+      const party = army
+        .filter(
+          u =>
+            u.task.t === UnitTaskKind.idle &&
+            u.id !== this.#scoutId &&
+            !spokenFor.has(u.id) &&
+            !this.#sortie?.ids.includes(u.id),
+        )
+        .sort(
+          (a, z) =>
+            Math.abs(a.x - bx) +
+              Math.abs(a.y - by) -
+              (Math.abs(z.x - bx) + Math.abs(z.y - by)) || a.id - z.id,
+        )
+        .slice(0, AI_WAR.outpostParty);
+      if (party.length === 0) return;
+      commands.push({
+        kind: CommandKind.moveUnits,
+        unitIds: party.map(u => u.id),
+        attack: true,
+        x: Math.floor(bx),
+        y: Math.floor(by),
+      });
+      for (const u of party) spokenFor.add(u.id);
+      this.#lastOutpostTick = world.tick;
+      this.#outpostDefenses++;
+      return; // one call per beat
+    }
+  }
+
+  /**
+   * The losing march turns home — for the personalities that retreat.
+   * Under half the strength it left with, against a garrison the odds
+   * read as a rout (AI_WAR.retreatBreak), the army walks — a plain move,
+   * so it does not die fighting backwards — and the attack cooldown
+   * restarts so the survivors regroup instead of instantly re-marching.
+   * The warlord and the fletcher never take this branch, and that refusal
+   * is as much their character as the retreat is the steward's.
+   */
+  #retreatIfRouted(
+    world: World,
+    army: Unit[],
+    commands: SimCommand[],
+    baseX: number,
+    baseY: number,
+  ): boolean {
+    if (!this.#warOn(WarBehaviorIdNs.retreatMarch)) return false;
+    if (!this.strategy.retreats || !this.#attacking) return false;
+    if (army.length === 0 || this.#marchedCount === 0) return false;
+    if (army.length * 2 >= this.#marchedCount) return false;
+    const target = world.buildings.get(this.#marchTargetId);
+    if (!target || target.dead) return false; // the target fell: that is a win
+    const defenders = this.#defendersAt(world, target);
+    if (!defenders) return false;
+    if (shouldCommit(this.#forceOf(army), defenders, AI_WAR.retreatBreak))
+      return false;
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: army.map(u => u.id),
+      x: baseX,
+      y: baseY + 4,
+    });
+    this.#attacking = false;
+    this.#lastAttackTick = world.tick;
+    this.#armyGrewTick = world.tick;
+    this.#marchRetreats++;
+    return true;
+  }
+
   /**
    * Passive intelligence: every rival fighter standing in lit ground this
    * beat is a data point, and they accumulate.
@@ -1630,7 +2362,6 @@ export class AiBrain {
       pic.seenTick = tick;
       if (pic.firstSoldierTick < 0) pic.firstSoldierTick = tick;
       if (
-        pic.firstAttackTick < 0 &&
         baseX >= 0 &&
         Math.abs(u.x - baseX) + Math.abs(u.y - baseY) <= AI_INTEL.raidRadius
       ) {
@@ -1640,11 +2371,14 @@ export class AiBrain {
     // A raid, not a caller. Every playbook walks a lone scout past a rival's
     // castle in the first four minutes, so "one of theirs came near" fired at
     // minute four against a warlord and against an abbot alike and separated
-    // nothing. A force at the gate is `minSighting` of them at once.
+    // nothing. A force at the gate is `minSighting` of them at once — the
+    // first stamps the archetype's fact, and every one restamps the
+    // grudge's clock (#grudge).
     for (const [owner, n] of atGate) {
       if (n < AI_INTEL.minSighting) continue;
       const pic = this.#pictureOf(owner);
       if (pic.firstAttackTick < 0) pic.firstAttackTick = tick;
+      pic.lastRaidTick = tick;
     }
 
     for (const pic of this.#intel.values()) {
@@ -1693,6 +2427,7 @@ export class AiBrain {
         sampledTick: -1,
         firstSoldierTick: -1,
         firstAttackTick: -1,
+        lastRaidTick: -1,
         buildingsAtFive: -1,
         reads: 0,
       };
@@ -1721,7 +2456,19 @@ export class AiBrain {
         seen >= 0 ? seen : -Infinity,
         this.#intelAttempt.get(p.id) ?? -Infinity,
       );
-      if (world.tick - last <= AI_INTEL.refreshAfter) continue;
+      // The playbook's own curiosity, where it names one: an obsessive
+      // scout meets you early, an insular one late — a first-contact
+      // fingerprint the fog cannot hide. Stretched by a doubling per
+      // scout that errand has cost (#scoutsLost, capped as it counts):
+      // a doorstep that keeps killing its readers is re-read on a longer
+      // and longer clock instead of on schedule, soldier after soldier.
+      // The shift stays on the small factor — shifting refreshAfter
+      // itself would drop the arithmetic into 32-bit land for a clock a
+      // playbook is free to configure large.
+      const refreshAfter =
+        this.strategy.scoutRefreshAfter ?? AI_INTEL.refreshAfter;
+      const stretched = refreshAfter * (1 << (this.#scoutsLost.get(p.id) ?? 0));
+      if (world.tick - last <= stretched) continue;
       if (last < bestTick) {
         bestTick = last;
         best = p.id;
@@ -1737,6 +2484,17 @@ export class AiBrain {
   #stampIntel(world: World, owner: Owner): void {
     this.#intelAttempt.set(owner, world.tick);
     this.#pictureOf(owner).reads++;
+  }
+
+  /** One more scout this rival's errand has cost — the doorstep's clock
+   * doubles again (#staleRival), until a completed read clears the debt.
+   * Capped here, at the counting, so the stored number always means what
+   * the clock can actually spend. */
+  #burnScout(owner: Owner): void {
+    this.#scoutsLost.set(
+      owner,
+      Math.min(AI_INTEL.scoutBurnCap, (this.#scoutsLost.get(owner) ?? 0) + 1),
+    );
   }
 
   /**
@@ -1944,11 +2702,15 @@ function nearestWater(world: World, cx: number, cy: number): number {
 
 /** Nearest tile with a given resource to a point. */
 
-/** Is an enemy fighter — rival soldier or raider — this close to home?
- * Only one the seat can actually see: a unit is intelligence of the moment,
- * and a raider in dark ground is exactly what fog is supposed to hide. The
- * village lights its own surroundings densely, so in practice this fires a
- * step later than the omniscient version did, not never. */
+/** Are `min` enemy fighters — rival soldiers or raiders — this close to
+ * home? Only ones the seat can actually see: a unit is intelligence of the
+ * moment, and a raider in dark ground is exactly what fog is supposed to
+ * hide. The village lights its own surroundings densely, so in practice
+ * this fires a step later than the omniscient version did, not never.
+ * `min` defaults to one — any fighter at all — and callers that must not
+ * flinch at a straggler raise it (the mid-march homeGuard reads it at
+ * AI_INTEL.minSighting, the same line the raid clock draws between an
+ * anecdote and an army). */
 export function hostileNear(
   world: World,
   vision: SeatVision,
@@ -1956,12 +2718,35 @@ export function hostileNear(
   bx: number,
   by: number,
   radius: number,
+  min = 1,
 ): boolean {
+  let seen = 0;
   for (const u of world.units.values()) {
     if (u.dead || u.owner === owner) continue;
     if (!UNIT_DEFS[u.kind].combat) continue;
     if (!vision.canSee(u.x, u.y)) continue;
-    if (Math.abs(u.x - bx) + Math.abs(u.y - by) <= radius) return true;
+    if (Math.abs(u.x - bx) + Math.abs(u.y - by) <= radius && ++seen >= min)
+      return true;
+  }
+  return false;
+}
+
+/**
+ * Has a living rival's castle been found — standing on explored ground?
+ * The stance engine's discovery gate, and the same predicate the lab's
+ * summary uses for a rival's `found` flag: a castle is a fact only once
+ * the seat has walked somewhere it can be seen from.
+ */
+export function rivalCastleFound(
+  world: World,
+  vision: SeatVision,
+  owner: Owner,
+): boolean {
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.owner === owner) continue;
+    if (!isPlayerOwner(b.owner) || !buildingDef(b.type).storage) continue;
+    if (!vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
+    return true;
   }
   return false;
 }
@@ -2019,6 +2804,47 @@ export function pickAttackTarget(
   if (best && prefersRivals && best.type === BuildingTypeId.banditCamp) {
     const rivalStands = world.players.some(p => p.id !== owner && p.alive);
     if (rivalStands) return undefined;
+  }
+  return best;
+}
+
+/**
+ * What a sortie burns: the nearest rival building that is NOT their castle,
+ * on explored ground — the woodcutter, the farm, the mine; the economy the
+ * fog was hiding and the scout lit up. The castle is the all-in march's
+ * job, and camps are the army's; a harassment party that walked into
+ * either would be a march wearing a sortie's name. A grudge outranks
+ * distance: the rival whose raid most recently reached our yard is hit
+ * first, however much nearer someone else's farm stands. Ties break on
+ * the lower building id, so two hosts harass identically.
+ */
+export function pickHarassTarget(
+  world: World,
+  vision: SeatVision,
+  owner: Owner,
+  bx: number,
+  by: number,
+  grudge: Owner,
+): Building | undefined {
+  let best: Building | undefined;
+  let bestDist = Infinity;
+  let bestRank = Infinity;
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.owner === owner || !isPlayerOwner(b.owner)) continue;
+    if (buildingDef(b.type).storage) continue;
+    if (!vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
+    const d = Math.abs(b.x + b.w / 2 - bx) + Math.abs(b.y + b.h / 2 - by);
+    const rank = grudge >= 0 && b.owner === grudge ? 0 : 1;
+    const better =
+      best === undefined ||
+      rank < bestRank ||
+      (rank === bestRank &&
+        (d < bestDist || (d === bestDist && b.id < best.id)));
+    if (better) {
+      bestDist = d;
+      bestRank = rank;
+      best = b;
+    }
   }
   return best;
 }

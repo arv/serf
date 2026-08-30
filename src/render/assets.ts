@@ -5,7 +5,7 @@ import type {Enum} from '../shared/enum.ts';
 import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
-import {makeBakehouse} from './procBuildings';
+import {makeBakehouse, makeFarmstead} from './procBuildings';
 import {
   makeAshlar,
   makeHeadframe,
@@ -41,7 +41,8 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // The quarry plays the mine too — see the note on ironMine below.
   [BuildingTypeId.quarry]: 'building_mine_green.gltf',
   [BuildingTypeId.well]: 'building_well_green.gltf',
-  [BuildingTypeId.wheatFarm]: 'farm_plot.glb',
+  // (No wheatFarm: the pack's farm_plot was one waist-high wheat slab —
+  // scenery, not a workplace. The farmstead is ours now, BUILT_BUILDINGS.)
   [BuildingTypeId.mill]: 'building_windmill_green.gltf',
   // (No bakery: it is the one building we model ourselves — BUILT_BUILDINGS.)
   // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
@@ -89,6 +90,10 @@ const BUILT_BUILDINGS: Partial<
   >
 > = {
   [BuildingTypeId.bakery]: makeBakehouse,
+  // The farm is built rather than loaded so its field can be a place of
+  // work: walkable lanes between the rows, and the mowing circuit
+  // authored into the model as named marks (see makeFarmstead).
+  [BuildingTypeId.wheatFarm]: makeFarmstead,
 };
 
 /** Tints so buildings sharing a model read apart. Empty since the smiths
@@ -172,13 +177,15 @@ const DECOR_PROP_FILES = [
   'extra/boatrack',
   'extra/building_docks_green',
   'fish/fish',
-  // RPG Tools Bits (CC0): the tool goods, carried and piled. The scythe
-  // has no model in the pack and stays procedural (models.ts carryProto).
+  // RPG Tools Bits (CC0): the tool goods, carried and piled.
   'tools/axe',
   'tools/pickaxe',
   'tools/hammer',
   'tools/bucket_metal',
   'tools/fishing_rod',
+  // Fantasy Weapons Bits (CC0): the one tool RPG Tools does not ship —
+  // the scythe good, carried and piled like its five siblings above.
+  'weapons/scythe',
 ];
 
 /**
@@ -206,6 +213,13 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // feet on top of that were clutter, not story.
   [BuildingTypeId.mill]: [
     {prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5},
+  ],
+  // A wheelbarrow parked on the front apron, nose toward the rows —
+  // workaday scenery, like the mines' carts. The wheat itself is the
+  // model's own (standing rows) and the live stock piles buildingSync
+  // stands just off the open front edge.
+  [BuildingTypeId.wheatFarm]: [
+    {prop: 'wheelbarrow', at: [0.29, 0.43], size: 0.1, rot: 1.0},
   ],
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
@@ -956,6 +970,19 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         // while the mill grinds.
         const fan = scene.getObjectByName('building_windmill_top_fan_green');
         if (fan) fan.name = 'millFan';
+      }
+      if (type === BuildingTypeId.weaponsmith) {
+        // The forge's flue mouth, as the named empty buildingSync stands
+        // chimney smoke on while a batch is on the fire — the bakehouse
+        // authors the same mark into its own model (procBuildings.ts).
+        // Measured off the source mesh: the chimney is the model's tallest
+        // feature, a shaft over x [0.07..0.35], z [-0.28..0.00], topping
+        // out at y 0.98 — model units, pre-normalize, like the well's
+        // crank above.
+        const flue = new THREE.Group();
+        flue.name = 'smokeFlue';
+        flue.position.set(0.21, 0.99, -0.14);
+        scene.add(flue);
       }
       const tint = TINTS[type];
       if (tint !== undefined) {

@@ -49,16 +49,59 @@ import {REPLAY_VERSION} from './replayVersion';
 // every tick runs as it did. Side-effect imports are left unsorted by
 // config, so nothing's evaluation order moved either. The hash is over
 // raw bytes, which is why it moved anyway.
-// 34 for mixed squads forming up: a group move deals its spread tiles by
-// arm now (knights front, archers rear) and marches at its slowest
-// member's pace, so the same logged order stands the same soldiers on
-// different tiles on a different clock (see replayVersion.ts). One bump
-// for both halves — they shipped together.
+// Still 33 after the stance engine (systems/ai.ts #updateStance, the
+// posture table's move into defs/aiPostures.ts, and the playbooks'
+// stances field): all of it is brain and playbook data, and playback
+// never runs a brain — the log already holds every move the seats made.
+// The seats DECIDE differently now; yesterday's logs still play back
+// exactly, because the sim that executes their logged commands is
+// untouched.
+// Still 33 after the war behaviors (warBehaviorIdEnum.ts, AI_WAR,
+// harassment sorties, outpost defense, the retreating march, the fleeing
+// scout, the grudge): the same reasoning one layer wider. Every verb
+// speaks in commands the sim already took; the tick that executes them
+// did not move.
+// 34 for the herald: a new command kind and a new game event — pure
+// format, and format is half of what this version promises (see
+// replayVersion.ts).
+// Still 34 after the first matchup sweep's two corrections (brain and
+// playbook data only): sorties stand down once the impatience ramp is
+// walking the bar — the fletcher-abbot standoff was bleeding archers
+// into towers past the 120k horizon — and the fletcher's harass clock
+// eased from 500 to 900, which returned the deck to a contest.
+// Still 34 after oxfmt caught up with the arc's files (CI's
+// format:check): whitespace and wrapping only, same statements, same
+// tick. The hash is over raw bytes, which is why it moved anyway —
+// the same story the "Still 33 after oxfmt" entry above tells.
+// 34 also for mixed squads forming up (merged from main): a group move
+// deals its spread tiles by arm now (knights front, archers rear) and
+// marches at its slowest member's pace, so the same logged order stands
+// the same soldiers on different tiles on a different clock (see
+// replayVersion.ts). One bump for both halves — they shipped together.
 // Still 34 after the pace moved to effective speeds (a booted serf counts
 // as the 1.73 he walks, not his raw 1.5): the same behavior the version
 // already describes, computed right — and 34 has never shipped a replay.
+// Still 34 across the merge that joined the herald arc with the
+// formation change: two "34 for" stories above, one version — neither
+// half ever recorded a replay without the other, so there is nothing a
+// 35 would tell apart (replayVersion.ts tells both stories in full).
+// Still 34 after the herald case's comment learned to say where the
+// wire screen actually lives (tick.ts, words only): same statements,
+// same tick. The hash is over raw bytes, which is why it moved anyway.
+// Still 34 after three war-behavior corrections a replayed skirmish
+// surfaced (systems/ai.ts, brain only — playback never runs a brain):
+// a sortie now reads the defenders' odds at launch instead of one beat
+// after, the mid-march homeGuard recall wants a real force at the gates
+// rather than any straggler, and a scout lost on a doorstep errand
+// doubles that rival's refresh clock. The seats DECIDE differently;
+// yesterday's logs hold the commands they decided then, and the tick
+// that executes them did not move.
+// Still 34 after that arc's review round (brain only again): the burn
+// counter caps as it counts instead of at the read, and the stretch
+// multiplies by a shifted small factor instead of shifting the clock —
+// the same numbers for every reachable value, spelled safely.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = 'af1a6800dd6f7c605e7fc402f03b8bf7';
+const EXPECTED_HASH = '4f5fdb0900d41700a11d88cbd970dec6';
 
 /**
  * Everything a replay's playback depends on, as raw source:

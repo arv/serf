@@ -49,6 +49,32 @@ export interface PierInfo {
   deckY: number;
 }
 
+/** A built wheat farm's field, in world space: the mowing circuit the
+ * resident farmer walks (authored into the farmstead model as named
+ * marks — see makeFarmstead), the open-front entry, the plot bounds and
+ * the pad's standing height. Shared with sceneSync, which walks the
+ * farmer along it, scythe swinging. */
+export interface FieldInfo {
+  /** Building center, the anchor a farmer is matched to his field by. */
+  bx: number;
+  bz: number;
+  /** Front-center entry: an approach from off the plot converges here
+   * first, so the farmer comes in over the open front edge instead of
+   * clipping the flank fences. */
+  gateX: number;
+  gateZ: number;
+  /** The circuit in visiting order; sceneSync ping-pongs it. */
+  points: {x: number; z: number}[];
+  /** Plot bounds (a margin outside the circuit), for telling a walker
+   * already on the field from one still parked on the ring around it. */
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  /** World height of the worked pad's top — the field's deckY. */
+  padY: number;
+}
+
 /** How far below the waterline the shoal group is re-seated, in world
  * units — enough that the tallest swim circle and the fish bodies stay
  * submerged rather than breaking the surface. */
@@ -98,6 +124,24 @@ function volleyRangeOf(b: BuildingSnap): number {
 
 /** Reused for the post->root coordinate hop; buildings do not move. */
 const SCRATCH_POS = new THREE.Vector3();
+
+/**
+ * The farmstead's walk marks, gate first then the circuit in authored
+ * order. By name rather than child order: normalize and the decor pass
+ * both re-parent, and a clone's traversal order is nothing to build a
+ * route on.
+ */
+function harvestMowMarks(model: THREE.Object3D): THREE.Object3D[] {
+  const gate = model.getObjectByName('mowGate');
+  if (!gate) return [];
+  const path: {i: number; o: THREE.Object3D}[] = [];
+  model.traverse(o => {
+    const m = /^mowPath(\d+)$/.exec(o.name);
+    if (m) path.push({i: Number(m[1]), o});
+  });
+  path.sort((a, b) => a.i - b.i);
+  return [gate, ...path.map(p => p.o)];
+}
 
 /**
  * Drop a cloned character and free what it uniquely owns on the GPU.
@@ -162,12 +206,27 @@ interface BuildingVisual {
   /** Current sail speed, eased toward grinding/idle — heavy sails spin up
    * and coast down instead of snapping with the batch boundary. */
   fanSpeed: number;
+  /** The flue mouth — the bakehouse's oven cap, the Smith's forge chimney
+   * — harvested from the model by name ('smokeFlue'). Where the smoke
+   * stands while a batch is on the fire. */
+  flue?: THREE.Object3D;
+  /** The smoke column over that flue: built the first time the fire
+   * lights, then recycled — a post that never works never pays for it. */
+  smoke?: {group: THREE.Group; puffs: SmokePuff[]};
+  /** Smoke thickness 0..1, eased toward working/idle — a fire lights and
+   * banks rather than snapping with the batch boundary (see #smokeFrame). */
+  smokeLevel: number;
   shoal?: THREE.Object3D;
   /** The fishery's pier decor — the deck the fisherman walks out on. */
   pier?: THREE.Object3D;
   /** Measured deck line, cached: measuring may also swing the decor 45°
    * on a corner-only shore, and that must happen exactly once. */
   pierLine?: PierInfo;
+  /** The farm's authored walk marks: gate first, then the circuit in
+   * visiting order. Empty for everything without a field. */
+  mowMarks: THREE.Object3D[];
+  /** Measured circuit, cached like pierLine — buildings do not move. */
+  fieldInfo?: FieldInfo;
   /** Quarter turns from "front faces +z" (shore buildings turn to their
    * water); kept for deriving where the pier runs. */
   facing: number;
@@ -230,6 +289,26 @@ const MILL_FAN_SPEED = 1.5;
 
 /** One low-poly ball shared by every dust puff; scaled per puff. */
 const PUFF_GEO = new THREE.IcosahedronGeometry(1, 0);
+
+/** One puff of chimney smoke (the bakery's oven, the Smith's forge). `t`
+ * is its life phase 0..1 — born at the flue, gone about a unit up.
+ * Negative = not yet born: the births are staggered so a lighting fire's
+ * column climbs out of the flue one puff at a time instead of appearing
+ * full-grown in the air. */
+interface SmokePuff {
+  mesh: THREE.Mesh;
+  t: number;
+  /** Per-puff hash seed, for the sway and tumble. */
+  seed: number;
+}
+
+/** How many puffs stand in one chimney's column at a time. */
+const SMOKE_PUFFS = 6;
+/** One puff's life, seconds. With six puffs a fresh one leaves the flue
+ * about twice a second — a steady breathing pace, not a house fire. */
+const SMOKE_LIFE = 2.6;
+/** How far a puff rises over its life, world units. */
+const SMOKE_RISE = 0.95;
 
 /** Scratch color for hp tinting — callers copy out of it immediately. */
 const HP_COLOR = new THREE.Color();
@@ -618,8 +697,11 @@ export class BuildingSync {
       crank: model.getObjectByName('wellCrank') ?? undefined,
       fan: model.getObjectByName('millFan') ?? undefined,
       fanSpeed: 0,
+      flue: model.getObjectByName('smokeFlue') ?? undefined,
+      smokeLevel: 0,
       shoal,
       pier: model.getObjectByName('fisheryPier') ?? undefined,
+      mowMarks: harvestMowMarks(model),
       facing: b.facing ?? 0,
       staffed: false,
       working: false,
@@ -685,6 +767,61 @@ export class BuildingSync {
       out.push((v.pierLine ??= this.#measurePier(v)));
     }
     return out;
+  }
+
+  /** Built wheat farms' fields, in world space: the mowing circuit, the
+   * open-front entry and the pad height. sceneSync walks the resident
+   * farmer along the circuit, scythe swinging, while a batch runs — the
+   * same render-side move as the fisherman on his pier, because the sim
+   * parks the worker on whatever adjacent tile the path found. */
+  farmFields(): FieldInfo[] {
+    const out: FieldInfo[] = [];
+    for (const v of this.#visuals.values()) {
+      if (v.state !== BuildingState.built || v.mowMarks.length < 2) continue;
+      out.push((v.fieldInfo ??= this.#measureField(v)));
+    }
+    return out;
+  }
+
+  #measureField(v: BuildingVisual): FieldInfo {
+    // Structural updates can land before the next render ticks world
+    // matrices — settle them before measuring (same as the pier).
+    v.root.updateWorldMatrix(true, true);
+    const [gate, ...path] = v.mowMarks;
+    gate!.getWorldPosition(SCRATCH_POS);
+    const gateX = SCRATCH_POS.x;
+    const gateZ = SCRATCH_POS.z;
+    // The marks sit ON the pad top, so any one of them is the field's
+    // standing height.
+    const padY = SCRATCH_POS.y;
+    const points: {x: number; z: number}[] = [];
+    let minX = gateX;
+    let maxX = gateX;
+    let minZ = gateZ;
+    let maxZ = gateZ;
+    for (const m of path) {
+      m.getWorldPosition(SCRATCH_POS);
+      points.push({x: SCRATCH_POS.x, z: SCRATCH_POS.z});
+      minX = Math.min(minX, SCRATCH_POS.x);
+      maxX = Math.max(maxX, SCRATCH_POS.x);
+      minZ = Math.min(minZ, SCRATCH_POS.z);
+      maxZ = Math.max(maxZ, SCRATCH_POS.z);
+    }
+    // A margin past the circuit: "on the field" must already be true a
+    // step before the first lane, or the entry leg would never hand over.
+    const M = 0.3;
+    return {
+      bx: v.root.position.x,
+      bz: v.root.position.z,
+      gateX,
+      gateZ,
+      points,
+      minX: minX - M,
+      maxX: maxX + M,
+      minZ: minZ - M,
+      maxZ: maxZ + M,
+      padY,
+    };
   }
 
   #measurePier(v: BuildingVisual): PierInfo {
@@ -777,7 +914,8 @@ export class BuildingSync {
    * is nothing building-side to key them off; sceneSync turns each one under
    * the serf that came to draw from it. */
   /**
-   * Per-frame decor: sails, shoals and the watch on the roof.
+   * Per-frame decor: sails, shoals, chimney smoke and the watch on the
+   * roof.
    *
    * `bounds` is the camera's view rectangle. Everything this loop drives is
    * decoration on a building the player is looking at, so a building that
@@ -808,7 +946,7 @@ export class BuildingSync {
     for (const v of this.#visuals.values()) {
       // Most of a settlement is huts and warehouses with nothing that
       // moves; this loop used to walk all of them to find that out.
-      if (!v.fan && !v.shoal && v.manned.length === 0) continue;
+      if (!v.fan && !v.shoal && !v.flue && v.manned.length === 0) continue;
       if (!v.root.visible) continue; // fogged: remembered, not watched
       if (bounds !== undefined) {
         const bx = v.root.position.x;
@@ -834,6 +972,7 @@ export class BuildingSync {
         v.fanSpeed += (target - v.fanSpeed) * Math.min(1, dt * 1.6);
         if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
       }
+      if (v.flue) this.#smokeFrame(v, dt);
       if (v.shoal && v.staffed && v.state === BuildingState.built) {
         // Each fish carries its own circle, direction and depth. Advancing
         // the phase and pointing the nose down the tangent is the whole
@@ -953,6 +1092,104 @@ export class BuildingSync {
       this.#freeGpu(d.visual);
       this.#dying.splice(i, 1);
     }
+  }
+
+  /**
+   * Chimney smoke, per frame: a short column of soft grey puffs off the
+   * flue while a batch is on the fire — the bakery's oven and the Smith's
+   * forge, via the 'smokeFlue' mark each model carries.
+   *
+   * The cue is the batch (BuildingSnap.working) AND someone at the post.
+   * Working alone — the mill's cue — is not enough here: a convert whose
+   * worker dies mid-batch freezes rather than finishing (production.ts
+   * skips unstaffed posts), but prodTicksLeft stays set, so the snapshot
+   * still says working. Staffing gates the smoke the way it gates the
+   * fishery's shoal; the mill keeps its working-only cue because the wind
+   * is its worker and its batches never freeze this way. The thickness
+   * eases rather than snapping: up briskly when the batch lights, down at
+   * a third of that when it ends, because an oven banks rather than going
+   * out — and the lingering trickle bridges the one-tick gap between
+   * back-to-back batches, which would otherwise read as the fire dying
+   * between every two loaves.
+   */
+  #smokeFrame(v: BuildingVisual, dt: number): void {
+    const target =
+      v.working && v.staffed && v.state === BuildingState.built ? 1 : 0;
+    v.smokeLevel +=
+      (target - v.smokeLevel) *
+      Math.min(1, dt * (target > v.smokeLevel ? 1.6 : 0.55));
+    const smoke = v.smoke;
+    if (v.smokeLevel < 0.02) {
+      // Cold oven. Hide the column and rewind the births, so the next
+      // batch's smoke climbs out of the flue puff by puff instead of
+      // reappearing full-grown in the air where the last one faded.
+      if (smoke && smoke.group.visible) {
+        smoke.group.visible = false;
+        smoke.puffs.forEach((p, i) => {
+          p.t = -i / smoke.puffs.length;
+          p.mesh.visible = false;
+        });
+      }
+      return;
+    }
+    const s = (v.smoke ??= this.#makeSmoke(v));
+    s.group.visible = true;
+    for (const p of s.puffs) {
+      p.t += dt / SMOKE_LIFE;
+      if (p.t >= 1) p.t -= 1;
+      p.mesh.visible = p.t >= 0;
+      if (p.t < 0) continue; // not born yet — see SmokePuff.t
+      const t = p.t;
+      // Rise on a light sway that loosens with age, leaning gently
+      // downwind (+x) the way every chimney in a village leans together.
+      p.mesh.position.set(
+        t * 0.14 + Math.sin(t * 5.1 + p.seed * 9.4) * 0.05 * (0.4 + t),
+        t * SMOKE_RISE,
+        Math.cos(t * 4.3 + p.seed * 6.3) * 0.04 * (0.4 + t),
+      );
+      p.mesh.rotation.y = p.seed * 7 + t * 1.4;
+      // Growing as it thins: narrower than the flue at birth, half a tile
+      // of loose haze by the time it goes.
+      p.mesh.scale.setScalar(0.07 + t * 0.17);
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity =
+        0.5 * v.smokeLevel * Math.min(1, t * 6) * (1 - t);
+    }
+  }
+
+  /**
+   * Build one building's puff column, parked in root space over its flue.
+   *
+   * Off the root rather than off the anchor for the same reason the roof
+   * archers are: the model carries the footprint's scale and the puffs are
+   * already sized in world units. Built on first need — this can run
+   * before a render has ticked world matrices, so settle them first (the
+   * same move as #measurePier).
+   */
+  #makeSmoke(v: BuildingVisual): {group: THREE.Group; puffs: SmokePuff[]} {
+    v.root.updateWorldMatrix(true, true);
+    v.flue!.getWorldPosition(SCRATCH_POS);
+    v.root.worldToLocal(SCRATCH_POS);
+    const group = new THREE.Group();
+    group.name = 'chimneySmoke';
+    group.position.copy(SCRATCH_POS);
+    const puffs: SmokePuff[] = [];
+    for (let i = 0; i < SMOKE_PUFFS; i++) {
+      // Pale warm greys, a shade apart so the column reads as puffs
+      // rather than as one wobbling blob.
+      const grey = 0.76 + hash2(i, 27) * 0.14;
+      const mat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(grey, grey, grey * 1.02),
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(PUFF_GEO, mat);
+      mesh.visible = false;
+      group.add(mesh);
+      puffs.push({mesh, t: -i / SMOKE_PUFFS, seed: hash2(i, 31)});
+    }
+    v.root.add(group);
+    return {group, puffs};
   }
 
   /**
@@ -1323,6 +1560,13 @@ export class BuildingSync {
     // teardown pass is the other caller.
     for (const man of v.manned) disposeTree(man.group);
     v.manned.length = 0;
+    // The smoke's per-puff materials are this visual's alone too (the
+    // ball geometry is the shared PUFF_GEO and stays).
+    if (v.smoke) {
+      for (const p of v.smoke.puffs)
+        (p.mesh.material as THREE.Material).dispose();
+      v.smoke = undefined;
+    }
     if (v.clip) {
       v.model.traverse(o => {
         // eachMaterial, not `.dispose()` on the field: faction-colored

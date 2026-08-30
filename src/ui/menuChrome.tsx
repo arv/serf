@@ -410,6 +410,8 @@ export const MENU_STYLE = `
 
 #menu .footer { display: flex; align-items: center; justify-content: flex-start;
   padding: 0 20px var(--safe-bottom); font-size: 11px; color: #5f6159; letter-spacing: 0.06em; }
+#menu .footer a { color: #85857c; text-decoration: none; }
+#menu .footer a:hover { color: #cbbd93; text-decoration: underline; }
 
 /* Phones and short windows: same DOM, tighter stack, bigger touch targets. */
 @media (max-width: 560px) {
@@ -488,7 +490,7 @@ export const MENU_STYLE = `
   #menu .cta { padding: 11px 18px; }
   #menu .footer { display: none; }
 }
-#menu button:focus-visible, #menu input:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
+#menu button:focus-visible, #menu input:focus-visible, #menu a:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
 
 /* ——— Reduced motion ———
    MUST stay last: a media query buys no specificity, so these only win by

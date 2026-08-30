@@ -51,10 +51,6 @@ export interface SimHost {
   /** Playback reached the recording's end and the sim paused itself. */
   onReplayEnded?(cb: () => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
-  /** LLM strategist plumbing (solo, when the config asked for it): seat
-   * summaries coming up, validated advice going down. */
-  onAiSummary?(cb: (playerId: number, summary: AiWorldSummary) => void): void;
-  sendAiAdvice?(playerId: number, override: Partial<AiStrategy>): void;
 }
 
 export class WorkerSimHost implements SimHost {
@@ -91,8 +87,6 @@ export class WorkerSimHost implements SimHost {
    * registers — and an unlatched signal left the HUD with no end card. */
   #replayEndedPending = false;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
-  #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null =
-    null;
   /** Seat the UI's commands are issued as. */
   playerId = 0;
 
@@ -143,8 +137,6 @@ export class WorkerSimHost implements SimHost {
           else this.#replayEndedPending = true;
         } else if (msg.type === WorkerToMainKind.netStatus) {
           this.#netStatusCb?.(msg.status);
-        } else if (msg.type === WorkerToMainKind.aiSummary) {
-          this.#aiSummaryCb?.(msg.playerId, msg.summary);
         } else if (msg.type === WorkerToMainKind.log) {
           console.log(msg.message);
         }
@@ -154,7 +146,6 @@ export class WorkerSimHost implements SimHost {
         config,
         loadData,
         net,
-        llm: config.llmOpponent,
         replay,
       } satisfies MainToWorker);
     });
@@ -177,7 +168,6 @@ export class WorkerSimHost implements SimHost {
     this.#replayCbs = [];
     this.#replayEndedCb = null;
     this.#netStatusCb = null;
-    this.#aiSummaryCb = null;
     this.#worker.onmessage = null;
     this.#worker.onerror = null;
     this.#worker.terminate();
@@ -214,14 +204,6 @@ export class WorkerSimHost implements SimHost {
 
   onNetStatus(cb: (status: NetStatus) => void): void {
     this.#netStatusCb = cb;
-  }
-
-  onAiSummary(cb: (playerId: number, summary: AiWorldSummary) => void): void {
-    this.#aiSummaryCb = cb;
-  }
-
-  sendAiAdvice(playerId: number, override: Partial<AiStrategy>): void {
-    this.#post({type: MainToWorkerKind.aiAdvice, playerId, override});
   }
 
   sendCommands(commands: SimCommand[]): void {

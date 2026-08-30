@@ -113,6 +113,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     // which is exactly the window the roof should be drawing a bow in.
     firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,
     resourceLeft: reachableResource(world, b),
+    outWaitingSince: outWaitingSinceOf(world, b),
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
@@ -141,6 +142,27 @@ function reachableResource(world: World, b: Building): number | undefined {
     gather.resource,
     gather.radius,
   );
+}
+
+/**
+ * When the oldest unclaimed pickup FROM this building was booked, for the
+ * card's hauler-starvation line. Open phase only, blocked or not — a job
+ * with a serf walking is being answered, and either kind of open job is a
+ * load sitting here that nobody has come for. Jobs TO the building are
+ * its suppliers' story and stay out of it. A stable tick, not an age:
+ * this value only moves when the oldest open job itself does, so a
+ * standing wait does not re-serialize the whole roster every structural
+ * frame (see BuildingSnap.outWaitingSince). The scan is world.jobs whole,
+ * per building; a village runs dozens of jobs, so the pass costs far
+ * less than the tile square reachableResource walks above.
+ */
+function outWaitingSinceOf(world: World, b: Building): number | undefined {
+  let oldest: number | undefined;
+  for (const j of world.jobs.values()) {
+    if (j.from !== b.id || j.phase !== HaulPhase.open) continue;
+    if (oldest === undefined || j.createdTick < oldest) oldest = j.createdTick;
+  }
+  return oldest;
 }
 
 export function snapBuildings(world: World): BuildingSnap[] {
@@ -209,6 +231,7 @@ export function snapPlayers(world: World): PlayerSnap[] {
       id: p.id,
       kind: p.kind,
       alive: p.alive,
+      ...(p.strategy !== undefined ? {strategy: p.strategy} : {}),
       stock: storehouse ? {...storehouse.stock} : {},
       toolWants: toolWants.get(p.id) ?? {},
       pop: heads.get(p.id) ?? 0,
@@ -378,7 +401,7 @@ function workKindOf(w: World, u: Unit): number {
     return def.recipe.resource === TileResource.Wood ? WORK.chop : WORK.pickaxe;
   }
   if (home.type === BuildingTypeId.weaponsmith) return WORK.hammer;
-  if (home.type === BuildingTypeId.wheatFarm) return WORK.dig;
+  if (home.type === BuildingTypeId.wheatFarm) return WORK.mow; // scythe in the rows
   if (home.type === BuildingTypeId.well) return WORK.draw; // cranking the bucket up
   if (home.type === BuildingTypeId.fishery) return WORK.fish; // pole out on the pier
   return WORK.tend;

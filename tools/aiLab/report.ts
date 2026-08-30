@@ -22,7 +22,7 @@ export interface ReportHeader {
   bandits: boolean;
   strategies: SeatStrategies;
   advicePeriod: number;
-  latency: number | 'measured';
+  latency: number;
   maxTicks: number;
   control: boolean;
 }
@@ -145,7 +145,7 @@ export function renderReport(
   const out: string[] = [];
   const p = (s = ''): void => void out.push(s);
 
-  p('Serf Valley — LLM strategist bake-off');
+  p('Serf Valley — AI bake-off');
   p(`  engine    ${header.engine}`);
   p(
     `  seeds     ${header.seeds} (${header.seedCount}) · map ${header.mapSize} · ` +
@@ -154,7 +154,7 @@ export function renderReport(
   p(
     `  cadence   advice every ${header.advicePeriod} ticks ` +
       `(${((header.advicePeriod * TICK_MS) / 1000).toFixed(0)}s) · ` +
-      `latency ${header.latency === 'measured' ? 'measured' : `${header.latency} ticks`}`,
+      `latency ${header.latency} ticks`,
   );
   p(
     `  horizon   ${header.maxTicks} ticks · control ${header.control ? 'on' : 'off'}`,
@@ -201,33 +201,26 @@ export function renderReport(
     p();
   }
 
-  const replies = health.consultations - health.skipped;
-  const share = (n: number): string => (replies === 0 ? '—' : pct(n / replies));
+  // Two denominators, on purpose: an error is a consultation that never
+  // answered, so it is a share of consultations — and the reply verdicts
+  // (unparseable, no-change) are shares of the replies that came back,
+  // not of calls that produced nothing to judge.
+  const replies = health.consultations - health.errors;
+  const ofAll = (n: number): string =>
+    health.consultations === 0 ? '—' : pct(n / health.consultations);
+  const ofReplies = (n: number): string =>
+    replies === 0 ? '—' : pct(n / replies);
   p('ENGINE HEALTH');
-  p(`  consultations  ${health.consultations} (declined ${health.skipped})`);
   p(
-    `  replies        errors ${health.errors} (${share(health.errors)}) · ` +
-      `unparseable ${health.parseFailures} (${share(health.parseFailures)}) · ` +
-      `no-change ${health.emptyAdvice} (${share(health.emptyAdvice)})`,
+    `  consultations  ${health.consultations} · ` +
+      `errors ${health.errors} (${ofAll(health.errors)})`,
+  );
+  p(
+    `  replies        ${replies} — ` +
+      `unparseable ${health.parseFailures} (${ofReplies(health.parseFailures)}) · ` +
+      `no-change ${health.emptyAdvice} (${ofReplies(health.emptyAdvice)})`,
   );
   p(`  advice landed  ${health.adviceMessages} messages`);
-  p(
-    `  latency ms     p50 ${health.latencyMs.p50} · p95 ${health.latencyMs.p95} · ` +
-      `max ${health.latencyMs.max}`,
-  );
-  if (health.latencyMs.p50 > 0) {
-    // The number the game actually has to live with: how far the valley
-    // moves while the model is thinking.
-    p(
-      `                 ≈ ${Math.round(health.latencyMs.p50 / TICK_MS)} ticks of sim at p50 ` +
-        `(re-run with --latency measured to make the advice pay it)`,
-    );
-  }
-  p(
-    health.gaveUp.length === 0
-      ? '  gave up        none'
-      : `  gave up        ${health.gaveUp.length}: ${health.gaveUp[0]!.reason}`,
-  );
   p();
 
   p('MATCHES');
@@ -240,5 +233,30 @@ export function renderReport(
       `${report.stalls.recoveries} recovery order(s)`,
   );
   p(`  sweep took ${report.wallSeconds.toFixed(0)}s`);
+
+  if (report.fingerprints.length > 0) {
+    // How each playbook actually conducted its wars — the legibility
+    // numbers. Counts per seat played, over the same unadvised sample the
+    // matchup scores; a personality is real exactly to the extent these
+    // columns differ.
+    p();
+    p('FINGERPRINTS (per seat, unadvised matches)');
+    p(
+      '  playbook   seats  1st march  sorties  strikes  wdraws  outpost' +
+        '  retreat  fled  herald  moods',
+    );
+    for (const f of report.fingerprints) {
+      const n = (x: number): string => x.toFixed(2);
+      p(
+        `  ${AI_STRATEGY_KEYS[f.strategy].padEnd(10)}` +
+          `${String(f.seats).padStart(5)}  ` +
+          `${String(f.medianFirstMarch < 0 ? '—' : f.medianFirstMarch).padStart(9)}  ` +
+          `${n(f.sorties).padStart(7)}  ${n(f.sortieStrikes).padStart(7)}  ` +
+          `${n(f.sortieWithdrawals).padStart(6)}  ${n(f.outpostDefenses).padStart(7)}  ` +
+          `${n(f.marchRetreats).padStart(7)}  ${n(f.scoutFled).padStart(4)}  ` +
+          `${n(f.heralds).padStart(6)}  ${n(f.stanceSwitches).padStart(5)}`,
+      );
+    }
+  }
   return out.join('\n');
 }

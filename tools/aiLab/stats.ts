@@ -65,9 +65,7 @@ export interface Rate {
 
 export interface EngineHealth {
   consultations: number;
-  /** Summaries the strategist declined (busy, or it had given up). */
-  skipped: number;
-  /** The engine itself threw — HTTP error, timeout, abort. */
+  /** The engine itself threw. */
   errors: number;
   /** Came back, but was not JSON the validator could read. */
   parseFailures: number;
@@ -75,9 +73,6 @@ export interface EngineHealth {
   emptyAdvice: number;
   /** Advice messages that reached a brain. */
   adviceMessages: number;
-  /** Strategists that hit three strikes and went inert. */
-  gaveUp: {playerId: Owner; reason: string}[];
-  latencyMs: {p50: number; p95: number; max: number; n: number};
 }
 
 /**
@@ -117,6 +112,27 @@ export interface PlaybookMatchup {
   };
 }
 
+/** One playbook's war conduct across a sweep, per seat played. */
+export interface PlaybookFingerprint {
+  strategy: AiStrategyId;
+  /** Seats this playbook occupied among the scored matches. */
+  seats: number;
+  /** Median first all-in march tick, among the seats that marched at
+   * all: a seat that never marched is left out of the median rather than
+   * dragging it, so -1 appears only when no seat of this playbook
+   * marched in the whole sample. */
+  medianFirstMarch: number;
+  /** The rest are means per seat. */
+  sorties: number;
+  sortieStrikes: number;
+  sortieWithdrawals: number;
+  outpostDefenses: number;
+  marchRetreats: number;
+  scoutFled: number;
+  heralds: number;
+  stanceSwitches: number;
+}
+
 export interface BakeoffReport {
   advised: Rate;
   /** The same rate split by which seat was wearing the advice. Wide gaps
@@ -137,6 +153,15 @@ export interface BakeoffReport {
   stalls: {matches: number; recoveries: number};
   /** How often advice changed who won, against the same seed's control. */
   flips: {toward: number; away: number; unchanged: number; noControl: number};
+  /**
+   * Each playbook's war fingerprints (AiBrain.warReport), pooled over the
+   * unadvised matches — one per (seed, seating), the same sample the
+   * playbook matchup scores. The legibility numbers: two playbooks that
+   * print the same win rate should still read differently here, and a
+   * personality whose column is all zeros is a personality only its blurb
+   * has.
+   */
+  fingerprints: PlaybookFingerprint[];
   /** Only when the two seats ran different playbooks. */
   playbooks: PlaybookMatchup | null;
   health: EngineHealth;
@@ -221,6 +246,87 @@ function unadvisedMatch(layout: LayoutRun): MatchRecord | null {
   return layout.arms.find(a => a.record.advised.length === 0)?.record ?? null;
 }
 
+/** Each playbook's war conduct pooled over the unadvised matches — the
+ * same one-per-(seed, seating) sample the matchup scores, so neither
+ * treble-counts an `--engine none` seating's identical arms. */
+export function fingerprintsOf(runs: SeedRun[]): PlaybookFingerprint[] {
+  interface Agg {
+    seats: number;
+    firstMarch: number[];
+    sums: {
+      sorties: number;
+      sortieStrikes: number;
+      sortieWithdrawals: number;
+      outpostDefenses: number;
+      marchRetreats: number;
+      scoutFled: number;
+      heralds: number;
+      stanceSwitches: number;
+    };
+  }
+  const byBook = new Map<AiStrategyId, Agg>();
+  for (const run of runs) {
+    for (const layout of run.layouts) {
+      const record = unadvisedMatch(layout);
+      if (!record) continue;
+      for (const w of record.war ?? []) {
+        const book = record.strategies[w.playerId];
+        if (book === undefined) continue;
+        let agg = byBook.get(book);
+        if (!agg) {
+          byBook.set(
+            book,
+            (agg = {
+              seats: 0,
+              firstMarch: [],
+              sums: {
+                sorties: 0,
+                sortieStrikes: 0,
+                sortieWithdrawals: 0,
+                outpostDefenses: 0,
+                marchRetreats: 0,
+                scoutFled: 0,
+                heralds: 0,
+                stanceSwitches: 0,
+              },
+            }),
+          );
+        }
+        agg.seats++;
+        if (w.firstMarchTick >= 0) agg.firstMarch.push(w.firstMarchTick);
+        agg.sums.sorties += w.sorties;
+        agg.sums.sortieStrikes += w.sortieStrikes;
+        agg.sums.sortieWithdrawals += w.sortieWithdrawals;
+        agg.sums.outpostDefenses += w.outpostDefenses;
+        agg.sums.marchRetreats += w.marchRetreats;
+        agg.sums.scoutFled += w.scoutFled;
+        agg.sums.heralds += w.heralds;
+        agg.sums.stanceSwitches += w.stanceSwitches;
+      }
+    }
+  }
+  return [...byBook]
+    .sort(([a], [z]) => a - z)
+    .map(([strategy, agg]) => {
+      const sorted = [...agg.firstMarch].sort((a, z) => a - z);
+      const per = (n: number): number => (agg.seats === 0 ? 0 : n / agg.seats);
+      return {
+        strategy,
+        seats: agg.seats,
+        medianFirstMarch:
+          sorted.length === 0 ? -1 : sorted[Math.floor(sorted.length / 2)]!,
+        sorties: per(agg.sums.sorties),
+        sortieStrikes: per(agg.sums.sortieStrikes),
+        sortieWithdrawals: per(agg.sums.sortieWithdrawals),
+        outpostDefenses: per(agg.sums.outpostDefenses),
+        marchRetreats: per(agg.sums.marchRetreats),
+        scoutFled: per(agg.sums.scoutFled),
+        heralds: per(agg.sums.heralds),
+        stanceSwitches: per(agg.sums.stanceSwitches),
+      };
+    });
+}
+
 /** Playbook A vs playbook B over the unadvised matches, or null when both
  * seats ran the same playbook and there is no matchup to speak of. */
 export function matchupOf(runs: SeedRun[]): PlaybookMatchup | null {
@@ -294,7 +400,6 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
   const ticks: number[] = [];
 
   const consults: ConsultRecord[] = [];
-  const gaveUp: {playerId: Owner; reason: string}[] = [];
   let adviceMessages = 0;
 
   for (const run of runs) {
@@ -304,7 +409,6 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
         if ((record.stalls ?? []).some(x => x.beats > 0)) stalls.matches++;
         for (const x of record.stalls ?? []) stalls.recoveries += x.recoveries;
         consults.push(...record.consults);
-        gaveUp.push(...record.failures);
         for (const n of Object.values(record.adviceApplied))
           adviceMessages += n;
 
@@ -340,8 +444,6 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     }
   }
 
-  const latencies = consults.filter(c => !c.skipped).map(c => c.ms);
-  latencies.sort((a, b) => a - b);
   const sortedTicks = [...ticks].sort((a, b) => a - b);
 
   return {
@@ -352,23 +454,15 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     undecided,
     stalls,
     flips,
+    fingerprints: fingerprintsOf(runs),
     playbooks: matchupOf(runs),
     health: {
       consultations: consults.length,
-      skipped: consults.filter(c => c.skipped).length,
       errors: consults.filter(c => c.error !== undefined).length,
-      parseFailures: consults.filter(
-        c => !c.skipped && !c.error && c.parsed === false,
-      ).length,
+      parseFailures: consults.filter(c => !c.error && c.parsed === false)
+        .length,
       emptyAdvice: consults.filter(c => c.knobs === 0).length,
       adviceMessages,
-      gaveUp,
-      latencyMs: {
-        p50: percentile(latencies, 0.5),
-        p95: percentile(latencies, 0.95),
-        max: latencies.length > 0 ? latencies[latencies.length - 1]! : 0,
-        n: latencies.length,
-      },
     },
     matchTicks: {
       median: percentile(sortedTicks, 0.5),

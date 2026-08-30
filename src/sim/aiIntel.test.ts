@@ -1,9 +1,11 @@
 import {describe, expect, it} from 'vitest';
+import * as CommandKind from './commandKindEnum.ts';
+import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import {AiBrain, AI_INTEL} from './systems/ai.ts';
+import {AiBrain, AI_INTEL, rivalDoorstep, scoutLeg} from './systems/ai.ts';
 import {addStorehouse, bareWorld} from './testUtils.ts';
 import {placeBuiltBuilding, spawnUnit, type World} from './world.ts';
 
@@ -150,6 +152,39 @@ describe('the intelligence picture', () => {
     expect(span).toBeLessThanOrEqual(
       (AI_INTEL.seriesLen - 1) * AI_INTEL.samplePeriod,
     );
+  });
+
+  it('a scout lost on a doorstep errand doubles that doorstep’s clock', () => {
+    // The tribute this pins: a doorstep behind a garrison killed its
+    // reader, and the ordinary refresh clock walked the next soldier down
+    // the same road on schedule — one seat spent its whole barracks
+    // output that way across a match. A lost scout now doubles the
+    // rival's clock (AI_INTEL.scoutBurnCap doublings at most); a
+    // completed read clears the debt.
+    const {world, brain} = watchWorld();
+    const moves = (
+      commands: SimCommand[],
+    ): {unitIds: number[]; x: number; y: number}[] =>
+      commands.filter(c => c.kind === CommandKind.moveUnits) as never;
+    const errand = moves(brain.decide(world)).find(m => m.unitIds.length === 1);
+    expect(errand).toBeDefined();
+    world.units.get(errand!.unitIds[0]!)!.dead = true;
+    world.tick += 20;
+    brain.decide(world); // the loss is filed and the clock stamped
+    const stampedAt = world.tick;
+    // A replacement stands ready at home for the next errand.
+    spawnUnit(world, UnitTypeId.knight, 0, 30.5, 28.5);
+    const door = rivalDoorstep(world, 1);
+    expect(door).toBeGreaterThanOrEqual(0);
+    const leg = scoutLeg(door, 30.5, 28.5, world.map.size);
+    const walksTheDoorstep = (): boolean =>
+      moves(brain.decide(world)).some(m => m.x === leg.x && m.y === leg.y);
+    // Past the ordinary refresh clock: the road is not walked again.
+    world.tick = stampedAt + AI_INTEL.refreshAfter + 100;
+    expect(walksTheDoorstep()).toBe(false);
+    // Past the doubled clock, the read is owed after all.
+    world.tick = stampedAt + AI_INTEL.refreshAfter * 2 + 100;
+    expect(walksTheDoorstep()).toBe(true);
   });
 
   it('re-reads a doorstep on the refresh clock even while one straggler is in sight', () => {

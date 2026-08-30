@@ -1,6 +1,5 @@
-import type {AiWorldSummary} from '../ai/summary.ts';
 import type {Enum} from '../shared/enum.ts';
-import type {AiStrategy} from '../sim/defs/aiStrategies.ts';
+import type {AiStrategyId} from '../sim/defs/aiStrategies.ts';
 import type {BuildingTypeId} from '../sim/defs/buildings.ts';
 import type {GoodAmounts, GoodId} from '../sim/defs/goods.ts';
 import type {MissionId} from '../sim/defs/missions.ts';
@@ -40,6 +39,10 @@ export interface PlayerSnap {
   id: Owner;
   kind: PlayerKind;
   alive: boolean;
+  /** An AI seat's playbook, for naming it on screen (“A herald of the
+   * Warlord…”). Public knowledge — the lobby shows the deal — and absent
+   * for humans. */
+  strategy?: AiStrategyId;
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
   /** Open tool-gated posts per tool, plus sites still owed their hammer —
@@ -122,6 +125,19 @@ export interface BuildingSnap {
    * nowhere else.
    */
   resourceLeft?: number;
+  /**
+   * The tick the oldest unclaimed pickup FROM this building was booked —
+   * a haul on the board that no free hand has come for. Absent when
+   * nothing is waiting (no pickups booked, or every one has a serf
+   * walking). A tick rather than an age on purpose: the roster ships
+   * only when its serialized body changes (simWorker's postStructural),
+   * and an age would tick every frame any open haul exists, defeating
+   * that suppression — the client turns this into a wait against the
+   * frame's own tick. The card reads it to say a full hut is starved of
+   * haulers rather than of ground; the full jobs feed stays debug-only
+   * (JobSnap below).
+   */
+  outWaitingSince?: number;
 }
 
 /** Debug-overlay row for a haul job. */
@@ -175,23 +191,12 @@ export type MainToWorker =
       config: WorldConfig;
       loadData?: string;
       net?: NetInfo;
-      /** Solo only: post aiSummary messages so the main thread's LLM
-       * strategist (src/ai/) can advise the AI seats. */
-      llm?: boolean;
       /** Play back a recorded match instead of a live one: the sim feeds
        * itself from the log and ignores incoming commands. config/loadData
        * above are ignored — the replay carries its own. */
       replay?: import('../app/replay.ts').ReplayData;
     }
   | {type: MainToWorkerKindNs.commands; commands: PlayerCommand[]}
-  /** Strategist advice for one AI seat: playbook knobs to lay over its
-   * strategy. Validated and clamped on the main thread (src/ai/advice.ts)
-   * before it is ever posted. */
-  | {
-      type: MainToWorkerKindNs.aiAdvice;
-      playerId: number;
-      override: Partial<AiStrategy>;
-    }
   | {type: MainToWorkerKindNs.setSpeed; speed: number}
   /** Debug overlay visibility: the worker only serializes its jobs table
    * into structural updates while someone is actually watching. */
@@ -266,12 +271,4 @@ export type WorkerToMain =
   /** Replay playback reached the log's end tick; the sim has paused itself. */
   | {type: WorkerToMainKindNs.replayEnded}
   | {type: WorkerToMainKindNs.netStatus; status: NetStatus}
-  /** One AI seat's folded-down view of the match, on the advice cadence
-   * (~45 s) — the input the LLM strategist prompts from. Only sent when
-   * init asked with `llm`. */
-  | {
-      type: WorkerToMainKindNs.aiSummary;
-      playerId: number;
-      summary: AiWorldSummary;
-    }
   | {type: WorkerToMainKindNs.log; message: string};

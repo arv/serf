@@ -12,3 +12,5 @@ export const objectiveComplete = 4 as const;
 export type objectiveComplete = typeof objectiveComplete;
 export const damage = 5 as const;
 export type damage = typeof damage;
+export const heraldIncoming = 6 as const;
+export type heraldIncoming = typeof heraldIncoming;

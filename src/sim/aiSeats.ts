@@ -36,21 +36,21 @@ export class AiSeats {
     return this.#brains.length;
   }
 
-  /** The seats with a brain, for anyone pacing per-seat work (the LLM
-   * strategist's summary cadence). */
+  /** The seats with a brain, for anyone pacing per-seat work (the lab's
+   * consultation cadence). */
   seatIds(): Owner[] {
     return this.#brains.map(b => b.playerId);
   }
 
-  /** Lay strategist advice over one seat's playbook. Values arrive already
-   * validated (src/ai/advice.ts); an unknown seat is a no-op, since advice
-   * can outlive the brain it was meant for. */
+  /** Lay advice over one seat's playbook — the lab's steering seam. Values
+   * arrive already validated (src/ai/advice.ts); an unknown seat is a
+   * no-op, since advice can outlive the brain it was meant for. */
   applyAdvice(playerId: Owner, override: Partial<AiStrategy>): void {
     this.#brains.find(b => b.playerId === playerId)?.setOverride(override);
   }
 
-  /** One seat's brain — how the LLM summary reads what the seat has
-   * scouted (vision + intel) instead of the raw world. */
+  /** One seat's brain — how the seat summary (src/ai/summary.ts) reads
+   * what the seat has scouted (vision + intel) instead of the raw world. */
   brainFor(playerId: Owner): AiBrain | undefined {
     return this.#brains.find(b => b.playerId === playerId);
   }
