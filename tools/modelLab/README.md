@@ -82,6 +82,23 @@ pnpm dev   # then /tools/modelLab/_spoil.html
 `?spoil=0` paints with the lookup disabled, which is the before shot;
 `?yaw` and `w`/`h` behave as they do on `_mines.html`.
 
+## The farmstead
+
+`_farm.html` is where the wheat farm's field was composed and the farmer's
+scythe judged. It stands the built farmstead (`makeGlbBuilding`) with
+farmers on the model's own `mowPath` marks — the circuit `sceneSync` walks
+the resident along — one mid-stroke, one walking a lane, one standing.
+
+```sh
+pnpm dev   # then /tools/modelLab/_farm.html
+```
+
+`?t=<0..1>` scrubs the mowing stroke; `?strip=mow|walk|idle` lays one clip
+out left to right instead, scythe in hand, which is how the stroke and the
+carry were tuned. `?marks=1` beads every walk mark to check the circuit
+against the rows; `?rival=1` turns the seat red for the team roof.
+`w`/`h`/`zoom`/`fy` frame the shot as everywhere else.
+
 ## Publishing the gallery
 
 ```sh

@@ -40,6 +40,7 @@ export const WORK = {
   tend: 5,
   draw: 6,
   fish: 7,
+  mow: 8,
 } as const;
 
 /** A worker's workplace flavor — picks a profession body (farmer's straw hat...). */

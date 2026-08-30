@@ -22,6 +22,7 @@ const KEYS: AnimKey[] = [
   AnimKey.carry,
   AnimKey.carryIdle,
   AnimKey.death,
+  AnimKey.mow,
 ];
 
 describe('animCue', () => {
@@ -77,6 +78,10 @@ describe('LOOP_CUES', () => {
     expect(LOOP_CUES[AnimKey.work]?.perCycle).toBe(1);
     expect(LOOP_CUES[AnimKey.attack]?.perCycle).toBe(1);
     expect(LOOP_CUES[AnimKey.shoot]?.perCycle).toBe(1);
+    // The mowing stroke is one sweep per clip, and its swish is a motion
+    // sound: it starts where the blade starts (0.31, measured), not at a
+    // contact — grass gives, nothing strikes.
+    expect(LOOP_CUES[AnimKey.mow]?.perCycle).toBe(1);
   });
 
   it('a twice-a-cycle phase stays in the first half — the mirror lands +0.5', () => {

@@ -77,6 +77,10 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   [AnimKeyNs.tend]: 'Working_A',
   // Hand-over-hand reeling doubles as cranking the well bucket up.
   [AnimKeyNs.draw]: 'Fishing_Reeling',
+  // The scythe stroke: the pack's two-handed horizontal slice, which is
+  // the mowing sweep — wind-up to the right, blade carried flat across
+  // the body. The Tools library has no farm loop that swings anything.
+  [AnimKeyNs.mow]: 'Melee_2H_Attack_Slice',
   // The patient hold, rod out over the water — the actual fisherman.
   [AnimKeyNs.fish]: 'Fishing_Idle',
   // Composited at load: gait legs + holding-pose arms.
@@ -235,7 +239,7 @@ export interface CharacterVisual {
   toolAnchor?: THREE.Group;
   /** Sub-group of toolAnchor holding the currently swapped-in work tool. */
   toolCustom?: THREE.Group;
-  /** The wardrobe's own hand prop (axe, sword, the farmer's spade...),
+  /** The wardrobe's own hand prop (axe, sword, the farmer's scythe...),
    * hidden while a work tool is swapped in. */
   defaultTool?: THREE.Object3D;
   /** WORK.* currently equipped via setWorkTool (0 = the default prop). */
@@ -431,8 +435,9 @@ const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
 // Authored in world units: grip at the origin, handle up +Y, head at the
 // top — the same frame the pack's axe sits in after its fix-up. The hammer
 // and pickaxe are modeled now (RPG Tools Bits, see packToolProp); the
-// procedural builds below remain as their pre-load fallbacks and the spade
-// as the farmer's own tool.
+// procedural builds below remain as their pre-load fallbacks, and the
+// scythe stays procedural outright — no free pack ships one (same story
+// as the spear).
 
 const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
   const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color}));
@@ -521,6 +526,55 @@ function spadeProp(): THREE.Group {
   return g;
 }
 
+function scytheProp(): THREE.Group {
+  // Same frame as every tool: grip at the origin, snath up +Y, business
+  // end at the top. The blade is a flattened arc hooked out sideways from
+  // the snath's head, so the two-handed slice carries it flat through the
+  // stalks — a blade authored hanging down (the way a real scythe mows)
+  // pointed at the sky through the whole swing, because the handslot
+  // leads with the prop's +Y.
+  const g = new THREE.Group();
+  const lower = toolMesh(
+    new THREE.CylinderGeometry(0.024, 0.03, 0.36, 6),
+    0x8a6a42,
+  );
+  lower.position.y = 0.15;
+  // The snath's upper run leans a touch forward — the bent haft is most
+  // of what says scythe rather than staff at village zoom.
+  const upper = toolMesh(
+    new THREE.CylinderGeometry(0.019, 0.024, 0.34, 6),
+    0x8a6a42,
+  );
+  upper.rotation.x = 0.24;
+  upper.position.set(0, 0.47, 0.04);
+  // The mower's second grip: a short nib pegged out of the haft.
+  const nib = toolMesh(
+    new THREE.CylinderGeometry(0.016, 0.016, 0.11, 6),
+    0x6b4e2e,
+  );
+  nib.rotation.x = Math.PI / 2;
+  nib.position.set(0, 0.33, 0.05);
+  // Tang collar where the blade is bolted on.
+  const collar = toolMesh(new THREE.BoxGeometry(0.05, 0.05, 0.07), 0x6b4e2e);
+  collar.position.set(0, 0.63, 0.09);
+  // The blade: a quarter-hoop laid flat and squashed thin — the same
+  // read as the carried scythe good (models.ts), steel like the spade's
+  // edge. The arc springs from the collar and sweeps out past +z.
+  const blade = toolMesh(
+    new THREE.TorusGeometry(0.19, 0.03, 4, 12, 1.9),
+    0x8b95a0,
+  );
+  blade.rotation.set(Math.PI / 2, 0, 0);
+  blade.rotation.order = 'ZYX';
+  blade.rotation.y = -2.1; // aim the arc's spring at the collar
+  // Squash the tube along the torus axis: thin in elevation, wide in
+  // plan — a curved knife lying flat, not a bent rod.
+  blade.scale.z = 0.32;
+  blade.position.set(0.09, 0.63, 0.22);
+  g.add(lower, upper, nib, collar, blade);
+  return g;
+}
+
 function fishingPoleProp(): THREE.Group {
   // The RPG Tools Bits rod: grip at the origin, rod up +Y with a built-in
   // forward sweep toward +z, line + floater + hook hanging off the tip
@@ -599,6 +653,7 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
   4: spadeProp, // WORK.dig
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
   7: fishingPoleProp, // WORK.fish
+  8: scytheProp, // WORK.mow
 };
 
 /** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,
@@ -621,7 +676,7 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   }
   const make = WORK_TOOLS[workKind];
   // A default tool that already matches the work keeps its place (the
-  // farmer digs with the spade he carries).
+  // farmer mows with the scythe he carries).
   const covered = make && visual.defaultTool?.userData.workKind === workKind;
   if (make && !covered) {
     visual.toolCustom.add(make());
@@ -719,13 +774,13 @@ interface ProfLook {
 }
 
 const PROF_LOOKS = new Map<number, ProfLook>([
-  // Farmer: sun-worn tan leathers, straw hat, spade in hand.
+  // Farmer: sun-worn tan leathers, straw hat, scythe in hand.
   [
     1,
     {
       spec: {file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a},
-      tool: spadeProp,
-      toolWorkKind: 4, // WORK.dig
+      tool: scytheProp,
+      toolWorkKind: 8, // WORK.mow
       strawHat: true,
     },
   ],
@@ -1180,4 +1235,5 @@ export const ANIM_KEYS: readonly AnimKey[] = [
   AnimKeyNs.carry,
   AnimKeyNs.carryIdle,
   AnimKeyNs.death,
+  AnimKeyNs.mow,
 ];

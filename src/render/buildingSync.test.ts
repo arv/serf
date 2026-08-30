@@ -53,6 +53,28 @@ vi.mock('./assets', () => ({
       fan.name = 'millFan';
       group.add(fan);
     }
+    // The real farmstead authors its walk marks as named empties
+    // (makeFarmstead); farmFields() only needs their world positions.
+    // Two lanes' worth, serpentine like the real circuit.
+    if (type === BuildingTypeId.wheatFarm) {
+      const gate = new THREE.Group();
+      gate.name = 'mowGate';
+      gate.position.set(0, 0.06, 1.6);
+      group.add(gate);
+      (
+        [
+          [-1.4, 1.1],
+          [1.4, 1.1],
+          [1.4, 0.6],
+          [-1.4, 0.6],
+        ] as const
+      ).forEach(([x, z], i) => {
+        const m = new THREE.Group();
+        m.name = `mowPath${i}`;
+        m.position.set(x, 0.06, z);
+        group.add(m);
+      });
+    }
     return group;
   },
 }));
@@ -200,6 +222,53 @@ describe("the fishery's pier", () => {
       }),
     ]);
     expect(sync.fisheryPiers().length).toBe(0);
+  });
+});
+
+describe("the farm's field", () => {
+  it('reports the circuit in world space, gate first, bounds around it', () => {
+    const {sync} = makeSync();
+    sync.update([snap({type: BuildingTypeId.wheatFarm, w: 3, h: 3})]);
+    const fields = sync.farmFields();
+    expect(fields.length).toBe(1);
+    const f = fields[0]!;
+    expect(f.bx).toBeCloseTo(11.5);
+    expect(f.bz).toBeCloseTo(11.5);
+    // The gate stands on the open front edge, the pad's height under it.
+    expect(f.gateX).toBeCloseTo(11.5);
+    expect(f.gateZ).toBeCloseTo(13.1);
+    expect(f.padY).toBeCloseTo(0.06);
+    // The circuit came out in authored order: a lane west to east, then
+    // the next lane back — the serpentine the farmer ping-pongs.
+    expect(f.points.length).toBe(4);
+    expect(f.points[0]!.x).toBeCloseTo(10.1);
+    expect(f.points[0]!.z).toBeCloseTo(12.6);
+    expect(f.points[1]!.x).toBeCloseTo(12.9);
+    expect(f.points[3]!.x).toBeCloseTo(10.1);
+    expect(f.points[3]!.z).toBeCloseTo(12.1);
+    // Bounds hold the whole circuit with a margin to spare, so the entry
+    // leg hands over a step before the first lane.
+    expect(f.minX).toBeLessThan(10.1);
+    expect(f.maxX).toBeGreaterThan(12.9);
+    expect(f.minZ).toBeLessThan(12.1);
+    expect(f.maxZ).toBeGreaterThan(13.1);
+    // Measured once: buildings do not move, so asking again returns the
+    // cached line.
+    expect(sync.farmFields()[0]).toBe(f);
+  });
+
+  it('is absent while the farm is still a site', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.wheatFarm,
+        w: 3,
+        h: 3,
+        state: BuildingState.site,
+        siteNeeds: {},
+      }),
+    ]);
+    expect(sync.farmFields().length).toBe(0);
   });
 });
 

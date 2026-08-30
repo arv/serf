@@ -37,3 +37,5 @@ export const carryIdle = 15 as const;
 export type carryIdle = typeof carryIdle;
 export const death = 16 as const;
 export type death = typeof death;
+export const mow = 17 as const;
+export type mow = typeof mow;

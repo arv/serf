@@ -379,7 +379,7 @@ function workKindOf(w: World, u: Unit): number {
     return def.recipe.resource === TileResource.Wood ? WORK.chop : WORK.pickaxe;
   }
   if (home.type === BuildingTypeId.weaponsmith) return WORK.hammer;
-  if (home.type === BuildingTypeId.wheatFarm) return WORK.dig;
+  if (home.type === BuildingTypeId.wheatFarm) return WORK.mow; // scythe in the rows
   if (home.type === BuildingTypeId.well) return WORK.draw; // cranking the bucket up
   if (home.type === BuildingTypeId.fishery) return WORK.fish; // pole out on the pier
   return WORK.tend;
