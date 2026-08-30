@@ -126,13 +126,18 @@ export interface BuildingSnap {
    */
   resourceLeft?: number;
   /**
-   * Ticks the oldest unclaimed pickup FROM this building has sat on the
-   * board — a booked haul no free hand has come for. Absent when nothing
-   * is waiting (no pickups booked, or every one has a serf walking). The
-   * card reads it to say a full hut is starved of haulers rather than of
-   * ground; the full jobs feed stays debug-only (JobSnap below).
+   * The tick the oldest unclaimed pickup FROM this building was booked —
+   * a haul on the board that no free hand has come for. Absent when
+   * nothing is waiting (no pickups booked, or every one has a serf
+   * walking). A tick rather than an age on purpose: the roster ships
+   * only when its serialized body changes (simWorker's postStructural),
+   * and an age would tick every frame any open haul exists, defeating
+   * that suppression — the client turns this into a wait against the
+   * frame's own tick. The card reads it to say a full hut is starved of
+   * haulers rather than of ground; the full jobs feed stays debug-only
+   * (JobSnap below).
    */
-  outWaiting?: number;
+  outWaitingSince?: number;
 }
 
 /** Debug-overlay row for a haul job. */

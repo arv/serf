@@ -51,12 +51,15 @@ describe('snapBuilding: resourceLeft', () => {
 });
 
 /**
- * The hauler-starvation readout: how long the oldest unclaimed pickup from
- * this building has sat on the board. It has to mean "a load is here and
- * nobody has come" — a job with a serf already walking is being answered,
- * and counting it would alarm the card over ordinary churn.
+ * The hauler-starvation readout: when the oldest unclaimed pickup from
+ * this building was booked. It has to mean "a load is here and nobody has
+ * come" — a job with a serf already walking is being answered, and
+ * counting it would alarm the card over ordinary churn. A stable tick
+ * rather than an age, so a standing wait does not change the serialized
+ * roster every frame (the churn postStructural's suppression exists to
+ * stop).
  */
-describe('snapBuilding: outWaiting', () => {
+describe('snapBuilding: outWaitingSince', () => {
   it('reports the oldest unclaimed pickup, and only from this building', () => {
     const world = bareWorld();
     const hut = addBuiltHut(world, 30, 30, false);
@@ -83,9 +86,29 @@ describe('snapBuilding: outWaiting', () => {
       phase: HaulPhase.toPickup,
       serfId: 99,
     });
-    expect(snapBuilding(world, hut).outWaiting).toBe(240);
+    expect(snapBuilding(world, hut).outWaitingSince).toBe(260);
     // Jobs TO a building are its suppliers' story, not its own.
-    expect(snapBuilding(world, store).outWaiting).toBeUndefined();
+    expect(snapBuilding(world, store).outWaitingSince).toBeUndefined();
+  });
+
+  it('holds still while the wait stands, so the roster body does too', () => {
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30, false);
+    const store = addStorehouse(world, 20, 20, {});
+    world.tick = 500;
+    world.jobs.set(1, {
+      id: 1,
+      good: GoodId.wood,
+      from: hut.id,
+      to: store.id,
+      owner: 0,
+      priority: 3,
+      createdTick: 260,
+      phase: HaulPhase.open,
+    });
+    const before = JSON.stringify(snapBuilding(world, hut));
+    world.tick = 5000; // the wait ages; nothing about the jobs moved
+    expect(JSON.stringify(snapBuilding(world, hut))).toBe(before);
   });
 
   it('is absent when every booked pickup has a hand walking', () => {
@@ -104,6 +127,6 @@ describe('snapBuilding: outWaiting', () => {
       phase: HaulPhase.toDropoff,
       serfId: 99,
     });
-    expect(snapBuilding(world, hut).outWaiting).toBeUndefined();
+    expect(snapBuilding(world, hut).outWaitingSince).toBeUndefined();
   });
 });

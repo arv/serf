@@ -96,8 +96,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // doubles that rival's refresh clock. The seats DECIDE differently;
 // yesterday's logs hold the commands they decided then, and the tick
 // that executes them did not move.
+// Still 34 after that arc's review round (brain only again): the burn
+// counter caps as it counts instead of at the read, and the stretch
+// multiplies by a shifted small factor instead of shifting the clock —
+// the same numbers for every reachable value, spelled safely.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = 'd66469caa4c91bf09ef5669bed3b36d4';
+const EXPECTED_HASH = '4f5fdb0900d41700a11d88cbd970dec6';
 
 /**
  * Everything a replay's playback depends on, as raw source:

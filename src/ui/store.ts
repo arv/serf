@@ -202,6 +202,16 @@ export const [briefingOpen, setBriefingOpen] = createSignal(false);
 export const [selectedBuilding, setSelectedBuilding] =
   createSignal<BuildingSnap | null>(null);
 
+/**
+ * The sim tick as of the last structural frame — the HUD's "now" for any
+ * readout that measures against a tick the roster carries (the card's
+ * hauler wait reads it against BuildingSnap.outWaitingSince). Only as
+ * fresh as the frames: a village with no news posts none and this holds
+ * still, which suits a wait fine — the alarm stands, the seconds catch up
+ * with the next frame.
+ */
+export const [simTick, setSimTick] = createSignal(0);
+
 /** Toast messages (raid warnings etc.), newest last. A toast with a focus
  * target is clickable and pans the camera there. */
 export const [toasts, setToasts] = createSignal<
@@ -404,6 +414,7 @@ export function resetMatchState(): void {
   setMission(null);
   setBriefingOpen(false);
   setSelectedBuilding(null);
+  setSimTick(0);
   setToasts([]);
   setLastAlert(null);
   setOutcome({state: MatchState.playing});

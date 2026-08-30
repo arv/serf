@@ -21,6 +21,7 @@ import {
   selection,
   selectionGroup,
   setTechPanelOpen,
+  simTick,
   stock,
   techs,
 } from './store';
@@ -1051,11 +1052,15 @@ export function SelectionPanel(props: {
                         cap — a starved hut oscillates one load under it
                         every time a hauler finally snatches one, and an
                         alarm that blinked off on that beat would read as
-                        five different problems instead of one. */}
+                        five different problems instead of one. The wait
+                        is measured here against the frame clock, because
+                        the roster ships a stable tick on purpose (see
+                        BuildingSnap.outWaitingSince). */}
                     <Show
                       when={
                         b().state === BuildingState.built &&
-                        (b().outWaiting ?? 0) >= HAUL_STARVED_AFTER
+                        b().outWaitingSince !== undefined &&
+                        simTick() - b().outWaitingSince! >= HAUL_STARVED_AFTER
                       }
                     >
                       <TipWrap
@@ -1071,7 +1076,8 @@ export function SelectionPanel(props: {
                           · no hauler for{' '}
                           <span class="num">
                             {Math.floor(
-                              (b().outWaiting ?? 0) / TICKS_PER_SECOND,
+                              (simTick() - b().outWaitingSince!) /
+                                TICKS_PER_SECOND,
                             )}
                           </span>
                           s

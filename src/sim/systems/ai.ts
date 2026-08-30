@@ -644,9 +644,11 @@ export class AiBrain {
   #scoutIntel: Owner = -1;
   /** Consecutive scouts a rival's errand has cost — dead or fled with the
    * read unfinished — and not yet redeemed by a completed one. The number
-   * of doublings that rival's refresh clock is owed, capped at
-   * AI_INTEL.scoutBurnCap; see that constant for why it is a backoff and
-   * not a write-off. Bounded by the seat count, like #intelAttempt. */
+   * of doublings that rival's refresh clock is owed; #burnScout caps it
+   * at AI_INTEL.scoutBurnCap as it counts, so a long war never grows the
+   * number past what the clock can spend. See that constant for why it is
+   * a backoff and not a write-off. Bounded by the seat count, like
+   * #intelAttempt. */
   #scoutsLost = new Map<Owner, number>();
   /**
    * Per tower: the tick its levy may stand down, set forward every beat an
@@ -2457,14 +2459,15 @@ export class AiBrain {
       // The playbook's own curiosity, where it names one: an obsessive
       // scout meets you early, an insular one late — a first-contact
       // fingerprint the fog cannot hide. Stretched by a doubling per
-      // scout that errand has cost (#scoutsLost): a doorstep that keeps
-      // killing its readers is re-read on a longer and longer clock
-      // instead of on schedule, soldier after soldier.
+      // scout that errand has cost (#scoutsLost, capped as it counts):
+      // a doorstep that keeps killing its readers is re-read on a longer
+      // and longer clock instead of on schedule, soldier after soldier.
+      // The shift stays on the small factor — shifting refreshAfter
+      // itself would drop the arithmetic into 32-bit land for a clock a
+      // playbook is free to configure large.
       const refreshAfter =
         this.strategy.scoutRefreshAfter ?? AI_INTEL.refreshAfter;
-      const stretched =
-        refreshAfter <<
-        Math.min(this.#scoutsLost.get(p.id) ?? 0, AI_INTEL.scoutBurnCap);
+      const stretched = refreshAfter * (1 << (this.#scoutsLost.get(p.id) ?? 0));
       if (world.tick - last <= stretched) continue;
       if (last < bestTick) {
         bestTick = last;
@@ -2484,9 +2487,14 @@ export class AiBrain {
   }
 
   /** One more scout this rival's errand has cost — the doorstep's clock
-   * doubles again (#staleRival), until a completed read clears the debt. */
+   * doubles again (#staleRival), until a completed read clears the debt.
+   * Capped here, at the counting, so the stored number always means what
+   * the clock can actually spend. */
   #burnScout(owner: Owner): void {
-    this.#scoutsLost.set(owner, (this.#scoutsLost.get(owner) ?? 0) + 1);
+    this.#scoutsLost.set(
+      owner,
+      Math.min(AI_INTEL.scoutBurnCap, (this.#scoutsLost.get(owner) ?? 0) + 1),
+    );
   }
 
   /**
