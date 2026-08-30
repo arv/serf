@@ -269,7 +269,7 @@ export const MENU_STYLE = `
   #menu .cta { padding: 11px 18px; }
   #menu .footer { display: none; }
 }
-#menu button:focus-visible, #menu input:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
+#menu button:focus-visible, #menu input:focus-visible, #menu a:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
 `;
 
 /** Components, not shared element consts: a JSX element is one real DOM

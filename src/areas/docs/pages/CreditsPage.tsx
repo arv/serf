@@ -13,10 +13,21 @@ import {For, type JSX} from 'solid-js';
  * plain glyph in the guide's own icon language instead.
  */
 
-/** An anchor that leaves the game: new tab, no opener, no router. */
-function Ext(props: {href: string; children: JSX.Element}): JSX.Element {
+/** An anchor that leaves the game: new tab, no opener, no router.
+ * (noreferrer implies noopener; both are spelled out so neither reads as
+ * forgotten.) */
+function Ext(props: {
+  href: string;
+  class?: string;
+  children: JSX.Element;
+}): JSX.Element {
   return (
-    <a href={props.href} target="_blank" rel="noreferrer">
+    <a
+      href={props.href}
+      class={props.class}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       {props.children}
     </a>
   );
@@ -255,8 +266,10 @@ export function CreditsPage(): JSX.Element {
                 <div class="c-name">{c.name}</div>
                 <p class="c-what">{c.what}</p>
                 <div class="c-links">
-                  <Ext href={c.license.href}>
-                    <span class="chip">{c.license.label}</span>
+                  {/* The anchor is the chip, as in GoodChip: a chip inside
+                      an anchor misses every a.chip rule. */}
+                  <Ext href={c.license.href} class="chip">
+                    {c.license.label}
                   </Ext>
                   <For each={c.links}>
                     {l => <Ext href={l.href}>{l.label}</Ext>}
