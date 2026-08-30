@@ -96,8 +96,10 @@ until the player is back at the menu.
 ### Full screen
 
 Offered, never taken: browsers grant fullscreen only from inside a click,
-tap or keypress, so there is a switch on the start screen and a button in
-the in-game menu, and no way for the page to help itself. It survives the
+tap or keypress, so there is a switch on the start screen, a button in
+the in-game menu, an **Alt+Enter** chord bound at boot for every screen in
+between, and no way for the page to help itself — the chord is a keypress,
+which is the whole reason it can be a shortcut at all. It survives the
 walk into a match and back out again, because neither costs a document
 (see Navigation below); the answer is also remembered, so the reloads that
 do still happen come back into it on your first click. Leaving by any
@@ -189,11 +191,28 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Cursor at screen edge / arrows / middle-drag | Pan camera (edge scroll has a start-menu toggle) |
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
+| **P** | Pause, and let go again at the gear you were watching at |
+| **+** / **−** | A gear at a time: pause → normal → fast forward (→ 8× in a replay) |
+| **Alt+Enter** | Full screen — on the menu and the map editor too, not just in a match |
 | Mouse wheel | Zoom |
 | **Shift** + wheel / **Insert**, **Delete** / **[**, **]** | Turn the camera — 15° a notch, or hold the key; two notches square the default 30° view to the map, and the minimap frame with it. The brackets are for keyboards without an Insert key. The map editor's camera does not turn — its view toggle is how that screen changes its angle, and the brackets size the brush there |
 | Esc | Unwind one mode: chord → order → placement → open sheet → selection → fullscreen |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
+
+Playback is the one cluster whose keys are not letters, and deliberately.
+Every letter this game binds is one the HUD prints inside a word, and the
+speed strip has none left to bold — F already lifts a replay's fog. So the
+clock takes P for the hold (a toggle, the way every pause key in every
+medium is, remembering the gear it interrupted) and the +/− pair for the
+ladder itself, which is the answer the strategy games that ran out of
+letters landed on too. Fullscreen takes Alt+Enter for the same reason and
+one more: it is the switch every RTS since Warcraft II has put there, and it
+is bound at boot rather than inside a match, so the chord that filled the
+screen during a skirmish still works on the menu ten seconds later. The
+gears themselves live in one place (`ui/speedControl.ts`) — the buttons and
+the keys walk the same ladder, so a pause taken with the mouse is let go of
+with P at the speed the mouse left it.
 
 Shortcut letters are taught in place — the HUD bolds the letter inside its
 own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a

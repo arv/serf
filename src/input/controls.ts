@@ -31,6 +31,7 @@ import {
 import {fullscreen, guardEsc} from '../ui/fullscreen';
 import {techName, unitName} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
+import {nudgeSpeed, togglePause} from '../ui/speedControl';
 import {
   bandArm,
   buildChord,
@@ -39,6 +40,7 @@ import {
   lastAlert,
   muted,
   myPlayerId,
+  netMode,
   openPanel,
   orderMode,
   placing,
@@ -497,6 +499,11 @@ export class Controls {
       return;
     }
 
+    // Playback: the same gears the HUD's speed cluster holds. A networked
+    // match runs on one shared clock, so there is nothing here to press —
+    // which is why the HUD hides those buttons there too.
+    if (!netMode() && this.#playbackKey(e, letter)) return;
+
     if (letter === RESEARCH_KEY) {
       // Not contextual: the tree is a sheet to read, not an order to give.
       setTechPanelOpen(!techPanelOpen());
@@ -554,6 +561,43 @@ export class Controls {
       this.#host.setDebug(open);
     }
   };
+
+  /**
+   * The clock's keys — P to hold and let go again, + and − a gear at a
+   * time — or false for a key that meant something else.
+   *
+   * P is a toggle rather than a pair, because that is the reflex every
+   * pause key in every medium has taught: one key down, one key back up,
+   * and the gear you were watching at is the gear you return to
+   * (ui/speedControl.ts remembers it). + and − are the ladder itself, so
+   * fast forward and the way back off it are the same two keys in a replay
+   * — where the ladder is a rung taller — as in a skirmish.
+   *
+   * Not letters, the two of them, and that is the point: every letter this
+   * game binds is one the HUD prints inside a word, and "Fast forward" has
+   * no free letter left to bold (F lifts a replay's fog). The +/− pair is
+   * what the strategy games that ran out of letters landed on too, and it
+   * reads off the keycap without a legend.
+   *
+   * Both spellings of each, for the reason keyLetter gives. `+` needs
+   * Shift on most layouts and none on some, so the unshifted `=` is taken
+   * as the same key — the way a browser's own zoom does.
+   */
+  #playbackKey(e: KeyboardEvent, letter: string): boolean {
+    if (letter === 'P') {
+      togglePause(this.#host);
+      return true;
+    }
+    if (e.key === '+' || e.key === '=' || e.code === 'Equal') {
+      nudgeSpeed(this.#host, 1);
+      return true;
+    }
+    if (e.key === '-' || e.code === 'Minus') {
+      nudgeSpeed(this.#host, -1);
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Run a command off the selected building's panel, if this letter names

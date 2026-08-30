@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
+  bindFullscreenKey,
   createFullscreen,
   guardEsc,
   type FullscreenPort,
@@ -259,6 +260,116 @@ describe('fullscreen', () => {
       fs.arm(gestures.source);
 
       expect(gestures.live()).toBe(false);
+    });
+  });
+
+  describe('the Alt+Enter chord', () => {
+    /** A window that keeps its listeners, and the keydowns a test sends it. */
+    function fakeTarget(): EventTarget & {press: (e: object) => void} {
+      const listeners: ((e: unknown) => void)[] = [];
+      const target = {
+        addEventListener: (_t: string, fn: (e: unknown) => void) =>
+          void listeners.push(fn),
+        removeEventListener: (_t: string, fn: (e: unknown) => void) => {
+          const i = listeners.indexOf(fn);
+          if (i >= 0) listeners.splice(i, 1);
+        },
+        dispatchEvent: () => true,
+        press: (e: object) => listeners.slice().forEach(fn => fn(e)),
+      };
+      return target as unknown as EventTarget & {press: (e: object) => void};
+    }
+
+    /** Alt+Enter, in the fields the binding reads. */
+    function altEnter(over: Record<string, unknown> = {}): object {
+      return {
+        key: 'Enter',
+        code: 'Enter',
+        altKey: true,
+        ctrlKey: false,
+        metaKey: false,
+        target: null,
+        preventDefault: () => {},
+        ...over,
+      };
+    }
+
+    it('toggles, both ways, from the one chord', async () => {
+      const target = fakeTarget();
+      const fs = createFullscreen(fakePort(), fakeStore());
+      bindFullscreenKey(target, fs);
+
+      target.press(altEnter());
+      await settle();
+      expect(fs.active()).toBe(true);
+
+      target.press(altEnter());
+      await settle();
+      expect(fs.active()).toBe(false);
+    });
+
+    it('takes the numpad Enter for the same key', async () => {
+      const target = fakeTarget();
+      const fs = createFullscreen(fakePort(), fakeStore());
+      bindFullscreenKey(target, fs);
+
+      target.press(altEnter({code: 'NumpadEnter'}));
+      await settle();
+
+      expect(fs.active()).toBe(true);
+    });
+
+    it('leaves a plain Enter, and the platform chords, alone', async () => {
+      const target = fakeTarget();
+      const fs = createFullscreen(fakePort(), fakeStore());
+      bindFullscreenKey(target, fs);
+
+      // Enter answers a dialog; Ctrl+Alt+Enter and ⌘⌥Enter are the OS's.
+      target.press(altEnter({altKey: false}));
+      target.press(altEnter({ctrlKey: true}));
+      target.press(altEnter({metaKey: true}));
+      await settle();
+
+      expect(fs.active()).toBe(false);
+    });
+
+    it('leaves the chord alone inside a field', async () => {
+      // ⌥Enter is a newline there, and the editor renames a map in one.
+      const target = fakeTarget();
+      const fs = createFullscreen(fakePort(), fakeStore());
+      bindFullscreenKey(target, fs);
+
+      target.press(altEnter({target: {tagName: 'INPUT'}}));
+      await settle();
+
+      expect(fs.active()).toBe(false);
+    });
+
+    it('does not swallow the key where there is nothing to offer', async () => {
+      // An installed app is full screen already; the chord is not ours.
+      const port = fakePort({display: true});
+      const fs = createFullscreen(port, fakeStore());
+      const target = fakeTarget();
+      bindFullscreenKey(target, fs);
+      let defaultStopped = false;
+
+      expect(fs.offerable()).toBe(false);
+      target.press(altEnter({preventDefault: () => (defaultStopped = true)}));
+      await settle();
+
+      expect(fs.active()).toBe(false);
+      expect(defaultStopped).toBe(false);
+    });
+
+    it('lets go when it is unbound', async () => {
+      const target = fakeTarget();
+      const fs = createFullscreen(fakePort(), fakeStore());
+      bindFullscreenKey(target, fs)();
+
+      target.press(altEnter());
+      await settle();
+
+      expect(fs.active()).toBe(false);
     });
   });
 

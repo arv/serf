@@ -35,6 +35,17 @@ export type HudPanel = Enum<typeof HudPanelNs>;
  * components and the input layer read it reactively.
  */
 export const [speed, setSpeed] = createSignal(1);
+
+/**
+ * The gear the pause key comes back to.
+ *
+ * Pause is a toggle, and a toggle has to remember what it interrupted:
+ * someone watching a replay at 8× who taps P for a closer look means "hold
+ * this", not "and start again at walking pace". Written by every road that
+ * sets a running speed (ui/speedControl.ts), so a pause taken from the HUD
+ * resumes at the gear the HUD was on.
+ */
+export const [resumeSpeed, setResumeSpeed] = createSignal(1);
 export const [selection, setSelection] = createSignal<ReadonlySet<number>>(
   new Set(),
 );
@@ -388,6 +399,7 @@ export const [invariantViolations, setInvariantViolations] = createSignal<
  */
 export function resetMatchState(): void {
   setSpeed(1);
+  setResumeSpeed(1);
   setSelection(new Set<number>());
   setSelectionGroup(null);
   setMyPlayerId(0);

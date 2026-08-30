@@ -1,4 +1,5 @@
 import {createSignal, type Accessor} from 'solid-js';
+import {typingInto} from '../input/typing';
 
 // Same escalation as ui/store.ts: the signals below are module-level state,
 // and a hot swap would leave components reading the old module's while the
@@ -359,4 +360,49 @@ export function fullscreen(): Fullscreen {
 /** Called once at boot, before either the menu or a match goes up. */
 export function armFullscreen(): void {
   fullscreen().arm(domGestures(window));
+  bindFullscreenKey(window, fullscreen());
+}
+
+/**
+ * Alt+Enter, the switch every RTS since Warcraft II has put there — and the
+ * one shortcut this game can afford to spend on fullscreen. The obvious
+ * alternative, F, is a letter, and letters here are already spoken for: F
+ * lifts a replay's fog, and a key that means two things in two screens is
+ * the kind that quietly stops working. A chord means nothing has to move.
+ *
+ * Bound at boot rather than inside a match, because the offer is not the
+ * match's: the start menu, the council, the map editor and the field guide
+ * all sit on the same document, and a player who learned the chord in a
+ * skirmish will press it on the menu ten seconds later.
+ *
+ * Nothing is asked of the browser that it would refuse — a keypress is a
+ * user gesture, which is the whole reason this can be a shortcut at all.
+ * It also arrives *as* a gesture, so the first Alt+Enter of a page that
+ * remembered fullscreen would fire `arm` too; that costs nothing, since
+ * both roads end at the same state and `set` no-ops on a request to be
+ * where it already is.
+ *
+ * Returns the unbind, for tests and for symmetry; boot never calls it.
+ */
+export function bindFullscreenKey(
+  target: EventTarget,
+  fs: Fullscreen,
+): () => void {
+  const onKey = (ev: Event): void => {
+    const e = ev as KeyboardEvent;
+    // NumpadEnter spells itself differently and means the same thing.
+    if (e.key !== 'Enter' && e.code !== 'Enter' && e.code !== 'NumpadEnter') {
+      return;
+    }
+    // Alt alone. Ctrl+Alt+Enter and ⌘⌥Enter belong to the platform, and
+    // ⌥Enter inside a field is a newline — the editor renames a map there.
+    if (!e.altKey || e.ctrlKey || e.metaKey || typingInto(e.target)) return;
+    // Where there is nothing to offer (an installed app is full screen
+    // already, iOS Safari cannot) the key is not ours to swallow.
+    if (!fs.offerable()) return;
+    e.preventDefault();
+    fs.toggle();
+  };
+  target.addEventListener('keydown', onKey);
+  return () => target.removeEventListener('keydown', onKey);
 }

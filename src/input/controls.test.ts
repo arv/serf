@@ -28,15 +28,19 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {
   buildAim,
   placing,
+  resetMatchState,
   selectedBuilding,
   selection,
   setBuildAim,
   setMyPlayerId,
+  setNetMode,
   setPlacing,
+  setReplayMode,
   setSelectedBuilding,
   setSelection,
   setStock,
   setTechs,
+  speed,
 } from '../ui/store';
 import {Controls} from './controls';
 import {screenToGround, worldToScreen} from './picking';
@@ -246,8 +250,13 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   const ghost = {show: () => {}, hide: () => {}, moveTo: () => {}};
   /** Every command the pointer sent, in order — what an order test reads. */
   const commands: Record<string, unknown>[] = [];
+  /** Every gear the clock was told to run at — what a playback key test
+   * reads, since the speed never reaches `commands`: it is a message to
+   * the worker's timer, not an order in the sim. */
+  const gears: number[] = [];
   const host = {
     sendCommands: (cs: Record<string, unknown>[]) => void commands.push(...cs),
+    setSpeed: (s: number) => void gears.push(s),
   };
   const mirror = {
     map: {size: 64, buildingAt: new Int32Array(64 * 64).fill(-1)},
@@ -325,6 +334,11 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
       keyDown(`Key${letter.toUpperCase()}`, letter.toLowerCase()),
     );
 
+  /** Press a key that is not a letter or a number — the playback pair,
+   * whose `code` and `key` disagree the moment Shift is involved. */
+  const key = (code: string, k: string): void =>
+    win.fire('keydown', keyDown(code, k));
+
   /** Where a world point lands on screen — the pixel a test clicks. */
   const at = (x: number, y: number, z: number): {x: number; y: number} =>
     worldToScreen(camera, canvas as unknown as HTMLCanvasElement, x, y, z);
@@ -376,10 +390,12 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
     click,
     groundTileAt,
     commands,
+    gears,
     mirror,
     rides,
     press,
     type,
+    key,
   };
 }
 
@@ -1008,5 +1024,105 @@ describe('build chord', () => {
 
     expect(placing()).toBeNull();
     expect(buildAim()).toBeNull();
+  });
+});
+
+describe('playback keys', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    resetMatchState();
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    resetMatchState();
+    vi.unstubAllGlobals();
+  });
+
+  it('holds the village on P, and lets it go again on P', () => {
+    const h = harness();
+    controls = h.controls;
+
+    h.type('P');
+    expect(h.gears).toEqual([0]);
+    expect(speed()).toBe(0);
+
+    h.type('P');
+    expect(h.gears).toEqual([0, 1]);
+    expect(speed()).toBe(1);
+  });
+
+  it('comes back off the hold at the gear it was watching at', () => {
+    const h = harness();
+    controls = h.controls;
+
+    h.key('Equal', '+');
+    h.type('P');
+    h.type('P');
+
+    expect(speed()).toBe(3);
+  });
+
+  it('steps a gear on + and -, and stops at the ends', () => {
+    const h = harness();
+    controls = h.controls;
+
+    h.key('Equal', '+');
+    expect(speed()).toBe(3);
+    // Nowhere further up in a live match, and + must never be the key
+    // that pauses.
+    h.key('Equal', '+');
+    expect(speed()).toBe(3);
+
+    h.key('Minus', '-');
+    h.key('Minus', '-');
+    expect(speed()).toBe(0);
+    h.key('Minus', '-');
+    expect(speed()).toBe(0);
+  });
+
+  it('takes the shifted + and the bare = for the same key', () => {
+    const h = harness();
+    controls = h.controls;
+
+    // A US layout shifts Equal into '+'; some layouts do not shift at all.
+    h.key('Equal', '=');
+
+    expect(speed()).toBe(3);
+  });
+
+  it('climbs into the replay gear, which a live match has no rung for', () => {
+    const h = harness();
+    controls = h.controls;
+    setReplayMode(true);
+
+    h.key('Equal', '+');
+    h.key('Equal', '+');
+
+    expect(speed()).toBe(8);
+  });
+
+  it('says nothing to a networked clock', () => {
+    // One shared clock, so there is no pause and no fast forward to press
+    // — which is why the HUD hides those buttons in a match too.
+    const h = harness();
+    controls = h.controls;
+    setNetMode(true);
+
+    h.type('P');
+    h.key('Equal', '+');
+    h.key('Minus', '-');
+
+    expect(h.gears).toEqual([]);
+    expect(speed()).toBe(1);
   });
 });

@@ -6,7 +6,8 @@ import * as CommandKind from '../sim/commandKindEnum.ts';
 import type {BuildingTypeId} from '../sim/defs/buildings';
 import {Hud} from './Hud';
 import type {MinimapSource} from './Minimap';
-import {pushToast, setSpeed, type OrderMode} from './store';
+import {applySpeed} from './speedControl';
+import {pushToast, type OrderMode} from './store';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
  * has no shift/drag), and the save assembled where world and fog meet. */
@@ -59,11 +60,11 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           actions.deselect();
         }}
-        onSpeed={speed => {
-          play('uiClick');
-          host.setSpeed(speed);
-          setSpeed(speed);
-        }}
+        // The one action not spelled out here, click sound and all: the
+        // keyboard drives the same gears (P, + and −), so the three writes
+        // a speed change makes live in ui/speedControl.ts, where the key
+        // handler can reach them too.
+        onSpeed={speed => applySpeed(host, speed)}
         onPlace={type => {
           play('uiClick');
           actions.place(type);
