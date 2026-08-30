@@ -114,19 +114,29 @@ export function WarCouncil(props: CouncilHooks) {
   // the controls without a reload.
   const isHost = (): boolean => inRoom() && v().yourSeat === 0;
 
+  /** Chairs the humans have not taken — the ceiling on computer seats. */
+  const seatsLeft = (): number => MAX_SEATS - v().seats.length;
+
+  /**
+   * Computer chairs the march will actually field. The host's number can
+   * outrun the table — it was set before the humans arrived, and it is kept
+   * so the seats come back if they leave — so the picker, the plaque and
+   * the rows all read this rather than config.ai, or the menu would light
+   * up a seat the match is never going to fill.
+   */
+  const aiFill = (): number =>
+    Math.max(0, Math.min(v().config.ai, seatsLeft()));
+
   /**
    * One entry per computer chair: the playbook the host named for it, or
    * undefined for the ones left to the seed. Which opponent Random will
    * turn out to be is not shown — the council could derive it from the
    * seed, but a roll everyone can read before the march is not a roll.
    */
-  const picks = (): (AiStrategyId | undefined)[] => {
-    const {seats, config} = v();
-    const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - seats.length));
-    return Array.from({length: aiFill}, (_, i) =>
-      parseStrategyId(config.bots[i]),
+  const picks = (): (AiStrategyId | undefined)[] =>
+    Array.from({length: aiFill()}, (_, i) =>
+      parseStrategyId(v().config.bots[i]),
     );
-  };
 
   const setBot = (index: number, id: string): void => {
     const bots = [...v().config.bots];
@@ -137,7 +147,7 @@ export function WarCouncil(props: CouncilHooks) {
   /** The table, always MAX_SEATS chairs: humans, then the computer seats
    * the host asked for, then what is still open. */
   const rows = (): SeatRow[] => {
-    const {seats, yourSeat, config} = v();
+    const {seats, yourSeat} = v();
     const named = picks();
     const out: SeatRow[] = seats.map((s, i) => ({
       color: SEAT_COLORS[i % SEAT_COLORS.length]!,
@@ -146,8 +156,7 @@ export function WarCouncil(props: CouncilHooks) {
       stateClass: s.connected ? 'ready' : 'away',
       open: false,
     }));
-    const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - out.length));
-    for (let i = 0; i < aiFill; i++) {
+    for (let i = 0; i < named.length; i++) {
       // A chair the host named says who is in it; one left on Random
       // stays 'Computer' until the match introduces them.
       out.push({
@@ -263,11 +272,14 @@ export function WarCouncil(props: CouncilHooks) {
                     </div>
                   </div>
                   <div class="pills" style={{'--n': AI_CHOICES.length}}>
-                    <Glide index={v().config.ai} />
+                    <Glide index={aiFill()} />
                     <For each={AI_CHOICES}>
                       {n => (
                         <button
-                          class={v().config.ai === n ? 'on' : ''}
+                          class={aiFill() === n ? 'on' : ''}
+                          // The table is full at this count; offering it
+                          // would promise a seat no human could leave.
+                          disabled={n > seatsLeft()}
                           onClick={() => patch({ai: n})}
                         >
                           {n}

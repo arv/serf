@@ -29,8 +29,11 @@ let level = 0;
 let raf = 0;
 let lastFrame = 0;
 let hidden = false;
-/** A play() the autoplay policy refused, waiting on a gesture to retry. */
-let pending = false;
+/**
+ * The retry a refused play() is holding, so it can be called off. Null
+ * whenever nothing is armed, which is also the "already waiting" check.
+ */
+let waiting: (() => void) | null = null;
 
 function target(): number {
   return wanted && !hidden ? uiGain * TRIM : 0;
@@ -68,24 +71,31 @@ function settle(): void {
 }
 
 /**
+ * Disarm the retry. Every exit runs this: a gesture that never comes must
+ * not leave two window listeners on the page for as long as it lives.
+ */
+function clearPending(): void {
+  if (waiting === null) return;
+  window.removeEventListener('pointerdown', waiting, true);
+  window.removeEventListener('keydown', waiting, true);
+  waiting = null;
+}
+
+/**
  * A cold visit's first play() is expected to fail — no gesture has paid
  * for it yet — so retry on the next one. Capture-phase so nothing deeper
  * eats it, and both listeners come off together.
  */
-let pendingGo: (() => void) | null = null;
-
 function playOrWait(a: HTMLAudioElement): void {
   void a.play().catch(() => {
-    if (pending) return;
-    pending = true;
+    // play() settles a microtask later, so the menu may have closed in the
+    // meantime — a theme nobody wants must not sit on the next click.
+    if (!wanted || waiting !== null) return;
     const go = (): void => {
-      pending = false;
-      pendingGo = null;
-      window.removeEventListener('pointerdown', go, true);
-      window.removeEventListener('keydown', go, true);
+      clearPending();
       if (wanted && el !== null) void el.play().catch(() => undefined);
     };
-    pendingGo = go;
+    waiting = go;
     window.addEventListener('pointerdown', go, true);
     window.addEventListener('keydown', go, true);
   });
@@ -111,7 +121,7 @@ export function startTheme(): void {
 /** Fade the theme out and park it. Safe to call when it never started. */
 export function stopTheme(): void {
   wanted = false;
-  pending = false;
+  clearPending();
   if (el === null) return;
   settle();
 }
@@ -133,7 +143,7 @@ export function setThemeHidden(h: boolean): void {
 /** Give the element up entirely; the next startTheme builds a fresh one. */
 export function releaseTheme(): void {
   wanted = false;
-  pending = false;
+  clearPending();
   if (raf !== 0) cancelAnimationFrame(raf);
   raf = 0;
   lastFrame = 0;

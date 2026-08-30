@@ -167,6 +167,14 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
     canvas?.remove();
     canvas = null;
   };
+  // Seeded, not just subscribed: a menu can be raised in a tab that is
+  // already hidden — opened in the background, or restored into one — and
+  // no visibilitychange would follow to say so. Ahead of the effect below,
+  // so the first startTheme already knows whether anyone is listening.
+  const onVisibility = (): void => setThemeHidden(document.hidden);
+  onVisibility();
+  document.addEventListener('visibilitychange', onVisibility);
+
   createEffect(() => {
     const on = showing();
     root.style.display = on ? 'block' : 'none';
@@ -182,9 +190,6 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
   createEffect(() => {
     setThemeGain(muted() ? 0 : volumeToGain(volume()));
   });
-  const onVisibility = (): void => setThemeHidden(document.hidden);
-  document.addEventListener('visibilitychange', onVisibility);
-
   // A page that leaves while holding a context can be parked in the
   // back/forward cache still holding it, and the single-player launch is a
   // navigation — so the match on the far side would be asking a phone for a
@@ -198,6 +203,9 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
   const onShow = (e: PageTransitionEvent): void => {
     if (e.persisted && showing()) {
       raise();
+      // A restore is a second mount for the theme, so it needs the same
+      // seeding: the tab it comes back into may not be the one it left.
+      onVisibility();
       startTheme();
     }
   };
