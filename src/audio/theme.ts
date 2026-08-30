@@ -72,16 +72,20 @@ function settle(): void {
  * for it yet — so retry on the next one. Capture-phase so nothing deeper
  * eats it, and both listeners come off together.
  */
+let pendingGo: (() => void) | null = null;
+
 function playOrWait(a: HTMLAudioElement): void {
   void a.play().catch(() => {
     if (pending) return;
     pending = true;
     const go = (): void => {
       pending = false;
+      pendingGo = null;
       window.removeEventListener('pointerdown', go, true);
       window.removeEventListener('keydown', go, true);
       if (wanted && el !== null) void el.play().catch(() => undefined);
     };
+    pendingGo = go;
     window.addEventListener('pointerdown', go, true);
     window.addEventListener('keydown', go, true);
   });
