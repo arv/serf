@@ -107,8 +107,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // cargo and a killed worker's tool fall as salvage where he stood
 // instead of dying with him. A logged sale or serf loss re-runs
 // differently from that tick on (see replayVersion.ts).
-const EXPECTED_VERSION = 35;
-const EXPECTED_HASH = 'e1a4453eac3563195cd47f2b184a2e07';
+// 36 for the reserve silver seam: every start on every map now has a
+// second seam out past its home ring, so a generated world re-rolls
+// differently from the same seed and four mission maps' tiles moved
+// outright (see replayVersion.ts). The seat that opens it is brain and
+// rule work, which playback never runs — the bump is the ground.
+const EXPECTED_VERSION = 36;
+const EXPECTED_HASH = 'd162e83f3f8b04da9c2188ff8d1bc1cd';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -65,6 +65,10 @@ export function build(): Authored {
   // northern range; the gold across the river, where a mission about bread
   // will not casually wander.
   v.silverSeam(150, at(-16, -6));
+  // And the reserve, deeper into the same western ridge: one seam is a
+  // finite number of loads, and a valley with a single purse in it ends
+  // with a village that cannot hire (map.ts RESERVE_SEAM_BAND).
+  v.silverSeam(120, at(-24, -5));
   v.ironSeam(150, at(9, -21));
   v.goldSeam(100, at(24, 20));
 

@@ -85,7 +85,7 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 
 const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
 /** The full-match fixture, and how deep it has to run. Seat 1 razes seat 0
- * at tick 15534 unadvised and at 12320 advised, so the bound sits above the
+ * at tick 12672 unadvised and at 10144 advised, so the bound sits above the
  * slower of the two with room to spare.
  *
  * It has to run this deep at all because the steward's growth knobs sit
@@ -96,10 +96,12 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * Seed and bound are both pure data, re-pinned whenever worldgen rolls
  * this fixture a different valley (seed 42 moved when the villager walk
  * slowed in replay v24, 24 when metal seams learned a fixed price, 5 when
- * the scenery margin came in and took the grid with it, and 13 when the
- * camera came in and took another slice). What is being asserted is that
- * advice changes the war, not that any particular map does. */
-const FULL_MATCH_SEED = 13;
+ * the scenery margin came in and took the grid with it, 13 when the
+ * camera came in and took another slice, and 8 when every valley grew a
+ * reserve silver seam — on 13 the advised and unadvised wars then ended
+ * on the same tick, which asserts nothing). What is being asserted is
+ * that advice changes the war, not that any particular map does. */
+const FULL_MATCH_SEED = 8;
 const FULL_MATCH_TICKS = 16_500;
 
 describe('wilson intervals', () => {

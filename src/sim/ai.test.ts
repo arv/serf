@@ -31,12 +31,14 @@ import {
   cmds,
 } from './testUtils.ts';
 import {tickWorld, type PlayerCommand} from './tick.ts';
+import * as TileResource from './tileResourceEnum.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   createWorld,
   type World,
   type WorldConfig,
   placeBuiltBuilding,
+  placeSite,
   spawnUnit,
 } from './world.ts';
 
@@ -1351,5 +1353,113 @@ describe('a forge nobody is buying from', () => {
       )
       .map(c => (c as {buildingId: number}).buildingId);
     expect(opened).toEqual([...new Set(opened)]);
+  });
+});
+
+describe('the seat that sees its seam running out', () => {
+  /**
+   * A village whose silver mine is nearly through its home seam, with a
+   * second seam out past the far side of the valley. Everything the
+   * printed build order would otherwise want is either already standing,
+   * unaffordable on the shelf below, or anchored on ground this bare map
+   * does not have — so the only foundation a beat can lay is the one under
+   * test.
+   */
+  function minedOut(
+    leftInReach: number,
+    opts: {reserve?: boolean; successor?: boolean} = {},
+  ): {world: World; brain: AiBrain; mine: Building} {
+    const world = bareWorld();
+    // Exactly one mine's worth of materials: enough for the successor,
+    // not enough for the abbey the plan wants next.
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 8, [GoodId.stone]: 4});
+    for (const [type, x, y] of [
+      [BuildingTypeId.house, 27, 30],
+      [BuildingTypeId.well, 27, 33],
+      [BuildingTypeId.wheatFarm, 24, 30],
+    ] as const) {
+      placeBuiltBuilding(world, type, 0, x, y);
+    }
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      36,
+      30,
+    );
+    // What the mine can still reach, in one tile it can walk to.
+    if (leftInReach > 0)
+      addResourceTile(world, 38, 31, TileResource.SilverDep, leftInReach);
+    // And the reserve, out of the mine's reach entirely.
+    if (opts.reserve !== false) {
+      for (let i = 0; i < 4; i++)
+        addResourceTile(world, 30 + i, 55, TileResource.SilverDep, 30);
+    }
+    if (opts.successor) placeSite(world, BuildingTypeId.silverMine, 0, 31, 53);
+    return {
+      world,
+      brain: new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.steward],
+        world.map.size,
+      ),
+      mine,
+    };
+  }
+
+  function beat(brain: AiBrain, world: World): SimCommand[] {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  }
+
+  /** The mines this beat ordered dug, as footprint origins. */
+  function mineSites(commands: SimCommand[]): {x: number; y: number}[] {
+    return commands
+      .filter(
+        c =>
+          c.kind === CommandKind.placeBuilding &&
+          c.building === BuildingTypeId.silverMine,
+      )
+      .map(c => ({x: (c as {x: number}).x, y: (c as {y: number}).y}));
+  }
+
+  it('opens the reserve seam before the working one is dug out', () => {
+    // The complaint this answers: the silver simply stops. A seat that
+    // waits for the last load spends the whole gap between the seams
+    // unable to hire a hand or finish a tech — so it moves while the mine
+    // it has is still producing.
+    const {world, brain} = minedOut(10);
+    const sites = mineSites(beat(brain, world));
+    expect(sites.length).toBe(1);
+    // At the reserve, not beside the mine that is running out: the site
+    // has to be within a mine's reach (4) of the far seam.
+    const [site] = sites as [{x: number; y: number}];
+    expect(Math.abs(site.y - 55)).toBeLessThanOrEqual(5);
+  });
+
+  it('leaves a mine alone while its seam still holds ore', () => {
+    const {world, brain} = minedOut(90);
+    expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+
+  it('digs nothing when the map has no second seam to dig', () => {
+    // Nowhere to go is not a reason to spend a mine's materials on a hole
+    // beside the one that is already empty.
+    const {world, brain} = minedOut(10, {reserve: false});
+    expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+
+  it('lays one successor, not one a beat while it goes up', () => {
+    const {world, brain} = minedOut(10, {successor: true});
+    expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+
+  it('waits for the materials rather than ordering a hole it cannot pay for', () => {
+    const {world, brain} = minedOut(10);
+    const store = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    store.stock = {...store.stock, [GoodId.stone]: 0};
+    expect(mineSites(beat(brain, world))).toEqual([]);
   });
 });

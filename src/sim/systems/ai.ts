@@ -56,13 +56,14 @@ import {
 import * as MatchState from '../matchStateEnum.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
+import {findSpot} from '../siting.ts';
 import * as Terrain from '../terrainEnum.ts';
 import * as TileResource from '../tileResourceEnum.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {SeatVision} from '../visibility.ts';
 import * as WarBehaviorIdNs from '../warBehaviorIdEnum.ts';
-import {campCorners, startLayout, canPlace, type World} from '../world.ts';
+import {campCorners, startLayout, type World} from '../world.ts';
 
 export type WarBehaviorId = Enum<typeof WarBehaviorIdNs>;
 
@@ -954,13 +955,15 @@ export class AiBrain {
       affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock)
     ) {
       const spot = findSpot(world, BuildingTypeId.house, baseX, baseY);
-      if (spot)
+      if (spot) {
         commands.push({
           kind: CommandKind.placeBuilding,
           building: BuildingTypeId.house,
           x: spot.x,
           y: spot.y,
         });
+        placed = true; // one foundation a beat, rules below included
+      }
     }
 
     // --- Repairs: patch what the raiders left standing -----------------------
@@ -1071,6 +1074,7 @@ export class AiBrain {
       stock,
       serfCount,
       stalled,
+      placed,
       strategy: s,
       researched,
       counter: this.#counterPlan(world),
@@ -2619,43 +2623,6 @@ function spotFor(
     tileY(tile, size),
     step.radius,
   );
-}
-
-/**
- * Nearest placeable footprint origin around a point (spiral search) that
- * also keeps a one-tile gap from every other building — packing tighter can
- * seal a neighbor's doorway and strangle its deliveries. The sim does not
- * enforce this; a careless builder can wall itself in.
- */
-function findSpot(
-  world: World,
-  type: BuildingTypeId,
-  cx: number,
-  cy: number,
-  maxR = 14,
-): {x: number; y: number} | null {
-  const def = BUILDING_DEFS[type];
-  const size = world.map.size;
-  const spaced = (x: number, y: number): boolean => {
-    for (let ty = y - 1; ty < y + def.h + 1; ty++) {
-      for (let tx = x - 1; tx < x + def.w + 1; tx++) {
-        if (tx < 0 || ty < 0 || tx >= size || ty >= size) continue;
-        if (world.map.buildingAt[ty * size + tx]! >= 0) return false;
-      }
-    }
-    return true;
-  };
-  for (let r = 1; r <= maxR; r++) {
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        const x = cx + dx;
-        const y = cy + dy;
-        if (canPlace(world.map, type, x, y) && spaced(x, y)) return {x, y};
-      }
-    }
-  }
-  return null;
 }
 
 /**
