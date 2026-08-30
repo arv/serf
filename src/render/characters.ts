@@ -442,10 +442,9 @@ const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
 // --- Swappable work tools ------------------------------------------------
 // Authored in world units: grip at the origin, handle up +Y, head at the
 // top — the same frame the pack's axe sits in after its fix-up. The hammer
-// and pickaxe are modeled now (RPG Tools Bits, see packToolProp); the
-// procedural builds below remain as their pre-load fallbacks, and the
-// scythe stays procedural outright — no free pack ships one (same story
-// as the spear).
+// and pickaxe are modeled (RPG Tools Bits, see packToolProp) and the
+// scythe too now (Fantasy Weapons Bits, see packScytheProp); the
+// procedural builds below remain as their pre-load fallbacks.
 
 const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
   const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color}));

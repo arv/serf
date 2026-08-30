@@ -110,7 +110,7 @@ interface Well {
 /** The render-walk speed of a worker moved by the render rather than the
  * sim — out along the pier, along the farm's mowing lanes — the worker's
  * own sim gait, so the commute reads like every other one. */
-const POST_WALK_SPEED = UNIT_DEFS[UnitTypeId.worker].speed;
+const RENDER_WALK_SPEED = UNIT_DEFS[UnitTypeId.worker].speed;
 
 /** Ground a mowing farmer covers between scythe strokes: step, swing,
  * step — the working rhythm, in world units. */
@@ -857,13 +857,13 @@ export class SceneSync {
           // Walk, don't slide: advance at the worker's own gait, written
           // straight through the de-overlap channel (easing toward a
           // moving target would glide him at a fraction of the speed).
-          const step = Math.min(dist, POST_WALK_SPEED * dt);
+          const step = Math.min(dist, RENDER_WALK_SPEED * dt);
           visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
           visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
           visual.group.rotation.y = Math.atan2(dx, dz);
           // Render-side walk, so no publish delta to measure: it advances
-          // at exactly POST_WALK_SPEED, tell the legs the same.
-          if (visual.char) setGaitSpeed(visual.char, POST_WALK_SPEED);
+          // at exactly RENDER_WALK_SPEED, tell the legs the same.
+          if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
         }
       }
       // The farmer's post is his rows: while he holds it, the render
@@ -941,11 +941,11 @@ export class SceneSync {
             }
             visual.mowI = next;
           } else if (dist > 1e-4) {
-            const step = Math.min(dist, POST_WALK_SPEED * dt);
+            const step = Math.min(dist, RENDER_WALK_SPEED * dt);
             visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
             visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
             visual.group.rotation.y = Math.atan2(dx, dz);
-            setGaitSpeed(visual.char, POST_WALK_SPEED);
+            setGaitSpeed(visual.char, RENDER_WALK_SPEED);
             mowStep = step > 1e-4;
             // A stroke every MOW_STEP of ground — but only working the
             // rows, never on the walk in through the gate.

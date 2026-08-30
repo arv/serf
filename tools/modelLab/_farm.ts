@@ -63,10 +63,15 @@ model.traverse(o => {
   if (o.name === 'mowGate') gate = o;
 });
 path.sort((a, b) => a.i - b.i);
-if (!gate || path.length === 0) throw new Error('no mow marks on the model');
+// The whole authored circuit, not just "some marks": the compositions
+// below stand farmers on specific indices, and a partial harvest would
+// throw there with a far less actionable error.
+if (!gate || path.length < 8) {
+  throw new Error(`expected mowGate + 8 mowPath marks, got ${path.length}`);
+}
 model.updateWorldMatrix(true, true);
 
-if (params.get('marks')) {
+if (params.get('marks') === '1') {
   const bead = new THREE.MeshBasicMaterial({color: 0xe03434});
   for (const {o} of [...path, {i: -1, o: gate}]) {
     o.getWorldPosition(SCRATCH);
