@@ -962,10 +962,21 @@ function barn(g: THREE.Group): void {
     BNZ + BND / 2 - 0.03,
   );
 
-  // The roof: one slab per slope (a barn earns no kinked strips), rake
-  // boards down the gable edges, a ridge beam capping the pair. Cell
-  // (3,3) — the team slot — so a rival's farm reads at a glance.
+  // The roof: each slope laid as three strips at slightly different
+  // heights and lengths — the bakehouse's own treatment, at barn scale.
+  // It started as one slab per slope ("a barn earns no kinked strips")
+  // and read as exactly what that is: a flat green board leaning on
+  // posts. Kay's roofs are never a plane (see the STRIPS note over the
+  // bakehouse), and the kinked seams are what make this one read as laid
+  // too. Rake boards down the gable edges, a ridge beam capping the
+  // pair. Cell (3,3) — the team slot — so a rival's farm reads at a
+  // glance.
   const ROOF_D = BND + 0.08;
+  const STRIPS: {frac: number; dy: number; dlen: number}[] = [
+    {frac: 0.36, dy: 0, dlen: 0},
+    {frac: 0.3, dy: 0.014, dlen: 0.02},
+    {frac: 0.34, dy: 0.005, dlen: -0.012},
+  ];
   for (const sx of [-1, 1]) {
     const panel = new THREE.Group();
     panel.position.set(
@@ -975,8 +986,17 @@ function barn(g: THREE.Group): void {
     );
     panel.rotation.z = -sx * (Math.PI / 4);
     g.add(panel);
-    const slab = mesh(new THREE.BoxGeometry(BN_SLOPE, 0.035, ROOF_D), KAY.roof);
-    panel.add(slab);
+    let z = -ROOF_D / 2;
+    for (const st of STRIPS) {
+      const d = ROOF_D * st.frac;
+      const slab = mesh(
+        new THREE.BoxGeometry(BN_SLOPE + st.dlen, 0.035, d),
+        KAY.roof,
+      );
+      slab.position.set((sx * st.dlen) / 2, st.dy, z + d / 2);
+      panel.add(slab);
+      z += d;
+    }
     for (const sz of [-1, 1]) {
       const verge = mesh(
         new THREE.BoxGeometry(BN_SLOPE + 0.04, 0.05, 0.034),
