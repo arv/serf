@@ -49,6 +49,32 @@ export interface PierInfo {
   deckY: number;
 }
 
+/** A built wheat farm's field, in world space: the mowing circuit the
+ * resident farmer walks (authored into the farmstead model as named
+ * marks — see makeFarmstead), the open-front entry, the plot bounds and
+ * the pad's standing height. Shared with sceneSync, which walks the
+ * farmer along it, scythe swinging. */
+export interface FieldInfo {
+  /** Building center, the anchor a farmer is matched to his field by. */
+  bx: number;
+  bz: number;
+  /** Front-center entry: an approach from off the plot converges here
+   * first, so the farmer comes in over the open front edge instead of
+   * clipping the flank fences. */
+  gateX: number;
+  gateZ: number;
+  /** The circuit in visiting order; sceneSync ping-pongs it. */
+  points: {x: number; z: number}[];
+  /** Plot bounds (a margin outside the circuit), for telling a walker
+   * already on the field from one still parked on the ring around it. */
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  /** World height of the worked pad's top — the field's deckY. */
+  padY: number;
+}
+
 /** How far below the waterline the shoal group is re-seated, in world
  * units — enough that the tallest swim circle and the fish bodies stay
  * submerged rather than breaking the surface. */
@@ -98,6 +124,24 @@ function volleyRangeOf(b: BuildingSnap): number {
 
 /** Reused for the post->root coordinate hop; buildings do not move. */
 const SCRATCH_POS = new THREE.Vector3();
+
+/**
+ * The farmstead's walk marks, gate first then the circuit in authored
+ * order. By name rather than child order: normalize and the decor pass
+ * both re-parent, and a clone's traversal order is nothing to build a
+ * route on.
+ */
+function harvestMowMarks(model: THREE.Object3D): THREE.Object3D[] {
+  const gate = model.getObjectByName('mowGate');
+  if (!gate) return [];
+  const path: {i: number; o: THREE.Object3D}[] = [];
+  model.traverse(o => {
+    const m = /^mowPath(\d+)$/.exec(o.name);
+    if (m) path.push({i: Number(m[1]), o});
+  });
+  path.sort((a, b) => a.i - b.i);
+  return [gate, ...path.map(p => p.o)];
+}
 
 /**
  * Drop a cloned character and free what it uniquely owns on the GPU.
@@ -178,6 +222,11 @@ interface BuildingVisual {
   /** Measured deck line, cached: measuring may also swing the decor 45°
    * on a corner-only shore, and that must happen exactly once. */
   pierLine?: PierInfo;
+  /** The farm's authored walk marks: gate first, then the circuit in
+   * visiting order. Empty for everything without a field. */
+  mowMarks: THREE.Object3D[];
+  /** Measured circuit, cached like pierLine — buildings do not move. */
+  fieldInfo?: FieldInfo;
   /** Quarter turns from "front faces +z" (shore buildings turn to their
    * water); kept for deriving where the pier runs. */
   facing: number;
@@ -652,6 +701,7 @@ export class BuildingSync {
       smokeLevel: 0,
       shoal,
       pier: model.getObjectByName('fisheryPier') ?? undefined,
+      mowMarks: harvestMowMarks(model),
       facing: b.facing ?? 0,
       staffed: false,
       working: false,
@@ -717,6 +767,61 @@ export class BuildingSync {
       out.push((v.pierLine ??= this.#measurePier(v)));
     }
     return out;
+  }
+
+  /** Built wheat farms' fields, in world space: the mowing circuit, the
+   * open-front entry and the pad height. sceneSync walks the resident
+   * farmer along the circuit, scythe swinging, while a batch runs — the
+   * same render-side move as the fisherman on his pier, because the sim
+   * parks the worker on whatever adjacent tile the path found. */
+  farmFields(): FieldInfo[] {
+    const out: FieldInfo[] = [];
+    for (const v of this.#visuals.values()) {
+      if (v.state !== BuildingState.built || v.mowMarks.length < 2) continue;
+      out.push((v.fieldInfo ??= this.#measureField(v)));
+    }
+    return out;
+  }
+
+  #measureField(v: BuildingVisual): FieldInfo {
+    // Structural updates can land before the next render ticks world
+    // matrices — settle them before measuring (same as the pier).
+    v.root.updateWorldMatrix(true, true);
+    const [gate, ...path] = v.mowMarks;
+    gate!.getWorldPosition(SCRATCH_POS);
+    const gateX = SCRATCH_POS.x;
+    const gateZ = SCRATCH_POS.z;
+    // The marks sit ON the pad top, so any one of them is the field's
+    // standing height.
+    const padY = SCRATCH_POS.y;
+    const points: {x: number; z: number}[] = [];
+    let minX = gateX;
+    let maxX = gateX;
+    let minZ = gateZ;
+    let maxZ = gateZ;
+    for (const m of path) {
+      m.getWorldPosition(SCRATCH_POS);
+      points.push({x: SCRATCH_POS.x, z: SCRATCH_POS.z});
+      minX = Math.min(minX, SCRATCH_POS.x);
+      maxX = Math.max(maxX, SCRATCH_POS.x);
+      minZ = Math.min(minZ, SCRATCH_POS.z);
+      maxZ = Math.max(maxZ, SCRATCH_POS.z);
+    }
+    // A margin past the circuit: "on the field" must already be true a
+    // step before the first lane, or the entry leg would never hand over.
+    const M = 0.3;
+    return {
+      bx: v.root.position.x,
+      bz: v.root.position.z,
+      gateX,
+      gateZ,
+      points,
+      minX: minX - M,
+      maxX: maxX + M,
+      minZ: minZ - M,
+      maxZ: maxZ + M,
+      padY,
+    };
   }
 
   #measurePier(v: BuildingVisual): PierInfo {

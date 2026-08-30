@@ -15,7 +15,7 @@ import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as AnimKey from './animKeyEnum.ts';
 import {crossedRelease} from './arrows';
-import type {PierInfo} from './buildingSync';
+import type {FieldInfo, PierInfo} from './buildingSync';
 import type {ViewBounds} from './cameraRig';
 import {
   TARGET_HEIGHT,
@@ -76,6 +76,20 @@ interface UnitVisual {
   /** Right-arm bone chain for the well-crank IK. undefined = not looked
    * up yet, null = this rig has no such bones. */
   arm?: ArmChain | null;
+  /** Mowing-walk state (the farmer on his field): which circuit point he
+   * is walking toward, the ping-pong direction, ground left to cover
+   * before the next stroke, and the anim-clock time his current stroke
+   * runs to (undefined = not mid-stroke). */
+  mowI?: number;
+  mowDir?: 1 | -1;
+  mowStepLeft?: number;
+  mowSwingUntil?: number;
+  /** Low-pass on the farm's working flag: a convert batch ends with one
+   * idle tick before the next begins, and honest per-publish reading made
+   * the farmer hiccup to a stand every ten seconds. Work seen now keeps
+   * him mowing this long; a truly stalled farm still stops him inside
+   * half a second. */
+  mowWorkUntil?: number;
 }
 
 interface ArmChain {
@@ -93,9 +107,17 @@ interface Well {
   grip: THREE.Object3D;
 }
 
-/** The render-walk speed out along the pier — the worker's own sim gait,
- * so the commute reads like every other one. */
-const PIER_WALK_SPEED = UNIT_DEFS[UnitTypeId.worker].speed;
+/** The render-walk speed of a worker moved by the render rather than the
+ * sim — out along the pier, along the farm's mowing lanes — the worker's
+ * own sim gait, so the commute reads like every other one. */
+const RENDER_WALK_SPEED = UNIT_DEFS[UnitTypeId.worker].speed;
+
+/** Ground a mowing farmer covers between scythe strokes: step, swing,
+ * step — the working rhythm, in world units. */
+const MOW_STEP = 0.55;
+
+/** How long the farm's working flag coasts (ms) — see mowWorkUntil. */
+const MOW_WORK_COAST = 400;
 
 /** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
 function findArm(group: THREE.Group): ArmChain | null {
@@ -160,6 +182,8 @@ function workAnimKey(workKind: number): AnimKey {
       return AnimKey.draw;
     case WORK.fish:
       return AnimKey.fish;
+    case WORK.mow:
+      return AnimKey.mow;
     default:
       return AnimKey.work;
   }
@@ -271,6 +295,16 @@ export class SceneSync {
     this.#piers = piers;
   }
 
+  /** Built wheat farms' fields (from the same structural feed). The
+   * resident farmer belongs in his rows: while the farm works, the
+   * render walks him along the field's mowing circuit and swings the
+   * scythe at each stop — the sim keeps him parked like the fisherman. */
+  #fields: FieldInfo[] = [];
+
+  setFields(fields: FieldInfo[]): void {
+    this.#fields = fields;
+  }
+
   /** Fog test; enemies standing in unlit ground are not drawn at all. */
   #fog: FogQuery | null = null;
 
@@ -312,6 +346,21 @@ export class SceneSync {
       }
     }
     return pier;
+  }
+
+  #nearestField(x: number, y: number): FieldInfo | null {
+    let field: FieldInfo | null = null;
+    let best = 9; // same ring as the pier: the farm is 3x3 too
+    for (const f of this.#fields) {
+      const dx = f.bx - x;
+      const dz = f.bz - y;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < best) {
+        best = d2;
+        field = f;
+      }
+    }
+    return field;
   }
 
   // Scratch buffers for the per-frame visual de-overlap pass. The cell
@@ -808,13 +857,110 @@ export class SceneSync {
           // Walk, don't slide: advance at the worker's own gait, written
           // straight through the de-overlap channel (easing toward a
           // moving target would glide him at a fraction of the speed).
-          const step = Math.min(dist, PIER_WALK_SPEED * dt);
+          const step = Math.min(dist, RENDER_WALK_SPEED * dt);
           visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
           visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
           visual.group.rotation.y = Math.atan2(dx, dz);
           // Render-side walk, so no publish delta to measure: it advances
-          // at exactly PIER_WALK_SPEED, tell the legs the same.
-          if (visual.char) setGaitSpeed(visual.char, PIER_WALK_SPEED);
+          // at exactly RENDER_WALK_SPEED, tell the legs the same.
+          if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
+        }
+      }
+      // The farmer's post is his rows: while he holds it, the render
+      // walks him along the field's mowing circuit — step, stroke, step,
+      // the working rhythm — and stands him mid-field when the farm
+      // stalls. Render-side like the pier walk; the sim keeps him parked
+      // on whatever adjacent tile the path found.
+      const field =
+        !offScreen &&
+        !dead &&
+        !moving &&
+        action !== ACTION.fight &&
+        workKind === WORK.mow
+          ? this.#nearestField(x, y)
+          : null;
+      let mowSwing = false;
+      let mowStep = false;
+      let onFieldPad = false;
+      if (field && visual.char) {
+        // One idle tick separates every finished batch from the next, so
+        // the raw flag flickers; work seen now coasts a beat (and a truly
+        // stalled farm still stops the scythe inside half a second).
+        if (action === ACTION.work)
+          visual.mowWorkUntil = animNow + MOW_WORK_COAST;
+        const working = animNow < (visual.mowWorkUntil ?? 0);
+        const curX = x + visual.sepX;
+        const curZ = y + visual.sepY;
+        onFieldPad =
+          curX > field.minX &&
+          curX < field.maxX &&
+          curZ > field.minZ &&
+          curZ < field.maxZ;
+        if (visual.mowI === undefined || visual.mowI >= field.points.length) {
+          visual.mowI = 0;
+          visual.mowDir = 1;
+          visual.mowStepLeft = MOW_STEP;
+        }
+        // Hold the spot by default — the eased channel would otherwise
+        // drift him back toward the sim's parked tile on any frame that
+        // does not walk (a stroke, a stall, the beat a lane turns on).
+        // The walking branch below overwrites this with its own step.
+        this.#sepTX[i] = visual.sepX;
+        this.#sepTY[i] = visual.sepY;
+        if (
+          visual.mowSwingUntil !== undefined &&
+          animNow < visual.mowSwingUntil
+        ) {
+          // Mid-stroke: stand into it and let the clip's own sweep do the
+          // moving. Even a stall waits for the stroke to land — a scythe
+          // stopped mid-arc reads as a glitch.
+          mowSwing = true;
+        } else if (!working && onFieldPad) {
+          // The farm is stalled — no water, output full, paused. He
+          // stands where the last stroke left him, scythe grounded: an
+          // idle farmer mid-field is the stall made visible, the same
+          // signal the mill's easing sails give.
+          visual.mowSwingUntil = undefined;
+        } else {
+          visual.mowSwingUntil = undefined;
+          const target = field.points[visual.mowI]!;
+          // Two legs from off the plot: in over the open front first —
+          // a beeline from the parked tile would clip through the flank
+          // fences.
+          const tx = onFieldPad ? target.x : field.gateX;
+          const tz = onFieldPad ? target.z : field.gateZ;
+          const dx = tx - curX;
+          const dz = tz - curZ;
+          const dist = Math.hypot(dx, dz);
+          if (onFieldPad && dist < 0.08) {
+            // Lane's end: turn onto the next leg, ping-ponging the round.
+            let next = visual.mowI + (visual.mowDir ?? 1);
+            if (next < 0 || next >= field.points.length) {
+              visual.mowDir = (visual.mowDir ?? 1) === 1 ? -1 : 1;
+              next = visual.mowI + visual.mowDir;
+            }
+            visual.mowI = next;
+          } else if (dist > 1e-4) {
+            const step = Math.min(dist, RENDER_WALK_SPEED * dt);
+            visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
+            visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
+            visual.group.rotation.y = Math.atan2(dx, dz);
+            setGaitSpeed(visual.char, RENDER_WALK_SPEED);
+            mowStep = step > 1e-4;
+            // A stroke every MOW_STEP of ground — but only working the
+            // rows, never on the walk in through the gate.
+            if (working && onFieldPad) {
+              visual.mowStepLeft = (visual.mowStepLeft ?? MOW_STEP) - step;
+              if (visual.mowStepLeft <= 0) {
+                visual.mowStepLeft = MOW_STEP;
+                const clip = visual.char.actions.get(AnimKey.mow)?.getClip();
+                // One full sweep, plus the crossfade's grace so the
+                // follow-through lands before the legs come back.
+                visual.mowSwingUntil =
+                  animNow + ((clip?.duration ?? 1.1) + 0.12) * 1000;
+              }
+            }
+          }
         }
       }
       if (visual.char && offScreen) {
@@ -835,6 +981,12 @@ export class SceneSync {
           key = heldCarry ? AnimKey.carry : gaitAnimKey(visual.char.gait);
         else if (pier)
           key = fishing ? AnimKey.fish : gaitAnimKey(visual.char.gait);
+        else if (field)
+          key = mowSwing
+            ? AnimKey.mow
+            : mowStep
+              ? gaitAnimKey(visual.char.gait)
+              : AnimKey.idle;
         else if (action === ACTION.fight)
           key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
         else if (action === ACTION.work)
@@ -856,7 +1008,10 @@ export class SceneSync {
           playAnimation(
             visual.char,
             key,
-            key === AnimKey.death ? 0 : hash2(id, 3),
+            // Death holds its final pose from the top; a mowing stroke
+            // begins at its wind-up — a swing entered mid-arc reads as a
+            // twitch, and the stop's dwell is timed to the whole clip.
+            key === AnimKey.death || key === AnimKey.mow ? 0 : hash2(id, 3),
           );
         }
         const fn = this.onCue;
@@ -980,9 +1135,16 @@ export class SceneSync {
       // this loop runs before the render, so there is nothing to catch up.
       if (!offScreen) {
         // On the planks the deck carries him — the ground under a pier is
-        // lake bed, and the height field would sink him to it.
+        // lake bed, and the height field would sink him to it. The farm's
+        // pad is the same story a finger's height tall: on the worked
+        // plot the farmer stands on the soil, not in it.
         const groundY = this.#heights.at(px, pz);
-        const standY = pier && onDeck ? Math.max(groundY, pier.deckY) : groundY;
+        const standY =
+          pier && onDeck
+            ? Math.max(groundY, pier.deckY)
+            : field && onFieldPad
+              ? Math.max(groundY, field.padY)
+              : groundY;
         visual.group.position.set(px, standY + bob, pz);
         if (barPct >= 0) {
           // Exactly where the child mesh used to land. A unit's facing is a

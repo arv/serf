@@ -57,6 +57,13 @@ const KK_PROP_FILES = [
   // and the procedural builds stay as the not-yet-loaded fallback.
   'tools/hammer',
   'tools/pickaxe',
+  // Fantasy Weapons Bits (CC0), vendored at last: the real scythe for the
+  // farmer and the plain spear the spearProp comment spent a release
+  // waiting for. Both authored like every pack prop — grip at the origin,
+  // up +Y — so they ride the same anchors; the procedural builds stay as
+  // their not-yet-loaded fallbacks.
+  'weapons/scythe',
+  'weapons/spear_A',
 ];
 
 const KK_CLIP_NAMES: Record<AnimKey, string> = {
@@ -77,6 +84,10 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   [AnimKeyNs.tend]: 'Working_A',
   // Hand-over-hand reeling doubles as cranking the well bucket up.
   [AnimKeyNs.draw]: 'Fishing_Reeling',
+  // The scythe stroke: the pack's two-handed horizontal slice, which is
+  // the mowing sweep — wind-up to the right, blade carried flat across
+  // the body. The Tools library has no farm loop that swings anything.
+  [AnimKeyNs.mow]: 'Melee_2H_Attack_Slice',
   // The patient hold, rod out over the water — the actual fisherman.
   [AnimKeyNs.fish]: 'Fishing_Idle',
   // Composited at load: gait legs + holding-pose arms.
@@ -92,9 +103,10 @@ interface KKSpec {
   right?: string;
   /** Euler fix-up for right-hand props that load facing the wrong way. */
   rightRot?: [number, number, number];
-  /** Right-hand weapon we build ourselves, for what the packs don't ship
-   * (spearProp). Authored in the pack props' frame, so it drops into the
-   * handslot at identity exactly like `right`. */
+  /** Right-hand weapon from a builder function rather than a prop file —
+   * for anything needing a fallback or fix-up beyond what `right` offers
+   * (spearHand). Its result is authored in the pack props' frame, so it
+   * drops into the handslot at identity exactly like `right`. */
   rightBuilt?: () => THREE.Group;
   /** The right-hand prop is a work tool, not a standing weapon: hidden
    * except while performing this WORK.* kind. */
@@ -138,9 +150,9 @@ const KK_SPECS = new Map<number, KKSpec>([
     {
       file: 'Knight',
       hide: ['Knight_Cape', 'Knight_HelmetVisor'],
-      // A spear, built here: the pack's wizard staff stood in for one and
-      // the crystal on its head gave the game away (see spearProp).
-      rightBuilt: spearProp,
+      // The pack spear, at handslot identity (see spearHand; the wizard
+      // staff stood in for one once, and the hand-built spear after it).
+      rightBuilt: spearHand,
       jog: true,
       attackClip: 'Melee_1H_Attack_Stab',
     },
@@ -235,7 +247,7 @@ export interface CharacterVisual {
   toolAnchor?: THREE.Group;
   /** Sub-group of toolAnchor holding the currently swapped-in work tool. */
   toolCustom?: THREE.Group;
-  /** The wardrobe's own hand prop (axe, sword, the farmer's spade...),
+  /** The wardrobe's own hand prop (axe, sword, the farmer's scythe...),
    * hidden while a work tool is swapped in. */
   defaultTool?: THREE.Object3D;
   /** WORK.* currently equipped via setWorkTool (0 = the default prop). */
@@ -430,9 +442,9 @@ const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
 // --- Swappable work tools ------------------------------------------------
 // Authored in world units: grip at the origin, handle up +Y, head at the
 // top — the same frame the pack's axe sits in after its fix-up. The hammer
-// and pickaxe are modeled now (RPG Tools Bits, see packToolProp); the
-// procedural builds below remain as their pre-load fallbacks and the spade
-// as the farmer's own tool.
+// and pickaxe are modeled (RPG Tools Bits, see packToolProp) and the
+// scythe too now (Fantasy Weapons Bits, see packScytheProp); the
+// procedural builds below remain as their pre-load fallbacks.
 
 const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
   const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color}));
@@ -521,6 +533,56 @@ function spadeProp(): THREE.Group {
   return g;
 }
 
+function scytheProp(): THREE.Group {
+  // The pre-load fallback for the Fantasy Weapons Bits scythe (see
+  // WORK_TOOLS), in the same frame as every tool: grip at the origin,
+  // snath up +Y, business end at the top. The blade is a flattened arc
+  // hooked out sideways from the snath's head, so the two-handed slice
+  // carries it flat through the stalks — a blade authored hanging down
+  // (the way a real scythe mows) pointed at the sky through the whole
+  // swing, because the handslot leads with the prop's +Y.
+  const g = new THREE.Group();
+  const lower = toolMesh(
+    new THREE.CylinderGeometry(0.024, 0.03, 0.36, 6),
+    0x8a6a42,
+  );
+  lower.position.y = 0.15;
+  // The snath's upper run leans a touch forward — the bent haft is most
+  // of what says scythe rather than staff at village zoom.
+  const upper = toolMesh(
+    new THREE.CylinderGeometry(0.019, 0.024, 0.34, 6),
+    0x8a6a42,
+  );
+  upper.rotation.x = 0.24;
+  upper.position.set(0, 0.47, 0.04);
+  // The mower's second grip: a short nib pegged out of the haft.
+  const nib = toolMesh(
+    new THREE.CylinderGeometry(0.016, 0.016, 0.11, 6),
+    0x6b4e2e,
+  );
+  nib.rotation.x = Math.PI / 2;
+  nib.position.set(0, 0.33, 0.05);
+  // Tang collar where the blade is bolted on.
+  const collar = toolMesh(new THREE.BoxGeometry(0.05, 0.05, 0.07), 0x6b4e2e);
+  collar.position.set(0, 0.63, 0.09);
+  // The blade: a quarter-hoop laid flat and squashed thin — the same
+  // read as the carried scythe good (models.ts), steel like the spade's
+  // edge. The arc springs from the collar and sweeps out past +z.
+  const blade = toolMesh(
+    new THREE.TorusGeometry(0.19, 0.03, 4, 12, 1.9),
+    0x8b95a0,
+  );
+  blade.rotation.set(Math.PI / 2, 0, 0);
+  blade.rotation.order = 'ZYX';
+  blade.rotation.y = -2.1; // aim the arc's spring at the collar
+  // Squash the tube along the torus axis: thin in elevation, wide in
+  // plan — a curved knife lying flat, not a bent rod.
+  blade.scale.z = 0.32;
+  blade.position.set(0.09, 0.63, 0.22);
+  g.add(lower, upper, nib, collar, blade);
+  return g;
+}
+
 function fishingPoleProp(): THREE.Group {
   // The RPG Tools Bits rod: grip at the origin, rod up +Y with a built-in
   // forward sweep toward +z, line + floater + hook hanging off the tip
@@ -593,12 +655,42 @@ function packToolProp(
   return g;
 }
 
+/**
+ * The pack scythe, re-gripped. Its origin sits just under the blade
+ * collar rather than mid-haft — dropped in raw, the farmer's fist landed
+ * ON the collar and he swung the thing like a sword by the wrong end,
+ * snath trailing as a counterweight. The inner offset slides the grip
+ * down to the haft's middle, and the pitch carries the head forward so
+ * the sweep runs at the stalks instead of level at the hip.
+ */
+function packScytheProp(): THREE.Group {
+  if (!kkAssets?.props.get('weapons/scythe')) return scytheProp();
+  const inner = packToolProp('weapons/scythe', 0.8, scytheProp);
+  // Slide the grip: 0.10 puts the fist on the haft's middle wrapping,
+  // just under halfway up. More reads better still in the swing but the
+  // surplus hangs BELOW the fist everywhere else — at idle the arm
+  // points the head at the ground, and by 0.22 the tool stood buried to
+  // the wrappings with the blade tip surfacing a step away like a shark.
+  inner.position.y = 0.1;
+  // A modest pitch about the fist drops the blade toward the stalks
+  // through the sweep. Tuned against the whole wardrobe, not one clip:
+  // -0.45 cut lower still, and stood the idle scythe out behind the
+  // farmer's back where nothing of it showed at all.
+  const pivot = new THREE.Group();
+  pivot.rotation.z = -0.2;
+  pivot.add(inner);
+  const g = new THREE.Group();
+  g.add(pivot);
+  return g;
+}
+
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
   3: () => packToolProp('tools/hammer', 0.52, malletProp), // WORK.hammer
   2: () => packToolProp('tools/pickaxe', 0.58, pickaxeProp), // WORK.pickaxe
   4: spadeProp, // WORK.dig
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
   7: fishingPoleProp, // WORK.fish
+  8: packScytheProp, // WORK.mow
 };
 
 /** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,
@@ -621,7 +713,7 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   }
   const make = WORK_TOOLS[workKind];
   // A default tool that already matches the work keeps its place (the
-  // farmer digs with the spade he carries).
+  // farmer mows with the scythe he carries).
   const covered = make && visual.defaultTool?.userData.workKind === workKind;
   if (make && !covered) {
     visual.toolCustom.add(make());
@@ -635,15 +727,29 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
 // --- Weapons the packs don't ship ---------------------------------------
 
 /**
- * A spear.
+ * The spearman's spear: Fantasy Weapons Bits' plain spear_A now that the
+ * pack is vendored, exactly as the note below promised, with the
+ * hand-built one kept as the not-yet-loaded fallback the way the mallet
+ * and pickaxe stand behind their modeled tools. spear_A is authored like
+ * every pack prop — grip at the origin, shaft up +Y, rig-compatible units
+ * (3.1 from butt to point against the character's 2.54) — so it drops
+ * into the handslot at identity and the stab clip drives its point at the
+ * enemy unchanged.
+ */
+function spearHand(): THREE.Group {
+  const spear = kkAssets?.props.get('weapons/spear_A');
+  return spear ? (spear.clone() as THREE.Group) : spearProp();
+}
+
+/**
+ * A spear, built by hand — spearHand's pre-load fallback.
  *
  * The spearman carried the pack's `staff` before this, borrowed for its
  * long shaft — but it is the *Mage's* staff, and the crystal knot on the
  * head of it gave the game away: at anything closer than village zoom the
- * levy's spearman was a wizard marching to war. The free packs ship no
- * spear (KayKit's Fantasy Weapons Bits does; if that pack is ever
- * vendored, its file drops into KK_PROP_FILES and this build gives way to
- * it, the way the modeled hammer and pickaxe took over from theirs).
+ * levy's spearman was a wizard marching to war. It was built when the
+ * free packs shipped no spear; Fantasy Weapons Bits does, and now that it
+ * is vendored the modeled one takes the hand.
  *
  * Built in the pack props' own frame, so it drops into the handslot at
  * identity like any of them: grip at the origin, shaft up +Y, rig units —
@@ -719,13 +825,13 @@ interface ProfLook {
 }
 
 const PROF_LOOKS = new Map<number, ProfLook>([
-  // Farmer: sun-worn tan leathers, straw hat, spade in hand.
+  // Farmer: sun-worn tan leathers, straw hat, scythe in hand.
   [
     1,
     {
       spec: {file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a},
-      tool: spadeProp,
-      toolWorkKind: 4, // WORK.dig
+      tool: packScytheProp,
+      toolWorkKind: 8, // WORK.mow
       strawHat: true,
     },
   ],
@@ -1180,4 +1286,5 @@ export const ANIM_KEYS: readonly AnimKey[] = [
   AnimKeyNs.carry,
   AnimKeyNs.carryIdle,
   AnimKeyNs.death,
+  AnimKeyNs.mow,
 ];

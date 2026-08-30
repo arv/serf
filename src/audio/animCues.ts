@@ -103,4 +103,8 @@ export const LOOP_CUES: Partial<
   // Ranged_Bow_Draw: the string hand snaps away at 0.50 and the pose
   // freezes by 0.58 — the twang belongs to the release, not the hold.
   [AnimKey.shoot]: {cue: 'bowRelease', impactPhase01: 0.5, perCycle: 1},
+  // Melee_2H_Attack_Slice as the mowing stroke: the hands wind up until
+  // 0.30 and sweep 0.31..0.40 (speed peaks at 0.35) — a motion sound, so
+  // the swish starts where the blade starts and peaks mid-sweep.
+  [AnimKey.mow]: {cue: 'scythe', impactPhase01: 0.31, perCycle: 1},
 };

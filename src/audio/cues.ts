@@ -228,6 +228,28 @@ export const CUES = {
     ],
     sample: '/audio/hammer.m4a',
   },
+  scythe: {
+    bus: BusIdNs.work,
+    gain: 0.35,
+    cooldownMs: 90,
+    priority: 2,
+    pitchJitter: 0.08,
+    // Synth only: the sweep through standing stalks — a soft swish that
+    // falls away as the blade runs out of its arc. No strike layer at
+    // all, because grass gives; every other work cue ends in an impact
+    // and that is exactly what a mowing stroke must not sound like.
+    layers: [
+      noise({
+        filter: 'bandpass',
+        freq: 2400,
+        freqEnd: 700,
+        q: 0.9,
+        gain: 0.4,
+        attack: 0.02,
+        decay: 0.16,
+      }),
+    ],
+  },
   footstep: {
     bus: BusIdNs.work,
     // Quieter than its siblings on purpose: this is the only cue every

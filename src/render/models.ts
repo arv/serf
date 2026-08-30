@@ -350,9 +350,9 @@ function carryProto(good: GoodId): THREE.Group {
       break;
     }
     case GoodId.scythe: {
-      // The one tool RPG Tools Bits does not ship: a snath over the
-      // shoulder with the blade hooked out past one end, lying flat the
-      // way the pack tools are laid by PACK_CARRY.
+      // Pre-load fallback for the Fantasy Weapons Bits scythe (PACK_CARRY):
+      // a snath over the shoulder with the blade hooked out past one end,
+      // lying flat the way the pack tools are laid.
       const snath = mesh(
         new THREE.CylinderGeometry(0.02, 0.024, 0.72, 5),
         woodLight,
@@ -417,8 +417,8 @@ const PACK_CARRY: Partial<
   [GoodId.ale]: {prop: 'barrel', span: 0.3},
   // The tools ride from RPG Tools Bits, laid across the arms (they are
   // authored standing, handle up +Y — the rot is what lays them down and
-  // what the span is measured against). The scythe has no pack model and
-  // keeps its procedural carry; the cauldron is the pack's metal bucket.
+  // what the span is measured against). The scythe is Fantasy Weapons
+  // Bits' (RPG Tools ships none); the cauldron is the pack's metal bucket.
   [GoodId.axe]: {prop: 'tools/axe', span: 0.4, rot: [0, 0, Math.PI / 2]},
   [GoodId.pickaxe]: {
     prop: 'tools/pickaxe',
@@ -427,6 +427,13 @@ const PACK_CARRY: Partial<
   },
   [GoodId.hammer]: {prop: 'tools/hammer', span: 0.34, rot: [0, 0, Math.PI / 2]},
   [GoodId.cauldron]: {prop: 'tools/bucket_metal', span: 0.26},
+  // Laid down like the other hafted tools; the blade hooks out sideways,
+  // which is most of the span and all of the silhouette.
+  [GoodId.scythe]: {
+    prop: 'weapons/scythe',
+    span: 0.46,
+    rot: [0, 0, Math.PI / 2],
+  },
   [GoodId.rod]: {
     prop: 'tools/fishing_rod',
     span: 0.5,

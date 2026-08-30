@@ -415,11 +415,13 @@ export async function runMatch(
     else arrows.spawn(x, z, volleyAt.x, volleyAt.y, y);
   };
   // Where the well cranks are (drawing serfs stand beside them, hand
-  // IK-glued to the grip) and where the fishery piers run (fishermen walk
-  // out and cast off the end).
+  // IK-glued to the grip), where the fishery piers run (fishermen walk
+  // out and cast off the end), and where the farm fields lie (farmers
+  // mow their rows).
   const feedWells = (): void => {
     sync.setWells(buildingSync.wellCranks());
     sync.setPiers(buildingSync.fisheryPiers());
+    sync.setFields(buildingSync.farmFields());
   };
   feedWells();
   const fog = new FogOfWar(config.myPlayerId, init.map);
