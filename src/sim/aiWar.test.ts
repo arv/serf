@@ -4,7 +4,7 @@ import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import {AI_WAR, AiBrain} from './systems/ai.ts';
+import {AI_INTEL, AI_WAR, AiBrain} from './systems/ai.ts';
 import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
 import type {Unit} from './units.ts';
 import * as WarBehaviorId from './warBehaviorIdEnum.ts';
@@ -95,6 +95,37 @@ describe('harassment sorties', () => {
     expect(home!.unitIds).toEqual(party.unitIds);
     expect(brain.warReport().sortieStrikes).toBe(1);
     expect(brain.warReport().sortieWithdrawals).toBe(0);
+  });
+
+  it('never launches a party its own withdrawal gate would break at the door', () => {
+    // The oscillation this pins: #launchSortie used to pick its target
+    // blind, and #manageSortie read the defenders one beat later — so a
+    // seat facing a garrisoned rival launched and recalled a party every
+    // harass clock, a twenty-tick walk out the gate and back, all match.
+    const world = village();
+    const hut = addBuiltHut(world, BASE + 8, BASE, false, 1);
+    knights(world, 5);
+    // A defense the party of four cannot survive, standing at the hut in
+    // the castle's own light.
+    for (let i = 0; i < 8; i++)
+      spawnUnit(
+        world,
+        UnitTypeId.knight,
+        1,
+        hut.x + 0.5,
+        hut.y + 1.5 + i * 0.1,
+      );
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    brain.setStancePolicy(false);
+    world.tick = 1300;
+    expect(
+      moves(brain.decide(world)).find(m => m.attack === 'half'),
+    ).toBeUndefined();
+    expect(brain.warReport().sorties).toBe(0);
   });
 
   it('avenges the rival whose raid last reached the yard, not the nearest', () => {
@@ -193,6 +224,55 @@ describe('the losing march', () => {
     const {world, brain} = routedMarch(AiStrategyId.warlord);
     brain.decide(world);
     expect(brain.warReport().marchRetreats).toBe(0);
+  });
+});
+
+describe('the homeGuard and the march', () => {
+  /** March twelve knights out at a found castle, with the reactive verbs
+   * off so the recall branch is the only thing left to speak. */
+  function marchedOut(): {world: World; brain: AiBrain} {
+    const world = village();
+    addStorehouse(world, BASE + 8, BASE, {}, 1);
+    knights(world, 12);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.abbot], // homeGuard 14: the belt under test
+      world.map.size,
+    );
+    brain.setWarBehaviors([]); // no herald hold, no retreat: the recall is the subject
+    brain.setStancePolicy(false);
+    world.tick = 1500;
+    const marched = moves(brain.decide(world)).some(
+      m => m.unitIds.length === 12,
+    );
+    expect(marched).toBe(true);
+    return {world, brain};
+  }
+
+  it('a straggler at the gates does not recall the march', () => {
+    // The oscillation this pins: any lone rival fighter inside the belt
+    // used to yank the whole announced assault home — herald, march,
+    // recall, re-herald, for as long as anyone's stray patrol wandered by.
+    const {world, brain} = marchedOut();
+    spawnUnit(world, UnitTypeId.knight, 1, BASE + 0.5, BASE + 1.5);
+    world.tick += 500; // past the rally cooldown, well short of re-muster
+    expect(
+      moves(brain.decide(world)).find(
+        m => m.attack === true && m.unitIds.length === 12,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('a real force at the gates still does', () => {
+    const {world, brain} = marchedOut();
+    for (let i = 0; i < AI_INTEL.minSighting; i++)
+      spawnUnit(world, UnitTypeId.knight, 1, BASE + 0.5, BASE + 1.5 + i * 0.2);
+    world.tick += 500;
+    const recall = moves(brain.decide(world)).find(
+      m => m.attack === true && m.unitIds.length === 12,
+    );
+    expect(recall).toBeDefined();
+    expect(recall!.y).toBe(BASE + 1 + 4); // home: the castle rally point
   });
 });
 

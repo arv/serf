@@ -298,6 +298,17 @@ export const AI_INTEL = {
    * attack landing rather than a patrol. Same scale as the summary's
    * underAttack radius — this is the AI's own definition of "at my gates". */
   raidRadius: 12,
+  /**
+   * Each scout lost on a rival's errand — dead on the walk, or fled at
+   * half blood — doubles that rival's refresh clock, up to this many
+   * doublings; a completed read clears the debt. A doorstep behind a
+   * garrison or a tower stays worth reading EVENTUALLY, which is why it
+   * is a backoff and not the write-off #unreachable applies to discovery
+   * goals — but walking a fresh soldier down the same lethal road every
+   * `refreshAfter` is not intelligence work, it is tribute, and one seat
+   * paid its whole barracks output that way across a match.
+   */
+  scoutBurnCap: 3,
 } as const;
 
 /**
@@ -631,6 +642,12 @@ export class AiBrain {
   /** The rival whose doorstep the scout is walking to read, -1 when the
    * scout is on discovery (or home). */
   #scoutIntel: Owner = -1;
+  /** Consecutive scouts a rival's errand has cost — dead or fled with the
+   * read unfinished — and not yet redeemed by a completed one. The number
+   * of doublings that rival's refresh clock is owed, capped at
+   * AI_INTEL.scoutBurnCap; see that constant for why it is a backoff and
+   * not a write-off. Bounded by the seat count, like #intelAttempt. */
+  #scoutsLost = new Map<Owner, number>();
   /**
    * Per tower: the tick its levy may stand down, set forward every beat an
    * enemy is still in sight of it.
@@ -1212,7 +1229,10 @@ export class AiBrain {
     if (this.#scoutId >= 0 && (!scout || scout.dead)) {
       if (this.#scoutGoal >= 0 && this.#scoutIntel < 0)
         this.#unreachable.add(this.#scoutGoal);
-      if (this.#scoutIntel >= 0) this.#stampIntel(world, this.#scoutIntel);
+      if (this.#scoutIntel >= 0) {
+        this.#stampIntel(world, this.#scoutIntel);
+        this.#burnScout(this.#scoutIntel);
+      }
       this.#clearScout();
     } else if (
       scout &&
@@ -1223,8 +1243,12 @@ export class AiBrain {
       // and run — the same safe-latitude step the recall below takes,
       // because the way home from a watch point can path right past the
       // guards that did this. A dead scout feeds the tower that killed
-      // him; one that runs gets to be a scout again.
-      if (this.#scoutIntel >= 0) this.#stampIntel(world, this.#scoutIntel);
+      // him; one that runs gets to be a scout again. Either way the errand
+      // cost blood with the read unfinished, and the backoff counts it.
+      if (this.#scoutIntel >= 0) {
+        this.#stampIntel(world, this.#scoutIntel);
+        this.#burnScout(this.#scoutIntel);
+      }
       commands.push({
         kind: CommandKind.moveUnits,
         unitIds: [scout.id],
@@ -1300,7 +1324,23 @@ export class AiBrain {
       s.homeGuard > 0 &&
       army.length > 0 &&
       rallyReady &&
-      hostileNear(world, this.#vision, this.playerId, baseX, baseY, s.homeGuard)
+      hostileNear(
+        world,
+        this.#vision,
+        this.playerId,
+        baseX,
+        baseY,
+        s.homeGuard,
+        // A march already out is not abandoned for a straggler. The recall
+        // reads any lone fighter while the army is home — chasing off a
+        // scout is what a homeGuard is for — but yanking an announced
+        // assault back costs the whole attack, and a rival's stray patrol
+        // at the gates was doing exactly that on every march: herald,
+        // march, recall, re-herald, for as long as anyone wandered by.
+        // Mid-march the alarm wants a real force, and minSighting is
+        // already where the intel draws that line.
+        this.#attacking ? AI_INTEL.minSighting : 1,
+      )
     ) {
       // Someone is at the gates and the muster is not ready: everyone home,
       // including whoever is still out on the last march. Checked after the
@@ -1449,6 +1489,9 @@ export class AiBrain {
             // match while the picture he was sent for never updates.
             if (exactDist(su.x - gx, su.y - gy) <= UNIT_DEFS[su.kind].sight) {
               this.#stampIntel(world, this.#scoutIntel);
+              // A read that came back paid the road's toll off: the next
+              // walk goes on the ordinary clock again.
+              this.#scoutsLost.delete(this.#scoutIntel);
               this.#clearScoutGoal();
             }
           } else if (
@@ -2136,6 +2179,19 @@ export class AiBrain {
       )
       .slice(0, cfg.size);
     if (party.length < cfg.size) return;
+    // The withdrawal's own gate, read at the door. #manageSortie breaks a
+    // party the beat the defenders' odds say rout, so a launch that fails
+    // that reading today is a twenty-tick walk out the gate and back —
+    // and with the cooldown spent on it, a seat facing a garrisoned rival
+    // did exactly that on every harass clock for a whole match. Launching
+    // into ignorance is unchanged: no defenders seen means go, the same
+    // generosity the march gate (#oddsSay) extends to the dark.
+    const defenders = this.#defendersAt(world, target);
+    if (
+      defenders !== null &&
+      !shouldCommit(this.#forceOf(party), defenders, AI_WAR.sortieBreak)
+    )
+      return;
     commands.push({
       kind: CommandKind.moveUnits,
       unitIds: party.map(u => u.id),
@@ -2400,10 +2456,16 @@ export class AiBrain {
       );
       // The playbook's own curiosity, where it names one: an obsessive
       // scout meets you early, an insular one late — a first-contact
-      // fingerprint the fog cannot hide.
+      // fingerprint the fog cannot hide. Stretched by a doubling per
+      // scout that errand has cost (#scoutsLost): a doorstep that keeps
+      // killing its readers is re-read on a longer and longer clock
+      // instead of on schedule, soldier after soldier.
       const refreshAfter =
         this.strategy.scoutRefreshAfter ?? AI_INTEL.refreshAfter;
-      if (world.tick - last <= refreshAfter) continue;
+      const stretched =
+        refreshAfter <<
+        Math.min(this.#scoutsLost.get(p.id) ?? 0, AI_INTEL.scoutBurnCap);
+      if (world.tick - last <= stretched) continue;
       if (last < bestTick) {
         bestTick = last;
         best = p.id;
@@ -2419,6 +2481,12 @@ export class AiBrain {
   #stampIntel(world: World, owner: Owner): void {
     this.#intelAttempt.set(owner, world.tick);
     this.#pictureOf(owner).reads++;
+  }
+
+  /** One more scout this rival's errand has cost — the doorstep's clock
+   * doubles again (#staleRival), until a completed read clears the debt. */
+  #burnScout(owner: Owner): void {
+    this.#scoutsLost.set(owner, (this.#scoutsLost.get(owner) ?? 0) + 1);
   }
 
   /**
@@ -2626,11 +2694,15 @@ function nearestWater(world: World, cx: number, cy: number): number {
 
 /** Nearest tile with a given resource to a point. */
 
-/** Is an enemy fighter — rival soldier or raider — this close to home?
- * Only one the seat can actually see: a unit is intelligence of the moment,
- * and a raider in dark ground is exactly what fog is supposed to hide. The
- * village lights its own surroundings densely, so in practice this fires a
- * step later than the omniscient version did, not never. */
+/** Are `min` enemy fighters — rival soldiers or raiders — this close to
+ * home? Only ones the seat can actually see: a unit is intelligence of the
+ * moment, and a raider in dark ground is exactly what fog is supposed to
+ * hide. The village lights its own surroundings densely, so in practice
+ * this fires a step later than the omniscient version did, not never.
+ * `min` defaults to one — any fighter at all — and callers that must not
+ * flinch at a straggler raise it (the mid-march homeGuard reads it at
+ * AI_INTEL.minSighting, the same line the raid clock draws between an
+ * anecdote and an army). */
 export function hostileNear(
   world: World,
   vision: SeatVision,
@@ -2638,12 +2710,15 @@ export function hostileNear(
   bx: number,
   by: number,
   radius: number,
+  min = 1,
 ): boolean {
+  let seen = 0;
   for (const u of world.units.values()) {
     if (u.dead || u.owner === owner) continue;
     if (!UNIT_DEFS[u.kind].combat) continue;
     if (!vision.canSee(u.x, u.y)) continue;
-    if (Math.abs(u.x - bx) + Math.abs(u.y - by) <= radius) return true;
+    if (Math.abs(u.x - bx) + Math.abs(u.y - by) <= radius && ++seen >= min)
+      return true;
   }
   return false;
 }

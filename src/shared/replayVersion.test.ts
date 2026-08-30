@@ -88,8 +88,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 34 after the herald case's comment learned to say where the
 // wire screen actually lives (tick.ts, words only): same statements,
 // same tick. The hash is over raw bytes, which is why it moved anyway.
+// Still 34 after three war-behavior corrections a replayed skirmish
+// surfaced (systems/ai.ts, brain only — playback never runs a brain):
+// a sortie now reads the defenders' odds at launch instead of one beat
+// after, the mid-march homeGuard recall wants a real force at the gates
+// rather than any straggler, and a scout lost on a doorstep errand
+// doubles that rival's refresh clock. The seats DECIDE differently;
+// yesterday's logs hold the commands they decided then, and the tick
+// that executes them did not move.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = '588a196a525aa12f0d43d23113ba9dc5';
+const EXPECTED_HASH = 'd66469caa4c91bf09ef5669bed3b36d4';
 
 /**
  * Everything a replay's playback depends on, as raw source:
