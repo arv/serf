@@ -957,6 +957,19 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         const fan = scene.getObjectByName('building_windmill_top_fan_green');
         if (fan) fan.name = 'millFan';
       }
+      if (type === BuildingTypeId.weaponsmith) {
+        // The forge's flue mouth, as the named empty buildingSync stands
+        // chimney smoke on while a batch is on the fire — the bakehouse
+        // authors the same mark into its own model (procBuildings.ts).
+        // Measured off the source mesh: the chimney is the model's tallest
+        // feature, a shaft over x [0.07..0.35], z [-0.28..0.00], topping
+        // out at y 0.98 — model units, pre-normalize, like the well's
+        // crank above.
+        const flue = new THREE.Group();
+        flue.name = 'smokeFlue';
+        flue.position.set(0.21, 0.99, -0.14);
+        scene.add(flue);
+      }
       const tint = TINTS[type];
       if (tint !== undefined) {
         scene.traverse(o => {
