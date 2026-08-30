@@ -785,10 +785,10 @@ const BN_SLOPE = Math.hypot(BN_SPAN, BN_RISE);
 const ROWS_FRONT = [-0.04, 0.12, 0.28];
 const ROWS_BACK = [-0.22, -0.38];
 /** Row extents along x. */
-const ROW_X0 = -0.38;
-const ROW_X1 = 0.38;
+const ROW_X0 = -0.34;
+const ROW_X1 = 0.34;
 const BACK_X0 = 0.04;
-const BACK_X1 = 0.38;
+const BACK_X1 = 0.34;
 
 /**
  * The mowing circuit: one lane on the walker's side of each front row,
@@ -796,9 +796,14 @@ const BACK_X1 = 0.38;
  * order and then walked back (sceneSync ping-pongs it). The last lane
  * runs the front of the barn, so the round ends at the door he'd carry
  * the sheaves through.
+ *
+ * The turns sit a clear step INSIDE the flank fences (rails at 0.475),
+ * not against them: at 0.44 the farmer stood into the fence at every
+ * turn, hat through the rail. The rows give up the same margin, so the
+ * headland he turns on stays a walked strip and not a hedge.
  */
 const MOW_LANES = [0.36, 0.2, 0.04, -0.12];
-const MOW_TURN_X = 0.44;
+const MOW_TURN_X = 0.38;
 
 export function makeFarmstead(
   _piece: PieceFactory,
