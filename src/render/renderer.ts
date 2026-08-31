@@ -229,15 +229,23 @@ export class GameRenderer {
       Math.ceil((reach + SHADOW_PAD) / SHADOW_HALF_STEP) * SHADOW_HALF_STEP,
     );
     // Snap the centre to the box's own texel grid: project it onto the
-    // shadow camera's two lateral axes, round each to a whole texel, and
-    // put it back. The third axis is depth, which no amount of sliding
-    // shows, so it rides along untouched.
+    // shadow camera's two lateral axes and round each to a whole texel.
     const texel = (2 * half) / this.#shadowMapSize;
     const cx = frame.cx;
     const cz = frame.cz;
     const u = Math.round((cx * SUN_RIGHT.x + cz * SUN_RIGHT.z) / texel) * texel;
     const v = Math.round((cx * SUN_UP.x + cz * SUN_UP.z) / texel) * texel;
-    const w = cx * SUN_DIR.x + cz * SUN_DIR.z;
+    // The third axis is depth along the sun's own ray, and sliding the box
+    // down it shows nothing — so rather than carry the frame's continuous
+    // position into it, solve it for the ground plane from the snapped
+    // pair. That makes the centre a pure function of two quantised
+    // numbers, which is the whole of what lets the early return below ever
+    // fire: carrying the raw depth moved the centre on every frame of a
+    // pan, so the box was re-aimed and its projection rebuilt every frame
+    // while its texel grid stood perfectly still. (SUN_RIGHT lies flat by
+    // construction — a cross product with Y has no Y of its own — so only
+    // SUN_UP's rise has to be cancelled.)
+    const w = -(SUN_UP.y * v) / SUN_DIR.y;
     const centre = this.#centreScratch
       .set(0, 0, 0)
       .addScaledVector(SUN_RIGHT, u)

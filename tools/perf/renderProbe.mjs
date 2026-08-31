@@ -92,10 +92,27 @@ let ws = null;
 let nextId = 1;
 const pending = new Map();
 const errors = [];
+/**
+ * One DevTools command, answered.
+ *
+ * A protocol-level failure — a bad method, a target that went away — comes
+ * back carrying `error` instead of `result`, which reads as an empty
+ * answer to anything that only unwraps what it asked for. So it is raised
+ * here rather than handed on: the poll below would otherwise have read a
+ * dead connection as a match that never came up, and reported the wrong
+ * thing convincingly.
+ */
 const send = (method, params = {}) =>
-  new Promise(res => {
+  new Promise((resolve, reject) => {
     const id = nextId++;
-    pending.set(id, res);
+    pending.set(id, msg => {
+      if (msg.error) {
+        const detail = msg.error.message ?? JSON.stringify(msg.error);
+        reject(new Error(`${method}: ${detail}`));
+      } else {
+        resolve(msg.result);
+      }
+    });
     ws.send(JSON.stringify({id, method, params}));
   });
 const evaluate = async expression => {
@@ -120,7 +137,7 @@ try {
   ws.onmessage = ev => {
     const msg = JSON.parse(ev.data);
     if (msg.id && pending.has(msg.id)) {
-      pending.get(msg.id)(msg.result ?? msg.error);
+      pending.get(msg.id)(msg);
       pending.delete(msg.id);
       return;
     }
