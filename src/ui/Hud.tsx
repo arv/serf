@@ -1,4 +1,5 @@
 import {For, Show, createEffect, createSignal, type JSX} from 'solid-js';
+import {missionUrl} from '../app/gameConfig';
 import {goto} from '../app/router';
 import {latestSaveName} from '../app/saveStore';
 import {play} from '../audio/audio';
@@ -2328,7 +2329,7 @@ export function Hud(props: {
                     sessionStorage.removeItem('serf-load-pending');
                     // The same navigation launch() uses: the next
                     // mission's recipe as the whole query string.
-                    goto(`?mission=${next().id}`);
+                    goto(missionUrl(next().id));
                   }}
                 >
                   Continue: {next().title}

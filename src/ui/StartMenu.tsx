@@ -2,6 +2,7 @@ import {For, Index, Show, createSignal, onCleanup, onMount} from 'solid-js';
 import {createStore, reconcile} from 'solid-js/store';
 import {BUILD_LABEL} from '../app/buildInfo';
 import type {ImportResult, StoredFileInfo} from '../app/fileStore';
+import {missionUrl} from '../app/gameConfig';
 import {
   deleteReplayFile,
   importReplayFile,
@@ -921,9 +922,12 @@ export function StartMenu(props: StartMenuProps) {
     clearSeatStash(); // a menu launch is fresh intent, never a reconnect
     if (isCampaign()) {
       // A mission is a navigation like any single-player launch: the def's
-      // id is the whole query string, the recipe lives in the sim's table.
+      // name is the whole query string, the recipe lives in the sim's
+      // table. Spelled by missionUrl rather than here — interpolating the
+      // id read as an unknown mission, and the launch quietly became a
+      // default skirmish with no briefing and no checklist.
       releaseMenuBackdrop();
-      goto('?mission=' + pickedMission());
+      goto(missionUrl(pickedMission()));
       return;
     }
     if (isMulti()) {
