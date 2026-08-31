@@ -46,9 +46,15 @@ export interface UnitSource {
 }
 
 /**
- * How many people the card has tiles for. Lives here rather than with the
+ * How many cells the card's grid has. Lives here rather than with the
  * markup because the ordering below has to know when the roster is being
  * cut — who is drawn is decided by who fits.
+ *
+ * Cells, not people, and the difference is one: a roster this long or
+ * shorter puts a man in every cell, but the moment there is one more than
+ * this the last cell goes to the "+N" count instead, and only 23 faces are
+ * drawn. Whoever moves this number should read it as the grid's size (8×3
+ * today) and let the panel do that arithmetic, which it does.
  */
 export const ROSTER_TILES = 24;
 

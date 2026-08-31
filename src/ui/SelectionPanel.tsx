@@ -1356,8 +1356,14 @@ export function SelectionPanel(props: {
                 headKind() ? (
                   <UnitTip unit={headKind()!} />
                 ) : (
+                  /* No one kind to describe. Usually that is a mixed
+                     band and says so — but the roster can also be a
+                     step behind the ids for a frame (see headCount),
+                     and a lone knight whose tile has not arrived yet is
+                     not a mixture of anything. The count is what tells
+                     them apart. */
                   <TextTip
-                    title="A mixed band"
+                    title={roster().length > 0 ? 'A mixed band' : 'In hand'}
                     body="Every tile below is one of them: what they are, and how much of them is left."
                   />
                 )
@@ -1375,8 +1381,8 @@ export function SelectionPanel(props: {
                       {/* A squad of one kind is named as what it is: six
                           knights read as "6 Knights", not as six of
                           something. A mixed band has no such word and
-                          falls back to the count — the kinds line under
-                          this is what answers it there. */}
+                          falls back to the count — the tiles under this
+                          are what answer it there, one glyph a man. */}
                       {soleKind()
                         ? unitNamePlural(soleKind()!, headCount())
                         : headCount() === 1
