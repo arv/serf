@@ -833,7 +833,7 @@ export async function runMatch(
     // the ghost owns the ground's attention.
     rallyFlag.update(placing() ? null : selectedBuilding());
     controls.prune();
-    selectionFx.update(controls.selected, sync, now);
+    selectionFx.update(controls.selected, sync, now, myPlayerId());
     damageAlerts.update(now);
     water.update(now);
     mist.update(now);

@@ -1,7 +1,7 @@
 import {For, Show} from 'solid-js';
 import type {Enum} from '../shared/enum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import {GOODS, type GoodId, goodEntries} from '../sim/defs/goods';
+import {GOODS, goodEntries} from '../sim/defs/goods';
 import {
   TECH_BRANCHES,
   TECH_DEFS,

@@ -7,7 +7,6 @@ import {buildingDef, BUILDING_KEYS} from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {GOOD_KEYS, goodEntries} from '../sim/defs/goods.ts';
 import {TECH_KEYS} from '../sim/defs/techs.ts';
-import {UNIT_DEFS} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import type {Building, Owner} from '../sim/entities.ts';
 import {playMin, playMax} from '../sim/map.ts';

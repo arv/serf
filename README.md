@@ -96,8 +96,10 @@ until the player is back at the menu.
 ### Full screen
 
 Offered, never taken: browsers grant fullscreen only from inside a click,
-tap or keypress, so there is a switch on the start screen and a button in
-the in-game menu, and no way for the page to help itself. It survives the
+tap or keypress, so there is a switch on the start screen, a button in
+the in-game menu, an **Alt+Enter** chord bound at boot for every screen in
+between, and no way for the page to help itself — the chord works only
+because a keypress is itself one of the gestures a request may ride. It survives the
 walk into a match and back out again, because neither costs a document
 (see Navigation below); the answer is also remembered, so the reloads that
 do still happen come back into it on your first click. Leaving by any
@@ -181,6 +183,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target |
+| **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |
 | **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Guard **T**ower |
 | **R** | Tech tree |
 | **H** (castle selected) | Hire Serf |
@@ -189,11 +192,37 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Cursor at screen edge / arrows / middle-drag | Pan camera (edge scroll has a start-menu toggle) |
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
+| **+** / **−** | A gear at a time: pause ↔ normal ↔ fast forward (↔ 8× in a replay) — the bottom rung is the pause, so − holds the village and + lets it go |
+| **Alt+Enter** | Full screen — on the menu and the map editor too, not just in a match |
 | Mouse wheel | Zoom |
 | **Shift** + wheel / **Insert**, **Delete** / **[**, **]** | Turn the camera — 15° a notch, or hold the key; two notches square the default 30° view to the map, and the minimap frame with it. The brackets are for keyboards without an Insert key. The map editor's camera does not turn — its view toggle is how that screen changes its angle, and the brackets size the brush there |
 | Esc | Unwind one mode: chord → order → placement → open sheet → selection → fullscreen |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
+
+Playback is the one cluster whose keys are not letters, and deliberately.
+Every letter this game binds is one the HUD prints inside a word, and the
+speed strip has none left to bold — F already lifts a replay's fog. So the
+clock is the +/− pair and nothing else: the bottom rung of the ladder *is*
+the pause, so − from walking pace holds the village in one press and + lets
+it go again. A dedicated P would have been a second road to a rung that
+already takes one keystroke, and one that then has to remember which gear it
+interrupted. That pair is the grand strategy binding rather than the RTS one
+— Paradox's clock, where Stellaris takes this same spread of spellings
+(`+`, `=`, numpad +) — because the RTS lineage this game otherwise follows
+has no speed key to copy: StarCraft changes speed from no key at all, and
+pauses, where it pauses, on the Pause key itself.
+
+Fullscreen takes Alt+Enter, which *is* the convention its neighbours use —
+Blizzard's titles and Age of Empires alike toggle the screen on it — and
+being a chord it costs no letter. It is bound at boot rather than inside a
+match, so the chord that filled the screen during a skirmish still works on
+the menu ten seconds later.
+
+The gears themselves live in one place (`ui/speedControl.ts`) — the buttons
+and the keys walk the same ladder, so + climbs out of a pause the mouse
+took, and neither surface can be left holding a gear the other has never
+heard of (a replay's 8×, in the screen where the ladder is a rung taller).
 
 Shortcut letters are taught in place — the HUD bolds the letter inside its
 own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a
@@ -234,6 +263,25 @@ Touch gets the double-click as a double-tap on a unit — the same widening
 to that kind on screen. A phone has no shift and no band drag without first
 arming the HUD's marquee, so this is the one gesture that hands a finger a
 whole kind at once.
+
+Watching a replay, all of that reaches every seat. A recording is a match
+with the orders taken out — the log is the sim's whole diet, so a click can
+never touch the tick — and there is nobody left to hide a village from, so
+the pointer picks up the Warlord's serfs and opens his mill's card the same
+way it does your own. Which is most of the reason to open a recording at
+all: an AI is otherwise a thing you only ever meet at your gates, and its
+mistakes are only legible from inside its own valley.
+
+Two rules keep that honest. A rival's building has to have been on screen —
+*explored* ground, the same memory the renderer draws it from — so a click
+into the dark cannot read the stock of a hut nobody has seen; F lifts the
+fog and then everything is fair game. And any gesture that grabs a crowd at
+once — a band drag, a double-click's widening — commits to one banner (the
+seat filling the rectangle, or the clicked unit's), because "27 units
+selected" across both sides of a melee is not a fact about anything. The
+cards name whose people and whose walls these are, the rings under a rival's
+squad fly that seat's color rather than your vermillion, and the order
+buttons are gone rather than greyed: they were never on the table.
 
 The letters on a selected building's panel are contextual, as in both those
 games, so they may reuse a global letter: the barracks' **A**rcher is the
@@ -283,6 +331,7 @@ pnpm test        # headless suite: sim, editor, server, aiLab (800+ tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
 pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
+pnpm lint        # oxlint (CI runs it too; `pnpm lint:fix` applies fixes)
 pnpm bakeoff     # AI bake-off (tools/aiLab)
 ```
 
@@ -293,6 +342,28 @@ Left alone: the prose in `README.md` and `docs/`, the vendored models under
 `public/models/`, and the one-line generated data
 (`src/sim/defs/maps/*.json`, `tools/modelLab/baked.json`) a formatter would
 explode into thousands of lines.
+
+Linting is [oxlint](https://oxc.rs/docs/guide/usage/linter)
+(`.oxlintrc.json`), and CI fails on a finding. Only the `correctness`
+category is on — code that is outright wrong or dead — so a warning is
+worth fixing rather than arguing with, and `pnpm lint:fix` handles the
+mechanical ones. It runs `--type-aware` (the `oxlint-tsgolint` dev
+dependency), which is where the rules that need a checker live: it is what
+noticed that `.sort()` on our numeric ids orders them as text, so a
+thirteen-id list sorted `[1, 10, 2]`. Type-aware or not, the whole run is
+about a second and a half over 418 files.
+
+No rule is switched off wholesale. Two carve-outs, each as narrow as it
+goes: `no-unassigned-vars` is off for `**/*.tsx` only, because Solid
+assigns the `let` behind `ref={el}` through a compiler transform the rule
+cannot see (it stays on for the other ~380 files); and the four sites
+where a rule reads a deliberate idiom as a mistake carry an
+`oxlint-disable-next-line` saying which idiom — three spreads that are
+snapshots taken because the loop body deletes from the map it walks, and
+one saved `onBeforeCompile` that is put straight back on the material it
+came off. The `vitest` and `jsx-a11y` plugins are off — the first reads
+Vitest's `expect(value, 'message')` as an arity error, the second wants
+markup changes that belong in a change of their own.
 
 One thing to know about the import sorting: a comment directly above the
 first import travels with it, so a file header or a `/// <reference lib>`

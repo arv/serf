@@ -36,7 +36,6 @@ import {
   findResourceNear,
   generateMap,
   rectClear,
-  resourceBlocks,
   tileBlocks,
   type GameMap,
   type MapView,

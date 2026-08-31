@@ -221,10 +221,10 @@ function decodeHot(data: Uint8Array): HotFrame {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const tick = view.getUint32(1, true);
   const count = view.getUint16(5, true);
-  const units: UnitSnapshot[] = new Array(count);
+  const units: UnitSnapshot[] = [];
   let off = 7;
   for (let i = 0; i < count; i++) {
-    units[i] = {
+    units.push({
       id: view.getInt32(off, true),
       x: view.getFloat32(off + 4, true),
       y: view.getFloat32(off + 8, true),
@@ -237,7 +237,7 @@ function decodeHot(data: Uint8Array): HotFrame {
       profession: data[off + 18]!,
       facing: data[off + 19]!,
       targetDist: data[off + 20]!,
-    };
+    });
     off += UNIT_BYTES;
   }
   return {kind: 'hot', tick, units};

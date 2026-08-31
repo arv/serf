@@ -67,7 +67,6 @@ import {
   inPlayArea,
   playEdgeDist,
   recomputeBlocked,
-  resourceBlocks,
   tileBlocks,
   type GameMap,
   type StartSpot,

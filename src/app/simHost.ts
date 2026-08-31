@@ -1,4 +1,3 @@
-import type {AiWorldSummary} from '../ai/summary';
 import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
 import type {
   BuildingSnap,
@@ -12,7 +11,6 @@ import type {NetInfo} from '../protocol/messages';
 import {SabReader} from '../protocol/sabLayout';
 import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
 import type {SimCommand} from '../sim/commands';
-import type {AiStrategy} from '../sim/defs/aiStrategies';
 import type {GameConfig} from './gameConfig';
 import type {ReplayData} from './replay';
 

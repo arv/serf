@@ -544,6 +544,8 @@ export class BuildingSync {
       // hung off this building.
       v.pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
     }
+    // Snapshotted: #beginTeardown deletes from #visuals as we walk it.
+    // oxlint-disable-next-line unicorn/no-useless-spread
     for (const id of [...this.#visuals.keys()]) {
       // Gone from the roster: sold or razed. Instead of popping out of
       // existence the model goes down into the ground under a puff of

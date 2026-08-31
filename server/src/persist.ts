@@ -237,7 +237,9 @@ export function restorePersistedRooms(nowMs: number): number {
   }
   let restored = 0;
   try {
-    const snapshot = JSON.parse(raw) as Snapshot;
+    const snapshot = JSON.parse(raw) as Omit<Snapshot, 'version'> & {
+      version: number;
+    };
     if (snapshot.version !== 1) {
       console.warn(
         `[serf] rooms snapshot is version ${snapshot.version}; ignoring it`,

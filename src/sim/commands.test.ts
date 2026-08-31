@@ -7,7 +7,11 @@ import {
   sanitizeCommands,
   type SimCommand,
 } from './commands.ts';
-import {FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP} from './defs/balance.ts';
+import {
+  FORGE_QUEUE_CAP,
+  HIRE_QUEUE_CAP,
+  TRAIN_QUEUE_CAP,
+} from './defs/balance.ts';
 import {AUTO_RECIPE, BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
@@ -40,6 +44,7 @@ describe('command screening', () => {
         y: 5,
       },
       {kind: CommandKind.hireSerf},
+      {kind: CommandKind.cancelHire, index: 0},
       {kind: CommandKind.sellBuilding, buildingId: 3},
       {kind: CommandKind.setBuildingPaused, buildingId: 3, paused: true},
       {kind: CommandKind.setBuildingRepair, buildingId: 3, repair: true},
@@ -242,6 +247,13 @@ describe('command screening', () => {
       });
     expect(train(TRAIN_QUEUE_CAP - 1)).not.toBeNull();
     expect(train(TRAIN_QUEUE_CAP)).toBeNull();
+    const hire = (index: unknown) =>
+      sanitizeCommand({kind: CommandKind.cancelHire, index});
+    expect(hire(HIRE_QUEUE_CAP - 1)).not.toBeNull();
+    expect(hire(HIRE_QUEUE_CAP)).toBeNull();
+    expect(hire(-1)).toBeNull();
+    expect(hire(1.5)).toBeNull();
+    expect(hire(undefined)).toBeNull();
   });
 
   it('bounds a recipe index by the longest forge menu, and lets auto through', () => {

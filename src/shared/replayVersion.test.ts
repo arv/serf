@@ -107,8 +107,29 @@ import {REPLAY_VERSION} from './replayVersion';
 // cargo and a killed worker's tool fall as salvage where he stood
 // instead of dying with him. A logged sale or serf loss re-runs
 // differently from that tick on (see replayVersion.ts).
-const EXPECTED_VERSION = 35;
-const EXPECTED_HASH = 'e1a4453eac3563195cd47f2b184a2e07';
+// 36 for the reserve silver seam: every start on every map now has a
+// second seam out past its home ring, so a generated world re-rolls
+// differently from the same seed and four mission maps' tiles moved
+// outright (see replayVersion.ts). The seat that opens it is brain and
+// rule work, which playback never runs — the bump is the ground.
+// Still 36 after the road techs (systems/ai.ts AI_HAUL): a seat hauling
+// from a post out in the country now researches Cobbled Boots and then
+// Masonry ahead of its printed line. Brain only — playback never runs a
+// brain — so yesterday's logs play back exactly; the hash is over raw
+// bytes, which is why it moved anyway.
+// Still 36 after oxlint swept the tree (.oxlintrc.json): four sim files
+// dropped imports nothing read (hash.ts, world.ts, systems/ai.ts,
+// systems/objectives.ts) and one spread lost an empty fallback that
+// never added a key. Same constants, same tables, same statements, so
+// every tick runs as it did — the hash is over raw bytes, which is why
+// it moved anyway.
+// 37 for the hire that can be called back: a new command kind (16,
+// cancelHire) refunds a queued recruit's silver and, at the head of the
+// queue, hands the next man a fresh walk. A new kind is pure format — no
+// older log can hold one — and the only new behavior sits behind it, so
+// yesterday's logs play back exactly (see replayVersion.ts).
+const EXPECTED_VERSION = 37;
+const EXPECTED_HASH = '214e33b91fcd7dc6d23a774a7091f4be';
 
 /**
  * Everything a replay's playback depends on, as raw source:

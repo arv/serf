@@ -28,15 +28,20 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {
   buildAim,
   placing,
+  resetMatchState,
   selectedBuilding,
   selection,
+  selectionOwner,
   setBuildAim,
   setMyPlayerId,
+  setNetMode,
   setPlacing,
+  setReplayMode,
   setSelectedBuilding,
   setSelection,
   setStock,
   setTechs,
+  speed,
 } from '../ui/store';
 import {Controls} from './controls';
 import {screenToGround, worldToScreen} from './picking';
@@ -207,8 +212,11 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   }
   camera.updateMatrixWorld(true);
 
-  /** id → world (x, z) and owner; the ones picking asks about. */
-  const units = new Map<number, {x: number; y: number; owner: number}>();
+  /** id → world (x, z), owner and kind; the ones picking asks about. */
+  const units = new Map<
+    number,
+    {x: number; y: number; owner: number; kind: number}
+  >();
   const sync = {
     latestIds: new Map<number, number>(),
     positionOfInto: (
@@ -223,11 +231,17 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
       return true;
     },
     ownerOf: (id: number): number | null => units.get(id)?.owner ?? null,
-    kindOf: (): number | null => null,
+    kindOf: (id: number): number | null => units.get(id)?.kind ?? null,
     isDead: (): boolean => false,
   };
-  const addUnit = (id: number, x: number, z: number, owner = ME): void => {
-    units.set(id, {x, y: z, owner});
+  const addUnit = (
+    id: number,
+    x: number,
+    z: number,
+    owner = ME,
+    kind = 0,
+  ): void => {
+    units.set(id, {x, y: z, owner, kind});
     sync.latestIds.set(id, sync.latestIds.size);
   };
   /** Where a unit's picking anchor lands on screen — the head, not the feet. */
@@ -246,8 +260,13 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   const ghost = {show: () => {}, hide: () => {}, moveTo: () => {}};
   /** Every command the pointer sent, in order — what an order test reads. */
   const commands: Record<string, unknown>[] = [];
+  /** Every gear the clock was told to run at — what a playback key test
+   * reads, since the speed never reaches `commands`: it is a message to
+   * the worker's timer, not an order in the sim. */
+  const gears: number[] = [];
   const host = {
     sendCommands: (cs: Record<string, unknown>[]) => void commands.push(...cs),
+    setSpeed: (s: number) => void gears.push(s),
   };
   const mirror = {
     map: {size: 64, buildingAt: new Int32Array(64 * 64).fill(-1)},
@@ -297,7 +316,7 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   controls.setBuildingHeights({
     heightOf: id => tops.get(id) ?? 0,
     baseOf: () => 0,
-    ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...[...tops.values()]),
+    ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...tops.values()),
   });
 
   /** Drag a band from one screen point to another, the way a mouse does. */
@@ -324,6 +343,11 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
       'keydown',
       keyDown(`Key${letter.toUpperCase()}`, letter.toLowerCase()),
     );
+
+  /** Press a key that is not a letter or a number — the playback pair,
+   * whose `code` and `key` disagree the moment Shift is involved. */
+  const key = (code: string, k: string): void =>
+    win.fire('keydown', keyDown(code, k));
 
   /** Where a world point lands on screen — the pixel a test clicks. */
   const at = (x: number, y: number, z: number): {x: number; y: number} =>
@@ -376,10 +400,12 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
     click,
     groundTileAt,
     commands,
+    gears,
     mirror,
     rides,
     press,
     type,
+    key,
   };
 }
 
@@ -433,7 +459,7 @@ describe('band select', () => {
 
     h.band(...around([h.screenOf(1), h.screenOf(2)]));
 
-    expect([...selection()].sort()).toEqual([1, 2]);
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
   });
 
   it('closes the building card the band selected over', () => {
@@ -517,7 +543,7 @@ describe('band select', () => {
     h.band(...around([h.screenOf(1)]));
     h.band(...around([h.screenOf(2)]), true);
 
-    expect([...selection()].sort()).toEqual([1, 2]);
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
   });
 });
 
@@ -1008,5 +1034,330 @@ describe('build chord', () => {
 
     expect(placing()).toBeNull();
     expect(buildAim()).toBeNull();
+  });
+});
+
+describe('playback keys', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    resetMatchState();
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    resetMatchState();
+    vi.unstubAllGlobals();
+  });
+
+  it('holds the village on −, and lets it go again on +', () => {
+    // The pause is the bottom rung, so the pair that walks the ladder is
+    // the pair that pauses — no third key, and none advertised.
+    const h = harness();
+    controls = h.controls;
+
+    h.key('Minus', '-');
+    expect(h.gears).toEqual([0]);
+    expect(speed()).toBe(0);
+
+    h.key('Equal', '+');
+    expect(h.gears).toEqual([0, 1]);
+    expect(speed()).toBe(1);
+  });
+
+  it('leaves P alone, and every other stray letter with it', () => {
+    // P was a pause key here once. Nothing should have taken its place:
+    // a letter that quietly moves the clock is worse than no letter.
+    const h = harness();
+    controls = h.controls;
+
+    h.type('P');
+
+    expect(h.gears).toEqual([]);
+    expect(speed()).toBe(1);
+  });
+
+  it('steps a gear on + and -, and stops at the ends', () => {
+    const h = harness();
+    controls = h.controls;
+
+    h.key('Equal', '+');
+    expect(speed()).toBe(3);
+    // Nowhere further up in a live match, and + must never be the key
+    // that pauses.
+    h.key('Equal', '+');
+    expect(speed()).toBe(3);
+
+    h.key('Minus', '-');
+    h.key('Minus', '-');
+    expect(speed()).toBe(0);
+    h.key('Minus', '-');
+    expect(speed()).toBe(0);
+  });
+
+  it('takes the shifted + and the bare = for the same key', () => {
+    const h = harness();
+    controls = h.controls;
+
+    // A US layout shifts Equal into '+'; some layouts do not shift at all.
+    h.key('Equal', '=');
+
+    expect(speed()).toBe(3);
+  });
+
+  it('climbs into the replay gear, which a live match has no rung for', () => {
+    const h = harness();
+    controls = h.controls;
+    setReplayMode(true);
+
+    h.key('Equal', '+');
+    h.key('Equal', '+');
+
+    expect(speed()).toBe(8);
+  });
+
+  it('says nothing to a networked clock', () => {
+    // One shared clock, so there is no pause and no fast forward to press
+    // — which is why the HUD hides those buttons in a match too.
+    const h = harness();
+    controls = h.controls;
+    setNetMode(true);
+
+    h.key('Equal', '+');
+    h.key('Minus', '-');
+
+    expect(h.gears).toEqual([]);
+    expect(speed()).toBe(1);
+  });
+});
+
+describe('watching a replay', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    resetMatchState();
+    setMyPlayerId(ME);
+    setReplayMode(true);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    resetMatchState();
+    vi.unstubAllGlobals();
+  });
+
+  /** A building of the given seat's, stood where nothing else is. */
+  function theirs(id: number, owner: number): BuildingSnap {
+    return {...building(id), owner, x: 20, y: 20};
+  }
+
+  /** The pixel over a building's middle tile, seen from straight above. */
+  function centerOf(
+    h: ReturnType<typeof harness>,
+    b: BuildingSnap,
+  ): {x: number; y: number} {
+    return h.at(b.x + b.w / 2, 0, b.y + b.h / 2);
+  }
+
+  it('rings a rival’s people, where a live match never lets a click land', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(3, 0, 0, THEM);
+
+    h.click(h.screenOf(3));
+
+    expect([...selection()]).toEqual([3]);
+    // And the card is told whose they are: one ring looks like another.
+    expect(selectionOwner()).toBe(THEM);
+  });
+
+  it('leaves the same people alone once it is a live match again', () => {
+    // The same click in a live match, to show what the replay flag is
+    // doing here rather than some other change of behavior.
+    const h = harness();
+    controls = h.controls;
+    setReplayMode(false);
+    h.addUnit(3, 0, 0, THEM);
+
+    h.click(h.screenOf(3));
+
+    expect([...selection()]).toEqual([]);
+    expect(selectionOwner()).toBeNull();
+  });
+
+  it('opens a rival’s building card', () => {
+    const h = harness();
+    controls = h.controls;
+    const mill = theirs(9, THEM);
+    h.addBuilding(mill);
+
+    h.click(centerOf(h, mill));
+
+    expect(selectedBuilding()?.id).toBe(9);
+  });
+
+  it('will not open a card for a hut on ground the seat never scouted', () => {
+    // The renderer does not draw a building on unexplored ground, so a
+    // click that opened its card would read the stock of a hut that is
+    // not on screen — the card telling the player what the picture is
+    // deliberately withholding.
+    const h = harness();
+    controls = h.controls;
+    const mill = theirs(9, THEM);
+    h.addBuilding(mill);
+    h.controls.setFog({
+      visibleAt: () => false,
+      exploredAt: () => false,
+      litAt: () => 0,
+    });
+
+    h.click(centerOf(h, mill));
+
+    expect(selectedBuilding()).toBeNull();
+
+    // F lifts the fog in a replay, and then the same click lands.
+    h.controls.setFog({
+      visibleAt: () => true,
+      exploredAt: () => true,
+      litAt: () => 1,
+    });
+    h.click(centerOf(h, mill));
+
+    expect(selectedBuilding()?.id).toBe(9);
+  });
+
+  it('brings back one banner from a band drawn over a battle', () => {
+    // Weight of numbers decides: the rectangle was aimed at whoever fills
+    // it. A selection flying two banners is one the card cannot name and
+    // the count at the top of it is a fact about nothing.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, -4, -2);
+    h.addUnit(3, 0, 0, THEM);
+    h.addUnit(4, 1, 1, THEM);
+    h.addUnit(5, 2, 2, THEM);
+
+    h.band(...around([h.screenOf(1), h.screenOf(5)]));
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([3, 4, 5]);
+    expect(selectionOwner()).toBe(THEM);
+  });
+
+  it('grows the squad it already holds when the band is shift-drawn', () => {
+    // Otherwise a second corner of the same army swaps sides underneath
+    // the hand, because the rectangle happened to catch more of the enemy.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, -4, -2);
+    h.addUnit(3, 0, 0, THEM);
+    h.addUnit(4, 1, 1, THEM);
+    h.addUnit(5, 2, 2, THEM);
+    h.click(h.screenOf(1));
+
+    h.band(...around([h.screenOf(1), h.screenOf(5)]), true);
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+    expect(selectionOwner()).toBe(ME);
+  });
+
+  it('widens a double-click inside one banner', () => {
+    // "And the rest of them" said over a melee means this side's
+    // swordsmen, not both sides'.
+    const KNIGHT = 2;
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3, THEM, KNIGHT);
+    h.addUnit(2, -4, -2, THEM, KNIGHT);
+    h.addUnit(3, 0, 0, ME, KNIGHT);
+
+    h.click(h.screenOf(1));
+    h.click(h.screenOf(1));
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it('names no seat for a squad shift-clicked out of both sides', () => {
+    // Picked one at a time, each click deliberate — so the mixed set
+    // stands. What cannot stand is a name over it: the card would be
+    // calling half of them somebody they are not.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(3, 0, 0, THEM);
+
+    h.click(h.screenOf(1));
+    expect(selectionOwner()).toBe(ME);
+    h.canvas.fire('pointerdown', ptr(h.screenOf(3).x, h.screenOf(3).y, true));
+    h.canvas.fire('pointerup', ptr(h.screenOf(3).x, h.screenOf(3).y, true));
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 3]);
+    expect(selectionOwner()).toBeNull();
+  });
+
+  it('does not let click order decide what a shift-drag grows', () => {
+    // A mixed hand has no seat to keep, so the drag falls back to the
+    // count over the rectangle — the same rule a plain drag follows, and
+    // one the player can see. Reading the seat off whichever id the
+    // selection yielded first decided the drag by the order they had
+    // clicked in two gestures ago.
+    const shiftClick = (
+      h: ReturnType<typeof harness>,
+      p: {x: number; y: number},
+    ): void => {
+      h.canvas.fire('pointerdown', ptr(p.x, p.y, true));
+      h.canvas.fire('pointerup', ptr(p.x, p.y, true));
+    };
+    /** The same board every time; `order` is which side is clicked first. */
+    const drag = (order: readonly number[]): number[] => {
+      const h = harness();
+      controls?.dispose();
+      controls = h.controls;
+      h.addUnit(1, -8, -8);
+      h.addUnit(2, 0, 0);
+      h.addUnit(3, 1, 1, THEM);
+      h.addUnit(4, 2, 2, THEM);
+      h.addUnit(5, 3, 3, THEM);
+      for (const id of order) shiftClick(h, h.screenOf(id));
+      expect(selectionOwner()).toBeNull();
+      h.band(...around([h.screenOf(2), h.screenOf(5)]), true);
+      return [...selection()].sort((a, b) => a - b);
+    };
+
+    // Three of theirs against one of yours inside the rectangle, so the
+    // band takes theirs — whichever of the two was shift-clicked first.
+    expect(drag([1, 3])).toEqual([1, 3, 4, 5]);
+    expect(drag([3, 1])).toEqual([1, 3, 4, 5]);
+  });
+
+  it('gives no order, however the ring got there', () => {
+    // The worker has always dropped a replay's orders at the door. The
+    // click must not claim otherwise on the way there — a pulse under a
+    // rival's knights says the viewer is in charge of them.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(3, 0, 0, THEM);
+    h.click(h.screenOf(3));
+    expect([...selection()]).toEqual([3]);
+
+    h.order(h.at(6, 0, 6));
+
+    expect(h.commands).toEqual([]);
   });
 });

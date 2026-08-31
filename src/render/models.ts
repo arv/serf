@@ -4,13 +4,6 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {GOODS} from '../sim/defs/goods';
 import type {BuildingTypeId} from '../sim/entities';
 import {makeGlbBuilding, glbCarryProp} from './assets';
-import {
-  planks,
-  plaster,
-  roofTiles,
-  stoneBlocks,
-  thatch,
-} from './buildingTextures';
 import {mapMaterials} from './materials';
 import {
   goodColors as goodColorsLocal,
@@ -39,38 +32,6 @@ export function mesh(geo: THREE.BufferGeometry, color: number): THREE.Mesh {
   m.receiveShadow = true;
   return m;
 }
-
-// Shared textured materials (textures are cached; materials should be too).
-const matCache = new Map<THREE.Texture, THREE.MeshLambertMaterial>();
-function texMat(texture: THREE.Texture): THREE.MeshLambertMaterial {
-  let m = matCache.get(texture);
-  if (!m) {
-    m = new THREE.MeshLambertMaterial({map: texture});
-    matCache.set(texture, m);
-  }
-  return m;
-}
-
-function tmesh(geo: THREE.BufferGeometry, texture: THREE.Texture): THREE.Mesh {
-  const m = new THREE.Mesh(geo, texMat(texture));
-  m.castShadow = true;
-  m.receiveShadow = true;
-  return m;
-}
-
-// The texture wardrobe.
-const TEX = {
-  roofOrange: () => roofTiles('#c9722e'),
-  roofSlate: () => roofTiles('#4d5462'),
-  roofIndigo: () => roofTiles('#3f508c'),
-  roofVermillion: () => roofTiles('#b03a30'),
-  thatch: () => thatch('#8a7434'),
-  thatchDark: () => thatch('#5c4c26'),
-  plank: () => planks('#6e5233'),
-  plankDark: () => planks('#463323'),
-  plaster: () => plaster('#e6d9ba'),
-  stone: () => stoneBlocks('#8a8272'),
-};
 
 export function makeRoadPile(): THREE.Group {
   const g = new THREE.Group();

@@ -1,6 +1,5 @@
 import * as BuildingState from './buildingStateEnum.ts';
 import {GOODS} from './defs/goods.ts';
-import {UNIT_DEFS} from './defs/units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import type {World} from './world.ts';
 

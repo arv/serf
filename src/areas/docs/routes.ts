@@ -1,19 +1,13 @@
 import type {Enum} from '../../shared/enum.ts';
 import {
-  BUILDING_DEFS,
   type BuildingTypeId,
   buildingFromKey,
   BUILDING_KEYS,
 } from '../../sim/defs/buildings';
-import {GOODS, type GoodId, goodFromKey, GOOD_KEYS} from '../../sim/defs/goods';
+import {type GoodId, goodFromKey, GOOD_KEYS} from '../../sim/defs/goods';
 import * as TechId from '../../sim/defs/techIdEnum.ts';
 import {TECH_KEYS} from '../../sim/defs/techs';
-import {
-  UNIT_DEFS,
-  type UnitTypeId,
-  UNIT_KEYS,
-  unitFromKey,
-} from '../../sim/defs/units';
+import {type UnitTypeId, UNIT_KEYS, unitFromKey} from '../../sim/defs/units';
 
 type TechId = Enum<typeof TechId>;
 
@@ -36,15 +30,6 @@ export type DocsRoute =
   | {page: 'basics'}
   | {page: 'credits'}
   | {page: 'missing'; path: string};
-
-/** Own-property lookup, like sanitizeCommand's isDefined: 'constructor' is
- * truthy through the prototype and must not become a page. */
-function isKeyOf<T extends object>(
-  table: T,
-  key: string,
-): key is Extract<keyof T, string> {
-  return Object.hasOwn(table, key);
-}
 
 export function parseDocsPath(pathname: string): DocsRoute {
   const parts = pathname.split('/').filter(p => p !== '');

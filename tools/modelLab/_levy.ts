@@ -18,7 +18,6 @@ import {
   playAnimation,
 } from '../../src/render/characters';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
-import {UNIT_DEFS} from '../../src/sim/defs/units';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import {makeLights, makeRenderer, YAW, PITCH} from './scene';
 

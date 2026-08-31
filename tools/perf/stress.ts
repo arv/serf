@@ -10,7 +10,6 @@
  *   node --experimental-strip-types tools/perf/stress.ts [--ticks N] [--serfs N] [--size N]
  */
 
-import {tileIdx} from '../../src/shared/grid.ts';
 import {Rng} from '../../src/shared/rng.ts';
 import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
 import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';

@@ -3,8 +3,8 @@ import {BUILDING_DEFS, BUILDING_TYPES} from '../../sim/defs/buildings';
 import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../../sim/defs/goodIdEnum.ts';
 import {GOODS, GOOD_KEYS} from '../../sim/defs/goods';
-import {TECH_DEFS, type TechId, TECH_IDS} from '../../sim/defs/techs';
-import {UNIT_DEFS, type UnitTypeId, UNIT_TYPES} from '../../sim/defs/units';
+import {TECH_IDS} from '../../sim/defs/techs';
+import {UNIT_TYPES} from '../../sim/defs/units';
 import {goodName, techName, unitName} from '../../ui/names';
 import {buildingHref, goodHref, techHref, unitHref} from './routes';
 

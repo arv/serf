@@ -75,6 +75,10 @@ export function build(): Authored {
   // Silver in the knoll the def's mine already stands on; iron in the
   // eastern hills, for the smith the levy is armed from.
   v.silverSeam(180, at(-1, -11));
+  // The reserve, a valley deeper into the northern hills: the same silver
+  // country, far enough out that opening it is a decision about the pass
+  // as much as about the ore (map.ts RESERVE_SEAM_BAND).
+  v.silverSeam(120, at(2, -21));
   v.ironSeam(180, at(19, -6));
   // Gold in the wilds beyond the pass, under the bandits' own noses.
   v.goldSeam(110, at(-30, -24));

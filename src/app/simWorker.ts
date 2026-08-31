@@ -23,7 +23,6 @@ import {
 } from '../sim/debug/invariants';
 import {MATCHER_INTERVAL, TICK_MS} from '../sim/defs/balance';
 import type {GoodAmounts} from '../sim/defs/goods';
-import * as MatchState from '../sim/matchStateEnum.ts';
 import {deserializeWorld, serializeWorld} from '../sim/save';
 import {tickWorld, type PlayerCommand} from '../sim/tick';
 import {createWorldAsync, type World} from '../sim/world';

@@ -3,6 +3,7 @@ import type {BuildingSnap} from '../protocol/messages';
 import type {Enum} from '../shared/enum.ts';
 import {
   FORGE_QUEUE_CAP,
+  HIRE_QUEUE_CAP,
   HIRE_SERF_COST,
   HIRE_SERF_TICKS,
   TICKS_PER_SECOND,
@@ -10,16 +11,18 @@ import {
 } from '../sim/defs/balance';
 import {BUILDING_DEFS, gatherRecipeOf, repairBill} from '../sim/defs/buildings';
 import {type GoodAmounts, goodEntries, goodKeys} from '../sim/defs/goods';
-import type {UnitTypeId} from '../sim/defs/units';
 import {GoodIcon, LockIcon} from './icons';
 import {Key} from './shortcut';
 import {
   myPlayerId,
   orderMode,
+  playersMeta,
   population,
+  replayMode,
   selectedBuilding,
   selection,
   selectionGroup,
+  selectionOwner,
   setTechPanelOpen,
   simTick,
   stock,
@@ -31,6 +34,7 @@ import * as StaffingState from '../protocol/staffingStateEnum.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import type {TileResourceKind} from '../sim/map';
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import {SHORT} from './breakpoints';
@@ -44,10 +48,11 @@ import {
   unitTechGate,
 } from './commands';
 import {levyOrder} from './levy';
-import {buildingName, goodName, techName, unitName} from './names';
+import {buildingName, goodName, seatName, techName, unitName} from './names';
 import * as OrderMode from './orderModeEnum.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 type OrderMode = Enum<typeof OrderMode>;
 
 function GoodsLine(props: {amounts: GoodAmounts}) {
@@ -87,6 +92,15 @@ function forgeSlots(
   queue: BuildingSnap['forgeQueue'],
 ): (NonNullable<BuildingSnap['forgeQueue']>[number] | undefined)[] {
   return Array.from({length: FORGE_QUEUE_CAP}, (_, i) => queue?.[i]);
+}
+
+/**
+ * The hire queue's declared slots. The same trick again, over a count
+ * rather than a list: the sim keeps the castle's recruits as a number
+ * (every one of them is the same man), so a slot is filled or it is not.
+ */
+function hireSlots(queued: number | undefined): boolean[] {
+  return Array.from({length: HIRE_QUEUE_CAP}, (_, i) => i < (queued ?? 0));
 }
 
 /**
@@ -133,6 +147,7 @@ export function SelectionPanel(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onHire: () => void;
+  onCancelHire: (index: number) => void;
   onDeselect: () => void;
   onArmOrder: (mode: OrderMode | null) => void;
   onClearRally: (buildingId: number) => void;
@@ -245,10 +260,6 @@ export function SelectionPanel(props: {
           position: absolute; inset: 0 auto 0 0;
           background: rgba(229, 196, 105, 0.3); pointer-events: none;
         }
-        /* ×2, ×3 … on the hire button: a slot, so the button doesn't
-           breathe every time a recruit lands. */
-        .sel-hire-n { display: inline-block; min-width: 3ch; }
-
         /* ——— The training queue ———
            A declared grid, not a wrapping row of chips. The count plus
            one cell per queue slot, three to a row — six cells and two
@@ -414,6 +425,16 @@ export function SelectionPanel(props: {
             <div class="hud-selection panel">
               <div class="sel-head">
                 <span class="name">{buildingName(b().type)}</span>
+                {/* Whose it is — printed only when it is not yours, which
+                    outside a replay is never: the pointer reaches nobody
+                    else's buildings in a live match, and a card that
+                    announced "yours" on every hut would be saying the one
+                    thing the player already knows. Watching a recording it
+                    is the first thing they need, because a mill is a mill
+                    whoever raised it. */}
+                <Show when={!mine()}>
+                  <span class="note">{seatName(b().owner, playersMeta())}</span>
+                </Show>
                 {/* The same feedback loop the unit card's badge is, for the
                     half of the number row that opens a card: Ctrl+4 on the
                     barracks changes nothing a player can see, so without
@@ -535,8 +556,18 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
+              {/* mine(), like every other row that gives an order: a
+                  replay can open a rival's Smith, and a live ✕ over the
+                  Warlord's forge queue offers a thing that was never on
+                  the table. Only the repair/pause/sell row used to need
+                  saying so, because only your own buildings could be
+                  selected at all. */}
               <Show
-                when={def().recipeOptions && b().state === BuildingState.built}
+                when={
+                  mine() &&
+                  def().recipeOptions &&
+                  b().state === BuildingState.built
+                }
               >
                 {/* The forge menu: one declared grid, three to a row —
                     nine recipes today and the frame would hold a tenth.
@@ -680,8 +711,20 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
+              {/* The castle's recruiting, built like the barracks': an
+                  order button, and under it the queue as a declared grid
+                  of slots. It used to be the button alone, wearing the
+                  leader's walk as a fill and the depth as a "×3" — which
+                  said how many were coming and gave the player no way to
+                  say "not that many after all". A recruit is four silver
+                  paid up front, and a hire ordered into a raid (or a
+                  fourth one ordered by a slipped finger) was money the
+                  village could not get back. Now every man in the line
+                  has a slot with a ✕ on it, exactly as a drilling
+                  spearman does. */}
               <Show
                 when={
+                  mine() &&
                   b().type === BuildingTypeId.storehouse &&
                   b().state === BuildingState.built
                 }
@@ -696,39 +739,86 @@ export function SelectionPanel(props: {
                             ? 'Every bed in the village is taken — counting the recruits already walking in, who each need one on arrival. Build a house; each sleeps ten.'
                             : `Word goes out to the next village; the recruit walks in after about ${Math.round(
                                 HIRE_SERF_TICKS / TICKS_PER_SECOND,
-                              )} seconds. Costs ${HIRE_SERF_COST} silver, paid when you order.`
+                              )} seconds. Costs ${HIRE_SERF_COST} silver, paid when you order — and refunded in full if you call him back off the road.`
                         }
                       />
                     )}
                   >
                     <button
-                      class="sel-progress"
                       disabled={!canHire(b(), stock(), population())}
                       onClick={() => props.onHire()}
                     >
-                      {/* The recruit's walk, filling the button left to right. */}
-                      <span
-                        aria-hidden="true"
-                        class="sel-fill"
-                        style={{
-                          width: `${(b().hireQueue ? (b().hireProgress01 ?? 0) : 0) * 100}%`,
-                        }}
-                      />
-                      <span>
-                        <Key label="Hire Serf" k={HIRE_KEY} />
-                        <span class="sel-hire-n">
-                          <Show when={(b().hireQueue ?? 0) > 1}>
-                            {' '}
-                            ×{b().hireQueue}
-                          </Show>
-                        </span>
-                      </span>
+                      <Key label="Hire Serf" k={HIRE_KEY} />
                       <span class="cost">
                         <GoodIcon good={GoodId.silver} size={12} />
                         {HIRE_SERF_COST}
                       </span>
                     </button>
                   </TipWrap>
+                </div>
+                {/* HIRE_QUEUE_CAP slots, the training queue's grid and the
+                    training queue's rules — the count and then one cell per
+                    slot, drawn at full depth from the moment the castle is
+                    selected, so a recruit landing changes what a slot says
+                    and never how many there are. */}
+                <div class="sel-queue">
+                  <span class="sel-label">
+                    queue <span class="num">{b().hireQueue ?? 0}</span>/
+                    {HIRE_QUEUE_CAP}
+                  </span>
+                  {/* Index over positions rather than over men: the queue is
+                      a count, and every recruit in it is the same recruit —
+                      only the slot's place in the line tells them apart. */}
+                  <Index each={hireSlots(b().hireQueue)}>
+                    {(slot, i) => (
+                      <Show
+                        when={slot()}
+                        fallback={
+                          <span class="sel-slot empty" aria-hidden="true" />
+                        }
+                      >
+                        <TipWrap
+                          tip={() => (
+                            <TextTip
+                              title={
+                                i === 0
+                                  ? 'Call the recruit back'
+                                  : 'Cancel the order'
+                              }
+                              body={
+                                i === 0
+                                  ? `He turns around wherever he is on the road and the ${HIRE_SERF_COST} silver comes back to the castle. Only the walk is lost — the next in line sets out fresh.`
+                                  : `Word never goes out for this one, and the ${HIRE_SERF_COST} silver comes back to the castle. The man already walking is not disturbed.`
+                              }
+                            />
+                          )}
+                        >
+                          <button
+                            class="sel-progress sel-slot"
+                            classList={{waiting: i > 0}}
+                            onClick={() => props.onCancelHire(i)}
+                          >
+                            {/* The leader's walk, filling his chip left to
+                                right — the same clock the button used to
+                                wear, now on the man it belongs to. Nobody
+                                behind him has set out, so nobody behind him
+                                has a fill. */}
+                            <span
+                              aria-hidden="true"
+                              class="sel-fill"
+                              style={{
+                                width: `${(i === 0 ? (b().hireProgress01 ?? 0) : 0) * 100}%`,
+                              }}
+                            />
+                            <span class="unit">
+                              {unitName(UnitTypeId.serf)}
+                            </span>
+                            <span class="x">✕</span>
+                          </button>
+                        </TipWrap>
+                      </Show>
+                    )}
+                  </Index>
                 </div>
               </Show>
 
@@ -758,7 +848,11 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={def().trains && b().state === BuildingState.built}>
+              <Show
+                when={
+                  mine() && def().trains && b().state === BuildingState.built
+                }
+              >
                 {/* Wraps: three priced train buttons outgrow the card's
                     width cap on a narrow screen, and are better stacked
                     than sliced. Safe to wrap where the queue below is
@@ -1114,6 +1208,20 @@ export function SelectionPanel(props: {
             <span style={{'flex': '1', 'min-width': '150px'}}>
               <span class="num">{selection().size}</span>{' '}
               {selection().size === 1 ? 'unit' : 'units'} selected
+              {/* Whose, on the same rule the building card's name follows.
+                  Absent for a set that is not one seat's — a shift-click
+                  across a battle can build one, and no single name would
+                  cover it (see Controls' #soleOwner). */}
+              <Show
+                when={
+                  selectionOwner() !== null && selectionOwner() !== myPlayerId()
+                }
+              >
+                <span class="note">
+                  {' · '}
+                  {seatName(selectionOwner()!, playersMeta())}
+                </span>
+              </Show>
               {/* The whole feedback loop for control groups. Ctrl+1 changes
                   nothing a player can see — the same units stay selected —
                   so without this badge the stamp is a keypress into the
@@ -1133,45 +1241,55 @@ export function SelectionPanel(props: {
                 to the two orders a finger otherwise cannot ask for: the plain
                 walk that ignores what it passes, and the full attack-move.
                 A single tap on the map still sends the half order between
-                them. Clicking an armed button again calls the order off. */}
-            <TipWrap
-              tip={() => (
-                <TextTip
-                  title="Attack-move"
-                  body="Then click a spot: they advance on it and engage anything they meet on the way."
-                />
-              )}
-            >
-              <button
-                classList={{active: orderMode() === OrderMode.attack}}
-                onClick={() =>
-                  props.onArmOrder(
-                    orderMode() === OrderMode.attack ? null : OrderMode.attack,
-                  )
-                }
+                them. Clicking an armed button again calls the order off.
+
+                Gone entirely in a replay rather than greyed: the squad in
+                the rings may not even be the watching seat's, and a
+                disabled Attack button beside the Warlord's knights offers
+                a thing that was never on the table. The ✕ stays — letting
+                go is an order to nobody. */}
+            <Show when={!replayMode()}>
+              <TipWrap
+                tip={() => (
+                  <TextTip
+                    title="Attack-move"
+                    body="Then click a spot: they advance on it and engage anything they meet on the way."
+                  />
+                )}
               >
-                <Key label="Attack" k="A" />
-              </button>
-            </TipWrap>
-            <TipWrap
-              tip={() => (
-                <TextTip
-                  title="Move"
-                  body="Then click a spot: they walk there and ignore every fight on the way — the order to retreat with."
-                />
-              )}
-            >
-              <button
-                classList={{active: orderMode() === OrderMode.move}}
-                onClick={() =>
-                  props.onArmOrder(
-                    orderMode() === OrderMode.move ? null : OrderMode.move,
-                  )
-                }
+                <button
+                  classList={{active: orderMode() === OrderMode.attack}}
+                  onClick={() =>
+                    props.onArmOrder(
+                      orderMode() === OrderMode.attack
+                        ? null
+                        : OrderMode.attack,
+                    )
+                  }
+                >
+                  <Key label="Attack" k="A" />
+                </button>
+              </TipWrap>
+              <TipWrap
+                tip={() => (
+                  <TextTip
+                    title="Move"
+                    body="Then click a spot: they walk there and ignore every fight on the way — the order to retreat with."
+                  />
+                )}
               >
-                <Key label="Move" k="M" />
-              </button>
-            </TipWrap>
+                <button
+                  classList={{active: orderMode() === OrderMode.move}}
+                  onClick={() =>
+                    props.onArmOrder(
+                      orderMode() === OrderMode.move ? null : OrderMode.move,
+                    )
+                  }
+                >
+                  <Key label="Move" k="M" />
+                </button>
+              </TipWrap>
+            </Show>
             <button onClick={() => props.onDeselect()}>✕</button>
           </div>
           {/* An armed order outranks the standing advice: what the next
@@ -1182,13 +1300,15 @@ export function SelectionPanel(props: {
               the buttons, so swapping one sentence for another cannot
               shuffle them. */}
           <div class="sel-line" style={{opacity: 0.6}}>
-            {orderMode() === OrderMode.attack
-              ? 'click where to attack-move'
-              : orderMode() === OrderMode.move
-                ? 'click where to walk'
-                : matchMedia('(pointer: coarse)').matches
-                  ? 'tap the ground to send them'
-                  : 'right-click to send them'}
+            {replayMode()
+              ? 'a recording takes no orders — watching only'
+              : orderMode() === OrderMode.attack
+                ? 'click where to attack-move'
+                : orderMode() === OrderMode.move
+                  ? 'click where to walk'
+                  : matchMedia('(pointer: coarse)').matches
+                    ? 'tap the ground to send them'
+                    : 'right-click to send them'}
           </div>
         </div>
       </Show>

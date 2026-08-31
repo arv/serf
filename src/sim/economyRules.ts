@@ -1,4 +1,5 @@
 import type {Enum} from '../shared/enum.ts';
+import {tileX, tileY} from '../shared/grid.ts';
 import type {SimCommand} from './commands.ts';
 import type {AiStrategy} from './defs/aiStrategies.ts';
 import {FORGE_QUEUE_CAP} from './defs/balance.ts';
@@ -16,7 +17,13 @@ import type {TechId} from './defs/techs.ts';
 import {WEAPON_OF, type UnitTypeId} from './defs/units.ts';
 import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
 import type {Building, EntityId, Owner} from './entities.ts';
-import {findResourcesNear, nearestResource} from './map.ts';
+import {
+  countResourceNear,
+  findResourcesNear,
+  nearestResource,
+  nearestResourceOutside,
+} from './map.ts';
+import {findSpot} from './siting.ts';
 import {isUnitUnlocked} from './techHelpers.ts';
 import type {World} from './world.ts';
 
@@ -96,6 +103,14 @@ export interface RuleContext {
   serfCount: number;
   /** The stall watchdog's reading for this beat. */
   stalled: boolean;
+  /**
+   * Has the build order already sited a building this beat? A rule that
+   * puts down a foundation of its own has to stand down when it has: the
+   * build order places one thing per decision on purpose, because two
+   * foundations at once split the village's haulage and neither of them
+   * gets finished.
+   */
+  placed: boolean;
   /** The seat's effective playbook — printed values with any advice merged
    * over them, which is what the war rules steer by. */
   strategy: AiStrategy;
@@ -185,6 +200,151 @@ const resiteExtractor: EconomyRule = {
       if (!canRebuild) continue;
       return {
         commands: [{kind: CommandKind.sellBuilding, buildingId: b.id}],
+        claims: [b.id],
+      };
+    }
+    return null;
+  },
+};
+
+/**
+ * How little a mine may have left in reach before the seat goes looking
+ * for its next seam — counted in loads, which is exactly what
+ * `countResourceNear` returns.
+ *
+ * Read it as a lead time rather than as a fraction. A mine takes a load
+ * every four seconds of work plus the walk, so forty loads is a few
+ * minutes of digging left; raising the successor costs twenty seconds of
+ * building and however long the timber and stone take to arrive, and the
+ * reserve seam is deliberately out past everyone's home ring
+ * (`map.ts` RESERVE_SEAM_BAND), so the first silver from it is a long haul
+ * behind that again. Starting at the last load is starting far too late:
+ * the seat that does it spends the gap between the seams with no purse at
+ * all, which is when hiring stops, research stops, and a village that
+ * looks healthy quietly cannot buy anything ever again.
+ *
+ * A little over a fifth of a generated silver seam (180), and rather
+ * more of the iron one — iron is dug against a smith that stockpiles,
+ * silver against a purse everything spends from.
+ */
+const SEAM_RUNNING_OUT = 40;
+
+/**
+ * Open the reserve seam before the working one runs dry.
+ *
+ * A mine is a hole in a finite amount of metal. The map hands every seat a
+ * home seam and a reserve further out (`map.ts`), and the whole point of
+ * the second one is that a seat should be digging it *before* the first is
+ * gone — the alternative is what a long match used to look like from the
+ * inside: the silver stops, hires stop with it, research stops, and the
+ * village goes on looking healthy for another twenty minutes while it
+ * slowly cannot afford anything.
+ *
+ * So this is the prospecting rule, and it deliberately does NOT wait on the
+ * stall watchdog. `resiteExtractor` is the mirror of it and does: that one
+ * is for a hut standing on dead ground, a loss already taken, and it sells
+ * to pay for the move. This one spends fresh materials on a second mine
+ * while the first is still producing, which is not a recovery at all — it
+ * is the ordinary business of a seat that intends to be here in an hour.
+ *
+ * What holds it to one mine:
+ *
+ * - The successor test. A second mine of the same kind that is either
+ *   still going up or still has ore in reach IS the answer to this beat,
+ *   so the rule says nothing more until that one is running out too.
+ * - The site search skips ground the seat's own mines already reach, so
+ *   the successor lands on a different seam rather than beside the tired
+ *   mine on the last tiles of the same one.
+ * - It stands down on a beat the build order already sited something
+ *   (`ctx.placed`), for the reason the build order itself only ever
+ *   places one thing: two foundations at once split a village's haulage
+ *   and neither gets finished.
+ *
+ * Where it looks from is home, not the tired mine: every load has to be
+ * carried to the storehouse, so the nearest seam to the storehouse is the
+ * cheapest seam whatever the mine that ran out happens to think.
+ *
+ * Fog does not enter into it. Terrain and the resource layout ship whole to
+ * every player in the init frame — a human reads the seams off the map on
+ * turn one — so a seat steering at ore it has not walked to is reading the
+ * same public map, not cheating (systems/ai.ts `nextSearchGoal` says the
+ * same thing at more length).
+ */
+const openReserveMine: EconomyRule = {
+  id: EconomyRuleIdNs.openReserveMine,
+  when: 'a mine is nearly through its seam and there is another one further out',
+  phase: RulePhaseNs.production,
+  fire(ctx) {
+    if (ctx.placed) return null;
+    const map = ctx.world.map;
+    /** Loads still standing inside a gatherer's own reach. */
+    const leftFor = (b: Building): number => {
+      const def = BUILDING_DEFS[b.type as BuildingTypeId];
+      const recipe = gatherRecipeOf(def);
+      if (!recipe) return 0;
+      const c = gatherOrigin(def, b.x, b.y);
+      return countResourceNear(map, c.x, c.y, recipe.resource, recipe.radius);
+    };
+    for (const b of ctx.mine) {
+      if (b.state !== BuildingState.built) continue;
+      const def = BUILDING_DEFS[b.type as BuildingTypeId];
+      // Mines only. A woodcutter's grove grows back and a quarry is cheap
+      // to re-site; a seam is spent for the rest of the match, and it is
+      // the metals a seat's whole economy is denominated in.
+      if (!def.mine) continue;
+      const recipe = gatherRecipeOf(def);
+      if (!recipe) continue;
+      if (leftFor(b) > SEAM_RUNNING_OUT) continue;
+      const answered = ctx.mine.some(
+        o =>
+          o.id !== b.id &&
+          o.type === b.type &&
+          (o.state !== BuildingState.built || leftFor(o) > SEAM_RUNNING_OUT),
+      );
+      if (answered) continue;
+      const payable = goodEntries(def.cost).every(
+        ([good, n]) => (ctx.stock[good] ?? 0) >= n,
+      );
+      if (!payable) continue;
+      // Ground this seat is already digging, so the search walks past it.
+      const worked = ctx.mine
+        .filter(o => o.type === b.type)
+        .map(o => ({
+          ...gatherOrigin(BUILDING_DEFS[o.type as BuildingTypeId], o.x, o.y),
+          radius: recipe.radius,
+        }));
+      const home = ctx.mine.find(
+        o => BUILDING_DEFS[o.type as BuildingTypeId].storage,
+      );
+      const from = home ?? b;
+      const tile = nearestResourceOutside(
+        map,
+        recipe.resource,
+        from.x,
+        from.y,
+        worked,
+      );
+      if (tile < 0) continue; // the map has no more of this metal anywhere
+      const size = map.size;
+      // Inside the new mine's own reach of the seam, which is the radius
+      // the playbooks anchor a mine at too.
+      const spot = findSpot(
+        ctx.world,
+        b.type as BuildingTypeId,
+        tileX(tile, size),
+        tileY(tile, size),
+        recipe.radius,
+      );
+      if (!spot) continue;
+      return {
+        commands: [
+          {
+            kind: CommandKind.placeBuilding,
+            building: b.type as BuildingTypeId,
+            x: spot.x,
+            y: spot.y,
+          },
+        ],
         claims: [b.id],
       };
     }
@@ -892,6 +1052,7 @@ const keepTheQueueWarm: EconomyRule = {
  */
 export const ECONOMY_RULES: readonly EconomyRule[] = [
   resiteExtractor,
+  openReserveMine,
   freeCappedHauler,
   resumeDrainedPost,
   keepTheToolsComing,
@@ -944,6 +1105,7 @@ export function runEconomyRules(
 /** The spelling of each rule id, for the lab's --rules flag and its traces. */
 export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
   [EconomyRuleIdNs.resiteExtractor]: 'resiteExtractor',
+  [EconomyRuleIdNs.openReserveMine]: 'openReserveMine',
   [EconomyRuleIdNs.freeCappedHauler]: 'freeCappedHauler',
   [EconomyRuleIdNs.resumeDrainedPost]: 'resumeDrainedPost',
   [EconomyRuleIdNs.keepTheToolsComing]: 'keepTheToolsComing',

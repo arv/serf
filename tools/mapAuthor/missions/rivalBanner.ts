@@ -86,6 +86,10 @@ export function build(): Authored {
   // Priced exactly as worldgen prices a two-seat valley's seams, and set
   // in each banner's own ground rather than on a shared ring.
   for (const p of twin(-9, -5)) v.silverSeam(180, p);
+  // The reserve, priced and placed as worldgen places one: out past the
+  // home ring, down each banner's own southern flank, and mirrored like
+  // everything else here (map.ts RESERVE_SEAM_BAND).
+  for (const p of twin(-4, 22)) v.silverSeam(120, p);
   for (const p of twin(-5, -14)) v.ironSeam(144, p);
   // The gold is the exception by design: contested, in the middle, with
   // the bandit camp standing over it.

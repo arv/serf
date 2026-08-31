@@ -9,12 +9,8 @@ import {
 } from '../../../render/characters';
 import {makeRoadPile} from '../../../render/models';
 import type {Enum} from '../../../shared/enum.ts';
-import {
-  BUILDING_DEFS,
-  type BuildingTypeId,
-  buildingFromKey,
-} from '../../../sim/defs/buildings';
-import {UNIT_DEFS, type UnitTypeId, unitFromKey} from '../../../sim/defs/units';
+import {BUILDING_DEFS, buildingFromKey} from '../../../sim/defs/buildings';
+import {unitFromKey} from '../../../sim/defs/units';
 import {BANDIT} from '../../../sim/entities';
 import {RAIDER_BUILDINGS, RAIDER_UNITS} from '../data';
 import {

@@ -74,7 +74,11 @@ for (const id of ids.length > 0 ? ids : MISSION_ORDER) {
   authored.campSpot ??= def.campSpot;
   authored.prebuilt ??= def.prebuilt;
   const json = authored.valley.serialize(authored.name, authored.starts);
-  const out = `src/sim/defs/maps/${id}.json`;
+  // Named by the mission's key, which is what the loader's wrappers
+  // import (defs/missionMaps.ts). Ids are numbers now, and writing
+  // `maps/5.json` beside the checked-in `maps/levy.json` is a rebuild
+  // that silently changes nothing.
+  const out = `src/sim/defs/maps/${MISSION_KEYS[id]}.json`;
   if (!dry) writeFileSync(out, json);
   const report = audit(authored);
   console.log(

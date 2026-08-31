@@ -337,7 +337,6 @@ describe('the damage bars', () => {
     const {sync, scene} = makeSync();
     const cam = new THREE.Quaternion();
     const eye = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
     const look = new THREE.Object3D();
     /** Aim a camera at (x, z) from the rig's own fixed offset. */
     const aimAt = (x: number, z: number): void => {

@@ -31,7 +31,7 @@ describe('AI seats', () => {
       for (const c of commands) issuers.add(c.playerId);
       tickWorld(world, commands);
     }
-    expect([...issuers].sort()).toEqual([1, 2]);
+    expect([...issuers].sort((a, b) => a - b)).toEqual([1, 2]);
   });
 
   it('actually gets the AI building — the wiring is live, not just called', () => {

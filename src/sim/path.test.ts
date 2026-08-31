@@ -146,7 +146,6 @@ describe('A* pathfinding', () => {
     expect(path).not.toBeNull();
     const last = path[path.length - 1]!;
     const lx = tileX(last, map.size);
-    const ly = tileY(last, map.size);
     expect(lx).toBeGreaterThanOrEqual(19);
     expect(lx).toBeLessThanOrEqual(23);
     expect(map.blocked[last]).toBe(0);

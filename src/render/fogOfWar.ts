@@ -432,11 +432,14 @@ export class FogOfWar implements FogQuery {
 
   #patch(material: THREE.Material): void {
     if (this.#patched.has(material)) return;
+    // Stored to be assigned straight back onto this same material (see
+    // #restore); it is never called detached, and the live call site
+    // below binds before it invokes.
+    // oxlint-disable-next-line typescript/unbound-method
+    const own = material.onBeforeCompile;
     this.#patched.set(
       material,
-      Object.hasOwn(material, 'onBeforeCompile')
-        ? material.onBeforeCompile
-        : undefined,
+      Object.hasOwn(material, 'onBeforeCompile') ? own : undefined,
     );
     // Screen-space overlays (hp bars, selection rings) opt out: they only
     // ever show for things the player can already see.

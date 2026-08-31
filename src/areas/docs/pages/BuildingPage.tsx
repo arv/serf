@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js';
 import type {Enum} from '../../../shared/enum.ts';
 import {BUILDING_DEFS, TOOL_OF} from '../../../sim/defs/buildings';
 import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
-import {type GoodId, goodKeys} from '../../../sim/defs/goods';
+import {goodKeys} from '../../../sim/defs/goods';
 import {buildKey} from '../../../ui/buildMenu';
 import {buildingName, goodName, techName, unitName} from '../../../ui/names';
 import {

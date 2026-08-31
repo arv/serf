@@ -34,6 +34,11 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
       'Pay silver for a recruit from the next village over; he walks in after a delay.',
     payload: 'no fields',
   },
+  [CommandKind.cancelHire]: {
+    summary:
+      'Call a paid-for recruit back off the road. The silver is refunded in full; striking the man already walking costs the next one a fresh walk.',
+    payload: 'index',
+  },
   [CommandKind.sellBuilding]: {
     summary:
       'Tear a building down; half its materials and everything it held are left as a salvage pile to cart home.',

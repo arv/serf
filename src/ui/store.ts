@@ -54,6 +54,24 @@ export const [selectionGroup, setSelectionGroup] = createSignal<number | null>(
   null,
 );
 
+/**
+ * Whose people the standing selection is — null when nobody is selected,
+ * and null again for the mixed set a shift-click across a battle can
+ * build, since no one name would cover it.
+ *
+ * A live match never needs asking: the pointer reaches your own and
+ * nothing else, so the answer is always myPlayerId() and no card bothers
+ * printing it. A replay lets the pointer reach every seat, and there a
+ * ring around the Warlord's knights and a ring around your own are the
+ * same ring — this is what lets the card say which it is.
+ *
+ * Written by Controls beside the selection itself, because that is where
+ * the ids and the owner lookup both are (see #soleOwner).
+ */
+export const [selectionOwner, setSelectionOwner] = createSignal<number | null>(
+  null,
+);
+
 /** The seat this client plays (0 until lobbies land). Everything the HUD
  * shows — stock, techs, outcome copy, selection filters — is this player's
  * perspective. */
@@ -390,6 +408,7 @@ export function resetMatchState(): void {
   setSpeed(1);
   setSelection(new Set<number>());
   setSelectionGroup(null);
+  setSelectionOwner(null);
   setMyPlayerId(0);
   setPlayersMeta([]);
   setNetMode(false);
