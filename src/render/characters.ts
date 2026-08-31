@@ -621,14 +621,34 @@ function fishingPoleProp(): THREE.Group {
   return wrap;
 }
 
-/** Relaxed grip: mid-haft, head tipped out and a touch forward. Tools sat
+/** How far down its own haft a tool is gripped, world units. Exported so
+ * the model lab's live knobs re-derive the slide from the same number
+ * rather than a copy of it. */
+export const GRIP_SLIDE = 0.14;
+
+/**
+ * Relaxed grip: mid-haft, head tipped out and a touch forward. Tools sat
  * grip-at-end pointing straight down the idle arm, which parked the spade
  * blade at the ankle and read as dropped rather than held; these angles
  * were tuned live in the fitting room and still swing true in the work
- * loops. */
-function gripPose<T extends THREE.Object3D>(tool: T): T {
-  tool.position.y = -0.14;
-  tool.rotation.set(0.35, 0, -0.55);
+ * loops.
+ *
+ * `pitch` is extra roll about the fist for a tool that wants its head
+ * carried lower than the swung ones do (the scythe's). It joins the
+ * pose's own roll rather than nesting under it, so the slide below can
+ * follow the haft the tool actually ends up on.
+ */
+function gripPose<T extends THREE.Object3D>(tool: T, pitch = 0): T {
+  tool.rotation.set(0.35, 0, -0.55 + pitch);
+  // The slide has to run down the tool's OWN haft. `position` lands in
+  // the hand's frame and is applied after the rotation, so the bare
+  // (0, -GRIP_SLIDE, 0) this used to be carried the haft sideways out of
+  // the fist as much as down it: every hand tool in the game hung a haft's
+  // width — 0.08 world, three times the shaft's own radius — clear of the
+  // hand that was supposed to be gripping it, the fist closed on air
+  // beside the wood. Rotated into the pose, the slide moves the grip
+  // along the haft and nothing else, and the haft runs through the fist.
+  tool.position.set(0, -GRIP_SLIDE, 0).applyEuler(tool.rotation);
   return tool;
 }
 
@@ -656,33 +676,58 @@ function packToolProp(
 }
 
 /**
- * The pack scythe, re-gripped. Its origin sits just under the blade
- * collar rather than mid-haft — dropped in raw, the farmer's fist landed
- * ON the collar and he swung the thing like a sword by the wrong end,
- * snath trailing as a counterweight. The inner offset slides the grip
- * down to the haft's middle, and the pitch carries the head forward so
- * the sweep runs at the stalks instead of level at the hip.
+ * The pack scythe, re-gripped and turned the right way round. Its origin
+ * sits mid-haft rather than at the butt, so the pose's own slide alone
+ * grips it three fifths of the way up — head-heavy, the snath trailing
+ * as a counterweight; the inner offset pushes the tool back out along
+ * the snath until the fist is on the middle wrapping. The half-turn puts
+ * the hook under the snath instead of over it, and the pitch that floats
+ * the head clear of the turf rides on the grip (SCYTHE_PITCH).
  */
 function packScytheProp(): THREE.Group {
   if (!kkAssets?.props.get('weapons/scythe')) return scytheProp();
   const inner = packToolProp('weapons/scythe', 0.8, scytheProp);
+  // Half a turn about the snath — the same fix-up the pack axe wears in
+  // KK_SPECS, for the same reason. The file hooks its blade out to one
+  // side of the haft, and the handslot leads with the prop's +Y, which
+  // laid that hook ABOVE the snath: through the whole mowing stroke the
+  // blade rode the top of the sweep with its edge at the sky, curling
+  // back over the farmer's shoulder — a man cutting wheat with the spine
+  // of the blade, holding the thing backwards. Turned, the hook hangs
+  // under the far end of the snath the way a scythe's does and the sweep
+  // carries it through the stalks.
+  inner.rotation.y = Math.PI;
   // Slide the grip: 0.10 puts the fist on the haft's middle wrapping,
   // just under halfway up. More reads better still in the swing but the
   // surplus hangs BELOW the fist everywhere else — at idle the arm
   // points the head at the ground, and by 0.22 the tool stood buried to
   // the wrappings with the blade tip surfacing a step away like a shark.
   inner.position.y = 0.1;
-  // A modest pitch about the fist drops the blade toward the stalks
-  // through the sweep. Tuned against the whole wardrobe, not one clip:
-  // -0.45 cut lower still, and stood the idle scythe out behind the
-  // farmer's back where nothing of it showed at all.
-  const pivot = new THREE.Group();
-  pivot.rotation.z = -0.2;
-  pivot.add(inner);
   const g = new THREE.Group();
-  g.add(pivot);
+  g.add(inner);
   return g;
 }
+
+/**
+ * The scythe's extra roll about the fist (gripPose's `pitch`), lifting
+ * the head rather than dropping it: with the hook turned under, the arm's
+ * own aim at the ground is now the blade's, and the -0.2 the upside-down
+ * tool wore drove the whole head under the turf — the farmer mowed a
+ * furrow, and at rest nothing of the scythe showed below the collar at
+ * all. Tuned against the whole wardrobe, not one clip: 0.45 floats the
+ * tip at stalk height through the stroke and rests it on the grass at
+ * idle, where 0.5 already carried the stroke level at the hip.
+ *
+ * It rides on the pose rather than on a pivot inside the prop so that the
+ * grip slide knows about it — nested, the slide followed the unpitched
+ * haft and put the fist beside the snath again.
+ */
+const SCYTHE_PITCH = 0.45;
+
+/** Work tools that want gripPose's `pitch`; the rest take the pose bare. */
+const WORK_TOOL_PITCH: Record<number, number> = {
+  8: SCYTHE_PITCH, // WORK.mow
+};
 
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
   3: () => packToolProp('tools/hammer', 0.52, malletProp), // WORK.hammer
@@ -716,6 +761,10 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   // farmer mows with the scythe he carries).
   const covered = make && visual.defaultTool?.userData.workKind === workKind;
   if (make && !covered) {
+    // The pose lives on the holder, not the tool: the rod cancels these
+    // very angles from inside itself (fishingPoleProp), so re-posing the
+    // tool would undo its own fix-up.
+    gripPose(visual.toolCustom, WORK_TOOL_PITCH[workKind] ?? 0);
     visual.toolCustom.add(make());
     if (visual.defaultTool) visual.defaultTool.visible = false;
   } else if (visual.defaultTool) {
@@ -821,6 +870,8 @@ interface ProfLook {
   /** Permanent carried tool + the WORK.* it already covers. */
   tool?: () => THREE.Group;
   toolWorkKind?: number;
+  /** Extra roll about the fist for that tool (gripPose's `pitch`). */
+  gripPitch?: number;
   strawHat?: boolean;
 }
 
@@ -832,6 +883,7 @@ const PROF_LOOKS = new Map<number, ProfLook>([
       spec: {file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a},
       tool: packScytheProp,
       toolWorkKind: 8, // WORK.mow
+      gripPitch: SCYTHE_PITCH,
       strawHat: true,
     },
   ],
@@ -992,7 +1044,7 @@ function makeKayKitCharacter(
       // The profession's own tool: carried at rest like a soldier carries
       // a sword, worked with on site, and stowed only while the hands are
       // full of goods (TOOL_STOWED).
-      proceduralTool = gripPose(look.tool());
+      proceduralTool = gripPose(look.tool(), look.gripPitch ?? 0);
       proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
       toolAnchor.add(proceduralTool);
     }

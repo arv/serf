@@ -1,5 +1,4 @@
 import type {Enum} from '../shared/enum.ts';
-import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
@@ -41,8 +40,13 @@ export interface RosterGroup {
 export interface UnitSource {
   /** UnitTypeId, or null for an id no longer in the latest publish. */
   kindOf(id: number): number | null;
-  /** 0..255 of the kind's full health, or null for an id that has gone. */
+  /** 0..255 of this unit's own full health, or null for an id that has gone. */
   hpPctOf(id: number): number | null;
+  /**
+   * This unit's full health in hitpoints — his own, which armour research
+   * moves off his kind's. Null for an id that has gone.
+   */
+  maxHpOf(id: number): number | null;
 }
 
 /**
@@ -88,9 +92,10 @@ function isUnitTypeId(kind: number): kind is UnitTypeId {
  * mend, people do not (see the tower that "is not a hospital" in
  * combat.test.ts). Research does raise what a soldier is *trained* at
  * (ModifierKey.militaryHp — Mail Armor, Gilded Arms), but that is the
- * number he walks out of the barracks with, not a gain he makes later. So
- * a man crosses from whole to hurt once in his life, moves up the card
- * once, and stays put. Sorting on how hurt he is would not have that
+ * number he walks out of the barracks with, and it is his own maximum here,
+ * so it raises both sides of the comparison at once rather than making him
+ * read hurt. So a man crosses from whole to hurt once in his life, moves up
+ * the card once, and stays put. Sorting on how hurt he is would not have that
  * property: the tiles would re-order on every arrow, which is exactly when
  * the player is trying to read them.
  */
@@ -125,7 +130,9 @@ export function rosterOf(
     if (kind === null || !isUnitTypeId(kind)) continue;
     const pct = src.hpPctOf(id);
     if (pct === null) continue;
-    out.push({id, kind, hp: hpFromPct(pct, kind), maxHp: UNIT_DEFS[kind].hp});
+    const maxHp = src.maxHpOf(id);
+    if (maxHp === null) continue;
+    out.push({id, kind, hp: hpFromPct(pct, maxHp), maxHp});
   }
   const crowded = out.length > ROSTER_TILES;
   out.sort(
@@ -138,27 +145,22 @@ export function rosterOf(
 }
 
 /**
- * The byte back into hitpoints. It was written as a rounded fraction of the
- * kind's maximum, so this cannot be exact — it is out by at most half a
- * point on the biggest unit in the game, which is under what the card
- * prints anyway.
+ * The byte back into hitpoints. It was written as a rounded fraction of a
+ * maximum, so this cannot be exact — it is out by at most half a point on
+ * the biggest unit in the game, which is under what the card prints anyway.
  *
- * The kind's maximum, note, and not this man's: the publisher divides by
- * the same UNIT_DEFS number (protocol/snapshot.ts) and clamps at full, so a
- * soldier trained under armor research — who walks out with half again the
- * hitpoints of his kind — reads as whole until he is down to what an
- * unarmored one starts with. The card is optimistic about him rather than
- * wrong about anyone else, and it is the same byte the bar over his head
- * has always drawn. Telling his true maximum apart from his kind's would
- * take a wider publish than this card is worth.
+ * The maximum is the man's own, published beside the fraction
+ * (protocol/sabLayout.ts) because his kind's is a different number: armour
+ * research musters a knight at 120 where the kind says 80. Dividing by the
+ * kind read him as whole until he was down to what an unarmoured man starts
+ * with, and had the card print 80/80 over someone carrying 120.
  *
  * The floor at 1 is the one place that matters: a knight on his last point
  * of 80 rounds to zero, and a card reading "0/80" over someone still
  * swinging is a lie in the direction that gets him abandoned. Only a real
  * zero — the byte a corpse is published with — prints as none left.
  */
-function hpFromPct(pct: number, kind: UnitTypeId): number {
-  const max = UNIT_DEFS[kind].hp;
+function hpFromPct(pct: number, max: number): number {
   if (pct <= 0) return 0;
   return Math.min(max, Math.max(1, Math.round((pct / 255) * max)));
 }
