@@ -83,6 +83,11 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiCoin');
           host.sendCommands([{kind: CommandKind.hireSerf}]);
         }}
+        onCancelHire={index => {
+          // The coin sound both ways: the silver comes back.
+          play('uiCoin');
+          host.sendCommands([{kind: CommandKind.cancelHire, index}]);
+        }}
         onSell={buildingId => {
           play('uiCoin');
           host.sendCommands([{kind: CommandKind.sellBuilding, buildingId}]);

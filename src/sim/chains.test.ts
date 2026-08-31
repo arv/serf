@@ -379,4 +379,67 @@ describe('hiring a serf', () => {
     expect(sh.hireQueue).toBeUndefined();
     expect(sh.stock[GoodId.silver]).toBe(HIRE_SERF_COST - 1);
   });
+
+  it('calls a queued recruit back and refunds his silver', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    const initial = countGoods(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.hireSerf}, {kind: CommandKind.hireSerf}),
+    );
+    run(world, 10);
+    // The man behind the leader, struck from the line: full refund, and
+    // the leader keeps walking on the clock he was already on.
+    const walked = sh.hireTicksLeft;
+    tickWorld(world, cmds({kind: CommandKind.cancelHire, index: 1}));
+    expect(sh.hireQueue).toBe(1);
+    expect(sh.stock[GoodId.silver]).toBe(20 - HIRE_SERF_COST);
+    expect(sh.hireTicksLeft).toBe(walked! - 1);
+    // Silver that came back is silver the ledger stopped counting spent.
+    expect(checkLedger(world, initial)).toEqual([]);
+
+    // And the leader still arrives, on the clock he never lost.
+    run(world, HIRE_SERF_TICKS);
+    expect(serfCount(world)).toBe(1);
+  });
+
+  it('sends the leader home too — the next man walks the road fresh', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    const initial = countGoods(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.hireSerf}, {kind: CommandKind.hireSerf}),
+    );
+    run(world, HIRE_SERF_TICKS - 5); // the leader is all but at the gate
+    tickWorld(world, cmds({kind: CommandKind.cancelHire, index: 0}));
+    expect(sh.hireQueue).toBe(1);
+    expect(sh.stock[GoodId.silver]).toBe(20 - HIRE_SERF_COST);
+    expect(checkLedger(world, initial)).toEqual([]);
+
+    // The five ticks the cancelled man had left buy nothing: the walk was
+    // his, and the man behind him sets out from the far end of the road.
+    run(world, 6);
+    expect(serfCount(world)).toBe(0);
+    run(world, HIRE_SERF_TICKS);
+    expect(serfCount(world)).toBe(1);
+    expect(sh.hireQueue).toBe(0);
+  });
+
+  it('ignores a stale click at a slot the queue no longer holds', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    tickWorld(world, cmds({kind: CommandKind.hireSerf}));
+    tickWorld(world, cmds({kind: CommandKind.cancelHire, index: 1}));
+    expect(sh.hireQueue).toBe(1);
+    expect(sh.stock[GoodId.silver]).toBe(20 - HIRE_SERF_COST);
+
+    // An empty queue has no slot 0 either — nothing to refund, and no
+    // silver conjured for a recruit who already walked in.
+    run(world, HIRE_SERF_TICKS + 1);
+    expect(sh.hireQueue).toBe(0);
+    tickWorld(world, cmds({kind: CommandKind.cancelHire, index: 0}));
+    expect(sh.stock[GoodId.silver]).toBe(20 - HIRE_SERF_COST);
+  });
 });
