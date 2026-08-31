@@ -1,12 +1,59 @@
 import * as THREE from 'three';
 import {DEFAULT_MAP_SIZE, gridFor} from '../shared/grid';
-import {CameraRig} from './cameraRig';
+import {CameraRig, type ViewBounds, type ViewFrame} from './cameraRig';
 import {background, fog, groundBounce, skyLight} from './palette';
 
 /** How many frames a fence may hold the loop before it is written off as
  * one that will never signal. Four is longer than any real frame and short
  * enough that a driver misbehaving costs a stutter rather than a freeze. */
 const STALL_FRAMES = 4;
+
+/**
+ * Where the sun stands, as the offset from the ground it lights.
+ *
+ * The hand-picked (-28, 55, 18) of the old world-centred rig, kept exactly:
+ * for a directional light this vector is the whole of what reaches a
+ * surface, so the valley is lit at the same angle it always was. Only its
+ * length has stopped mattering — the position is nothing but the shadow
+ * camera's origin, and that now slides along this line to follow the view.
+ */
+const SUN_DIR = new THREE.Vector3(-28, 55, 18).normalize();
+
+/** The shadow camera's two lateral axes, in world space — the basis three
+ * builds for it out of SUN_DIR and a Y-up. Constant, because SUN_DIR is,
+ * and needed here to snap the box to its own texel grid. */
+const SUN_RIGHT = new THREE.Vector3(0, 1, 0).cross(SUN_DIR).normalize();
+const SUN_UP = SUN_DIR.clone().cross(SUN_RIGHT).normalize();
+
+/** How far up its own ray the shadow camera sits, and how deep a slab it
+ * keeps around the ground plane. Far enough out and deep enough that the
+ * highest crag still falls between near and far, tight enough that the
+ * depth buffer is not spent on empty sky. */
+const SUN_DISTANCE = 160;
+const SHADOW_DEPTH = 90;
+
+/**
+ * How far past the framed ground the shadow box reaches.
+ *
+ * The sun stands about 59° up, so a caster throws its shadow some 0.6 of
+ * its height to the side: a tree just off the left edge still darkens
+ * ground the player can see, and a box cut exactly to the frame would drop
+ * it — a shadow winking out at the screen edge, which is the one artifact
+ * of this that would be read as a bug. Eight units clears the tallest
+ * thing that casts.
+ */
+const SHADOW_PAD = 8;
+
+/**
+ * The step the box's half-extent is rounded up to.
+ *
+ * Zoom is a smooth gesture and the frame's half-extent follows it
+ * continuously. Resizing the box every frame would rescale its texel grid
+ * every frame, and the snapping below — which only holds the grid still
+ * for a *fixed* box — could not answer for it. Rounding to a step means a
+ * zoom resizes the box a handful of times instead of on every frame.
+ */
+const SHADOW_HALF_STEP = 4;
 
 /**
  * Owns the WebGL context, scene, lights, and camera rig. Content (terrain,
@@ -24,6 +71,19 @@ export class GameRenderer {
   #stalls = 0;
   #observer: ResizeObserver;
   #onWindowResize: () => void;
+  /** The shadow map's edge in texels — what the snapping is quantised to. */
+  #shadowMapSize: number;
+  /** Half-extent of the box the whole world would need: the ceiling the
+   * view-fitted box is clamped to, and the box itself for a caller
+   * rendering through a camera of its own. */
+  #worldHalf = 0;
+  /** What the box is currently aimed at, to leave it alone when the frame
+   * has not moved a whole texel. */
+  #shadowHalf = 0;
+  #shadowAt = new THREE.Vector3(NaN, NaN, NaN);
+  #frame: ViewFrame = {cx: 0, cz: 0, rx: 0, rz: 0, ext: 0};
+  #bounds: ViewBounds = {minX: 0, maxX: 0, minZ: 0, maxZ: 0};
+  #centreScratch = new THREE.Vector3();
 
   constructor(canvas: HTMLCanvasElement, interactive = true) {
     // Phones and tablets render the same scene on a far smaller GPU: trade
@@ -50,8 +110,8 @@ export class GameRenderer {
 
     const sun = new THREE.DirectionalLight(0xfff1cf, 2.7);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048);
-    sun.shadow.camera.near = 5;
+    this.#shadowMapSize = coarse ? 1024 : 2048;
+    sun.shadow.mapSize.set(this.#shadowMapSize, this.#shadowMapSize);
     sun.shadow.bias = -0.0004;
     this.scene.add(sun, sun.target);
     this.#sun = sun;
@@ -98,18 +158,103 @@ export class GameRenderer {
     // distant pale haze that swallows the far scenery before the grid
     // runs out.
     this.scene.fog = new THREE.Fog(fog, play + 60, play * 2 + 140);
-    const sun = this.#sun;
     const mid = grid / 2;
-    sun.position.set(mid - 28, 55, mid + 18);
-    sun.target.position.set(mid, 0, mid);
-    const half = play * 0.75;
-    sun.shadow.camera.left = -half;
-    sun.shadow.camera.right = half;
-    sun.shadow.camera.top = half;
-    sun.shadow.camera.bottom = -half;
-    sun.shadow.camera.far = grid + 100;
-    sun.shadow.camera.updateProjectionMatrix();
+    // The box that would hold the whole valley: the ceiling on the fitted
+    // one, and what a caller drawing through its own camera gets.
+    this.#worldHalf = play * 0.75;
+    this.#aimSun(this.#centreScratch.set(mid, 0, mid), this.#worldHalf);
     this.rig.setPlayBounds(mid - play / 2, mid + play / 2);
+  }
+
+  /**
+   * Point the sun's shadow box at a patch of ground.
+   *
+   * The light itself does not move — SUN_DIR is the whole of what shading
+   * reads, and it is fixed. What moves is the box: an orthographic camera
+   * standing off along that ray, covering `half` either side of `centre`.
+   */
+  #aimSun(centre: THREE.Vector3, half: number): void {
+    const sun = this.#sun;
+    sun.target.position.copy(centre);
+    sun.position.copy(centre).addScaledVector(SUN_DIR, SUN_DISTANCE);
+    const cam = sun.shadow.camera;
+    cam.left = -half;
+    cam.right = half;
+    cam.top = half;
+    cam.bottom = -half;
+    cam.near = SUN_DISTANCE - SHADOW_DEPTH;
+    cam.far = SUN_DISTANCE + SHADOW_DEPTH;
+    cam.updateProjectionMatrix();
+    this.#shadowHalf = half;
+    this.#shadowAt.copy(centre);
+  }
+
+  /**
+   * Cut the shadow box down to the ground the camera is actually framing.
+   *
+   * It used to hold the whole valley — a 144-unit box over a 96-unit
+   * playfield — which meant every caster on the map was drawn into the
+   * shadow map on every frame, wherever the player was looking, and the
+   * map's texels were spread so thin over it that the shadows were soft by
+   * accident. A frame shows about 53 units of ground. Fitting the box to
+   * that is the same two-thirds saving on the shadow pass that chunking
+   * bought the main one (ScatterMesh: off-screen instances only cull if
+   * some camera rejects them, and the shadow camera is a camera), and it
+   * hands the same 1024 or 2048 texels to a quarter of the ground, which
+   * is a crisper shadow rather than a cheaper-looking one.
+   *
+   * The catch is that a box which follows the camera drags its texel grid
+   * along under the geometry, and shadow edges crawl and shimmer as it
+   * goes. So the box is only ever placed on whole texels of its own grid:
+   * it steps rather than slides, and the edges hold still.
+   */
+  #fitShadowToView(): void {
+    // Both of these are centred on the camera's target, so they differ
+    // only in extent, and the box takes whichever reaches further.
+    // viewFrame's is the one that holds still as the camera turns — a box
+    // that resized on every degree of yaw would rebuild its texel grid
+    // just as often — but it is a rotation-invariant average rather than a
+    // cover, and a tall enough viewport (a phone held upright) frames
+    // ground past it. viewBounds is the honest cover, and only sets the
+    // size on the shapes where it has to.
+    const frame = this.rig.viewFrame(0, this.#frame);
+    const bounds = this.rig.viewBounds(0, this.#bounds);
+    const reach = Math.max(
+      frame.ext,
+      (bounds.maxX - bounds.minX) / 2,
+      (bounds.maxZ - bounds.minZ) / 2,
+    );
+    const half = Math.min(
+      this.#worldHalf,
+      Math.ceil((reach + SHADOW_PAD) / SHADOW_HALF_STEP) * SHADOW_HALF_STEP,
+    );
+    // Snap the centre to the box's own texel grid: project it onto the
+    // shadow camera's two lateral axes and round each to a whole texel.
+    const texel = (2 * half) / this.#shadowMapSize;
+    const cx = frame.cx;
+    const cz = frame.cz;
+    const u = Math.round((cx * SUN_RIGHT.x + cz * SUN_RIGHT.z) / texel) * texel;
+    const v = Math.round((cx * SUN_UP.x + cz * SUN_UP.z) / texel) * texel;
+    // The third axis is depth along the sun's own ray, and sliding the box
+    // down it shows nothing — so rather than carry the frame's continuous
+    // position into it, solve it for the ground plane from the snapped
+    // pair. That makes the centre a pure function of two quantised
+    // numbers, which is the whole of what lets the early return below ever
+    // fire: carrying the raw depth moved the centre on every frame of a
+    // pan, so the box was re-aimed and its projection rebuilt every frame
+    // while its texel grid stood perfectly still. (SUN_RIGHT lies flat by
+    // construction — a cross product with Y has no Y of its own — so only
+    // SUN_UP's rise has to be cancelled.)
+    const w = -(SUN_UP.y * v) / SUN_DIR.y;
+    const centre = this.#centreScratch
+      .set(0, 0, 0)
+      .addScaledVector(SUN_RIGHT, u)
+      .addScaledVector(SUN_UP, v)
+      .addScaledVector(SUN_DIR, w);
+    // A frame that has not moved a whole texel leaves the box — and its
+    // projection matrix — exactly as they were.
+    if (half === this.#shadowHalf && centre.equals(this.#shadowAt)) return;
+    this.#aimSun(centre, half);
   }
 
   /**
@@ -170,6 +315,10 @@ export class GameRenderer {
    * orthographic rig cannot express.
    */
   render(camera?: THREE.Camera): void {
+    // A caller looking through a lens of its own (the start screen's
+    // backdrop) is not framing the rig's ground, so it keeps the box that
+    // holds the whole world.
+    if (camera === undefined) this.#fitShadowToView();
     this.#webgl.render(this.scene, camera ?? this.rig.camera);
     this.#mark();
   }
