@@ -182,6 +182,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | **1**…**0** | Call the group back — units selected, or a building's panel opened; twice in a beat also jumps the camera to it |
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
+| Click a face on the selection card | Take that one on his own (shift = leave him behind) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target, on the map or on the minimap |
 | Minimap: drag | Steer the camera; right click it, or click it with **A**/**M** armed, to send the selection there |
 | **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |
@@ -266,6 +267,15 @@ happened to. Only past the cap, and on "hurt at all" rather than on how
 hurt, because a unit crosses that line once in its life (nothing heals a
 person) — sorting by health would re-order the tiles on every arrow, which
 is precisely when they are being read.
+
+The faces are buttons. Clicking one takes that man on his own and
+shift-clicking leaves him behind — the same two a click on him out in the
+valley gives, since a tile is one of the selected by definition and the
+map's additive click is a toggle. They are real buttons rather than
+pictures that listen, so Tab walks the roster and the hover says the thing
+can be clicked before you try it. No double-click: the first click leaves
+one man selected, the roster stops drawing below two, and the second would
+land on the map the shrinking card just uncovered.
 
 A number holds whatever was selected when it was stamped, and that is either
 a band of people or one of your buildings — the same either/or the selection
