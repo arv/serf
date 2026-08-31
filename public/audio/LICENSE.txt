@@ -19,3 +19,9 @@
 
 	Donate:   http://support.kenney.nl
 	Patreon:  http://patreon.com/kenney
+
+			------------------------------
+
+	menuTheme.mp3 is NOT part of the Kenney packs above and is not CC0.
+	It is the game's own theme, written for Serf Valley, and it is the one
+	file in this directory the licence above does not cover.

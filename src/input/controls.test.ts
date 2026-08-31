@@ -27,6 +27,7 @@ import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {
   buildAim,
+  orderMode,
   placing,
   resetMatchState,
   selectedBuilding,
@@ -38,6 +39,7 @@ import {
   setPlacing,
   setReplayMode,
   setSelectedBuilding,
+  setOrderMode,
   setSelection,
   setStock,
   setTechs,
@@ -280,7 +282,10 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
     setSpeed: (s: number) => void gears.push(s),
   };
   const mirror = {
-    map: {size: 64, buildingAt: new Int32Array(64 * 64).fill(-1)},
+    // A 56-tile play square inside the 64 grid, the way a real map is
+    // built: tiles 4..59 are walkable and the rest is margin. The chart's
+    // orders are clamped into it.
+    map: {size: 64, play: 56, buildingAt: new Int32Array(64 * 64).fill(-1)},
     buildings: new Map<number, BuildingSnap>(),
   };
   /** Where the camera was last sent — the second press of a number. */
@@ -1370,5 +1375,213 @@ describe('watching a replay', () => {
     h.order(h.at(6, 0, 6));
 
     expect(h.commands).toEqual([]);
+  });
+});
+
+describe('minimap orders', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+    setReplayMode(false);
+    vi.unstubAllGlobals();
+  });
+
+  /** A squad of one, selected — every order below needs someone to give. */
+  function squad(): ReturnType<typeof harness> {
+    const h = harness();
+    h.addUnit(1, 0, 0);
+    h.click(h.screenOf(1));
+    expect([...selection()]).toEqual([1]);
+    return h;
+  }
+
+  /** A barracks of yours, open on the HUD's card — what a rally flag needs. */
+  function barracks(id = 7): BuildingSnap {
+    return {...building(id), type: BuildingTypeId.barracks};
+  }
+
+  /** The chart click, in the shape the Minimap makes it: a world point and
+   * the client pixel the pulse blooms at. */
+  const CLICK = {px: 120, py: 640};
+  const chart = (
+    c: ReturnType<typeof harness>['controls'],
+    x: number,
+    z: number,
+    secondary = false,
+  ): void => c.orderAtMapPoint(x, z, secondary, CLICK.px, CLICK.py);
+
+  it('sends a plain move where the right button points', () => {
+    const h = squad();
+    controls = h.controls;
+
+    chart(h.controls, 30.7, 42.2, true);
+
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 30,
+      y: 42,
+    });
+    // A plain move, not the half order a finger's tap on the map gives.
+    expect(h.commands.at(-1)).not.toHaveProperty('attack');
+  });
+
+  it('spends an armed A on the chart as an attack-move', () => {
+    const h = squad();
+    controls = h.controls;
+    h.type('A');
+    expect(h.controls.orderArmed()).toBe(true);
+
+    chart(h.controls, 30.7, 42.2);
+
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      x: 30,
+      y: 42,
+      attack: true,
+    });
+    // One-shot, the same as the map's armed click.
+    expect(orderMode()).toBeNull();
+    expect(h.controls.orderArmed()).toBe(false);
+  });
+
+  it('spends an armed M on the chart as a plain move', () => {
+    const h = squad();
+    controls = h.controls;
+    h.type('M');
+
+    chart(h.controls, 12.5, 51.5);
+
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      x: 12,
+      y: 51,
+    });
+    expect(h.commands.at(-1)).not.toHaveProperty('attack');
+    expect(orderMode()).toBeNull();
+  });
+
+  it('leaves the camera nothing to do while an order is armed', () => {
+    // The chart's own answer to a plain press is to steer the camera, and
+    // it asks this first so the two never both happen on one click.
+    const h = squad();
+    controls = h.controls;
+
+    expect(h.controls.orderArmed()).toBe(false);
+    h.type('A');
+    expect(h.controls.orderArmed()).toBe(true);
+  });
+
+  it('cancels an armed order with the right button, ordering nothing', () => {
+    const h = squad();
+    controls = h.controls;
+    h.type('A');
+
+    chart(h.controls, 30.5, 42.5, true);
+
+    expect(orderMode()).toBeNull();
+    expect(h.commands).toEqual([]);
+  });
+
+  it('clamps an order at the chart edge onto the last playable tile', () => {
+    // The Minimap clamps its own reading to the play square, whose far
+    // edge is one past the last tile it draws: an order aimed there would
+    // land in the margin nobody can walk on.
+    const h = squad();
+    controls = h.controls;
+
+    chart(h.controls, 60, 60, true); // playMax on both axes
+
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      x: 59,
+      y: 59,
+    });
+  });
+
+  it('gives no order with nobody selected', () => {
+    const h = harness();
+    controls = h.controls;
+
+    chart(h.controls, 30.5, 42.5, true);
+
+    expect(h.commands).toEqual([]);
+  });
+
+  it('gives no order in a replay, however the ring got there', () => {
+    const h = squad();
+    controls = h.controls;
+    setReplayMode(true);
+
+    chart(h.controls, 30.5, 42.5, true);
+
+    expect(h.commands).toEqual([]);
+  });
+
+  it('plants the open barracks rally flag where the chart points', () => {
+    const h = harness();
+    controls = h.controls;
+    const b = barracks();
+    h.addBuilding(b);
+    setSelectedBuilding(b);
+
+    chart(h.controls, 30.5, 42.5, true);
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.setRallyPoint,
+      buildingId: 7,
+      x: 30,
+      y: 42,
+    });
+  });
+
+  it('takes the flag down again from the barracks own tiles', () => {
+    const h = harness();
+    controls = h.controls;
+    const b = barracks();
+    h.addBuilding(b);
+    setSelectedBuilding(b);
+
+    chart(h.controls, b.x + 1.5, b.y + 1.5, true);
+
+    // No point at all is the "back to normal" command — the same thing
+    // clicking the building itself means on the map.
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.setRallyPoint,
+      buildingId: 7,
+    });
+  });
+
+  it('sends the squad rather than the flag when both could take the click', () => {
+    // The map's rule: a standing selection owns the right-click, and the
+    // flag is what is left when nothing is selected.
+    const h = squad();
+    controls = h.controls;
+    const b = barracks();
+    h.addBuilding(b);
+    setSelectedBuilding(b);
+    setSelection(new Set([1]));
+
+    chart(h.controls, 30.5, 42.5, true);
+
+    expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.moveUnits});
   });
 });
