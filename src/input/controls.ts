@@ -62,6 +62,7 @@ import {
   setSelectedBuilding,
   setSelection,
   setSelectionGroup,
+  setSelectionOwner,
   setSelectionUnits,
   setTechPanelOpen,
   stock,
@@ -826,6 +827,7 @@ export class Controls {
     if (sel.size > 0 && orderMode() === OrderMode.rally) this.armOrder(null);
     this.#selection = sel;
     setSelection(new Set(sel));
+    setSelectionOwner(this.#soleOwner(sel));
     // Straight away rather than at the next prune(), and past the publish
     // gate: a click that picks up a knight has to draw his card on the
     // frame it happened, and the card is nothing but the roster.
@@ -1231,10 +1233,15 @@ export class Controls {
    * at the gate calls in the others holding the gate, not the two
    * garrisoning the far corner of the map who were the only thing standing
    * between the mill and a raid.
+   *
+   * One banner, too. Live that is not a question — the pick never reaches
+   * a rival — but a replay's does, and "and the rest of them" said over a
+   * melee has to mean this side's swordsmen, not both sides'.
    */
   #selectSameKind(unitId: number, additive: boolean): void {
     const kind = this.#sync.kindOf(unitId);
     if (kind === null) return;
+    const owner = this.#sync.ownerOf(unitId);
     const now = performance.now();
     const w = this.#canvas.clientWidth;
     const h = this.#canvas.clientHeight;
@@ -1242,7 +1249,8 @@ export class Controls {
     const screen = this.#scratchScreen;
     for (const id of this.#sync.latestIds.keys()) {
       if (this.#sync.kindOf(id) !== kind) continue;
-      if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
+      if (this.#sync.ownerOf(id) !== owner) continue;
+      if (!this.#selectableUnitScreenPosInto(id, now, screen)) continue;
       if (screen.x < 0 || screen.x > w || screen.y < 0 || screen.y > h)
         continue;
       sel.add(id);
@@ -1296,14 +1304,18 @@ export class Controls {
       this.#setSel(new Set([unitId]));
       return;
     }
-    const building = this.#ownBuildingAt(px, py);
+    const building = this.#selectableBuildingAt(px, py);
     if (building) {
       this.#lastMoveTap = null;
       this.#setSel(new Set());
       this.#setBuilding(building);
       return;
     }
-    if (this.#selection.size > 0) {
+    // Ground, with people selected: send them. A replay cannot, so there
+    // the tap falls through to the deselect below rather than becoming a
+    // gesture that does nothing at all — letting go is the one thing a
+    // spectator's tap on bare grass can still mean.
+    if (this.#selection.size > 0 && !replayMode()) {
       const now = performance.now();
       const prev = this.#lastMoveTap;
       const dx = prev ? px - prev.px : 0;
@@ -1409,13 +1421,33 @@ export class Controls {
     this.#hoverBuilding = bestId < 0 ? this.#buildingAt(px, py) : -1;
   }
 
-  /** Screen position of an own unit, written into `out`; false otherwise. */
-  #playerUnitScreenPosInto(
+  /**
+   * Whose things this client may put a ring around.
+   *
+   * A live match: your own, and only your own. A selection is the list an
+   * order is spent on, so a ring around a rival's knight would be a
+   * promise the sim has no intention of keeping.
+   *
+   * A replay is that same match with the orders taken out — the log is the
+   * sim's whole diet, a stray click never reaches the tick (see
+   * app/simWorker.ts), and there is nobody left to hide anything from. So
+   * playback lets the pointer reach every seat: watching what the Warlord
+   * built, and which of his huts stood idle, is most of why anyone opens a
+   * recording at all.
+   */
+  #selectable(owner: number | null): boolean {
+    return owner !== null && (replayMode() || owner === myPlayerId());
+  }
+
+  /** Screen position of a unit this client may select, written into `out`;
+   * false for anyone else's — and for one the fog is holding, which
+   * positionOfInto answers for by reporting no position at all. */
+  #selectableUnitScreenPosInto(
     id: number,
     now: number,
     out: {x: number; y: number},
   ): boolean {
-    if (this.#sync.ownerOf(id) !== myPlayerId()) return false;
+    if (!this.#selectable(this.#sync.ownerOf(id))) return false;
     const pos = this.#scratchPos;
     if (!this.#sync.positionOfInto(id, now, pos)) return false;
     const groundY = this.#heights.at(pos.x, pos.y);
@@ -1430,7 +1462,7 @@ export class Controls {
     let bestDist = CLICK_RADIUS_PX * CLICK_RADIUS_PX;
     const screen = this.#scratchScreen;
     for (const id of this.#sync.latestIds.keys()) {
-      if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
+      if (!this.#selectableUnitScreenPosInto(id, now, screen)) continue;
       const dx = screen.x - px;
       const dy = screen.y - py;
       const d = dx * dx + dy * dy;
@@ -1487,18 +1519,39 @@ export class Controls {
     return {x: Math.floor(ground.x), y: Math.floor(ground.z)};
   }
 
-  /** The building of yours under a screen point, or null. */
-  #ownBuildingAt(px: number, py: number): BuildingSnap | null {
+  /**
+   * The building under a screen point this client may open a card for, or
+   * null — yours in a live match, any seat's in a replay.
+   *
+   * A rival's has to clear the fog first, and *explored* rather than
+   * visible ground because that is the rule the renderer draws by: a
+   * building on ground the watching seat once scouted stays on screen from
+   * memory, and one on ground it never reached is not drawn at all.
+   * Without the gate a click into the dark would open a card for a hut
+   * nobody can see, reading its stock and its staffing straight off ground
+   * the seat never walked — the card telling the player what the picture
+   * deliberately does not. F lifts the fog and the same click then lands,
+   * which is the point of that key.
+   */
+  #selectableBuildingAt(px: number, py: number): BuildingSnap | null {
     const bId = this.#buildingAt(px, py);
     const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
-    return snap && snap.owner === myPlayerId() ? snap : null;
+    if (!snap || !this.#selectable(snap.owner)) return null;
+    if (
+      snap.owner !== myPlayerId() &&
+      this.#fog &&
+      !this.#fog.exploredAt(snap.x + snap.w / 2, snap.y + snap.h / 2)
+    ) {
+      return null;
+    }
+    return snap;
   }
 
   #selectAtPoint(px: number, py: number, additive: boolean): void {
     const bestId = this.#unitAt(px, py);
     if (bestId < 0 && !additive) {
       // No unit under the cursor — try a building.
-      const snap = this.#ownBuildingAt(px, py);
+      const snap = this.#selectableBuildingAt(px, py);
       if (snap) {
         this.#setSel(new Set());
         this.#setBuilding(snap);
@@ -1537,21 +1590,93 @@ export class Controls {
     const maxX = Math.max(x0, x1);
     const minY = Math.min(y0, y1);
     const maxY = Math.max(y0, y1);
-    const sel = additive ? new Set(this.#selection) : new Set<number>();
     const screen = this.#scratchScreen;
+    const caught: number[] = [];
     for (const id of this.#sync.latestIds.keys()) {
-      if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
+      if (!this.#selectableUnitScreenPosInto(id, now, screen)) continue;
       if (
         screen.x >= minX &&
         screen.x <= maxX &&
         screen.y >= minY &&
         screen.y <= maxY
       ) {
-        sel.add(id);
+        caught.push(id);
       }
+    }
+    const owner = this.#bandOwner(caught, additive);
+    const sel = additive ? new Set(this.#selection) : new Set<number>();
+    for (const id of caught) {
+      if (this.#sync.ownerOf(id) === owner) sel.add(id);
     }
     this.#setBuilding(null);
     this.#setSel(sel);
+  }
+
+  /**
+   * The one seat these people belong to, or null when they are not one
+   * seat's — which is what the card needs, because "12 units selected"
+   * under a name that only covers eight of them is worse than no name.
+   *
+   * Every gesture that grabs a crowd at once commits to a single banner
+   * (see #bandOwner), so in practice this is that banner. Shift-clicking
+   * across a battle one unit at a time can still build a mixed set: the
+   * player picked each of them deliberately, and the honest answer to
+   * "whose are these" is then nobody's in particular.
+   */
+  #soleOwner(sel: ReadonlySet<number>): number | null {
+    let owner: number | null = null;
+    for (const id of sel) {
+      const o = this.#sync.ownerOf(id);
+      if (o === null) continue;
+      if (owner === null) owner = o;
+      else if (owner !== o) return null;
+    }
+    return owner;
+  }
+
+  /**
+   * Whose people a band comes back holding. One seat's, always.
+   *
+   * Live there is nothing to decide — the rectangle only ever closes over
+   * your own. Watching a replay it could close over a whole battle, and a
+   * selection flying two banners is one the card cannot name, the rings
+   * cannot color, and the number at the top of it means nothing in: "27
+   * units selected" across both sides of a fight is not a fact about
+   * anything.
+   *
+   * So: the seat with the most people inside the rectangle, the lower seat
+   * breaking a tie. Dragged over the Warlord's village that is the Warlord,
+   * which is what the gesture was aimed at; dragged over a melee it is
+   * whoever brought more, which is at least the side the eye was on. A
+   * shift-drag keeps the seat already selected instead, so a squad is grown
+   * a corner of the map at a time rather than swapped out from under the
+   * hand halfway through — but only where the people already held ARE one
+   * seat's. A set shift-clicked out of both sides has no seat to keep, and
+   * reading one off whichever id the selection happens to yield first would
+   * decide the drag by the order the player clicked in three gestures ago,
+   * which is not on screen and not a rule anyone could learn. So a mixed
+   * hand falls through to the count below, and the drag adds what a plain
+   * drag would have taken.
+   */
+  #bandOwner(caught: readonly number[], additive: boolean): number | null {
+    if (additive) {
+      const held = this.#soleOwner(this.#selection);
+      if (held !== null) return held;
+    }
+    const counts = new Map<number, number>();
+    let best: number | null = null;
+    let bestCount = 0;
+    for (const id of caught) {
+      const owner = this.#sync.ownerOf(id);
+      if (owner === null) continue;
+      const n = (counts.get(owner) ?? 0) + 1;
+      counts.set(owner, n);
+      if (n > bestCount || (n === bestCount && best !== null && owner < best)) {
+        best = owner;
+        bestCount = n;
+      }
+    }
+    return best;
   }
 
   /**
@@ -1749,13 +1874,20 @@ export class Controls {
    *
    * Returns the ordered tile, so the touch double-tap can re-aim its
    * escalation at exactly what the first tap ordered; null if the point
-   * missed the ground.
+   * missed the ground — or if there was no order to give.
    */
   #issueMove(
     px: number,
     py: number,
     attack: boolean | 'half',
   ): {x: number; y: number} | null {
+    // Playback has always dropped orders at the worker's door, which was
+    // enough while the only squad a replay could select was the watching
+    // seat's own. It is not enough now that the ring may be around the
+    // Warlord's knights: the pulse and its haptic tick say "order taken",
+    // and a click that says so of a rival's people in a finished match is
+    // the interface lying about who is in charge of what.
+    if (replayMode()) return null;
     if (this.#selection.size === 0) return null;
     const target = this.#orderTarget(px, py);
     if (!target) return null;

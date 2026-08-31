@@ -1,8 +1,11 @@
+import type {PlayerSnap} from '../protocol/messages';
 import type {Enum} from '../shared/enum.ts';
+import {AI_STRATEGIES} from '../sim/defs/aiStrategies.ts';
 import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {TECH_DEFS, type TechId} from '../sim/defs/techs';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {isPlayerOwner} from '../sim/entities.ts';
 
 type GoodId = Enum<typeof GoodId>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
@@ -85,4 +88,29 @@ const GOOD_NAMES: Record<GoodId, string> = {
 
 export function goodName(good: GoodId): string {
   return GOOD_NAMES[good];
+}
+
+/**
+ * Who a seat is, in the words the rest of the game already uses for them:
+ * an AI by the playbook it was dealt — the same name its heralds announce
+ * it under — a human rival by its number, and the raiders by the one name
+ * they answer to.
+ *
+ * Only a spectator asks. A live match's cards are all your own things, so
+ * nothing there ever prints a seat's name; a replay's cards may be
+ * anybody's, and a card that does not say whose is a card about a village
+ * the player cannot place.
+ */
+export function seatName(
+  owner: number,
+  players: readonly PlayerSnap[],
+): string {
+  if (!isPlayerOwner(owner)) return 'Bandits';
+  const strategy = players.find(p => p.id === owner)?.strategy;
+  // A seat with no playbook is a person: either an opponent in a recorded
+  // multiplayer match, or — before the deal existed — an AI from an older
+  // save. Numbered from one, the way the seats are counted out loud.
+  return strategy !== undefined
+    ? AI_STRATEGIES[strategy].name
+    : `Player ${owner + 1}`;
 }
