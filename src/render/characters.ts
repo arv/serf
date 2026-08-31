@@ -656,28 +656,43 @@ function packToolProp(
 }
 
 /**
- * The pack scythe, re-gripped. Its origin sits just under the blade
- * collar rather than mid-haft — dropped in raw, the farmer's fist landed
- * ON the collar and he swung the thing like a sword by the wrong end,
- * snath trailing as a counterweight. The inner offset slides the grip
- * down to the haft's middle, and the pitch carries the head forward so
- * the sweep runs at the stalks instead of level at the hip.
+ * The pack scythe, re-gripped and turned the right way round. Its origin
+ * sits just under the blade collar rather than mid-haft — dropped in raw,
+ * the farmer's fist landed ON the collar and he swung the thing like a
+ * sword by the wrong end, snath trailing as a counterweight. The inner
+ * offset slides the grip down to the haft's middle, the half-turn puts
+ * the hook under the snath instead of over it, and the pitch floats the
+ * head so the sweep runs at the stalks instead of level at the hip.
  */
 function packScytheProp(): THREE.Group {
   if (!kkAssets?.props.get('weapons/scythe')) return scytheProp();
   const inner = packToolProp('weapons/scythe', 0.8, scytheProp);
+  // Half a turn about the snath — the same fix-up the pack axe wears in
+  // KK_SPECS, for the same reason. The file hooks its blade out to one
+  // side of the haft, and the handslot leads with the prop's +Y, which
+  // laid that hook ABOVE the snath: through the whole mowing stroke the
+  // blade rode the top of the sweep with its edge at the sky, curling
+  // back over the farmer's shoulder — a man cutting wheat with the spine
+  // of the blade, holding the thing backwards. Turned, the hook hangs
+  // under the far end of the snath the way a scythe's does and the sweep
+  // carries it through the stalks.
+  inner.rotation.y = Math.PI;
   // Slide the grip: 0.10 puts the fist on the haft's middle wrapping,
   // just under halfway up. More reads better still in the swing but the
   // surplus hangs BELOW the fist everywhere else — at idle the arm
   // points the head at the ground, and by 0.22 the tool stood buried to
   // the wrappings with the blade tip surfacing a step away like a shark.
   inner.position.y = 0.1;
-  // A modest pitch about the fist drops the blade toward the stalks
-  // through the sweep. Tuned against the whole wardrobe, not one clip:
-  // -0.45 cut lower still, and stood the idle scythe out behind the
-  // farmer's back where nothing of it showed at all.
+  // A modest pitch about the fist, lifting the head rather than dropping
+  // it: with the hook turned under, the arm's own aim at the ground is
+  // now the blade's, and the -0.2 that suited the upside-down tool drove
+  // the whole head under the turf — the farmer mowed a furrow, and at
+  // rest nothing of the scythe showed below the collar at all. Tuned
+  // against the whole wardrobe, not one clip: 0.45 floats the tip at
+  // stalk height through the stroke and rests it on the grass at idle,
+  // where 0.5 already carried the stroke level at the hip.
   const pivot = new THREE.Group();
-  pivot.rotation.z = -0.2;
+  pivot.rotation.z = 0.45;
   pivot.add(inner);
   const g = new THREE.Group();
   g.add(pivot);
