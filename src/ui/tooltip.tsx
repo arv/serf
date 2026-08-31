@@ -469,6 +469,14 @@ const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
   [UnitTypeId.knight]: 'Slow, armored, and lethal up close.',
   [UnitTypeId.spearman]: 'Fast peasant spears — they run archers down.',
   [UnitTypeId.archer]: 'Keeps its distance and kites heavy armor.',
+  // The three the valley meets rather than trains. They reach this card
+  // now: an admin parade puts one of each in your own hand, and a replay
+  // hands the pointer to whoever the raid belongs to.
+  [UnitTypeId.bandit]: 'Comes down the road for what is stacked outside.',
+  [UnitTypeId.banditArcher]:
+    'Shoots from the treeline and is gone before the answer arrives.',
+  [UnitTypeId.marauder]:
+    'Two hands on the axe, and no interest in the granary.',
 };
 
 /**
@@ -498,7 +506,13 @@ export function UnitTip(props: {
           <span class="tag">{cls()!.name}</span>
         </Show>
       </div>
-      <div class="tip-desc">{UNIT_FLAVOR[props.unit]}</div>
+      {/* Only when there is one. The map is partial by design — a kind
+          may arrive before anyone has written its line — and an
+          unconditional row leaves a blank band of tip between the title
+          and the numbers, which reads as something failing to load. */}
+      <Show when={UNIT_FLAVOR[props.unit]}>
+        <div class="tip-desc">{UNIT_FLAVOR[props.unit]}</div>
+      </Show>
       <div class="tip-line">
         <b>{def().hp} hp</b>
         {combat() ? ` · ${combat()!.damage} dmg` : ''} · speed {def().speed}
