@@ -35,10 +35,11 @@ export function missionUrl(id: MissionId): string {
 
 export function configFromUrl(search: string): GameConfig {
   const params = new URLSearchParams(search);
-  // ?mission=<id>: a campaign mission. The def is the whole recipe — its
-  // pinned seed and seats win over any stray ?seed/?ai in the URL. An
-  // unknown id is no id (the URL is hand-editable); the ordinary parsing
-  // below then applies.
+  // ?mission=<name>: a campaign mission, named (missionUrl above writes
+  // the name; the id is a number and reads as nothing here). The def is
+  // the whole recipe — its pinned seed and seats win over any stray
+  // ?seed/?ai in the URL. An unknown name is no mission (the URL is
+  // hand-editable); the ordinary parsing below then applies.
   const mission = parseMissionId(params.get('mission'));
   if (mission) {
     return {...missionWorldConfig(mission), myPlayerId: 0, adminEnabled: true};
