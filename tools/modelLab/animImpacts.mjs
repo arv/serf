@@ -106,7 +106,7 @@ function composeTRS(t, q, s) {
 }
 
 function mulMat(a, b) {
-  const o = new Array(16).fill(0);
+  const o = Array.from({length: 16}, () => 0);
   for (let c = 0; c < 4; c++)
     for (let r = 0; r < 4; r++)
       for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
@@ -144,7 +144,7 @@ class ClipEvaluator {
       this.duration = Math.max(this.duration, times.data[times.count - 1]);
     }
     this.nodes = gltf.nodes;
-    this.parent = new Array(this.nodes.length).fill(-1);
+    this.parent = Array.from({length: this.nodes.length}, () => -1);
     this.nodes.forEach((n, i) =>
       (n.children ?? []).forEach(c => (this.parent[c] = i)),
     );

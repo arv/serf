@@ -221,7 +221,6 @@ export class ScatterMesh {
       }
     }
 
-    const lambert = (color: number) => new THREE.MeshLambertMaterial({color});
     const flat = (color: number) =>
       new THREE.MeshStandardMaterial({
         color,
@@ -471,6 +470,8 @@ export class ScatterMesh {
    */
   resyncAll(map: {resource: Uint8Array; buildingAt: Int16Array}): void {
     for (const a of this.#archetypes.values()) {
+      // Snapshotted: removeTile deletes from byTile as we walk it.
+      // oxlint-disable-next-line unicorn/no-useless-spread
       for (const tile of [...a.byTile.keys()]) {
         if (this.#cosmetic.has(tile)) continue;
         if (

@@ -48,8 +48,9 @@ describe('the docs cross-reference graph', () => {
     // nothing linked to, and a test that recomputed the same complement
     // would have stayed green through it.
     const inMenu = BUILD_GROUPS.flatMap(g => g.types);
-    expect([...inMenu, ...worldBuildings()].sort()).toEqual(
-      [...ALL_BUILDINGS].sort(),
+    const byId = (a: number, b: number): number => a - b;
+    expect([...inMenu, ...worldBuildings()].sort(byId)).toEqual(
+      [...ALL_BUILDINGS].sort(byId),
     );
   });
 

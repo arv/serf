@@ -311,6 +311,7 @@ pnpm test        # headless suite: sim, editor, server, aiLab (800+ tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
 pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
+pnpm lint        # oxlint (CI runs it too; `pnpm lint:fix` applies fixes)
 pnpm bakeoff     # AI bake-off (tools/aiLab)
 ```
 
@@ -321,6 +322,28 @@ Left alone: the prose in `README.md` and `docs/`, the vendored models under
 `public/models/`, and the one-line generated data
 (`src/sim/defs/maps/*.json`, `tools/modelLab/baked.json`) a formatter would
 explode into thousands of lines.
+
+Linting is [oxlint](https://oxc.rs/docs/guide/usage/linter)
+(`.oxlintrc.json`), and CI fails on a finding. Only the `correctness`
+category is on — code that is outright wrong or dead — so a warning is
+worth fixing rather than arguing with, and `pnpm lint:fix` handles the
+mechanical ones. It runs `--type-aware` (the `oxlint-tsgolint` dev
+dependency), which is where the rules that need a checker live: it is what
+noticed that `.sort()` on our numeric ids orders them as text, so a
+thirteen-id list sorted `[1, 10, 2]`. Type-aware or not, the whole run is
+about a second and a half over 418 files.
+
+No rule is switched off wholesale. Two carve-outs, each as narrow as it
+goes: `no-unassigned-vars` is off for `**/*.tsx` only, because Solid
+assigns the `let` behind `ref={el}` through a compiler transform the rule
+cannot see (it stays on for the other ~380 files); and the four sites
+where a rule reads a deliberate idiom as a mistake carry an
+`oxlint-disable-next-line` saying which idiom — three spreads that are
+snapshots taken because the loop body deletes from the map it walks, and
+one saved `onBeforeCompile` that is put straight back on the material it
+came off. The `vitest` and `jsx-a11y` plugins are off — the first reads
+Vitest's `expect(value, 'message')` as an arity error, the second wants
+markup changes that belong in a change of their own.
 
 One thing to know about the import sorting: a comment directly above the
 first import travels with it, so a file header or a `/// <reference lib>`

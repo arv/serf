@@ -479,7 +479,9 @@ async function pool<T, R>(
   width: number,
   work: (item: T) => Promise<R>,
 ): Promise<PromiseSettledResult<R>[]> {
-  const results = new Array<PromiseSettledResult<R>>(items.length);
+  const results = Array.from<PromiseSettledResult<R>>({
+    length: items.length,
+  });
   let cursor = 0;
   const lane = async (): Promise<void> => {
     for (;;) {

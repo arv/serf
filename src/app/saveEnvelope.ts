@@ -14,7 +14,6 @@
  */
 
 import {WORLD_SAVE_VERSION} from '../shared/saveVersion';
-import type {MissionId} from '../sim/defs/missions';
 
 const FMT = 'serf-save-v3';
 /** The envelope before the metadata head; still loaded, just listed with

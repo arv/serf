@@ -15,7 +15,6 @@
  * hat.
  */
 
-import * as AnimKey from '../render/animKeyEnum.ts';
 import type {Enum} from '../shared/enum.ts';
 import * as BusId from './busIdEnum.ts';
 import {type CueDef, BUS_IDS} from './cues';

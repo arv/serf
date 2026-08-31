@@ -65,8 +65,9 @@ function runTable(table: EconomyRule[], enabled?: EconomyRuleId[]) {
 
 describe('the rule table', () => {
   it('names every rule it can run, so nothing fires unablatable', () => {
-    expect([...ALL_ECONOMY_RULES].sort()).toEqual(
-      ECONOMY_RULES.map(r => r.id).sort(),
+    const byId = (a: number, b: number): number => a - b;
+    expect([...ALL_ECONOMY_RULES].sort(byId)).toEqual(
+      ECONOMY_RULES.map(r => r.id).sort(byId),
     );
   });
 

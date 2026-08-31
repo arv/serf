@@ -306,7 +306,7 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   controls.setBuildingHeights({
     heightOf: id => tops.get(id) ?? 0,
     baseOf: () => 0,
-    ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...[...tops.values()]),
+    ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...tops.values()),
   });
 
   /** Drag a band from one screen point to another, the way a mouse does. */
@@ -449,7 +449,7 @@ describe('band select', () => {
 
     h.band(...around([h.screenOf(1), h.screenOf(2)]));
 
-    expect([...selection()].sort()).toEqual([1, 2]);
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
   });
 
   it('closes the building card the band selected over', () => {
@@ -533,7 +533,7 @@ describe('band select', () => {
     h.band(...around([h.screenOf(1)]));
     h.band(...around([h.screenOf(2)]), true);
 
-    expect([...selection()].sort()).toEqual([1, 2]);
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
   });
 });
 
