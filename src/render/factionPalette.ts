@@ -21,6 +21,14 @@ export function factionTint(owner: number): number | undefined {
 }
 
 /**
+ * What the bandits wear where a color is compulsory — the chart's dots, a
+ * ring drawn under one of their raiders. They fly no banner and keep the
+ * pack's stock grey in the world, so this is that grey rather than a fifth
+ * faction color: whatever it is painted on has to read as *nobody's*.
+ */
+export const BANDIT_TINT = 0x9d968a;
+
+/**
  * The atlas region KayKit reserves for team color, in UV space (one cell of
  * the 8x4 swatch grid). Triangles whose UVs land here get the faction
  * material; measured from the pack by diffing its color variants.

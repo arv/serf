@@ -1,4 +1,4 @@
-import {factionTint} from '../render/factionPalette';
+import {BANDIT_TINT, factionTint} from '../render/factionPalette';
 import {
   background,
   goldOre,
@@ -50,9 +50,6 @@ const ROAD = rgb(stoneRoad);
  * chart's dark matches the fog's dark on the map beside it. */
 const UNKNOWN = rgb(background);
 
-/** Bandits keep their in-world grey on the chart too — a camp should read
- * as somebody's, and grey is whose it is. */
-const BANDIT_TINT = 0x9d968a;
 /** Warm white, in the HUD's own key rather than a printer's #ffffff. */
 const VIEWER_TINT = 0xf7f4ea;
 
