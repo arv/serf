@@ -104,6 +104,13 @@ const errors = [];
  */
 const send = (method, params = {}) =>
   new Promise((resolve, reject) => {
+    // Nothing will ever answer a command written to a socket that is not
+    // open — and close has already fired by then, so the flush above will
+    // not come round again for it.
+    if (ws?.readyState !== WebSocket.OPEN) {
+      reject(new Error(`${method}: the DevTools socket is not open`));
+      return;
+    }
     const id = nextId++;
     pending.set(id, msg => {
       if (msg.error) {
@@ -134,6 +141,23 @@ try {
     ws.onopen = res;
     ws.onerror = rej;
   });
+  // Half of what keeps a dead socket from hanging the probe; the other
+  // half is the readyState guard in send(). A promise left unsettled here
+  // is holding the await that is the only route to the cleanup below —
+  // node reports that as "Detected unsettled top-level await" and exits
+  // 13 without unwinding, stranding the profile directory and whatever of
+  // the browser is still standing. This settles what was in flight when
+  // the socket died; the guard settles everything attempted afterwards,
+  // which is the more common case by far, since close fires once and most
+  // of this script's time is spent between commands rather than inside
+  // one.
+  const failPending = reason => {
+    const waiting = [...pending.values()];
+    pending.clear();
+    for (const settle of waiting) settle({error: {message: reason}});
+  };
+  ws.onclose = () => failPending('the DevTools socket closed');
+  ws.onerror = () => failPending('the DevTools socket errored');
   ws.onmessage = ev => {
     const msg = JSON.parse(ev.data);
     if (msg.id && pending.has(msg.id)) {
