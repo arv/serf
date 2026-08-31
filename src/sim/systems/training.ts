@@ -1,9 +1,14 @@
 import type {Enum} from '../../shared/enum.ts';
 import {tileX, tileY} from '../../shared/grid.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
-import {HIRE_SERF_TICKS, TRAIN_QUEUE_CAP} from '../defs/balance.ts';
+import {
+  HIRE_SERF_COST,
+  HIRE_SERF_TICKS,
+  TRAIN_QUEUE_CAP,
+} from '../defs/balance.ts';
 import {buildingDef} from '../defs/buildings.ts';
-import {type GoodId, goodEntries} from '../defs/goods.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import {goodEntries} from '../defs/goods.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
@@ -16,6 +21,7 @@ import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {spawnUnit, type World} from '../world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
+type GoodId = Enum<typeof GoodId>;
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -103,6 +109,40 @@ export function hiringSystem(world: World): void {
     b.hireQueue--;
     b.hireTicksLeft = b.hireQueue > 0 ? HIRE_SERF_TICKS : undefined;
   }
+}
+
+/**
+ * Call one paid-for recruit back off the road — the hire queue's answer to
+ * cancelTraining, and the reason the castle's queue is a row of slots
+ * rather than a tally.
+ *
+ * The silver comes back in full, into the same castle stock that paid it:
+ * it bought a man who never arrives, and the sim does not quietly eat what
+ * a player has spent (the hiring system says as much about a recruit who
+ * finds no bed). Only time is lost, and only the leader's — striking the
+ * man who is already walking puts the next one at the far end of the road
+ * with a fresh eight seconds ahead of him, because the walk that was under
+ * way was his and not the next man's. Striking any slot behind the leader
+ * leaves the clock alone: the queue is a line of identical men, so which
+ * of them the player pointed at only matters at the head of it.
+ *
+ * A slot past the queue's depth is a click aimed at a snapshot a few ticks
+ * stale — a recruit landed in between — and is dropped rather than allowed
+ * to cancel someone else, the same reading cancelTraining gives a mismatch.
+ */
+export function cancelHire(world: World, b: Building, index: number): void {
+  const queued = b.hireQueue ?? 0;
+  if (index < 0 || index >= queued) return;
+  b.hireQueue = queued - 1;
+  b.hireTicksLeft =
+    b.hireQueue > 0
+      ? index === 0
+        ? HIRE_SERF_TICKS
+        : b.hireTicksLeft
+      : undefined;
+  b.stock[GoodId.silver] = (b.stock[GoodId.silver] ?? 0) + HIRE_SERF_COST;
+  world.ledger.consumed[GoodId.silver] =
+    (world.ledger.consumed[GoodId.silver] ?? 0) - HIRE_SERF_COST;
 }
 
 /**

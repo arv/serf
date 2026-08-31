@@ -34,3 +34,5 @@ export const admin = 14 as const;
 export type admin = typeof admin;
 export const herald = 15 as const;
 export type herald = typeof herald;
+export const cancelHire = 16 as const;
+export type cancelHire = typeof cancelHire;
