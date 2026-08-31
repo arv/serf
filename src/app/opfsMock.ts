@@ -74,6 +74,8 @@ export function installOpfs(extra: Record<string, unknown> = {}): OpfsMock {
       return Promise.resolve();
     },
     values: async function* () {
+      // Snapshotted: the caller may remove entries between yields.
+      // oxlint-disable-next-line unicorn/no-useless-spread
       for (const name of [...dir.keys()]) yield fileHandle(dir, name);
     },
   });

@@ -306,7 +306,7 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   controls.setBuildingHeights({
     heightOf: id => tops.get(id) ?? 0,
     baseOf: () => 0,
-    ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...[...tops.values()]),
+    ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...tops.values()),
   });
 
   /** Drag a band from one screen point to another, the way a mouse does. */

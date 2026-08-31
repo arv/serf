@@ -7,7 +7,6 @@ import {
 import {
   BUILDING_DEFS,
   TOOL_OF,
-  outputGoodsOf,
   type Recipe,
   BUILDING_TYPES,
 } from '../../sim/defs/buildings';
@@ -22,7 +21,7 @@ import {
 import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
 import * as TechEffectKind from '../../sim/defs/techEffectKindEnum.ts';
 import {TECH_DEFS, type TechId, TECH_IDS} from '../../sim/defs/techs';
-import {UNIT_DEFS, WEAPON_OF, UNIT_TYPES} from '../../sim/defs/units';
+import {WEAPON_OF, UNIT_TYPES} from '../../sim/defs/units';
 import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
 import {BUILD_GROUPS} from '../../ui/buildMenu';
 

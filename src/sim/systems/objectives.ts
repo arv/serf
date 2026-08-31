@@ -1,5 +1,4 @@
 import * as BuildingState from '../buildingStateEnum.ts';
-import * as CommandKind from '../commandKindEnum.ts';
 import {buildingDef} from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import {MISSION_DEFS, type ObjectiveSpec} from '../defs/missions.ts';

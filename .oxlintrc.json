@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // The default `correctness` category only: rules that flag code which is
+  // outright wrong or dead. `pnpm lint` runs with --deny-warnings, so every
+  // one of these breaks the build — keep the set small enough that that
+  // stays fair. The `vitest` and `jsx-a11y` plugins are deliberately off:
+  // the former reads `expect(value, 'message')` (valid in Vitest) as an
+  // arity error, the latter wants markup changes that belong in a change
+  // of their own.
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise"],
+  "ignorePatterns": ["dist/**", ".gallery-build/**", "runs/**"],
+  "rules": {
+    // A leading underscore is how this codebase says "on purpose".
+    "no-unused-vars": [
+      "warn",
+      {
+        "args": "after-used",
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_"
+      }
+    ],
+    // Solid binds `let el!: HTMLDivElement` through `ref={el}`, which the
+    // rule cannot see as an assignment — every hit is a JSX ref.
+    "no-unassigned-vars": "off",
+    // Every `new Array(n)` here is a preallocation filled on the next line
+    // (or by index in the frame decoder); `Array.from({length: n})` says
+    // the same thing and costs a pass over the hot path.
+    "unicorn/no-new-array": "off"
+  }
+}

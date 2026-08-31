@@ -5,11 +5,7 @@ import * as GoodId from './defs/goodIdEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {addStorehouse, bareWorld, cmds, staffBuilding} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
-import {placeBuiltBuilding, type World} from './world.ts';
-
-function run(world: World, ticks: number): void {
-  for (let i = 0; i < ticks; i++) tickWorld(world, []);
-}
+import {placeBuiltBuilding} from './world.ts';
 
 /**
  * The weaponsmith's forge menu: one building, three weapons, the player

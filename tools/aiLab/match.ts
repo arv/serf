@@ -426,10 +426,16 @@ export function standingOf(world: World, playerId: Owner): SeatStanding {
   for (const u of world.units.values()) {
     if (u.dead || u.owner !== playerId) continue;
     pop++;
-    if (u.kind === UnitTypeId.knight) (army.knight++, (armyHp += u.hp));
-    else if (u.kind === UnitTypeId.spearman)
-      (army.spearman++, (armyHp += u.hp));
-    else if (u.kind === UnitTypeId.archer) (army.archer++, (armyHp += u.hp));
+    if (u.kind === UnitTypeId.knight) {
+      army.knight++;
+      armyHp += u.hp;
+    } else if (u.kind === UnitTypeId.spearman) {
+      army.spearman++;
+      armyHp += u.hp;
+    } else if (u.kind === UnitTypeId.archer) {
+      army.archer++;
+      armyHp += u.hp;
+    }
   }
   return {
     playerId,

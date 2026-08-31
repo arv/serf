@@ -6,7 +6,6 @@ import {makeGhostModel} from '../render/models';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import type {StartSpot} from '../sim/map.ts';
 
-const VALID = new THREE.Color(0x7fbf6a);
 const INVALID = new THREE.Color(0xd45252);
 
 /** Storehouse footprint side; a StartSpot is its origin tile. */

@@ -979,7 +979,7 @@ describe('a village that lost its hands', () => {
     // warm queue is a standing order against the one thing the village has
     // none of. Paired on purpose — the same seat, the same beat, one serf
     // either side of the floor.
-    const {world, brain, barracks} = raidedVillage();
+    const {world, brain} = raidedVillage();
     for (let i = 0; i < AI_STRATEGIES[AiStrategyId.steward].survivalFloor; i++)
       addSerf(world, 31 + i, 31);
     expect(

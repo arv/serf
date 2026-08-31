@@ -20,9 +20,7 @@ import {
   BUILDING_DEFS,
   buildingDef,
   gatherOrigin,
-  garrisonRoom,
   gatherRecipeOf,
-  OUTPUT_CAP,
   repairBill,
 } from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
@@ -32,7 +30,7 @@ import * as PostureId from '../defs/postureIdEnum.ts';
 import * as TechIdNs from '../defs/techIdEnum.ts';
 import {TECH_DEFS, type TechId} from '../defs/techs.ts';
 import * as UnitClass from '../defs/unitClassEnum.ts';
-import {UNIT_DEFS, WEAPON_OF} from '../defs/units.ts';
+import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import {
   ALL_ECONOMY_RULES,
@@ -47,13 +45,7 @@ import {
   type Owner,
 } from '../entities.ts';
 import * as HeraldNote from '../heraldNoteEnum.ts';
-import {
-  findResourcesNear,
-  nearestResource,
-  playMin,
-  playMax,
-  tileBlocks,
-} from '../map.ts';
+import {nearestResource, playMin, playMax, tileBlocks} from '../map.ts';
 import * as MatchState from '../matchStateEnum.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
@@ -901,8 +893,8 @@ export class AiBrain {
     this.#updateStance(world, baseX, baseY);
     const s: AiStrategy = {
       ...this.strategy,
-      ...(this.#stanceKnobs() ?? {}),
-      ...(this.#override ?? {}),
+      ...this.#stanceKnobs(),
+      ...this.#override,
     };
     const stock = sh.stock;
     const techs = p.techs;

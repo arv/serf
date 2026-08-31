@@ -117,8 +117,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // Masonry ahead of its printed line. Brain only — playback never runs a
 // brain — so yesterday's logs play back exactly; the hash is over raw
 // bytes, which is why it moved anyway.
+// Still 36 after oxlint swept the tree (.oxlintrc.json): four sim files
+// dropped imports nothing read (hash.ts, world.ts, systems/ai.ts,
+// systems/objectives.ts) and one spread lost an empty fallback that
+// never added a key. Same constants, same tables, same statements, so
+// every tick runs as it did — the hash is over raw bytes, which is why
+// it moved anyway.
 const EXPECTED_VERSION = 36;
-const EXPECTED_HASH = '869de03c51c22c0dad85f1a5cfe48771';
+const EXPECTED_HASH = '016f48df01ee8cc9197f2556b134aae1';
 
 /**
  * Everything a replay's playback depends on, as raw source:

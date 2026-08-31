@@ -311,6 +311,7 @@ pnpm test        # headless suite: sim, editor, server, aiLab (800+ tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
 pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
+pnpm lint        # oxlint (CI runs it too; `pnpm lint:fix` applies fixes)
 pnpm bakeoff     # AI bake-off (tools/aiLab)
 ```
 
@@ -321,6 +322,20 @@ Left alone: the prose in `README.md` and `docs/`, the vendored models under
 `public/models/`, and the one-line generated data
 (`src/sim/defs/maps/*.json`, `tools/modelLab/baked.json`) a formatter would
 explode into thousands of lines.
+
+Linting is [oxlint](https://oxc.rs/docs/guide/usage/linter)
+(`.oxlintrc.json`), and CI fails on a finding. Only the `correctness`
+category is on — code that is outright wrong or dead — so a warning is
+worth fixing rather than arguing with, and `pnpm lint:fix` handles the
+mechanical ones. Two rules are turned off where they misread this
+codebase: `no-unassigned-vars` (Solid assigns `let el!: HTMLDivElement`
+through `ref={el}`, which the rule cannot see) and `unicorn/no-new-array`
+(every `new Array(n)` here is a preallocation filled on the spot). The
+`vitest` and `jsx-a11y` plugins are off too — the first reads Vitest's
+`expect(value, 'message')` as an arity error, the second wants markup
+changes that belong in a change of their own. Where a spread really is a
+snapshot taken before the loop deletes from the map it walks, the site
+carries an `oxlint-disable-next-line` and says so.
 
 One thing to know about the import sorting: a comment directly above the
 first import travels with it, so a file header or a `/// <reference lib>`

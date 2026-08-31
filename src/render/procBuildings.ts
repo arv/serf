@@ -324,7 +324,6 @@ const HD = 0.74;
  * its roof half-span — nearly two storeys of wall under a shallow-looking
  * cap — which is most of why its proportions read wrong beside the house.
  */
-const SILL = 0.02;
 const COURSE = 0.14;
 const EAVE = 0.505;
 const RIDGE = 1.01;

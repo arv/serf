@@ -1,7 +1,7 @@
 import type {Enum} from '../shared/enum.ts';
 import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import {type GoodAmounts, type GoodId, goodEntries} from '../sim/defs/goods';
+import {type GoodAmounts, goodEntries} from '../sim/defs/goods';
 import type {TechId} from '../sim/defs/techs';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
