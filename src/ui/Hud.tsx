@@ -176,6 +176,7 @@ export function Hud(props: {
   onPlace: (type: BuildingTypeId | null) => void;
   onArmOrder: (mode: OrderMode | null) => void;
   onHire: () => void;
+  onCancelHire: (index: number) => void;
   onResearch: (tech: TechId) => void;
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
@@ -2216,6 +2217,7 @@ export function Hud(props: {
           onTrain={props.onTrain}
           onCancelTrain={props.onCancelTrain}
           onHire={props.onHire}
+          onCancelHire={props.onCancelHire}
           onDeselect={props.onDeselect}
           onArmOrder={props.onArmOrder}
           onClearRally={props.onClearRally}

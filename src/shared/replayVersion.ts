@@ -20,6 +20,20 @@
  * directly.
  */
 /**
+ * 37: a hire can be called back. cancelHire (command kind 16) strikes one
+ * recruit from the castle's queue and returns his silver in full, so the
+ * castle's card can carry the barracks' row of cancellable slots instead
+ * of a tally with a "×3" on it. A new command kind is pure format — no
+ * log written before it can hold one, and the tick that executes every
+ * older order is untouched — which is the half of this version's promise
+ * the herald bumped for (34).
+ *
+ * The one behavior it adds is the leader's clock: striking the man at the
+ * head of the queue restarts the walk for the man behind him, because the
+ * eight seconds already spent were the cancelled man's. Reachable only
+ * through the new command, so nothing recorded on 36 replays differently.
+ */
+/**
  * 36: every valley has a second silver seam in it.
  *
  * One seam is a finite number of loads, and a match that outlived its
@@ -358,4 +372,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 36;
+export const REPLAY_VERSION = 37;
