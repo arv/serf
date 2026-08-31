@@ -556,8 +556,18 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
+              {/* mine(), like every other row that gives an order: a
+                  replay can open a rival's Smith, and a live ✕ over the
+                  Warlord's forge queue offers a thing that was never on
+                  the table. Only the repair/pause/sell row used to need
+                  saying so, because only your own buildings could be
+                  selected at all. */}
               <Show
-                when={def().recipeOptions && b().state === BuildingState.built}
+                when={
+                  mine() &&
+                  def().recipeOptions &&
+                  b().state === BuildingState.built
+                }
               >
                 {/* The forge menu: one declared grid, three to a row —
                     nine recipes today and the frame would hold a tenth.
@@ -714,6 +724,7 @@ export function SelectionPanel(props: {
                   spearman does. */}
               <Show
                 when={
+                  mine() &&
                   b().type === BuildingTypeId.storehouse &&
                   b().state === BuildingState.built
                 }
@@ -837,7 +848,11 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={def().trains && b().state === BuildingState.built}>
+              <Show
+                when={
+                  mine() && def().trains && b().state === BuildingState.built
+                }
+              >
                 {/* Wraps: three priced train buttons outgrow the card's
                     width cap on a narrow screen, and are better stacked
                     than sliced. Safe to wrap where the queue below is
