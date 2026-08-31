@@ -129,21 +129,24 @@ function figure(
 }
 
 /**
- * Live knobs for the scythe's grip fix-up (packScytheProp): ?sy= slides
- * the grip along the haft, ?rx=/?rz= re-pitch about the fist — the same
- * three numbers the builder hard-codes, overridable per shot so a hold
- * can be tuned from screenshots without touching src between takes.
+ * Live knobs for the scythe's hold: ?sy= slides the grip along the haft
+ * (packScytheProp's own number), ?rx=/?rz= re-aim the tool about the fist
+ * — the roll gripPose ends up with, its -0.55 and the scythe's pitch
+ * together. Overridable per shot so a hold can be tuned from screenshots
+ * without touching src between takes.
  */
 function tunePose(tool: THREE.Object3D | undefined): void {
-  const pivot = tool?.children[0];
-  const inner = pivot?.children[0];
-  if (!pivot || !inner) return;
+  const inner = tool?.children[0];
+  if (!tool || !inner) return;
   const sy = params.get('sy');
   const rx = params.get('rx');
   const rz = params.get('rz');
   if (sy !== null) inner.position.y = Number(sy);
-  if (rx !== null) pivot.rotation.x = Number(rx);
-  if (rz !== null) pivot.rotation.z = Number(rz);
+  if (rx !== null) tool.rotation.x = Number(rx);
+  if (rz !== null) tool.rotation.z = Number(rz);
+  // Re-derive the grip slide from whatever aim we just set: it runs down
+  // the tool's own haft, so it moves with the pose (see gripPose).
+  tool.position.set(0, -0.14, 0).applyEuler(tool.rotation);
 }
 
 const strip = params.get('strip');
