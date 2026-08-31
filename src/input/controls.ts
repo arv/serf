@@ -1610,14 +1610,18 @@ export class Controls {
    * whoever brought more, which is at least the side the eye was on. A
    * shift-drag keeps the seat already selected instead, so a squad is grown
    * a corner of the map at a time rather than swapped out from under the
-   * hand halfway through.
+   * hand halfway through — but only where the people already held ARE one
+   * seat's. A set shift-clicked out of both sides has no seat to keep, and
+   * reading one off whichever id the selection happens to yield first would
+   * decide the drag by the order the player clicked in three gestures ago,
+   * which is not on screen and not a rule anyone could learn. So a mixed
+   * hand falls through to the count below, and the drag adds what a plain
+   * drag would have taken.
    */
   #bandOwner(caught: readonly number[], additive: boolean): number | null {
     if (additive) {
-      for (const id of this.#selection) {
-        const owner = this.#sync.ownerOf(id);
-        if (owner !== null) return owner;
-      }
+      const held = this.#soleOwner(this.#selection);
+      if (held !== null) return held;
     }
     const counts = new Map<number, number>();
     let best: number | null = null;

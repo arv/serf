@@ -1311,6 +1311,41 @@ describe('watching a replay', () => {
     expect(selectionOwner()).toBeNull();
   });
 
+  it('does not let click order decide what a shift-drag grows', () => {
+    // A mixed hand has no seat to keep, so the drag falls back to the
+    // count over the rectangle — the same rule a plain drag follows, and
+    // one the player can see. Reading the seat off whichever id the
+    // selection yielded first decided the drag by the order they had
+    // clicked in two gestures ago.
+    const shiftClick = (
+      h: ReturnType<typeof harness>,
+      p: {x: number; y: number},
+    ): void => {
+      h.canvas.fire('pointerdown', ptr(p.x, p.y, true));
+      h.canvas.fire('pointerup', ptr(p.x, p.y, true));
+    };
+    /** The same board every time; `order` is which side is clicked first. */
+    const drag = (order: readonly number[]): number[] => {
+      const h = harness();
+      controls?.dispose();
+      controls = h.controls;
+      h.addUnit(1, -8, -8);
+      h.addUnit(2, 0, 0);
+      h.addUnit(3, 1, 1, THEM);
+      h.addUnit(4, 2, 2, THEM);
+      h.addUnit(5, 3, 3, THEM);
+      for (const id of order) shiftClick(h, h.screenOf(id));
+      expect(selectionOwner()).toBeNull();
+      h.band(...around([h.screenOf(2), h.screenOf(5)]), true);
+      return [...selection()].sort((a, b) => a - b);
+    };
+
+    // Three of theirs against one of yours inside the rectangle, so the
+    // band takes theirs — whichever of the two was shift-clicked first.
+    expect(drag([1, 3])).toEqual([1, 3, 4, 5]);
+    expect(drag([3, 1])).toEqual([1, 3, 4, 5]);
+  });
+
   it('gives no order, however the ring got there', () => {
     // The worker has always dropped a replay's orders at the door. The
     // click must not claim otherwise on the way there — a pulse under a
