@@ -321,6 +321,56 @@ describe('barracks training', () => {
     expect(spearman!.hp).toBe(
       Math.round(UNIT_DEFS[UnitTypeId.spearman].hp * 1.25),
     );
+    // And the armour is his own from here: full health means the new number,
+    // not the kind's, or every reading of his wounds is taken against a man
+    // who was never issued a mail coat.
+    expect(spearman!.maxHp).toBe(spearman!.hp);
+  });
+
+  it('publishes an armoured soldier as wounded on his first blow', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {[GoodId.food]: 10, [GoodId.spear]: 2});
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.mailArmor);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
+    addSerf(world, 34, 34);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.trainUnit,
+        buildingId: barracks.id,
+        unit: UnitTypeId.spearman,
+      }),
+    );
+    run(world, 20 * 60);
+    const spearman = [...world.units.values()].find(
+      u => u.kind === UnitTypeId.spearman,
+    )!;
+    const snapOf = (): UnitSnapshot => {
+      for (const snap of unitSnapshots(world))
+        if (snap.id === spearman.id) return snap;
+      throw new Error('the spearman is not in the snapshot');
+    };
+    // He musters whole, and the publish names the maximum he is whole AT —
+    // the kind's number would have the card print 45 for a man carrying 56.
+    expect(snapOf().hpPct).toBe(255);
+    expect(snapOf().maxHp).toBe(spearman.maxHp);
+    expect(snapOf().maxHp).toBeGreaterThan(UNIT_DEFS[UnitTypeId.spearman].hp);
+
+    // One blow. Against his kind's hitpoints this still read past full and
+    // clamped there — the bar over his head did not move until a fifth of
+    // him was gone.
+    spearman.hp -= UNIT_DEFS[UnitTypeId.knight].combat!.damage;
+    expect(spearman.hp).toBeGreaterThan(UNIT_DEFS[UnitTypeId.spearman].hp);
+    expect(snapOf().hpPct).toBeLessThan(255);
+    expect(snapOf().hpPct).toBe(
+      Math.round((spearman.hp / spearman.maxHp) * 255),
+    );
   });
 });
 

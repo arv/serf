@@ -13,8 +13,10 @@ import {
   tileCount,
 } from '../shared/grid.ts';
 import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion.ts';
+import {UNIT_DEFS} from './defs/units.ts';
 import type {GameMap} from './map.ts';
 import type {PlayerState} from './player.ts';
+import type {Unit} from './units.ts';
 import type {MatchOutcome, World} from './world.ts';
 
 /**
@@ -192,7 +194,28 @@ export function deserializeWorld(json: string): World {
     nextJobId: w.nextJobId,
     map,
     units: new Map(
-      (w.units as {id: number}[]).map(u => [u.id, u]),
+      // A unit carries his own full health now (Unit.maxHp — armour research
+      // moves it off the kind's number). A file written before he did says
+      // nothing about it, and without a fill-in his health divides by
+      // nothing and his bar draws empty.
+      //
+      // The kind's number alone will not do: armour research predates the
+      // field, so an older file already holds soldiers standing above it,
+      // and filling 80 for a knight carrying 120 puts him straight back in
+      // the saturation this reading exists to end. What he is carrying is
+      // therefore the floor — a man is never over his own full health.
+      //
+      // For an unwounded man that recovers his maximum exactly. A man
+      // wounded when the file was written comes back reading whole at what
+      // is left of him; the file never wrote down what he was whole at, so
+      // there is nothing better to be had, and it errs the safe way — his
+      // bar moves on the next blow he takes rather than standing still.
+      (w.units as (Omit<Unit, 'maxHp'> & {maxHp?: number})[]).map(u => [
+        u.id,
+        (u.maxHp === undefined
+          ? {...u, maxHp: Math.max(u.hp, UNIT_DEFS[u.kind].hp)}
+          : u) as Unit,
+      ]),
     ) as World['units'],
     buildings: new Map(
       (w.buildings as {id: number}[]).map(b => [b.id, b]),

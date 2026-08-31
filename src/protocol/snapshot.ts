@@ -420,13 +420,15 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       y: u.y,
       kind: u.kind,
       owner: u.owner, // numeric owner rides the aux byte raw
+      // Against the man's own full health, not his kind's: armour research
+      // musters a knight at 120 where the kind says 80, and dividing by the
+      // kind left him reading untouched down to his last two thirds.
       hpPct:
         action === ACTION.dead
           ? 0
-          : Math.max(
-              0,
-              Math.min(255, Math.round((u.hp / UNIT_DEFS[u.kind].hp) * 255)),
-            ),
+          : Math.max(0, Math.min(255, Math.round((u.hp / u.maxHp) * 255))),
+      // ...and the maximum itself, so a card can name the pair.
+      maxHp: Math.min(255, Math.round(u.maxHp)),
       carrying: action === ACTION.dead ? 0 : carryingCode(u.carrying),
       action,
       // Published whenever the unit has a post, not just mid-swing: the
