@@ -183,6 +183,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target |
+| **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |
 | **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Guard **T**ower |
 | **R** | Tech tree |
 | **H** (castle selected) | Hire Serf |
@@ -262,6 +263,25 @@ Touch gets the double-click as a double-tap on a unit — the same widening
 to that kind on screen. A phone has no shift and no band drag without first
 arming the HUD's marquee, so this is the one gesture that hands a finger a
 whole kind at once.
+
+Watching a replay, all of that reaches every seat. A recording is a match
+with the orders taken out — the log is the sim's whole diet, so a click can
+never touch the tick — and there is nobody left to hide a village from, so
+the pointer picks up the Warlord's serfs and opens his mill's card the same
+way it does your own. Which is most of the reason to open a recording at
+all: an AI is otherwise a thing you only ever meet at your gates, and its
+mistakes are only legible from inside its own valley.
+
+Two rules keep that honest. A rival's building has to have been on screen —
+*explored* ground, the same memory the renderer draws it from — so a click
+into the dark cannot read the stock of a hut nobody has seen; F lifts the
+fog and then everything is fair game. And any gesture that grabs a crowd at
+once — a band drag, a double-click's widening — commits to one banner (the
+seat filling the rectangle, or the clicked unit's), because "27 units
+selected" across both sides of a melee is not a fact about anything. The
+cards name whose people and whose walls these are, the rings under a rival's
+squad fly that seat's color rather than your vermillion, and the order
+buttons are gone rather than greyed: they were never on the table.
 
 The letters on a selected building's panel are contextual, as in both those
 games, so they may reuse a global letter: the barracks' **A**rcher is the
