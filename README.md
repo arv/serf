@@ -247,9 +247,11 @@ name, a glyph and their health across the head, the way a building's card
 already does. A squad gets the count (named as its kind when they are all
 one — "6 Spearmen") and a tile per head: a glyph over that head's own
 health bar, in three colors, so the one man about to fall is findable in a
-squad of twenty rather than averaged away. No number on the tile: every tile in a healthy
-squad prints its maximum, which reads as the kind's stat rather than as
-this man's state, and the exact figure is a hover away. The kind and the
+squad of twenty rather than averaged away. No number on the tile — a
+number was tried and taken out again, because every tile in a healthy
+squad printed the same thing, its kind's maximum, and read as what a
+knight *is* rather than as how this one *is*. The bar carries the state,
+and the exact figure is a hover away. The kind and the
 health come off the same shared buffer the renderer draws from, re-read
 once per publish rather than once per frame (`ui/roster.ts`); past three
 rows of tiles the tail is counted instead of drawn, so an army cannot grow

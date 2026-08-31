@@ -204,17 +204,18 @@ describe('the selection roster', () => {
 
   it('tells a squad that changed size or membership from one that did not', () => {
     const rows: Row[] = [
-      {id: 1, kind: UnitTypeId.knight, pct: FULL},
-      {id: 2, kind: UnitTypeId.knight, pct: FULL},
+      {id: 1, kind: UnitTypeId.serf, pct: FULL},
+      {id: 2, kind: UnitTypeId.serf, pct: FULL},
     ];
     const both = rosterOf([1, 2], source(rows));
     expect(sameRoster(both, rosterOf([1, 2], source(rows)))).toBe(true);
     expect(sameRoster(both, rosterOf([1], source(rows)))).toBe(false);
     // A serf who became a worker in place keeps his id — the population
-    // economy does exactly this — and the tile has to change with him.
+    // economy does exactly this — and the tile has to change with him,
+    // which a comparison on ids alone would miss.
     const promoted = rosterOf(
       [1, 2],
-      source([rows[0]!, {id: 2, kind: UnitTypeId.spearman, pct: FULL}]),
+      source([rows[0]!, {id: 2, kind: UnitTypeId.worker, pct: FULL}]),
     );
     expect(sameRoster(both, promoted)).toBe(false);
   });
