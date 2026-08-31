@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
 import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
 import * as MissionId from '../sim/defs/missionIdEnum.ts';
-import {MISSION_DEFS} from '../sim/defs/missions';
+import {MISSION_DEFS, MISSION_ORDER} from '../sim/defs/missions';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
-import {configFromUrl} from './gameConfig';
+import {configFromUrl, missionUrl} from './gameConfig';
 
 /**
  * The start screen speaks to the game entirely through the query string, so
@@ -92,6 +92,19 @@ describe('configFromUrl', () => {
       {kind: PlayerKind.human},
       {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
     ]);
+  });
+
+  // The two halves of ?mission, closed. The campaign list and the end
+  // card's Continue both built '?mission=' + the id, and the id is a
+  // number: parseMissionId's string branch knows only the spellings, so
+  // every commission launched as an unknown mission — a default skirmish
+  // with no briefing card and no objectives checklist.
+  it('boots every commission missionUrl can launch', () => {
+    for (const id of MISSION_ORDER) {
+      expect(configFromUrl(missionUrl(id)).mission).toBe(id);
+      // What the id alone would have named: nothing.
+      expect(configFromUrl(`?mission=${id}`).mission).toBeUndefined();
+    }
   });
 
   it('ignores a mission nobody has heard of', () => {
