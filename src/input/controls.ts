@@ -31,6 +31,7 @@ import {
 import {fullscreen, guardEsc} from '../ui/fullscreen';
 import {techName, unitName} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
+import {nudgeSpeed} from '../ui/speedControl';
 import {
   bandArm,
   buildChord,
@@ -39,6 +40,7 @@ import {
   lastAlert,
   muted,
   myPlayerId,
+  netMode,
   openPanel,
   orderMode,
   placing,
@@ -497,6 +499,11 @@ export class Controls {
       return;
     }
 
+    // Playback: the same gears the HUD's speed cluster holds. A networked
+    // match runs on one shared clock, so there is nothing here to press —
+    // which is why the HUD hides those buttons there too.
+    if (!netMode() && this.#playbackKey(e)) return;
+
     if (letter === RESEARCH_KEY) {
       // Not contextual: the tree is a sheet to read, not an order to give.
       setTechPanelOpen(!techPanelOpen());
@@ -554,6 +561,40 @@ export class Controls {
       this.#host.setDebug(open);
     }
   };
+
+  /**
+   * The clock's keys — + and − a gear at a time — or false for a key that
+   * meant something else.
+   *
+   * One pair, and no pause key beside it: the bottom rung of the ladder is
+   * the pause, so − from walking pace holds the village in a single press
+   * and + lets it go again. A P would have been a second road to a rung
+   * that already takes one keystroke to reach, and one that then has to
+   * remember which gear it interrupted.
+   *
+   * Not letters, and that is the point: every letter this game binds is one
+   * the HUD prints inside a word, and "Fast forward" has no free letter
+   * left to bold (F lifts a replay's fog). The +/− pair is what the grand
+   * strategy games bind their clock to — Paradox's, where Stellaris takes
+   * this same spread of spellings — and it reads off the keycap without a
+   * legend. It is not the RTS convention: StarCraft has no speed key at
+   * all, and its pause, where it has one, is the Pause key itself.
+   *
+   * Both spellings of each, for the reason keyLetter gives. `+` needs
+   * Shift on most layouts and none on some, so the unshifted `=` is taken
+   * as the same key — the way a browser's own zoom does.
+   */
+  #playbackKey(e: KeyboardEvent): boolean {
+    if (e.key === '+' || e.key === '=' || e.code === 'Equal') {
+      nudgeSpeed(this.#host, 1);
+      return true;
+    }
+    if (e.key === '-' || e.code === 'Minus') {
+      nudgeSpeed(this.#host, -1);
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Run a command off the selected building's panel, if this letter names
