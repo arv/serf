@@ -188,6 +188,23 @@ export function SelectionPanel(props: {
    * has actually moved.
    */
   const roster = () => selectionUnits();
+  /**
+   * What the head counts — the roster, so it counts the same people the
+   * tiles under it draw.
+   *
+   * The id set would be the more obvious source and is the wrong one: the
+   * roster drops an id the latest publish has stopped carrying (see
+   * rosterOf — that is a man who died between the two reads, and half a
+   * frame of a ghost tile is worse than none), and a head reading off the
+   * ids would spend that frame saying six over five faces.
+   *
+   * The fall back to the ids covers the other end of it: a selection made
+   * before any publish has been read has nobody in the roster yet, and a
+   * card headed "0 units selected" over an empty grid would be worse than
+   * a count that is momentarily ahead of the faces. The tiles need two
+   * people before they draw at all, so nothing contradicts it there.
+   */
+  const headCount = () => roster().length || selection().size;
   /** The one in hand, when it is one — the card that gets a name. */
   const lone = () => (roster().length === 1 ? roster()[0]! : null);
   /** All of one kind, so the head can name them: knights, not units. */
@@ -1290,10 +1307,11 @@ export function SelectionPanel(props: {
             is was the whole decision the player was making. So: who they
             are, and how much is left of them.
             One picked up gets a card like a building's, name and health
-            across the head. Several get the head as a count, a line of
-            kinds under it, and a tile per head with its own hitpoints —
-            the wounded one in a squad is what the player is looking for,
-            and an average would hide exactly that. */}
+            across the head. Several get the head as a count — named as
+            their kind when they are all of one — and a tile per head with
+            its own health under it: the wounded one in a squad is what the
+            player is looking for, and an average would hide exactly
+            that. */}
         <div class="hud-selection panel">
           <div class="sel-head">
             {/* Both spellings of the head keep the same shape — icon,
@@ -1324,15 +1342,15 @@ export function SelectionPanel(props: {
                   when={lone()}
                   fallback={
                     <span class="name">
-                      <span class="num">{selection().size}</span>{' '}
+                      <span class="num">{headCount()}</span>{' '}
                       {/* A squad of one kind is named as what it is: six
                           knights read as "6 Knights", not as six of
                           something. A mixed band has no such word and
                           falls back to the count — the kinds line under
                           this is what answers it there. */}
                       {soleKind()
-                        ? unitNamePlural(soleKind()!, selection().size)
-                        : selection().size === 1
+                        ? unitNamePlural(soleKind()!, headCount())
+                        : headCount() === 1
                           ? 'unit'
                           : 'units'}{' '}
                       selected
