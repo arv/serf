@@ -1,5 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import {UNIT_DEFS} from '../sim/defs/units.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {findResourceNear} from '../sim/map.ts';
 import {
@@ -9,7 +11,9 @@ import {
   bareWorld,
 } from '../sim/testUtils.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
-import {snapBuilding} from './snapshot.ts';
+import {spawnUnit, type World} from '../sim/world.ts';
+import type {UnitSnapshot} from './sabLayout.ts';
+import {snapBuilding, unitSnapshots} from './snapshot.ts';
 
 /**
  * The reach readout: what a gatherer's card says is left in the ground
@@ -128,5 +132,46 @@ describe('snapBuilding: outWaitingSince', () => {
       serfId: 99,
     });
     expect(snapBuilding(world, hut).outWaitingSince).toBeUndefined();
+  });
+});
+
+/**
+ * The health byte. It is a fraction of the unit's OWN full health, which is
+ * not his kind's: armour research musters a knight at 120 against a base of
+ * 80, and dividing by the kind saturated the byte at full until he was down
+ * to what an unarmoured man starts with — a third of him gone with nothing
+ * to show for it, on the bar over his head and on the card that names him.
+ */
+describe('unitSnapshots: health', () => {
+  const snapOf = (world: World, id: number): UnitSnapshot => {
+    for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;
+    throw new Error(`unit ${id} is not in the snapshot`);
+  };
+
+  it('measures a wound against the unit’s own maximum, not its kind’s', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    // Mail Armor and Gilded Arms, as the barracks hands him out.
+    knight.hp = knight.maxHp = 120;
+    expect(knight.maxHp).toBeGreaterThan(UNIT_DEFS[UnitTypeId.knight].hp);
+    expect(snapOf(world, knight.id).hpPct).toBe(255);
+    expect(snapOf(world, knight.id).maxHp).toBe(120);
+
+    knight.hp = 110; // one blow
+    expect(snapOf(world, knight.id).hpPct).toBe(Math.round((110 / 120) * 255));
+    expect(snapOf(world, knight.id).hpPct).toBeLessThan(255);
+    // Against the kind's 80 this same man read past full, and clamped to it.
+    expect(
+      Math.round((110 / UNIT_DEFS[UnitTypeId.knight].hp) * 255),
+    ).toBeGreaterThan(255);
+  });
+
+  it('reads full for a unit carrying only its kind’s number', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    expect(snapOf(world, serf.id).hpPct).toBe(255);
+    expect(snapOf(world, serf.id).maxHp).toBe(UNIT_DEFS[UnitTypeId.serf].hp);
+    serf.hp -= 1;
+    expect(snapOf(world, serf.id).hpPct).toBeLessThan(255);
   });
 });

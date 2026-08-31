@@ -128,8 +128,19 @@ import {REPLAY_VERSION} from './replayVersion';
 // queue, hands the next man a fresh walk. A new kind is pure format — no
 // older log can hold one — and the only new behavior sits behind it, so
 // yesterday's logs play back exactly (see replayVersion.ts).
+// Still 37 after a unit began carrying his own full health (Unit.maxHp,
+// units.ts): armour research already sent a soldier out of the barracks
+// above his kind's number, and the field only writes that number down so
+// the published health byte can be a fraction of the right thing. He
+// musters at exactly the hp he always did, nothing in a tick reads the new
+// field, and the save fills it in from the kind for a file that predates
+// it — so yesterday's logs play back exactly. The hash is over raw bytes,
+// which is why it moved anyway. (Still 37 with the fill-in corrected to
+// take what the man is carrying as its floor: armour research is older
+// than the field, so an older file already holds soldiers above their
+// kind's number. Load-time reading only; no tick moved.)
 const EXPECTED_VERSION = 37;
-const EXPECTED_HASH = '214e33b91fcd7dc6d23a774a7091f4be';
+const EXPECTED_HASH = 'a6ecc80321a451cbb1e0874f1704854e';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -25,6 +25,7 @@ import type {Enum} from '../shared/enum.ts';
 import type {BuildingTypeId} from '../sim/defs/buildings';
 import type {GoodAmounts} from '../sim/defs/goods';
 import * as OrderModeNs from './orderModeEnum.ts';
+import type {SelectedUnit} from './roster';
 export type OrderMode = Enum<typeof OrderModeNs>;
 import * as MatchState from '../sim/matchStateEnum.ts';
 import * as HudPanelNs from './hudPanelEnum.ts';
@@ -38,6 +39,23 @@ export const [speed, setSpeed] = createSignal(1);
 export const [selection, setSelection] = createSignal<ReadonlySet<number>>(
   new Set(),
 );
+
+/**
+ * The same selection, read back out of the live unit buffer as people:
+ * kind and hitpoints per head, in the order the card draws them (see
+ * ui/roster.ts). Written by Controls off each new publish of that buffer —
+ * twenty a second, not once a frame — and then only when something
+ * printable has changed. A selection the player just made is written
+ * straight away rather than waiting for the next publish.
+ *
+ * A second signal rather than a richer `selection`, because the two have
+ * different jobs and different clocks: the id set is what orders are sent
+ * to and what every gesture in the input layer compares against, and it
+ * must not churn because a knight took an arrow.
+ */
+export const [selectionUnits, setSelectionUnits] = createSignal<
+  readonly SelectedUnit[]
+>([]);
 
 /**
  * The control group the standing selection *is* — 1–9 or 0, or null when it
@@ -407,6 +425,7 @@ export const [invariantViolations, setInvariantViolations] = createSignal<
 export function resetMatchState(): void {
   setSpeed(1);
   setSelection(new Set<number>());
+  setSelectionUnits([]);
   setSelectionGroup(null);
   setSelectionOwner(null);
   setMyPlayerId(0);

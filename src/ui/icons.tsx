@@ -1,9 +1,11 @@
 import type {JSX} from 'solid-js';
 import type {Enum} from '../shared/enum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import {goodName} from './names';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {goodName, unitName} from './names';
 
 type GoodId = Enum<typeof GoodId>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * Tiny inline-SVG icon set — no emoji, no assets. Goods use their palette
@@ -577,6 +579,180 @@ export function MalletIcon() {
         fill="#9aa3ad"
       />
       <path d="M6.6 4.4 11.4 9.2" stroke="#79818c" stroke-width="1" />
+    </svg>
+  );
+}
+
+/**
+ * ——— The people ———
+ *
+ * One glyph per kind of person, for the selection card: what a serf is,
+ * what a knight is, and which of the two the player has just picked up.
+ * Drawn as what they carry rather than as faces, because at 16px a face is
+ * a smudge and a spear is a spear — and the weapon is what the model on
+ * the ground is recognised by anyway (see render/characters.ts: the knight
+ * has sword and shield, the ranger a bow, the barbarian a two-handed axe).
+ *
+ * Unlike the goods, these are not one path in one color: a spear is a wooden
+ * haft with a steel head, and flattening that to a single tint loses the
+ * shape at the size it is read at.
+ */
+const LINEN = '#c9b795';
+const SKIN = '#d8b48c';
+const STEEL = '#c4cdd6';
+const DARK_STEEL = '#79818c';
+const HAFT = '#a5824f';
+const STRAW = '#d3ab5c';
+const ROGUE = '#8b93a0';
+
+/** Head and shoulders, the body every villager glyph is built on. */
+function villager(cloth: string): JSX.Element {
+  return (
+    <>
+      <circle cx="7.6" cy="5.4" r="2.9" fill={SKIN} />
+      <path d="M2.4 14.6a5.2 5.2 0 0 1 10.4 0Z" fill={cloth} />
+    </>
+  );
+}
+
+/** The bow both archers carry, in whichever wood the faction stains it. */
+function bow(stave: string, tip: string): JSX.Element {
+  return (
+    <>
+      <path
+        d="M11.4 2.2a7.2 7.2 0 0 1 0 11.6"
+        stroke={stave}
+        stroke-width="1.6"
+        fill="none"
+        stroke-linecap="round"
+      />
+      <path
+        d="M11.4 2.2 9.6 8l1.8 5.8"
+        stroke="#e0dccf"
+        stroke-width="0.8"
+        fill="none"
+      />
+      <path
+        d="M3.4 8h7"
+        stroke={HAFT}
+        stroke-width="1.1"
+        stroke-linecap="round"
+      />
+      <path d="M2 8l2.6-1.5v3Z" fill={tip} />
+    </>
+  );
+}
+
+const UNIT_PATHS: Record<UnitTypeId, () => JSX.Element> = {
+  // A villager with a bundle on his back: the serf is the valley's legs,
+  // and what he is doing is always carrying something somewhere.
+  [UnitTypeId.serf]: () => (
+    <>
+      {villager(LINEN)}
+      <rect x="11" y="7.4" width="4.2" height="4.2" rx="0.8" fill="#ab8354" />
+      <path d="M11 9.5h4.2" stroke="#8a6a42" stroke-width="0.8" />
+    </>
+  ),
+  // The same villager under a straw brim — the hat every trade in the
+  // valley works in, and the one thing that tells a post from a haul.
+  [UnitTypeId.worker]: () => (
+    <>
+      {villager('#b9a07c')}
+      <ellipse cx="7.6" cy="4.2" rx="5.2" ry="1.5" fill={STRAW} />
+      <path d="M5.1 4.1a2.5 2.5 0 0 1 5 0Z" fill="#e2c078" />
+    </>
+  ),
+  // A great helm, visor and all: armor is the knight's whole point.
+  [UnitTypeId.knight]: () => (
+    <>
+      <path
+        d="M8 1.8c-2.7 0-4.4 1.8-4.4 4.4v3.4a4.4 4.4 0 0 0 8.8 0V6.2c0-2.6-1.7-4.4-4.4-4.4Z"
+        fill={STEEL}
+      />
+      <path d="M3.8 6.4h8.4v1.6H3.8Z" fill={DARK_STEEL} />
+      <path d="M8 8.6v4" stroke={DARK_STEEL} stroke-width="1" />
+      <path d="M4.6 2.6h6.8" stroke={DARK_STEEL} stroke-width="1" />
+    </>
+  ),
+  // A spear held upright: the cheap fast counter, and the only glyph that
+  // is all reach.
+  [UnitTypeId.spearman]: () => (
+    <>
+      <path
+        d="M4.2 14 12 3.6"
+        stroke={HAFT}
+        stroke-width="1.5"
+        stroke-linecap="round"
+      />
+      <path d="M13.9 1.4 10.6 3.1l1.5 2 2-2.1-.2-1.6Z" fill={STEEL} />
+      <path d="M5.6 10.6 8 12.4" stroke={DARK_STEEL} stroke-width="1.2" />
+    </>
+  ),
+  // A drawn bow, arrow nocked: the shape is the range.
+  [UnitTypeId.archer]: () => bow(HAFT, STEEL),
+  // A dagger, and the rogue's cold grey: what raids the valley rather than
+  // what defends it.
+  [UnitTypeId.bandit]: () => (
+    <>
+      <path d="M7.4 1.6 9.6 2.2 8.9 9.4 8.2 10.6 7.4 9.4Z" fill={STEEL} />
+      <path d="M5.6 9.6h5.6v1.4H5.6Z" fill={ROGUE} />
+      <path d="M7.6 11h1.8v3.4H7.6Z" fill="#6b4e2e" />
+    </>
+  ),
+  // The same bow, stained the rogues' cold grey, with a spare shaft at the
+  // feet: a raider who shoots, told apart from your own archer by the tone
+  // rather than by a hood nobody can read at this size.
+  [UnitTypeId.banditArcher]: () => (
+    <>
+      {bow(ROGUE, STEEL)}
+      <path
+        d="M2.6 12.6 6 10.4"
+        stroke="#6b4e2e"
+        stroke-width="1.1"
+        stroke-linecap="round"
+      />
+      <path d="M1.6 13.2l1.6-1 .8 1.3-1.7.9Z" fill={ROGUE} />
+    </>
+  ),
+  // A two-handed axe, oversized on purpose: the heaviest thing that walks.
+  [UnitTypeId.marauder]: () => (
+    <>
+      <path
+        d="M10.6 3 5.4 14"
+        stroke={HAFT}
+        stroke-width="1.7"
+        stroke-linecap="round"
+      />
+      <path
+        d="M10.4 2.2c3 .5 4.4 2.6 3.8 5.4-2.4-1.9-4.6-1.8-6.2-.8Z"
+        fill={STEEL}
+      />
+      <path d="M10.4 2.2 8 6.8" stroke={DARK_STEEL} stroke-width="0.9" />
+    </>
+  ),
+};
+
+/**
+ * `decorative` for the places the kind is already named in text beside the
+ * glyph — the single-unit card's head, where a labelled icon is read out
+ * twice ("Knight Knight"). On the roster's tiles the icon *is* the name,
+ * so the label stays on by default.
+ */
+export function UnitIcon(props: {
+  unit: UnitTypeId;
+  size?: number;
+  decorative?: boolean;
+}) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      style={{'vertical-align': '-2px'}}
+      aria-hidden={props.decorative === true ? 'true' : undefined}
+      aria-label={props.decorative === true ? undefined : unitName(props.unit)}
+    >
+      {UNIT_PATHS[props.unit]()}
     </svg>
   );
 }
