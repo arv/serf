@@ -59,9 +59,10 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type OrderMode = Enum<typeof OrderMode>;
 
 /**
- * How many people the card draws a tile for. Six to a row (see .sel-roster)
- * and four rows: an army bigger than that is read by its kinds line, not by
- * counting faces, and the card has a phone screen to leave some of.
+ * How many people the card draws a tile for. Eight to a row (see
+ * .sel-roster) and three rows: an army bigger than that is read by its
+ * kinds line, not by counting faces, and the card has a phone screen to
+ * leave some of.
  */
 const ROSTER_TILES = 24;
 
@@ -293,20 +294,28 @@ export function SelectionPanel(props: {
            "what did I just pick up?", and both are built to the same
            rule as the rest of the card: nothing is sized by its own
            text. The kinds are icons and counts, so eight of them still
-           fit one line; the roster is a declared grid of six columns
-           and a fixed row height, so a tile is a sixth of the card
-           whether the man in it has 8 hitpoints or 80. */
+           fit one line; the roster is a declared grid of eight columns
+           and a fixed row height, so a tile is an eighth of the card
+           whatever is in it.
+           A tile is a glyph over a bar and no number. The number was
+           there first, and it was read as the kind's stat rather than
+           as this man's state — every tile in a healthy squad prints
+           its maximum, so "80" looked like what a knight is rather
+           than how he is. The bar says the same thing as a picture,
+           which is the thing worth scanning twenty of; the exact
+           figure is a hover away in the tooltip, and the head of a
+           lone selection still spells it out. */
         .sel-kinds { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; }
         .sel-kinds .kind { display: inline-flex; align-items: center; gap: 3px; }
         .sel-kinds .n { font-size: 12px; color: #cfcbbe; min-width: 2ch; }
 
         .sel-roster {
           display: grid;
-          grid-template-columns: repeat(6, minmax(0, 1fr));
+          grid-template-columns: repeat(8, minmax(0, 1fr));
           grid-auto-rows: var(--sel-tile-h);
           gap: 5px;
         }
-        .hud-selection { --sel-tile-h: 33px; }
+        .hud-selection { --sel-tile-h: 30px; }
         /* Room for a thumb's worth of tooltip press, the same trade the
            queue's slots make one card over. */
         @media (pointer: coarse) { .hud-selection { --sel-tile-h: 40px; } }
@@ -320,13 +329,7 @@ export function SelectionPanel(props: {
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.09);
         }
-        .sel-tile .face { display: flex; align-items: center; justify-content: center; gap: 3px; }
-        /* A slot cut for the biggest number any unit in the game carries,
-           so a knight taking a hit cannot shuffle the icon beside him. */
-        .sel-tile .face .hp {
-          font-size: 10.5px; color: #cfcbbe;
-          min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums;
-        }
+        .sel-tile > svg { display: block; margin: 0 auto; }
         .sel-tile .bar {
           height: 3px; border-radius: 2px; overflow: hidden;
           background: rgba(255, 255, 255, 0.12);
@@ -1357,10 +1360,7 @@ export function SelectionPanel(props: {
                     )}
                   >
                     <span class="sel-tile">
-                      <span class="face">
-                        <UnitIcon unit={unit().kind} size={15} decorative />
-                        <span class="hp">{unit().hp}</span>
-                      </span>
+                      <UnitIcon unit={unit().kind} size={16} decorative />
                       <span class="bar">
                         <span
                           class={hpTone(hpFraction(unit()))}
@@ -1373,7 +1373,7 @@ export function SelectionPanel(props: {
                   </TipWrap>
                 )}
               </Index>
-              {/* An army past the card's four rows. The count keeps the
+              {/* An army past the card's three rows. The count keeps the
                   card from growing without limit down a phone screen, and
                   the kinds line above has already said what they are. */}
               <Show when={roster().length > shown().length}>
