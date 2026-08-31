@@ -53,18 +53,10 @@ import {
   unitNamePlural,
 } from './names';
 import * as OrderMode from './orderModeEnum.ts';
-import {hpFraction, hpTone, rosterGroups} from './roster';
+import {ROSTER_TILES, hpFraction, hpTone, rosterGroups} from './roster';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type OrderMode = Enum<typeof OrderMode>;
-
-/**
- * How many people the card draws a tile for. Eight to a row (see
- * .sel-roster) and three rows: an army bigger than that is read by its
- * kinds line, not by counting faces, and the card has a phone screen to
- * leave some of.
- */
-const ROSTER_TILES = 24;
 
 function GoodsLine(props: {amounts: GoodAmounts}) {
   const entries = () => goodEntries(props.amounts).filter(([, n]) => n > 0);
@@ -194,10 +186,12 @@ export function SelectionPanel(props: {
    * they are all the same. Null for a mixed band, which has none. */
   const headKind = () => lone()?.kind ?? soleKind();
   /**
-   * The tiles the card actually draws. Three rows of eight is as far down
-   * the screen as this card may grow — past that a phone held sideways is
-   * all roster and no valley — and the last cell goes to the count of who
-   * did not fit rather than to an arbitrary twenty-fourth man.
+   * The tiles the card actually draws — three rows of eight, which is as
+   * far down the screen as this card may grow: past that a phone held
+   * sideways is all roster and no valley. The last cell goes to the count
+   * of who did not fit rather than to an arbitrary twenty-fourth man, and
+   * the roster hands the wounded over first when it is being cut, so the
+   * men who did not fit are the ones with nothing wrong with them.
    */
   const shown = () =>
     roster().length > ROSTER_TILES
@@ -1349,11 +1343,23 @@ export function SelectionPanel(props: {
                   drawn: the card may not grow without limit down a phone
                   screen, and past two dozen faces the tiles are a texture
                   anyway — what the player is reading by then is whether
-                  any bar in it has gone red. */}
+                  any bar in it has gone red. Which is why the cut is not
+                  arbitrary, and why the cell says so when asked: a wound
+                  moves a man onto the card, so the ones left out of it
+                  are the ones nothing has happened to. */}
               <Show when={roster().length > shown().length}>
-                <span class="sel-tile more">
-                  +{roster().length - shown().length}
-                </span>
+                <TipWrap
+                  tip={() => (
+                    <TextTip
+                      title={`${roster().length - shown().length} more`}
+                      body="Only so many tiles fit. Anyone who has taken a wound is drawn ahead of those who have not, so these are the ones still whole."
+                    />
+                  )}
+                >
+                  <span class="sel-tile more">
+                    +{roster().length - shown().length}
+                  </span>
+                </TipWrap>
               </Show>
             </div>
           </Show>

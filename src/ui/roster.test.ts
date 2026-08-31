@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {UNIT_DEFS} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {
+  ROSTER_TILES,
   hpFraction,
   hpTone,
   rosterGroups,
@@ -104,6 +105,64 @@ describe('the selection roster', () => {
     // row of tiles either way.
     const shuffled = rosterOf([5, 1, 4, 2, 3], source(rows)).map(u => u.id);
     expect(shuffled).toEqual(ids);
+  });
+
+  it('leaves a squad that fits alone, however shot up it is', () => {
+    // Everyone is on screen already, so pulling the wounded forward buys
+    // nothing — and costs the one thing worth having: tiles that do not
+    // move while the player is reading them.
+    const rows: Row[] = [
+      {id: 1, kind: UnitTypeId.knight, pct: FULL},
+      {id: 2, kind: UnitTypeId.knight, pct: 20},
+      {id: 3, kind: UnitTypeId.knight, pct: FULL},
+    ];
+    expect(rosterOf([1, 2, 3], source(rows)).map(u => u.id)).toEqual([1, 2, 3]);
+  });
+
+  it('draws the wounded first once there are more men than tiles', () => {
+    // Past the cap the card is choosing who the player sees, and the few
+    // bleeding out of a big band are the whole reason to look.
+    const rows: Row[] = [];
+    for (let id = 1; id <= ROSTER_TILES + 6; id++) {
+      rows.push({id, kind: UnitTypeId.knight, pct: FULL});
+    }
+    rows[rows.length - 1]!.pct = 40;
+    rows[rows.length - 3]!.pct = 90;
+    const ids = rosterOf(
+      rows.map(r => r.id),
+      source(rows),
+    ).map(u => u.id);
+    // The two hurt men lead, in the same fighters-then-id order as ever;
+    // everyone whole keeps their old place behind them.
+    expect(ids.slice(0, 2)).toEqual([rows.length - 2, rows.length]);
+    expect(ids.slice(2)).toEqual(
+      rows
+        .map(r => r.id)
+        .filter(id => id !== rows.length && id !== rows.length - 2),
+    );
+  });
+
+  it('does not move a man again for a second wound', () => {
+    // The key is "hurt at all", not "how hurt" — a unit crosses it once
+    // (nothing in the sim heals a person) and then holds its place while
+    // the arrows keep landing.
+    const rows: Row[] = [];
+    for (let id = 1; id <= ROSTER_TILES + 2; id++) {
+      rows.push({id, kind: UnitTypeId.archer, pct: FULL});
+    }
+    rows[10]!.pct = 200;
+    rows[20]!.pct = 100;
+    const before = rosterOf(
+      rows.map(r => r.id),
+      source(rows),
+    ).map(u => u.id);
+    rows[10]!.pct = 30;
+    rows[20]!.pct = 12;
+    const after = rosterOf(
+      rows.map(r => r.id),
+      source(rows),
+    ).map(u => u.id);
+    expect(after).toEqual(before);
   });
 
   it('counts the kinds in the order the tiles are already in', () => {

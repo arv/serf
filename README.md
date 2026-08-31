@@ -252,7 +252,12 @@ this man's state, and the exact figure is a hover away. The kind and the
 health come off the same shared buffer the renderer draws from, re-read
 once per publish rather than once per frame (`ui/roster.ts`); past three
 rows of tiles the tail is counted instead of drawn, so an army cannot grow
-the card down a phone screen.
+the card down a phone screen — and the cut is not arbitrary: past the cap
+the wounded are drawn first, so the men left out are the ones nothing has
+happened to. Only past the cap, and on "hurt at all" rather than on how
+hurt, because a unit crosses that line once in its life (nothing heals a
+person) — sorting by health would re-order the tiles on every arrow, which
+is precisely when they are being read.
 
 A number holds whatever was selected when it was stamped, and that is either
 a band of people or one of your buildings — the same either/or the selection

@@ -45,6 +45,13 @@ export interface UnitSource {
 }
 
 /**
+ * How many people the card has tiles for. Lives here rather than with the
+ * markup because the ordering below has to know when the roster is being
+ * cut — who is drawn is decided by who fits.
+ */
+export const ROSTER_TILES = 24;
+
+/**
  * Display order. Fighters first, and civilians last, because a mixed
  * selection is almost always an army with a serf or two swept up in the
  * band — and the army is what the orders on the card are for. Within a
@@ -67,12 +74,36 @@ function isUnitTypeId(kind: number): kind is UnitTypeId {
 }
 
 /**
+ * Whole men last, once the card has to choose who to draw.
+ *
+ * This is a legal sort key only because it can never go back: a unit is
+ * spawned at its kind's hitpoints and nothing in the sim ever raises them
+ * again — buildings mend, people do not (see the tower that "is not a
+ * hospital" in combat.test.ts). So a man crosses from whole to hurt once
+ * in his life, moves up the card once, and stays put. Sorting on how hurt
+ * he is would not have that property: the tiles would re-order on every
+ * arrow, which is exactly when the player is trying to read them.
+ */
+function woundRank(u: SelectedUnit): number {
+  return u.hp < u.maxHp ? 0 : 1;
+}
+
+/**
  * Read the selected ids out of the live buffer, in display order.
  *
  * Ids the buffer no longer knows are dropped rather than drawn as a blank:
  * the selection is pruned against that same publish every frame, so a
  * missing id here is a person who died between the two reads, and half a
  * frame of a ghost tile is worse than none.
+ *
+ * The wounded are pulled to the front only when there are more people than
+ * tiles, and for that reason alone: past the cap the card is choosing who
+ * the player sees, and the four men bleeding out of a band of forty are
+ * the whole reason to look. Inside the cap everyone is on screen already,
+ * so the sort would buy nothing and cost the one thing worth having — a
+ * squad of six under fire whose tiles never move.
+ * The regime changes as a selection crosses the cap, which only happens on
+ * a death, and a death re-shuffles the tiles after it whatever we do.
  */
 export function rosterOf(
   ids: Iterable<number>,
@@ -86,7 +117,13 @@ export function rosterOf(
     if (pct === null) continue;
     out.push({id, kind, hp: hpFromPct(pct, kind), maxHp: UNIT_DEFS[kind].hp});
   }
-  out.sort((a, b) => RANK[a.kind] - RANK[b.kind] || a.id - b.id);
+  const crowded = out.length > ROSTER_TILES;
+  out.sort(
+    (a, b) =>
+      (crowded ? woundRank(a) - woundRank(b) : 0) ||
+      RANK[a.kind] - RANK[b.kind] ||
+      a.id - b.id,
+  );
   return out;
 }
 
