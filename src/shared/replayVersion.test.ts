@@ -123,8 +123,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // never added a key. Same constants, same tables, same statements, so
 // every tick runs as it did — the hash is over raw bytes, which is why
 // it moved anyway.
-const EXPECTED_VERSION = 36;
-const EXPECTED_HASH = '016f48df01ee8cc9197f2556b134aae1';
+// 37 for the hire that can be called back: a new command kind (16,
+// cancelHire) refunds a queued recruit's silver and, at the head of the
+// queue, hands the next man a fresh walk. A new kind is pure format — no
+// older log can hold one — and the only new behavior sits behind it, so
+// yesterday's logs play back exactly (see replayVersion.ts).
+const EXPECTED_VERSION = 37;
+const EXPECTED_HASH = '214e33b91fcd7dc6d23a774a7091f4be';
 
 /**
  * Everything a replay's playback depends on, as raw source:

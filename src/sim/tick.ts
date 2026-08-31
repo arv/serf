@@ -49,6 +49,7 @@ import {
   trainingSystem,
   hiringSystem,
   enqueueTraining,
+  cancelHire,
   cancelTraining,
   evictGarrison,
 } from './systems/training.ts';
@@ -439,6 +440,14 @@ export function applyCommand(
           (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
         sh.hireQueue = (sh.hireQueue ?? 0) + 1;
       }
+      break;
+    }
+    case CommandKind.cancelHire: {
+      // The order is called off at the same address it was given: hiring
+      // has one queue per seat, so the slot is the whole of the payload.
+      // The silver goes back into the castle's stock — see cancelHire.
+      const sh = findStorehouse(world, playerId);
+      if (sh && !sh.dead) cancelHire(world, sh, cmd.index);
       break;
     }
   }

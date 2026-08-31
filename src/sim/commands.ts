@@ -1,6 +1,10 @@
 import type {Enum} from '../shared/enum.ts';
 import * as CommandKindNs from './commandKindEnum.ts';
-import {FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP} from './defs/balance.ts';
+import {
+  FORGE_QUEUE_CAP,
+  HIRE_QUEUE_CAP,
+  TRAIN_QUEUE_CAP,
+} from './defs/balance.ts';
 import {
   AUTO_RECIPE,
   BUILDING_DEFS,
@@ -42,6 +46,10 @@ export type SimCommand =
       y: number;
     }
   | {kind: CommandKindNs.hireSerf}
+  // Call one paid-for recruit back off the road. The slot names which,
+  // the way cancelTraining's does; no building id, because hiring has
+  // exactly one address (hireSerf doesn't name one either).
+  | {kind: CommandKindNs.cancelHire; index: number}
   | {kind: CommandKindNs.sellBuilding; buildingId: EntityId}
   | {
       kind: CommandKindNs.setBuildingPaused;
@@ -218,6 +226,13 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       };
     case CommandKindNs.hireSerf:
       return {kind: CommandKindNs.hireSerf};
+    case CommandKindNs.cancelHire: {
+      // Only the slot to screen: every recruit in the queue is the same
+      // man, so there is no second field for a stale click to disagree
+      // with — the sim checks the slot against the queue's depth instead.
+      if (!isSlot(c.index, HIRE_QUEUE_CAP)) return null;
+      return {kind: CommandKindNs.cancelHire, index: c.index};
+    }
     case CommandKindNs.sellBuilding:
       if (!isId(c.buildingId)) return null;
       return {kind: CommandKindNs.sellBuilding, buildingId: c.buildingId};
