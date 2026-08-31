@@ -158,6 +158,8 @@ export function SelectionPanel(props: {
   onHire: () => void;
   onCancelHire: (index: number) => void;
   onDeselect: () => void;
+  /** One face on the roster, clicked: him alone, or dropped with shift. */
+  onPickUnit: (id: number, additive: boolean) => void;
   onArmOrder: (mode: OrderMode | null) => void;
   onClearRally: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
@@ -349,12 +351,26 @@ export function SelectionPanel(props: {
         /* The tooltip wrapper is what the grid places, so the tile has to
            fill it to keep the cell's edges. */
         .sel-roster > .tipwrap { display: block; min-width: 0; height: 100%; }
-        .sel-tile {
+        /* Written against the id rather than the bare class because the
+           tile is a button now, and the HUD's own button rule — 13px
+           text, 10px corners, 7px of padding — is the more specific
+           selector of the two. A cell a sixth the width of
+           the card cannot afford any of that. The gold hover it also
+           brings is kept: this is a thing you click, and it should say so
+           under the cursor. */
+        #ui .sel-tile {
           box-sizing: border-box;
           display: flex; flex-direction: column; justify-content: center; gap: 3px;
-          height: 100%; padding: 3px 4px; border-radius: 5px;
+          width: 100%; height: 100%; padding: 3px 4px; border-radius: 5px;
+          font-size: 12px;
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.09);
+        }
+        /* The keyboard's turn: the roster is a row of buttons now, so it
+           is tabbable, and a focus ring that the mouse never shows is
+           what tells someone arriving by Tab which man they are on. */
+        #ui .sel-tile:focus-visible {
+          outline: 2px solid rgba(229, 196, 105, 0.8); outline-offset: 1px;
         }
         .sel-tile > svg { display: block; margin: 0 auto; }
         .sel-tile .bar {
@@ -364,7 +380,8 @@ export function SelectionPanel(props: {
         .sel-tile .bar > span { display: block; height: 100%; background: #8fbb56; }
         .sel-tile .bar > span.hurt { background: #e0b74f; }
         .sel-tile .bar > span.dire { background: #d0714f; }
-        /* The overflow cell — the tail of a big army, counted. */
+        /* The overflow cell — the tail of a big army, counted. A span,
+           not a button: there is no one man behind it to pick. */
         .sel-tile.more {
           align-items: center; justify-content: center;
           font-size: 12px; color: #9b988d; background: none; border-style: dashed;
@@ -1462,21 +1479,24 @@ export function SelectionPanel(props: {
                   <TipWrap
                     tip={() => (
                       <TextTip
-                        title={unitName(unit().kind)}
-                        body={`${unit().hp} of ${unit().maxHp} hitpoints.`}
+                        title={`${unitName(unit().kind)} · ${unit().hp} of ${unit().maxHp} hitpoints`}
+                        body="Click to take him on his own; shift-click to leave him behind. The same two a click on the man himself gives."
                       />
                     )}
                   >
-                    {/* The tile is a picture of a man and a bar, which
-                        says nothing at all out loud — so it carries the
-                        sentence itself, and the glyph inside it stays
-                        hidden rather than being read out as a second
-                        name. The tooltip says the same words to a
-                        pointer. */}
-                    <span
+                    {/* A button, because it is one: the tile is the man,
+                        and clicking a man is how this game has always
+                        picked him up. The whole of it is the target
+                        rather than the glyph, so a thumb has the cell.
+
+                        It also has to say itself out loud — a picture and
+                        a bar name nobody — so the label is the sentence,
+                        and the glyph inside stays hidden rather than
+                        being read out as a second name after it. */}
+                    <button
                       class="sel-tile"
-                      role="img"
                       aria-label={`${unitName(unit().kind)}, ${unit().hp} of ${unit().maxHp} hitpoints`}
+                      onClick={e => props.onPickUnit(unit().id, e.shiftKey)}
                     >
                       <UnitIcon unit={unit().kind} size={16} decorative />
                       <span class="bar">
@@ -1487,7 +1507,7 @@ export function SelectionPanel(props: {
                           }}
                         />
                       </span>
-                    </span>
+                    </button>
                   </TipWrap>
                 )}
               </Index>

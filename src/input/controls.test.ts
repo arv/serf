@@ -569,6 +569,110 @@ describe('band select', () => {
   });
 });
 
+/**
+ * The roster tiles on the selection card. They are pictures of the men
+ * already in hand, and clicking one means what clicking the man himself
+ * means — so these check the card's picks against the map's rule rather
+ * than against a rule of their own.
+ */
+describe('picking a face off the selection card', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    vi.stubGlobal('window', {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    vi.unstubAllGlobals();
+  });
+
+  it('takes the one clicked out of the band', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.addUnit(3, 0, 0);
+    h.band(...around([h.screenOf(1), h.screenOf(2), h.screenOf(3)]));
+
+    h.controls.pickUnit(2, false);
+
+    expect([...selection()]).toEqual([2]);
+  });
+
+  it('drops him with shift, which is the only thing shift can mean here', () => {
+    // Every tile is one of the selected, so the map's additive toggle has
+    // exactly one branch left on this card: not him.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.controls.pickUnit(2, true);
+
+    expect([...selection()]).toEqual([1]);
+  });
+
+  it('adds a man back that shift had dropped', () => {
+    // The toggle runs both ways, same as the map's: the card can put back
+    // what it just took out, which is what makes a slipped click undoable.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.controls.pickUnit(2, true);
+    h.controls.pickUnit(2, true);
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it('refuses a man the publish has buried', () => {
+    // The click lands a frame after the paint, and a tile can outlive its
+    // man by that frame. Picking him would put a dead id in the selection
+    // for prune() to find, and the order in between would go to nobody.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.controls.pickUnit(99, false);
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it('closes a building card that was somehow still standing', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.band(...around([h.screenOf(1)]));
+    setSelectedBuilding(building(7));
+
+    h.controls.pickUnit(1, false);
+
+    expect([...selection()]).toEqual([1]);
+    expect(selectedBuilding()).toBeNull();
+  });
+});
+
 describe('control groups', () => {
   let controls: ReturnType<typeof harness>['controls'] | null = null;
 

@@ -187,6 +187,7 @@ export function Hud(props: {
   onFocus: (x: number, y: number) => void;
   onSelectArmy: () => void;
   onDeselect: () => void;
+  onPickUnit: (id: number, additive: boolean) => void;
   onSell: (buildingId: number) => void;
   onClearRally: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
@@ -2220,6 +2221,7 @@ export function Hud(props: {
           onHire={props.onHire}
           onCancelHire={props.onCancelHire}
           onDeselect={props.onDeselect}
+          onPickUnit={props.onPickUnit}
           onArmOrder={props.onArmOrder}
           onClearRally={props.onClearRally}
           onSell={props.onSell}

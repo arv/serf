@@ -14,6 +14,11 @@ import {pushToast, type OrderMode} from './store';
 export interface HudActions {
   selectArmy(): void;
   deselect(): void;
+  /** A face on the selection card: pick that one out of the band, or —
+   * with shift — drop him from it. Controls owns it for the same reason
+   * the map's click is its: the selection and the building card are one
+   * either/or, and only Controls holds both. */
+  pickUnit(id: number, additive: boolean): void;
   /** Arm or disarm placement. Controls owns it, because dropping the mode
    * also has to take the ghost off the map. */
   place(type: BuildingTypeId | null): void;
@@ -60,6 +65,13 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           actions.deselect();
         }}
+        // The one action here with no play() of its own, and
+        // deliberately: selecting people already has a sound, made where
+        // the selection changes rather than where the click lands
+        // (Controls' #setSel plays uiSelect for a band that grew). A
+        // uiClick on top would make picking a knight off the card louder
+        // than picking the same knight off the ground, for the same act.
+        onPickUnit={(id, additive) => actions.pickUnit(id, additive)}
         // The one action not spelled out here, click sound and all: the
         // keyboard walks the same gears (+ and −), so the writes a speed
         // change makes live in ui/speedControl.ts, where the key handler

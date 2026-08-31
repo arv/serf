@@ -15,7 +15,15 @@ import {describe, expect, it} from 'vitest';
  * So it is checked rather than remembered. The rule: every props.on*
  * handler in SelectionPanel sits inside a guard that is either `mine()`
  * (a building of yours) or `!replayMode()` (a squad you can still order).
- * `onDeselect` is exempt — letting go is an order to nobody.
+ *
+ * Two are exempt, and for one reason between them: they change who is
+ * *selected* rather than telling anyone to do anything. `onDeselect` lets
+ * a squad go, and the roster tiles' `onPickUnit` narrows a band to one man
+ * (or drops him from it). Neither reaches the sim — no command is sent —
+ * and both must keep working in a replay, where picking through a rival's
+ * army is the entire point of the pointer reaching every seat. Guarding
+ * them on `!replayMode()` would take the card's own faces away from the
+ * one screen they matter most on.
  *
  * Ancestry is read off the indentation, which oxfmt fixes. If this ever
  * fails on a row that IS properly guarded, the guard is probably spelled
@@ -29,8 +37,8 @@ const SOURCES = import.meta.glob('./SelectionPanel.tsx', {
 
 /** A guard that answers "may this client give this order at all?" */
 const GUARDS = /\bmine\(\)|\bhasOrders\(\)|!replayMode\(\)/;
-/** Letting go is not an order. */
-const EXEMPT = new Set(['onDeselect']);
+/** Choosing who is in hand is not an order — see the note above. */
+const EXEMPT = new Set(['onDeselect', 'onPickUnit']);
 
 function indentOf(line: string): number {
   return line.length - line.trimStart().length;
