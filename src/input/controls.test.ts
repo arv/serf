@@ -221,6 +221,14 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   >();
   const sync = {
     latestIds: new Map<number, number>(),
+    /**
+     * Which publish these answers come from. The selection card's roster
+     * is read off a new one and skipped between them (Controls'
+     * #publishRoster), so a fake that never moved this would answer the
+     * first read and gate out every one after it. Bumped by addUnit,
+     * which is the only thing here that changes what a publish would say.
+     */
+    publishSeq: 0,
     positionOfInto: (
       id: number,
       _now: number,
@@ -234,6 +242,8 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
     },
     ownerOf: (id: number): number | null => units.get(id)?.owner ?? null,
     kindOf: (id: number): number | null => units.get(id)?.kind ?? null,
+    /** Nobody here has been in a fight: whole, or not published at all. */
+    hpPctOf: (id: number): number | null => (units.has(id) ? 255 : null),
     isDead: (): boolean => false,
   };
   const addUnit = (
@@ -245,6 +255,7 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   ): void => {
     units.set(id, {x, y: z, owner, kind});
     sync.latestIds.set(id, sync.latestIds.size);
+    sync.publishSeq++;
   };
   /** Where a unit's picking anchor lands on screen — the head, not the feet. */
   const screenOf = (id: number): {x: number; y: number} => {

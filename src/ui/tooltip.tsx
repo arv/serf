@@ -462,40 +462,74 @@ const CLASS_INFO: Record<
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
+  [UnitTypeId.serf]:
+    'Carries the valley on his back, and raises what it builds.',
+  [UnitTypeId.worker]:
+    'Belongs to a workshop — the trade is the door he walks into.',
   [UnitTypeId.knight]: 'Slow, armored, and lethal up close.',
   [UnitTypeId.spearman]: 'Fast peasant spears — they run archers down.',
   [UnitTypeId.archer]: 'Keeps its distance and kites heavy armor.',
+  // The three the valley meets rather than trains. They reach this card
+  // now: an admin parade puts one of each in your own hand, and a replay
+  // hands the pointer to whoever the raid belongs to.
+  [UnitTypeId.bandit]: 'Comes down the road for what is stacked outside.',
+  [UnitTypeId.banditArcher]:
+    'Shoots from the treeline and is gone before the answer arrives.',
+  [UnitTypeId.marauder]:
+    'Two hands on the axe, and no interest in the granary.',
 };
 
+/**
+ * The card for one kind of person. Written for the drill-ground buttons,
+ * where every unit named has a weapon — but the selection card names serfs
+ * and workers too, and they have no class, no damage and nothing to counter.
+ * So the fighting half is drawn only when there is fighting to describe,
+ * rather than reaching through a `!` that used to be true by luck of who
+ * asked.
+ */
 export function UnitTip(props: {
   unit: UnitTypeId;
   cost?: GoodAmounts;
   lockedBy?: string | null;
 }) {
   const def = () => UNIT_DEFS[props.unit];
-  const combat = () => def().combat!;
-  const cls = () => CLASS_INFO[combat().class];
+  const combat = () => def().combat;
+  const cls = () => {
+    const c = combat();
+    return c ? CLASS_INFO[c.class] : null;
+  };
   return (
     <>
       <div class="tip-title">
         {unitName(props.unit)}
-        <span class="tag">{cls().name}</span>
+        <Show when={cls()}>
+          <span class="tag">{cls()!.name}</span>
+        </Show>
       </div>
-      <div class="tip-desc">{UNIT_FLAVOR[props.unit]}</div>
+      {/* Only when there is one. The map is partial by design — a kind
+          may arrive before anyone has written its line — and an
+          unconditional row leaves a blank band of tip between the title
+          and the numbers, which reads as something failing to load. */}
+      <Show when={UNIT_FLAVOR[props.unit]}>
+        <div class="tip-desc">{UNIT_FLAVOR[props.unit]}</div>
+      </Show>
       <div class="tip-line">
-        <b>{def().hp} hp</b> · {combat().damage} dmg · speed {def().speed}
+        <b>{def().hp} hp</b>
+        {combat() ? ` · ${combat()!.damage} dmg` : ''} · speed {def().speed}
       </div>
-      <div class="tip-line">
-        <span class="tip-good">
-          ×{COUNTER_TABLE[combat().class][cls().beats]} vs{' '}
-          {CLASS_INFO[cls().beats].name}
-        </span>
-        {' · '}
-        <span class="tip-bad">
-          ×{COUNTER_TABLE[combat().class][cls().losesTo]} vs{' '}
-          {CLASS_INFO[cls().losesTo].name}
-        </span>
-      </div>
+      <Show when={combat()}>
+        <div class="tip-line">
+          <span class="tip-good">
+            ×{COUNTER_TABLE[combat()!.class][cls()!.beats]} vs{' '}
+            {CLASS_INFO[cls()!.beats].name}
+          </span>
+          {' · '}
+          <span class="tip-bad">
+            ×{COUNTER_TABLE[combat()!.class][cls()!.losesTo]} vs{' '}
+            {CLASS_INFO[cls()!.losesTo].name}
+          </span>
+        </div>
+      </Show>
       <Show when={props.cost}>
         <CostLine label="Train" cost={props.cost!} />
       </Show>
