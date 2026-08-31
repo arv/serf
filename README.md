@@ -244,10 +244,9 @@ feedback loop: Ctrl+1 changes nothing else a player can see.
 That card says who is in hand, not how many: one person picked up gets a
 name, a glyph and their health across the head, the way a building's card
 already does. A squad gets the count (named as its kind when they are all
-one — "6 Spearmen"), a line of kinds and counts for what the band swept up,
-and a tile per head — a glyph over that head's own health bar, in three
-colors, so the one man about to fall is findable in a squad of twenty
-rather than averaged away. No number on the tile: every tile in a healthy
+one — "6 Spearmen") and a tile per head: a glyph over that head's own
+health bar, in three colors, so the one man about to fall is findable in a
+squad of twenty rather than averaged away. No number on the tile: every tile in a healthy
 squad prints its maximum, which reads as the kind's stat rather than as
 this man's state, and the exact figure is a hover away. The kind and the
 health come off the same shared buffer the renderer draws from, re-read

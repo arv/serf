@@ -185,17 +185,19 @@ export function SelectionPanel(props: {
   const roster = () => selectionUnits();
   /** The one in hand, when it is one — the card that gets a name. */
   const lone = () => (roster().length === 1 ? roster()[0]! : null);
-  const kinds = () => rosterGroups(roster());
   /** All of one kind, so the head can name them: knights, not units. */
-  const soleKind = () => (kinds().length === 1 ? kinds()[0]!.kind : null);
+  const soleKind = () => {
+    const kinds = rosterGroups(roster());
+    return kinds.length === 1 ? kinds[0]!.kind : null;
+  };
   /** The kind the head speaks for — one man's, or a whole squad's when
    * they are all the same. Null for a mixed band, which has none. */
   const headKind = () => lone()?.kind ?? soleKind();
   /**
-   * The tiles the card actually draws. Four rows of six is as far down the
-   * screen as this card may grow — past that a phone held sideways is all
-   * roster and no valley — and the last cell goes to the count of who did
-   * not fit rather than to an arbitrary twenty-fifth man.
+   * The tiles the card actually draws. Three rows of eight is as far down
+   * the screen as this card may grow — past that a phone held sideways is
+   * all roster and no valley — and the last cell goes to the count of who
+   * did not fit rather than to an arbitrary twenty-fourth man.
    */
   const shown = () =>
     roster().length > ROSTER_TILES
@@ -290,13 +292,14 @@ export function SelectionPanel(props: {
         .sel-starved .num { display: inline-block; min-width: 3ch; text-align: right; }
 
         /* ——— Who is in hand ———
-           The kinds line and the roster below it are the answer to
-           "what did I just pick up?", and both are built to the same
-           rule as the rest of the card: nothing is sized by its own
-           text. The kinds are icons and counts, so eight of them still
-           fit one line; the roster is a declared grid of eight columns
-           and a fixed row height, so a tile is an eighth of the card
-           whatever is in it.
+           The roster answers "what did I just pick up?", and it is built
+           to the same rule as the rest of the card: nothing is sized by
+           its own text. A declared grid of eight columns and a fixed row
+           height, so a tile is an eighth of the card whatever is in it.
+           There was a tally by kind over this — a row of glyphs and
+           counts — and it was the same glyphs the tiles underneath were
+           already showing, one line higher and without the health. Two
+           readings of one fact is one of them to skip.
            A tile is a glyph over a bar and no number. The number was
            there first, and it was read as the kind's stat rather than
            as this man's state — every tile in a healthy squad prints
@@ -305,10 +308,6 @@ export function SelectionPanel(props: {
            which is the thing worth scanning twenty of; the exact
            figure is a hover away in the tooltip, and the head of a
            lone selection still spells it out. */
-        .sel-kinds { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; }
-        .sel-kinds .kind { display: inline-flex; align-items: center; gap: 3px; }
-        .sel-kinds .n { font-size: 12px; color: #cfcbbe; min-width: 2ch; }
-
         .sel-roster {
           display: grid;
           grid-template-columns: repeat(8, minmax(0, 1fr));
@@ -1251,7 +1250,7 @@ export function SelectionPanel(props: {
                 ) : (
                   <TextTip
                     title="A mixed band"
-                    body="The line under the count is the tally by kind; each tile below is one of them, carrying their own hitpoints."
+                    body="Every tile below is one of them: what they are, and how much of them is left."
                   />
                 )
               }
@@ -1315,33 +1314,6 @@ export function SelectionPanel(props: {
             </Show>
           </div>
 
-          {/* What the band swept up, counted by kind: the one line that
-              answers "did I just grab my woodcutters too?" without
-              counting tiles. Icons rather than words, so eight kinds
-              cannot wrap the line and lift every button above it; the
-              tooltip on each says the name. */}
-          <Show when={roster().length > 1 && kinds().length > 1}>
-            <div class="sel-kinds">
-              <For each={kinds()}>
-                {group => (
-                  <TipWrap
-                    tip={() => (
-                      <TextTip
-                        title={unitNamePlural(group.kind, group.count)}
-                        body={`${group.count} in the selection.`}
-                      />
-                    )}
-                  >
-                    <span class="kind">
-                      <UnitIcon unit={group.kind} size={15} decorative />
-                      <span class="n">{group.count}</span>
-                    </span>
-                  </TipWrap>
-                )}
-              </For>
-            </div>
-          </Show>
-
           {/* A tile per head: what it is, what is left of it. Indexed
               rather than keyed, because the roster is rebuilt whenever a
               printed number moves and the order it comes in is fixed
@@ -1373,9 +1345,11 @@ export function SelectionPanel(props: {
                   </TipWrap>
                 )}
               </Index>
-              {/* An army past the card's three rows. The count keeps the
-                  card from growing without limit down a phone screen, and
-                  the kinds line above has already said what they are. */}
+              {/* An army past the card's three rows, counted rather than
+                  drawn: the card may not grow without limit down a phone
+                  screen, and past two dozen faces the tiles are a texture
+                  anyway — what the player is reading by then is whether
+                  any bar in it has gone red. */}
               <Show when={roster().length > shown().length}>
                 <span class="sel-tile more">
                   +{roster().length - shown().length}
