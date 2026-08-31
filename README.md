@@ -182,7 +182,8 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | **1**…**0** | Call the group back — units selected, or a building's panel opened; twice in a beat also jumps the camera to it |
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
-| **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target |
+| **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target, on the map or on the minimap |
+| Minimap: drag | Steer the camera; right click it, or click it with **A**/**M** armed, to send the selection there |
 | **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |
 | **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Guard **T**ower |
 | **R** | Tech tree |
@@ -229,7 +230,11 @@ own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a
 device with no keyboard. Camera control follows Warcraft III / StarCraft II:
 edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom, and a
 camera that turns on Insert/Delete (Shift+wheel and [ ] too) over a minimap
-that stays north-up. WASD
+that stays north-up. The minimap takes the map's own order gestures as well
+as steering the camera — right-click it, or click it with A or M armed, and
+the selection is sent there: the whole valley at two pixels a tile is a poor
+place to pick a unit out of and a fine one to point at, so the chart gives
+orders but never takes a selection. WASD
 deliberately does *not* pan — those letters belong to the orders and the
 build chord, and `A` cannot both pan left and attack-move.
 
