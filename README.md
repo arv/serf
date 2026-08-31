@@ -96,8 +96,10 @@ until the player is back at the menu.
 ### Full screen
 
 Offered, never taken: browsers grant fullscreen only from inside a click,
-tap or keypress, so there is a switch on the start screen and a button in
-the in-game menu, and no way for the page to help itself. It survives the
+tap or keypress, so there is a switch on the start screen, a button in
+the in-game menu, an **Alt+Enter** chord bound at boot for every screen in
+between, and no way for the page to help itself — the chord works only
+because a keypress is itself one of the gestures a request may ride. It survives the
 walk into a match and back out again, because neither costs a document
 (see Navigation below); the answer is also remembered, so the reloads that
 do still happen come back into it on your first click. Leaving by any
@@ -189,11 +191,37 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Cursor at screen edge / arrows / middle-drag | Pan camera (edge scroll has a start-menu toggle) |
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
+| **+** / **−** | A gear at a time: pause ↔ normal ↔ fast forward (↔ 8× in a replay) — the bottom rung is the pause, so − holds the village and + lets it go |
+| **Alt+Enter** | Full screen — on the menu and the map editor too, not just in a match |
 | Mouse wheel | Zoom |
 | **Shift** + wheel / **Insert**, **Delete** / **[**, **]** | Turn the camera — 15° a notch, or hold the key; two notches square the default 30° view to the map, and the minimap frame with it. The brackets are for keyboards without an Insert key. The map editor's camera does not turn — its view toggle is how that screen changes its angle, and the brackets size the brush there |
 | Esc | Unwind one mode: chord → order → placement → open sheet → selection → fullscreen |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
+
+Playback is the one cluster whose keys are not letters, and deliberately.
+Every letter this game binds is one the HUD prints inside a word, and the
+speed strip has none left to bold — F already lifts a replay's fog. So the
+clock is the +/− pair and nothing else: the bottom rung of the ladder *is*
+the pause, so − from walking pace holds the village in one press and + lets
+it go again. A dedicated P would have been a second road to a rung that
+already takes one keystroke, and one that then has to remember which gear it
+interrupted. That pair is the grand strategy binding rather than the RTS one
+— Paradox's clock, where Stellaris takes this same spread of spellings
+(`+`, `=`, numpad +) — because the RTS lineage this game otherwise follows
+has no speed key to copy: StarCraft changes speed from no key at all, and
+pauses, where it pauses, on the Pause key itself.
+
+Fullscreen takes Alt+Enter, which *is* the convention its neighbours use —
+Blizzard's titles and Age of Empires alike toggle the screen on it — and
+being a chord it costs no letter. It is bound at boot rather than inside a
+match, so the chord that filled the screen during a skirmish still works on
+the menu ten seconds later.
+
+The gears themselves live in one place (`ui/speedControl.ts`) — the buttons
+and the keys walk the same ladder, so + climbs out of a pause the mouse
+took, and neither surface can be left holding a gear the other has never
+heard of (a replay's 8×, in the screen where the ladder is a rung taller).
 
 Shortcut letters are taught in place — the HUD bolds the letter inside its
 own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a

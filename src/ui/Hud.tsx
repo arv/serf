@@ -48,6 +48,7 @@ import {MissionPanel, continueTarget} from './MissionPanel';
 import {buildingName, techName} from './names';
 import {SelectionPanel} from './SelectionPanel';
 import {Key} from './shortcut';
+import {REPLAY_GEAR, SPEED_GEARS} from './speedControl';
 import {
   cheatsAllowed,
   bandArm,
@@ -104,21 +105,31 @@ import {
 
 type GoodId = Enum<typeof GoodId>;
 
+/** The gears' faces. The numbers themselves come from speedControl, which
+ * is what the keyboard steps through too — a second list here would be a
+ * ladder the +/− keys could walk off the end of. */
+const [PAUSED, NORMAL, FAST] = SPEED_GEARS;
+
+/** What the keyboard offers, appended to every gear's tooltip where there
+ * is a keyboard to offer it to. One pair walks the whole strip, the pause
+ * at the bottom of it included, so every rung wears the same hint. */
+const GEAR_KEYS = '(+ / −)';
+
 const SPEEDS = [
   {
-    value: 0,
+    value: PAUSED,
     icon: PauseIcon,
     label: 'Pause',
     hint: 'Orders you give still queue up.',
   },
   {
-    value: 1,
+    value: NORMAL,
     icon: PlayIcon,
     label: 'Normal speed',
     hint: undefined as string | undefined,
   },
   {
-    value: 3,
+    value: FAST,
     icon: FastIcon,
     label: 'Fast forward',
     hint: 'Runs the village at 3× speed.',
@@ -128,11 +139,20 @@ const SPEEDS = [
 /** Replays get one speed beyond the live game's fastest: nobody is issuing
  * orders, so there is no reaction time to protect. */
 const REPLAY_SPEED = {
-  value: 8,
+  value: REPLAY_GEAR,
   icon: FastestIcon,
   label: 'Full gallop',
   hint: 'Replay only — runs the recording at 8× speed.',
 };
+
+/** A gear's tooltip body: what it does, then the keys that get to it. The
+ * keys are dropped whole on a device with no keyboard, the way every other
+ * hint in the HUD is — and 'Normal speed' has no prose at all, so the body
+ * may be nothing but the keys. */
+function gearBody(hint?: string): string | undefined {
+  const parts = [hint, hasKeyboard() ? GEAR_KEYS : undefined].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : undefined;
+}
 
 /**
  * The goods the strip shows at all times: the ones a player glances at
@@ -1754,7 +1774,7 @@ export function Hud(props: {
                           class="icon"
                           classList={{active: speed() === s.value}}
                           {...tooltip(() => (
-                            <TextTip title={s.label} body={s.hint} />
+                            <TextTip title={s.label} body={gearBody(s.hint)} />
                           ))}
                           onClick={() => props.onSpeed(s.value)}
                         >
@@ -1776,7 +1796,10 @@ export function Hud(props: {
                           speeds().find(s => s.value === speed())?.label ??
                           'Speed'
                         }
-                        body="Taps cycle play, fast forward, pause."
+                        body={
+                          'Taps cycle play, fast forward, pause.' +
+                          (hasKeyboard() ? ' ' + GEAR_KEYS : '')
+                        }
                       />
                     ))}
                     onClick={() => {
@@ -2017,6 +2040,14 @@ export function Hud(props: {
               <Show when={fs.offerable()}>
                 <button
                   aria-pressed={fs.active()}
+                  // A chord rather than a letter, so it cannot be bolded
+                  // into the label the way B and H are — see
+                  // bindFullscreenKey for why fullscreen is the one
+                  // shortcut here that spends no letter.
+                  title={
+                    (fs.active() ? 'Leave full screen' : 'Fill the screen') +
+                    (hasKeyboard() ? ' (Alt+Enter)' : '')
+                  }
                   onClick={() => {
                     fs.toggle();
                     setMenuOpen(false);
