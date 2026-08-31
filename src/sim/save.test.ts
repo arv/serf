@@ -186,6 +186,29 @@ describe('save/load', () => {
     expect(loaded.maxHp).toBe(UNIT_DEFS[UnitTypeId.knight].hp);
     expect(loaded.hp).toBe(loaded.maxHp);
   });
+
+  it('gives an older file’s armoured soldier back the health he stands in', () => {
+    // Armour research is older than the field, so a file from before it
+    // already holds men above their kind's number. Reading the kind for
+    // them would hand a knight carrying 120 a maximum of 80 and put him
+    // back in the saturation the field exists to end — whole to the eye
+    // until a third of him is gone. What he is carrying is the floor.
+    const world = createWorld({seed: 5, players: [{kind: PlayerKind.human}]});
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    knight.hp = 120; // Mail Armor and Gilded Arms, as an older barracks left him
+    expect(knight.hp).toBeGreaterThan(UNIT_DEFS[UnitTypeId.knight].hp);
+    const saved = JSON.parse(serializeWorld(world)) as {
+      world: {units: Record<string, unknown>[]};
+    };
+    for (const u of saved.world.units) delete u.maxHp;
+
+    const loaded = deserializeWorld(JSON.stringify(saved)).units.get(
+      knight.id,
+    )!;
+    expect(loaded.maxHp).toBe(120);
+    // ...and he publishes as the whole man he is, not as one at 150%.
+    expect(loaded.hp).toBeLessThanOrEqual(loaded.maxHp);
+  });
 });
 
 const GRIDS = [

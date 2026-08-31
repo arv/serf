@@ -135,9 +135,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // musters at exactly the hp he always did, nothing in a tick reads the new
 // field, and the save fills it in from the kind for a file that predates
 // it — so yesterday's logs play back exactly. The hash is over raw bytes,
-// which is why it moved anyway.
+// which is why it moved anyway. (Still 37 with the fill-in corrected to
+// take what the man is carrying as its floor: armour research is older
+// than the field, so an older file already holds soldiers above their
+// kind's number. Load-time reading only; no tick moved.)
 const EXPECTED_VERSION = 37;
-const EXPECTED_HASH = '9124f78e6bc76c0419b13ac1cbe71c26';
+const EXPECTED_HASH = 'a6ecc80321a451cbb1e0874f1704854e';
 
 /**
  * Everything a replay's playback depends on, as raw source:
