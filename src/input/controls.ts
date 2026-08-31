@@ -783,9 +783,10 @@ export class Controls {
     // selection itself came through the frame untouched.
     else if (groupsChanged) this.#publishGroup();
     // Health moves without the selection changing at all — that is what a
-    // fight is — so the roster is re-read every frame rather than only when
-    // ids come and go. #publishRoster is what decides it is worth telling
-    // anyone about.
+    // fight is — so the roster is offered the frame rather than refreshed
+    // only when ids come and go. #publishRoster is what decides whether
+    // there is a new publish behind the frame, and then whether what it
+    // says is worth telling anyone about.
     this.#publishRoster();
   }
 

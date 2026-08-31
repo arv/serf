@@ -43,8 +43,10 @@ export const [selection, setSelection] = createSignal<ReadonlySet<number>>(
 /**
  * The same selection, read back out of the live unit buffer as people:
  * kind and hitpoints per head, in the order the card draws them (see
- * ui/roster.ts). Written by Controls once a frame, and only when something
- * printable has changed.
+ * ui/roster.ts). Written by Controls off each new publish of that buffer —
+ * twenty a second, not once a frame — and then only when something
+ * printable has changed. A selection the player just made is written
+ * straight away rather than waiting for the next publish.
  *
  * A second signal rather than a richer `selection`, because the two have
  * different jobs and different clocks: the id set is what orders are sent

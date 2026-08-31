@@ -12,8 +12,9 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  * and nothing at all to look at. "3 units selected" is the same sentence
  * for three serfs about to be caught in a raid and for three knights who
  * can answer it, and the difference is the whole decision the player is
- * making. So the ids are turned back into people here, once per frame,
- * and the card gets names, kinds and hitpoints to show.
+ * making. So the ids are turned back into people here — once for each
+ * publish of the unit buffer, which is what Controls calls this on — and
+ * the card gets names, kinds and hitpoints to show.
  *
  * Everything in this file is arithmetic over plain data on purpose: the
  * reads come from the render layer's shared buffer (the only place a live

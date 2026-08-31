@@ -183,8 +183,9 @@ export function SelectionPanel(props: {
 
   /**
    * The selection as people rather than ids — kind and hitpoints a head,
-   * in display order. Controls refills it once a frame, and only when a
-   * number the card prints has actually moved.
+   * in display order. Controls refills it off each new publish of the unit
+   * buffer — twenty a second — and then only when a value the card draws
+   * has actually moved.
    */
   const roster = () => selectionUnits();
   /** The one in hand, when it is one — the card that gets a name. */
@@ -1375,10 +1376,16 @@ export function SelectionPanel(props: {
           </div>
 
           {/* A tile per head: what it is, what is left of it. Indexed
-              rather than keyed, because the roster is rebuilt whenever a
-              printed number moves and the order it comes in is fixed
-              (fighters first, then by id) — so a tile stays the tile it
-              was and only its number changes under it. */}
+              rather than keyed, because the roster is a fresh array
+              whenever anything the card draws moves, and Index updates a
+              cell in place instead of tearing down two dozen of them for
+              one man's arrow.
+              The order is not fixed for all time — a death closes the gap
+              it leaves, and past the tile cap a man moves up the first
+              time he is wounded (rosterOf) — but it only moves on events
+              like those, never from one publish to the next. So between
+              them a tile stays the tile it was, and the bar under it is
+              the only thing that travels. */}
           <Show when={roster().length > 1}>
             <div class="sel-roster">
               <Index each={shown()}>
