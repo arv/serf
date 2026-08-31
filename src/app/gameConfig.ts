@@ -1,6 +1,10 @@
 import {DEFAULT_SEED} from '../protocol/lobby';
 import {parseStrategyId} from '../sim/defs/aiStrategies';
-import {parseMissionId} from '../sim/defs/missions';
+import {
+  MISSION_KEYS,
+  type MissionId,
+  parseMissionId,
+} from '../sim/defs/missions';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import {missionWorldConfig, type WorldConfig} from '../sim/world';
 
@@ -11,6 +15,22 @@ import {missionWorldConfig, type WorldConfig} from '../sim/world';
  */
 export interface GameConfig extends WorldConfig {
   myPlayerId: number;
+}
+
+/**
+ * The URL that launches a commission — the writing half of the ?mission
+ * parameter configFromUrl reads below, spelled once so the two halves
+ * cannot drift. Both launch sites (the campaign list's Play, the end
+ * card's Continue) go through here.
+ *
+ * The key, not the id. A mission is a number inside the sim but a word in
+ * the query string, and parseMissionId's string branch knows only the
+ * words: '?mission=' + the raw id named no mission at all, so a
+ * commission launched as an ordinary skirmish — pinned seed gone, no
+ * briefing card, no objectives checklist.
+ */
+export function missionUrl(id: MissionId): string {
+  return `?mission=${MISSION_KEYS[id]}`;
 }
 
 export function configFromUrl(search: string): GameConfig {
