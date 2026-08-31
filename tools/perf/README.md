@@ -1,6 +1,7 @@
-# tools/perf — where the tick budget goes, and proof it still ticks the same
+# tools/perf — where the budget goes, and proof it still ticks the same
 
-Three scripts. Two measure, one keeps the measuring honest.
+Four scripts. Three measure — one the sim, one the frame — and one keeps
+the measuring honest.
 
 ## The problem these solve
 
@@ -29,7 +30,33 @@ to late-game weight (hundreds of serfs, ~90 buildings, a live bandit war)
 and times each system separately. `--serfs N` sweeps the scaling curve,
 which is how you tell an O(n) cost from an O(n²) one.
 
-For function-level detail, let V8 do it:
+## Measure the frame
+
+The three scripts above are all sim. The sim is not usually the expensive
+half: on the stress valley it costs ~0.54 ms/tick at 20 ticks a second,
+which is about 1% of a core, in a worker, off the main thread. The frame is
+the other half, and the numbers that describe it are draw calls and
+triangles.
+
+```sh
+pnpm dev --port 5199
+node tools/perf/renderProbe.mjs            # and --seed / --size / --settle
+```
+
+It drives a real match in headless Chromium and reads `__renderer.info`
+after the frame has settled, then reads it again with every caster
+switched off — so the shadow pass is reported as the difference, which is
+the only way to see it separately. Same seed and same settle time means
+two runs compare directly; the baseline reproduces to within a hundred
+triangles.
+
+What it cannot tell you is time. It runs on SwiftShader, so its frame rate
+is meaningless and no timing it could print would mean anything. Draw
+calls and triangles are hardware-independent, which is exactly why they
+are what it prints: halve them and you have halved the work every phone
+does. For time, profile a real device.
+
+For function-level detail on the sim, let V8 do it:
 
 ```sh
 node --experimental-strip-types --cpu-prof --cpu-prof-dir=/tmp/prof \
