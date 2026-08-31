@@ -9,6 +9,7 @@ import type {HeightField} from '../render/heightField';
 import type {SceneSync} from '../render/sceneSync';
 import type {Enum} from '../shared/enum.ts';
 import {inBounds, tileIdx} from '../shared/grid';
+import {clamp} from '../shared/math';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
 import {HIRE_SERF_COST} from '../sim/defs/balance';
@@ -16,6 +17,7 @@ import {buildingDef} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
+import {playMax, playMin} from '../sim/map';
 import {canPlace} from '../sim/world';
 import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
 import {
@@ -31,6 +33,7 @@ import {
 import {fullscreen, guardEsc} from '../ui/fullscreen';
 import {techName, unitName} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
+import {rosterOf, sameRoster, type SelectedUnit} from '../ui/roster';
 import {nudgeSpeed} from '../ui/speedControl';
 import {
   bandArm,
@@ -62,6 +65,7 @@ import {
   setSelection,
   setSelectionGroup,
   setSelectionOwner,
+  setSelectionUnits,
   setTechPanelOpen,
   stock,
   techPanelOpen,
@@ -155,6 +159,11 @@ const MILITARY_CODES = new Set<number>(
  * They are the one binding here that is not a mode at all — no click is
  * claimed, nothing has to be unwound, and Esc has no business with them.
  *
+ * The minimap takes the same order gestures the map does (see
+ * orderAtMapPoint): right-click it for a plain move, or click it with A or
+ * M armed for the attack-move or the move. A squad can be sent across the
+ * valley without the camera going with them, which is what a chart is for.
+ *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
  * then tap the ground to send the selection there as a half attack-move —
  * plain for the front half of the route so a retreat breaks clean, live for
@@ -202,6 +211,10 @@ export class Controls {
    * The HUD gets the one crumb it needs (selectionGroup) pushed to it.
    */
   #groups = new Map<number, ControlGroup>();
+  /** What the card was last told the selection is, to compare against. */
+  #roster: readonly SelectedUnit[] = [];
+  /** The publish #roster was read out of; -1 until the first one. */
+  #rosterSeq = -1;
   /** The last group number called back, for the second press that rides
    * the camera out to it instead of re-selecting what is already selected. */
   #lastRecall: {digit: number; time: number} | null = null;
@@ -376,6 +389,79 @@ export class Controls {
       // double-tap escalation must not treat the next tap as a repeat.
       this.#lastMoveTap = null;
     }
+  }
+
+  /**
+   * Whether a plain click means an order right now rather than whatever
+   * the surface under it normally does — an A, an M or a rally flag,
+   * armed and unspent.
+   *
+   * Asked by the minimap, which has to know before the gesture rather than
+   * after it: the same press that would give an order is the one that
+   * steers the camera, and on a phone it cannot commit to either until the
+   * finger lifts.
+   */
+  orderArmed(): boolean {
+    return this.#liveOrder() !== null;
+  }
+
+  /**
+   * A click on the minimap, taken as an order at the tile it points to.
+   * The chart is the whole map at two pixels a tile, so this is how a
+   * squad is sent somewhere off screen — and the rally flag planted there
+   * — without the trip over and back.
+   *
+   * The buttons mean exactly what they mean on the map itself, which is
+   * the point: `secondary` (the right button) is the plain move, or the
+   * barracks' rally flag when nothing is selected, and it cancels an armed
+   * order rather than spending it. A plain click spends the armed order —
+   * A's attack-move, M's move, the flag — and disarms, spent or refused,
+   * the same one-shot the map's click is.
+   *
+   * `px`/`py` are the click itself, in client pixels: the confirming pulse
+   * blooms over the chart, where the player is looking, rather than over a
+   * patch of ground that may be nowhere on screen.
+   */
+  orderAtMapPoint(
+    x: number,
+    z: number,
+    secondary: boolean,
+    px: number,
+    py: number,
+  ): void {
+    const {x: tx, y: ty} = this.#playTile(x, z);
+    const order = this.#liveOrder();
+    if (secondary) {
+      if (order) {
+        this.armOrder(null);
+        return;
+      }
+      // With nobody selected but a barracks open, the right-click plants
+      // the flag — the same rule the map's own right-click follows.
+      if (this.#selection.size === 0) this.#issueRallyAt(tx, ty, px, py);
+      else this.#issueMoveAt(tx, ty, false, px, py);
+      return;
+    }
+    if (!order) return;
+    if (order === OrderMode.rally) this.#issueRallyAt(tx, ty, px, py);
+    else this.#issueMoveAt(tx, ty, order === OrderMode.attack, px, py);
+    this.armOrder(null);
+  }
+
+  /**
+   * A world point off the chart, as a tile inside the play square. The
+   * minimap's own clamp stops at the square's far edge, which is one past
+   * its last tile; an order aimed there would land in the margin nobody
+   * can walk on.
+   */
+  #playTile(x: number, z: number): {x: number; y: number} {
+    const map = this.#mirror.map;
+    const lo = playMin(map);
+    const hi = playMax(map) - 1;
+    return {
+      x: clamp(Math.floor(x), lo, hi),
+      y: clamp(Math.floor(z), lo, hi),
+    };
   }
 
   /**
@@ -732,7 +818,10 @@ export class Controls {
     return this.#hoverBuilding;
   }
 
-  /** Drop ids that no longer exist (deaths); call once per frame. */
+  /**
+   * Drop ids that no longer exist (deaths), and refresh what the card
+   * knows about the people still in hand; call once per frame.
+   */
   prune(): void {
     let changed = false;
     for (const id of this.#selection) {
@@ -774,6 +863,33 @@ export class Controls {
     // straggler nobody had selected), so it is refreshed even when the
     // selection itself came through the frame untouched.
     else if (groupsChanged) this.#publishGroup();
+    // Health moves without the selection changing at all — that is what a
+    // fight is — so the roster is offered the frame rather than refreshed
+    // only when ids come and go. #publishRoster is what decides whether
+    // there is a new publish behind the frame, and then whether what it
+    // says is worth telling anyone about.
+    this.#publishRoster();
+  }
+
+  /**
+   * Hand the card the selection as people: kind and hitpoints per head.
+   *
+   * The ids alone make "4 units selected", which reads the same for four
+   * serfs and for four knights — so the card reads the live publish for
+   * what each of them is and how much is left of them. Only a change the
+   * card would actually print reaches the signal; see sameRoster.
+   */
+  #publishRoster(force = false): void {
+    // Nothing in the roster is interpolated — kinds and health are read
+    // straight off the last publish — so between publishes there is
+    // provably nothing to find, and this is the frame loop.
+    const seq = this.#sync.publishSeq;
+    if (!force && seq === this.#rosterSeq) return;
+    this.#rosterSeq = seq;
+    const next = rosterOf(this.#selection, this.#sync);
+    if (sameRoster(next, this.#roster)) return;
+    this.#roster = next;
+    setSelectionUnits(next);
   }
 
   #setSel(sel: Set<number>): void {
@@ -792,6 +908,10 @@ export class Controls {
     this.#selection = sel;
     setSelection(new Set(sel));
     setSelectionOwner(this.#soleOwner(sel));
+    // Straight away rather than at the next prune(), and past the publish
+    // gate: a click that picks up a knight has to draw his card on the
+    // frame it happened, and the card is nothing but the roster.
+    this.#publishRoster(true);
     this.#publishGroup();
     // An order with nobody left to carry it out: the squad was let go, or
     // prune() just buried the last of them. Disarm rather than leave the
@@ -1841,19 +1961,40 @@ export class Controls {
     py: number,
     attack: boolean | 'half',
   ): {x: number; y: number} | null {
+    const target = this.#orderTarget(px, py);
+    if (!target) return null;
+    return this.#issueMoveAt(target.x, target.y, attack, px, py)
+      ? target
+      : null;
+  }
+
+  /**
+   * The same order, aimed at a tile that was picked some other way than by
+   * looking down the camera — the minimap's click, which knows exactly
+   * which tile it means and has no ground pick to make. `px`/`py` are the
+   * click itself: where the confirming pulse blooms, which for a chart
+   * order is over the chart, not over the ground it points at.
+   *
+   * Returns whether the order went out.
+   */
+  #issueMoveAt(
+    x: number,
+    y: number,
+    attack: boolean | 'half',
+    px: number,
+    py: number,
+  ): boolean {
     // Playback has always dropped orders at the worker's door, which was
     // enough while the only squad a replay could select was the watching
     // seat's own. It is not enough now that the ring may be around the
     // Warlord's knights: the pulse and its haptic tick say "order taken",
     // and a click that says so of a rival's people in a finished match is
     // the interface lying about who is in charge of what.
-    if (replayMode()) return null;
-    if (this.#selection.size === 0) return null;
-    const target = this.#orderTarget(px, py);
-    if (!target) return null;
-    this.#sendMove(target.x, target.y, attack);
+    if (replayMode()) return false;
+    if (this.#selection.size === 0) return false;
+    this.#sendMove(x, y, attack);
     this.#orderPulse(px, py, attack);
-    return target;
+    return true;
   }
 
   /**
@@ -1900,7 +2041,19 @@ export class Controls {
     const onSelf = this.#buildingAt(px, py) === b.id;
     const target = this.#orderTarget(px, py);
     if (!target) return;
-    const {x, y} = target;
+    this.#sendRally(b, target.x, target.y, onSelf, px, py);
+  }
+
+  /** The wire half of the flag, aimed at a tile directly — see #issueMove
+   * and #issueMoveAt for why the pair is split this way. */
+  #sendRally(
+    b: BuildingSnap,
+    x: number,
+    y: number,
+    onSelf: boolean,
+    px: number,
+    py: number,
+  ): void {
     this.#host.sendCommands([
       onSelf
         ? {kind: CommandKind.setRallyPoint, buildingId: b.id}
@@ -1909,6 +2062,17 @@ export class Controls {
     // Solid gold: an order taken, but nobody moves for it yet — the pulse
     // shape family the move orders wear, in the flag's own color.
     this.#pulse(px, py, 'solid #e5c469');
+  }
+
+  /** Plant the flag at a tile the chart named, or take it down when that
+   * tile is one of the barracks' own — the minimap's answer to clicking
+   * the building's door, which on a chart is a couple of pixels wide but
+   * is still the only gesture that can mean "back to normal". */
+  #issueRallyAt(x: number, y: number, px: number, py: number): void {
+    const b = this.#rallyTarget();
+    if (!b) return;
+    const onSelf = x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
+    this.#sendRally(b, x, y, onSelf, px, py);
   }
 
   /** The wire half of a move order, aimed at a tile directly. */

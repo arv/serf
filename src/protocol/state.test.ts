@@ -82,6 +82,7 @@ describe('state frames', () => {
         kind: 2,
         owner: 0,
         hpPct: 255,
+        maxHp: 120, // armoured: above the kind's number
         carrying: 3,
         action: 1,
         workKind: 4,
@@ -96,6 +97,7 @@ describe('state frames', () => {
         kind: 6,
         owner: 255, // BANDIT rides the byte raw
         hpPct: 0,
+        maxHp: 45,
         carrying: 0,
         action: 3,
         workKind: 0,

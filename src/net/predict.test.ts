@@ -20,6 +20,7 @@ function unit(id: number, x: number, y: number, owner = 0): UnitSnapshot {
     kind: UnitTypeId.serf,
     owner,
     hpPct: 255,
+    maxHp: 25,
     carrying: 0,
     action: ACTION.idle,
     workKind: 0,
