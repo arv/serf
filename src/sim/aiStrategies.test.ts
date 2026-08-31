@@ -23,6 +23,9 @@ import {createWorld, type World, type WorldConfig} from './world.ts';
 
 type AiStrategyId = Enum<typeof AiStrategyId>;
 
+/** Ids are numbers, so a bare .sort() would order them as text. */
+const byId = (a: number, b: number): number => a - b;
+
 /**
  * Every AI seat used to run one hard-coded playbook, so beating one
  * computer opponent was beating all of them. What is covered here is that
@@ -170,8 +173,8 @@ describe('the AI playbooks', () => {
     expect(new Set(deals).size).toBeGreaterThan(1);
     // Every deal is the whole deck, never a playbook twice.
     for (const seed of seeds) {
-      expect([...shuffledStrategies(seed)].sort()).toEqual(
-        [...AI_STRATEGY_ORDER].sort(),
+      expect([...shuffledStrategies(seed)].sort(byId)).toEqual(
+        [...AI_STRATEGY_ORDER].sort(byId),
       );
     }
     // And the same seed always deals the same hand: a save reloaded or a
@@ -262,9 +265,9 @@ describe('the AI playbooks', () => {
       const built = [...world.buildings.values()]
         .filter(b => !b.dead && b.owner === p.id)
         .map(b => b.type)
-        .sort()
+        .sort(byId)
         .join(',');
-      return `${[...p.techs.researched].sort().join('/')}|${built}`;
+      return `${[...p.techs.researched].sort(byId).join('/')}|${built}`;
     });
     expect(new Set(fingerprints).size, fingerprints.join('\n')).toBe(4);
 

@@ -51,11 +51,19 @@ export interface MountOpts {
   onReady?: () => void;
 }
 
+/** Whatever was thrown, in words — an object would read as
+ * '[object Object]' on the page it is meant to explain. */
+function describe(detail: unknown): string {
+  if (detail instanceof Error) return detail.message;
+  if (typeof detail === 'string') return detail;
+  return JSON.stringify(detail) ?? String(detail);
+}
+
 /** A failure the reader can act on, instead of an empty page. */
 function fail(message: string, detail?: unknown): void {
   const box = document.createElement('p');
   box.className = 'lab-error';
-  box.textContent = detail ? `${message} — ${String(detail)}` : message;
+  box.textContent = detail ? `${message} — ${describe(detail)}` : message;
   document.querySelector('main')?.prepend(box);
   document.documentElement.classList.add('lab-ready');
 }

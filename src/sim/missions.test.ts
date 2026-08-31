@@ -564,7 +564,10 @@ describe('the campaign missions', () => {
   });
 
   it('the campaign order is complete and the id gate refuses junk', () => {
-    expect([...MISSION_ORDER].sort()).toEqual([...MISSION_ORDER].sort());
+    const byId = (a: number, b: number): number => a - b;
+    expect([...MISSION_ORDER].sort(byId)).toEqual(
+      [...MISSION_ORDER].sort(byId),
+    );
     expect(nextMissionId(MissionId.clearing)).toBe(MissionId.breadAndWater);
     expect(nextMissionId(MissionId.ledger)).toBe(MissionId.hammerAndHaft);
     expect(nextMissionId(MissionId.hammerAndHaft)).toBe(MissionId.levy);

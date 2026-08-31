@@ -236,7 +236,11 @@ wss.on('connection', ws => {
       if (isBinary) {
         handleBinary(ws, conn, new Uint8Array(data as Buffer));
       } else {
-        handleLobby(ws, conn, JSON.parse(String(data)) as LobbyMsg);
+        handleLobby(
+          ws,
+          conn,
+          JSON.parse((data as Buffer).toString('utf8')) as LobbyMsg,
+        );
       }
     } catch (err) {
       sendJson(ws, {
