@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
 import {UNIT_DEFS} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {
@@ -12,6 +13,8 @@ import {
   type UnitSource,
 } from './roster';
 
+type UnitTypeId = Enum<typeof UnitTypeId>;
+
 /**
  * The card's reading of the selection. The live buffer these numbers come
  * from belongs to the renderer and cannot be stood up in a headless test,
@@ -23,14 +26,23 @@ interface Row {
   id: number;
   kind: number;
   pct: number;
+  /** His own full health. Defaults to his kind's, which is everyone the
+   * barracks has not re-armoured. */
+  maxHp?: number;
 }
 
 /** A stand-in for the unit publish: whatever rows it is given, and no more. */
 function source(rows: readonly Row[]): UnitSource {
   const by = new Map(rows.map(r => [r.id, r]));
+  const maxOf = (r: Row): number =>
+    r.maxHp ?? UNIT_DEFS[r.kind as UnitTypeId].hp;
   return {
     kindOf: id => by.get(id)?.kind ?? null,
     hpPctOf: id => by.get(id)?.pct ?? null,
+    maxHpOf: id => {
+      const r = by.get(id);
+      return r ? maxOf(r) : null;
+    },
   };
 }
 
@@ -61,6 +73,42 @@ describe('the selection roster', () => {
         maxHp: UNIT_DEFS[UnitTypeId.serf].hp,
       },
     ]);
+  });
+
+  it('names an armoured soldier’s own maximum, not his kind’s', () => {
+    // Mail Armor and Gilded Arms muster a knight at 120 against a base of
+    // 80. The publish divides by his own number, so a whole man is a full
+    // byte either way — what the card must not do is print 80/80 over
+    // someone carrying 120, or call him whole after his first wound.
+    const kindMax = UNIT_DEFS[UnitTypeId.knight].hp;
+    const [whole] = rosterOf(
+      [1],
+      source([{id: 1, kind: UnitTypeId.knight, pct: FULL, maxHp: 120}]),
+    );
+    expect(whole).toEqual({
+      id: 1,
+      kind: UnitTypeId.knight,
+      hp: 120,
+      maxHp: 120,
+    });
+    expect(whole!.maxHp).toBeGreaterThan(kindMax);
+
+    // Ten off: the byte drops, and both printed numbers are his.
+    const [hurt] = rosterOf(
+      [1],
+      source([
+        {
+          id: 1,
+          kind: UnitTypeId.knight,
+          pct: Math.round((110 / 120) * FULL),
+          maxHp: 120,
+        },
+      ]),
+    );
+    expect(hurt!.hp).toBe(110);
+    expect(hurt!.maxHp).toBe(120);
+    // ...and he sorts as the wounded man he is, ahead of the whole.
+    expect(hurt!.hp).toBeLessThan(hurt!.maxHp);
   });
 
   it('never prints a living unit as having nothing left', () => {

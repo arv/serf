@@ -44,6 +44,11 @@ export function hashWorld(world: World): number {
     // fractional blows, and truncation would call 9.75 and 9.5 the same
     // man — identical until one falls a swing earlier.
     mixF64(u.hp);
+    // ...and what full health means for him, which armour research moves
+    // off his kind's number. It steers nothing on its own — it is a
+    // readout — but it is state the save and the clone both have to carry,
+    // and the digest is what catches one of them dropping it.
+    mixF64(u.maxHp);
     mixU32(u.owner);
     mix(u.dead ? 1 : 0);
     mixU32(u.pathIdx);

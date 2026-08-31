@@ -244,6 +244,12 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
     kindOf: (id: number): number | null => units.get(id)?.kind ?? null,
     /** Nobody here has been in a fight: whole, or not published at all. */
     hpPctOf: (id: number): number | null => (units.has(id) ? 255 : null),
+    /**
+     * ...and everyone is the same size. Nothing in this file reads the
+     * number — the card's arithmetic over it is roster.test.ts's — so one
+     * standing figure keeps the fake to what these tests are about.
+     */
+    maxHpOf: (id: number): number | null => (units.has(id) ? 100 : null),
     isDead: (): boolean => false,
   };
   const addUnit = (

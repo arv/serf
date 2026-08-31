@@ -44,6 +44,16 @@ export interface Unit {
   x: number;
   y: number;
   hp: number;
+  /**
+   * Full health for THIS man, which is not the same number as his kind's.
+   * A kind's `hp` is only where he starts: armour research (militaryHp)
+   * musters a soldier at up to half again as many, so a knight can walk out
+   * of the barracks at 120 against a base of 80. Everything that reports a
+   * wound — the bar over his head, the card that names him — measures
+   * against this, because measuring against the kind calls an armoured man
+   * untouched until a third of him is gone.
+   */
+  maxHp: number;
   path: number[] | null;
   pathIdx: number;
   task: UnitTask;
@@ -108,6 +118,9 @@ export function makeUnit(
     x,
     y,
     hp,
+    // Everyone is born whole; only the barracks hands out more than a kind
+    // carries (see Unit.maxHp), and it raises both numbers together.
+    maxHp: hp,
     path: null,
     pathIdx: 0,
     task: {t: UnitTaskKindNs.idle, until: 0},
