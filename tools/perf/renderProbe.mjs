@@ -21,7 +21,7 @@
  * where Playwright puts it.
  */
 import {spawn} from 'node:child_process';
-import {mkdtempSync} from 'node:fs';
+import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -57,6 +57,10 @@ const chrome = spawn(
   {stdio: ['ignore', 'ignore', 'pipe']},
 );
 chrome.stderr.on('data', () => {});
+/** Settles when the browser is actually gone, so its profile directory can
+ * be cleared without racing the writes it makes on the way down. Already
+ * settled if it went before anyone asked. */
+const chromeGone = new Promise(res => chrome.once('exit', res));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function debuggerUrl() {
@@ -75,26 +79,19 @@ async function debuggerUrl() {
   throw new Error('chromium never opened a debugging port');
 }
 
-const ws = new WebSocket(await debuggerUrl());
-await new Promise((res, rej) => {
-  ws.onopen = res;
-  ws.onerror = rej;
-});
+/**
+ * Everything from here down runs inside a try/finally, because everything
+ * from here down can fail — the browser may never open its debugging
+ * port, the match may never come up, an evaluate may throw — and the
+ * browser is already running by then. An exit that skipped the cleanup
+ * left a headless Chromium (eleven processes of one, in fact) alive for
+ * the rest of the session, holding its profile directory and its memory,
+ * with nothing left to reap it.
+ */
+let ws = null;
 let nextId = 1;
 const pending = new Map();
 const errors = [];
-ws.onmessage = ev => {
-  const msg = JSON.parse(ev.data);
-  if (msg.id && pending.has(msg.id)) {
-    pending.get(msg.id)(msg.result ?? msg.error);
-    pending.delete(msg.id);
-    return;
-  }
-  if (msg.method === 'Runtime.exceptionThrown') {
-    const d = msg.params.exceptionDetails;
-    errors.push(d.exception?.description ?? d.text);
-  }
-};
 const send = (method, params = {}) =>
   new Promise(res => {
     const id = nextId++;
@@ -113,65 +110,104 @@ const evaluate = async expression => {
   return r?.result?.value;
 };
 
-await send('Runtime.enable');
-await send('Page.enable');
-await send('Page.navigate', {url});
-let up = false;
-for (let i = 0; i < 120; i++) {
-  await sleep(1000);
-  if ((await evaluate('typeof window.__renderer')) === 'object') {
-    up = true;
-    break;
+let failure = null;
+try {
+  ws = new WebSocket(await debuggerUrl());
+  await new Promise((res, rej) => {
+    ws.onopen = res;
+    ws.onerror = rej;
+  });
+  ws.onmessage = ev => {
+    const msg = JSON.parse(ev.data);
+    if (msg.id && pending.has(msg.id)) {
+      pending.get(msg.id)(msg.result ?? msg.error);
+      pending.delete(msg.id);
+      return;
+    }
+    if (msg.method === 'Runtime.exceptionThrown') {
+      const d = msg.params.exceptionDetails;
+      errors.push(d.exception?.description ?? d.text);
+    }
+  };
+
+  await send('Runtime.enable');
+  await send('Page.enable');
+  await send('Page.navigate', {url});
+  let up = false;
+  for (let i = 0; i < 120; i++) {
+    await sleep(1000);
+    if ((await evaluate('typeof window.__renderer')) === 'object') {
+      up = true;
+      break;
+    }
+  }
+  if (!up) {
+    throw new Error(
+      `the match never came up${errors.length ? `: ${errors[0]}` : ''}`,
+    );
+  }
+  await sleep(settle);
+
+  // A frame with nothing casting is the same frame without its shadow
+  // pass, so the difference between the two is what the shadows cost.
+  const sample = await evaluate(`(async () => {
+    const read = () => {
+      const i = window.__renderer.info.render;
+      return {calls: i.calls, triangles: i.triangles};
+    };
+    const settle = () => new Promise(r =>
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 700))));
+    await settle();
+    const lit = read();
+    const parked = [];
+    window.__scene.traverse(o => { if (o.castShadow) { o.castShadow = false; parked.push(o); } });
+    await settle();
+    const unlit = read();
+    for (const o of parked) o.castShadow = true;
+    await settle();
+    let objects = 0, instances = 0;
+    window.__scene.traverse(o => {
+      objects++;
+      if (o.isInstancedMesh) instances += o.count;
+    });
+    return {lit, unlit, objects, instances};
+  })()`);
+
+  const {lit, unlit, objects, instances} = sample;
+  const row = (name, v) =>
+    `${name.padEnd(16)} ${String(v.calls).padStart(6)} calls  ${v.triangles
+      .toLocaleString('en-US')
+      .padStart(11)} tris`;
+  console.log(`seed ${seed}  size ${size}  settled ${settle}ms`);
+  console.log(row('frame', lit));
+  console.log(row('  main pass', unlit));
+  console.log(
+    row('  shadow pass', {
+      calls: lit.calls - unlit.calls,
+      triangles: lit.triangles - unlit.triangles,
+    }),
+  );
+  console.log(`scene objects    ${objects}, live instances ${instances}`);
+  for (const e of errors.slice(0, 5)) console.log(`[throw] ${e}`);
+} catch (err) {
+  failure = err;
+} finally {
+  ws?.close();
+  chrome.kill();
+  // kill() only sends the signal. The wait is bounded because a browser
+  // that will not die is not a reason to hang the probe, and a scratch
+  // directory left in tmp is not worth failing a run over either — tmp
+  // is swept anyway.
+  await Promise.race([chromeGone, sleep(3000)]);
+  try {
+    rmSync(profile, {recursive: true, force: true});
+  } catch {
+    /* the OS clears tmp */
   }
 }
-if (!up) {
-  console.error('the match never came up', errors);
+
+if (failure) {
+  console.error(failure.message ?? failure);
   process.exit(1);
 }
-await sleep(settle);
-
-// A frame with nothing casting is the same frame without its shadow pass,
-// so the difference between the two is what the shadows cost.
-const sample = await evaluate(`(async () => {
-  const read = () => {
-    const i = window.__renderer.info.render;
-    return {calls: i.calls, triangles: i.triangles};
-  };
-  const settle = () => new Promise(r =>
-    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 700))));
-  await settle();
-  const lit = read();
-  const parked = [];
-  window.__scene.traverse(o => { if (o.castShadow) { o.castShadow = false; parked.push(o); } });
-  await settle();
-  const unlit = read();
-  for (const o of parked) o.castShadow = true;
-  await settle();
-  let objects = 0, instances = 0;
-  window.__scene.traverse(o => {
-    objects++;
-    if (o.isInstancedMesh) instances += o.count;
-  });
-  return {lit, unlit, objects, instances};
-})()`);
-
-const {lit, unlit, objects, instances} = sample;
-const row = (name, v) =>
-  `${name.padEnd(16)} ${String(v.calls).padStart(6)} calls  ${v.triangles
-    .toLocaleString('en-US')
-    .padStart(11)} tris`;
-console.log(`seed ${seed}  size ${size}  settled ${settle}ms`);
-console.log(row('frame', lit));
-console.log(row('  main pass', unlit));
-console.log(
-  row('  shadow pass', {
-    calls: lit.calls - unlit.calls,
-    triangles: lit.triangles - unlit.triangles,
-  }),
-);
-console.log(`scene objects    ${objects}, live instances ${instances}`);
-for (const e of errors.slice(0, 5)) console.log(`[throw] ${e}`);
-
-ws.close();
-chrome.kill();
 process.exit(0);
