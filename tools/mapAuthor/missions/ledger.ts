@@ -69,6 +69,10 @@ export function build(): Authored {
 
   // --- The two seams, one hill each --------------------------------------
   v.silverSeam(170, at(-10, -11));
+  // The reserve, up in the northern range the silver hill comes down
+  // from — a walk rather than a build order, which is what a second seam
+  // is for (map.ts RESERVE_SEAM_BAND).
+  v.silverSeam(120, at(7, -20));
   v.ironSeam(170, at(12, -9));
   // And what the crown has not asked about yet, far down the valley.
   v.goldSeam(100, at(25, 19));

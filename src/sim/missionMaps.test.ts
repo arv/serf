@@ -9,6 +9,9 @@ import {MISSION_DEFS, MISSION_ORDER, MISSION_KEYS} from './defs/missions.ts';
 import * as ObjectiveKind from './defs/objectiveKindEnum.ts';
 import {
   CASTLE_OPENING_SIGHT,
+  HOME_SEAM_BAND,
+  RESERVE_SEAM_BAND,
+  SILVER_RESERVE_WORTH,
   WATER_ACCESS_RADIUS,
   inPlayArea,
   tileBlocks,
@@ -68,6 +71,29 @@ function countWithin(
       if (!inPlayArea(map, x, y)) continue;
       if (Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) > radius) continue;
       if (map.resource[tileIdx(x, y, map.size)] === code) n++;
+    }
+  }
+  return n;
+}
+
+/** What a resource is WORTH within `radius` of a point — the same square
+ * of tiles `countWithin` walks, weighed rather than counted. */
+function amountWithin(
+  map: GameMap,
+  c: {x: number; y: number},
+  code: TileResourceKind,
+  radius: number,
+): number {
+  let n = 0;
+  const r = Math.ceil(radius) + 1;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const x = Math.floor(c.x) + dx;
+      const y = Math.floor(c.y) + dy;
+      if (!inPlayArea(map, x, y)) continue;
+      if (Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) > radius) continue;
+      const i = tileIdx(x, y, map.size);
+      if (map.resource[i] === code) n += map.resourceAmt[i]!;
     }
   }
   return n;
@@ -263,6 +289,42 @@ describe('the campaign’s authored ground', () => {
           siteRing(map, type, keepCenter(starts[0]!), 16),
           `${id}: nowhere to dig a ${type}`,
         ).toBeLessThanOrEqual(16);
+      }
+    },
+  );
+
+  it.each(MISSION_ORDER)(
+    '%s puts a reserve seam behind the silver it teaches',
+    async id => {
+      // Worldgen deals every start a home seam and a reserve further out
+      // (map.ts RESERVE_SEAM_BAND), because one seam is a finite number of
+      // loads and a match that outlives it cannot hire, research or
+      // re-tool. Authored ground gets no repair pass, so it gets this.
+      //
+      // Conditional on the map holding silver at all: the first two
+      // commissions are read off ground that deliberately holds none, and
+      // the test above pins that on purpose.
+      const {map, starts} = await mapFor(id);
+      const SEAM_SPREAD = 3; // how far a seam lies from the center it was drawn at
+      for (const start of starts) {
+        const c = keepCenter(start);
+        const home = amountWithin(
+          map,
+          c,
+          TileResource.SilverDep,
+          HOME_SEAM_BAND.wide,
+        );
+        if (home === 0) continue;
+        const reachable = amountWithin(
+          map,
+          c,
+          TileResource.SilverDep,
+          RESERVE_SEAM_BAND.wide + SEAM_SPREAD,
+        );
+        expect(
+          reachable - home,
+          `${id} @ ${start.x},${start.y}: reserve silver past the home ring`,
+        ).toBeGreaterThanOrEqual(SILVER_RESERVE_WORTH);
       }
     },
   );

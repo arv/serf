@@ -18,3 +18,5 @@ export const handsBeforeSoldiers = 7 as const;
 export type handsBeforeSoldiers = typeof handsBeforeSoldiers;
 export const keepTheQueueWarm = 8 as const;
 export type keepTheQueueWarm = typeof keepTheQueueWarm;
+export const openReserveMine = 9 as const;
+export type openReserveMine = typeof openReserveMine;

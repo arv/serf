@@ -20,6 +20,36 @@
  * directly.
  */
 /**
+ * 36: every valley has a second silver seam in it.
+ *
+ * One seam is a finite number of loads, and a match that outlived its
+ * silver could not hire a hand, finish a tech or re-tool a post ever
+ * again — the village went on looking healthy while it quietly went
+ * broke. Worldgen now lays a reserve seam for every start, out past
+ * everybody's home ring (map.ts RESERVE_SEAM_BAND, 120 against the home
+ * seam's 180) and drawn to be unambiguously that seat's: on generated
+ * maps at every seat count, solo included, and on the campaign's
+ * authored ground, where four of the five maps that teach silver at all
+ * grew one (Hold the Valley already had its pair).
+ *
+ * Both halves of that are replay surface. Generated worlds re-roll from
+ * the same seed: the reserve is drawn last, so the classic mid-ring and
+ * every home seam land exactly where they always did, but the draws
+ * after it — the stone-in-sight repair among them — walk a different rng,
+ * and any log on a generated map plays out on different ground. The
+ * mission maps' tiles moved outright.
+ *
+ * The seat that digs it is a brain change and therefore NOT the reason
+ * for the bump (playback never runs a brain): `openReserveMine`
+ * (sim/economyRules.ts) sites a second mine on the reserve while the
+ * first still has ore in reach, rather than waiting for the stall
+ * watchdog to notice a hole in the ground with nothing left in it — and
+ * once it is walking that road, the research queue sends for the boots
+ * and then the paving ahead of whatever the playbook had printed next
+ * (systems/ai.ts AI_HAUL). Both are decisions; a log holds the orders
+ * they produced, and the tick that executes those did not move.
+ */
+/**
  * 35: a sale leaves salvage on the field — nothing teleports. Selling
  * used to destroy everything the building held (the goods the render
  * piles against its front wall went down with walls they were never
@@ -328,4 +358,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 35;
+export const REPLAY_VERSION = 36;

@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
 import {tileIdx} from '../shared/grid.ts';
 import {AiSeats} from './aiSeats.ts';
 import * as CommandKind from './commandKindEnum.ts';
@@ -31,14 +32,18 @@ import {
   cmds,
 } from './testUtils.ts';
 import {tickWorld, type PlayerCommand} from './tick.ts';
+import * as TileResource from './tileResourceEnum.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   createWorld,
   type World,
   type WorldConfig,
   placeBuiltBuilding,
+  placeSite,
   spawnUnit,
 } from './world.ts';
+
+type TechId = Enum<typeof TechId>;
 
 function digest(world: World): unknown {
   return {
@@ -1351,5 +1356,200 @@ describe('a forge nobody is buying from', () => {
       )
       .map(c => (c as {buildingId: number}).buildingId);
     expect(opened).toEqual([...new Set(opened)]);
+  });
+});
+
+describe('the seat that sees its seam running out', () => {
+  /**
+   * A village whose silver mine is nearly through its home seam, with a
+   * second seam out past the far side of the valley. Everything the
+   * printed build order would otherwise want is either already standing,
+   * unaffordable on the shelf below, or anchored on ground this bare map
+   * does not have — so the only foundation a beat can lay is the one under
+   * test.
+   */
+  function minedOut(
+    leftInReach: number,
+    opts: {reserve?: boolean; successor?: boolean} = {},
+  ): {world: World; brain: AiBrain; mine: Building} {
+    const world = bareWorld();
+    // Exactly one mine's worth of materials: enough for the successor,
+    // not enough for the abbey the plan wants next.
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 8, [GoodId.stone]: 4});
+    for (const [type, x, y] of [
+      [BuildingTypeId.house, 27, 30],
+      [BuildingTypeId.well, 27, 33],
+      [BuildingTypeId.wheatFarm, 24, 30],
+    ] as const) {
+      placeBuiltBuilding(world, type, 0, x, y);
+    }
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      36,
+      30,
+    );
+    // What the mine can still reach, in one tile it can walk to.
+    if (leftInReach > 0)
+      addResourceTile(world, 38, 31, TileResource.SilverDep, leftInReach);
+    // And the reserve, out of the mine's reach entirely.
+    if (opts.reserve !== false) {
+      for (let i = 0; i < 4; i++)
+        addResourceTile(world, 30 + i, 55, TileResource.SilverDep, 30);
+    }
+    if (opts.successor) placeSite(world, BuildingTypeId.silverMine, 0, 31, 53);
+    return {
+      world,
+      brain: new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.steward],
+        world.map.size,
+      ),
+      mine,
+    };
+  }
+
+  function beat(brain: AiBrain, world: World): SimCommand[] {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  }
+
+  /** The mines this beat ordered dug, as footprint origins. */
+  function mineSites(commands: SimCommand[]): {x: number; y: number}[] {
+    return commands
+      .filter(
+        c =>
+          c.kind === CommandKind.placeBuilding &&
+          c.building === BuildingTypeId.silverMine,
+      )
+      .map(c => ({x: (c as {x: number}).x, y: (c as {y: number}).y}));
+  }
+
+  it('opens the reserve seam before the working one is dug out', () => {
+    // The complaint this answers: the silver simply stops. A seat that
+    // waits for the last load spends the whole gap between the seams
+    // unable to hire a hand or finish a tech — so it moves while the mine
+    // it has is still producing.
+    const {world, brain} = minedOut(10);
+    const sites = mineSites(beat(brain, world));
+    expect(sites.length).toBe(1);
+    // At the reserve, not beside the mine that is running out: the site
+    // has to be within a mine's reach (4) of the far seam.
+    const [site] = sites as [{x: number; y: number}];
+    expect(Math.abs(site.y - 55)).toBeLessThanOrEqual(5);
+  });
+
+  it('leaves a mine alone while its seam still holds ore', () => {
+    const {world, brain} = minedOut(90);
+    expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+
+  it('digs nothing when the map has no second seam to dig', () => {
+    // Nowhere to go is not a reason to spend a mine's materials on a hole
+    // beside the one that is already empty.
+    const {world, brain} = minedOut(10, {reserve: false});
+    expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+
+  it('lays one successor, not one a beat while it goes up', () => {
+    const {world, brain} = minedOut(10, {successor: true});
+    expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+
+  it('waits for the materials rather than ordering a hole it cannot pay for', () => {
+    const {world, brain} = minedOut(10);
+    const store = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    store.stock = {...store.stock, [GoodId.stone]: 0};
+    expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+});
+
+describe('the road to a far post', () => {
+  /**
+   * A village with its abbey up, a full shelf, and one post — near the
+   * castle or out in the country, which is the whole question.
+   */
+  function withPost(
+    far: boolean,
+    techs: TechId[] = [],
+    shelf: GoodAmounts = {},
+  ): {world: World; brain: AiBrain} {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {
+      [GoodId.wheat]: 10,
+      [GoodId.stone]: 10,
+      [GoodId.wood]: 10,
+      [GoodId.silver]: 20,
+      ...shelf,
+    });
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 27, 27);
+    // Twenty-four tiles of road — the reserve seam's kind of distance —
+    // or three, the larder's.
+    addBuiltHut(world, far ? 54 : 33, 30, false);
+    world.players[0]!.techs.researched.push(...techs);
+    return {
+      world,
+      brain: new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.steward],
+        world.map.size,
+      ),
+    };
+  }
+
+  function researchOrdered(brain: AiBrain, world: World): TechId | undefined {
+    world.tick += AI_PACING.decisionInterval;
+    const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    for (const c of commands)
+      if (c.kind === CommandKind.research) return c.tech;
+    return undefined;
+  }
+
+  it('sends for the boots first while a post is out in the country', () => {
+    // The reserve seam is twenty tiles of walking each way, and at that
+    // length the cheapest thing on the board is a shorter walk. The
+    // printed line opens on Soldiery; the road outranks it.
+    const {world, brain} = withPost(true);
+    expect(researchOrdered(brain, world)).toBe(TechId.cobbledBoots);
+  });
+
+  it('keeps to the printed line when every post is at the door', () => {
+    const {world, brain} = withPost(false);
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+
+  it('paves the long road once the boots are in', () => {
+    // Masonry is in no playbook but the abbot's, and last there — paving
+    // is a comfort on a short road. On a long one it is 35% off every
+    // load, aimed by the traffic itself.
+    const {world, brain} = withPost(true, [TechId.cobbledBoots]);
+    expect(researchOrdered(brain, world)).toBe(TechId.masonry);
+  });
+
+  it('leaves the paving alone on a village that walks nowhere', () => {
+    const {world, brain} = withPost(false, [TechId.cobbledBoots]);
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+
+  it('lets the plan run rather than waiting on stone it has not got', () => {
+    // The queue's own rule is to name a tech and then wait until it can
+    // afford that one. The road does not get that: it is an optimization,
+    // and a seat sitting on an empty quarry while Ironworking waits for a
+    // tech its playbook never asked for is a plan held hostage.
+    const {world, brain} = withPost(true, [TechId.cobbledBoots], {
+      [GoodId.stone]: 0,
+    });
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+
+  it('returns to the plan once the road techs are in', () => {
+    const {world, brain} = withPost(true, [
+      TechId.cobbledBoots,
+      TechId.masonry,
+    ]);
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
   });
 });

@@ -9,6 +9,10 @@ import {
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import {
   CASTLE_OPENING_SIGHT,
+  HOME_SEAM_BAND,
+  RESERVE_SEAM_BAND,
+  SILVER_HOME_WORTH,
+  SILVER_RESERVE_WORTH,
   WATER_ACCESS_RADIUS,
   playEdgeDist,
   type TileResourceKind,
@@ -263,6 +267,67 @@ describe('map fairness', () => {
       }
     }
   });
+
+  it('every start, solo included, has a second silver seam further out', () => {
+    // The complaint this covers: the silver runs out. One seam is a
+    // finite number of loads and a match that outlives it is a match
+    // nobody can hire, research or re-tool in — so every start is dealt a
+    // reserve as well, out past its home ring where reaching it costs a
+    // mine and a long haul rather than a build order.
+    //
+    // Measured as worth beyond the home ring, not as a count of seams: a
+    // reserve that landed as two tiles of thirty is the same reserve.
+    // `SEAM_SPREAD` is how far a seam's tiles can lie from the center it
+    // was drawn at (map.ts SEAM_REACH), which the outer bound has to
+    // allow for.
+    const SEAM_SPREAD = 3;
+    for (const players of [1, 2, 3, 4]) {
+      for (const seed of SEEDS) {
+        const world = makeWorld(seed, players);
+        for (const h of anchors(world)) {
+          const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}`;
+          const home = amountNear(
+            world,
+            TileResource.SilverDep,
+            h.x,
+            h.y,
+            HOME_SEAM_BAND.wide,
+          );
+          const reachable = amountNear(
+            world,
+            TileResource.SilverDep,
+            h.x,
+            h.y,
+            RESERVE_SEAM_BAND.wide + SEAM_SPREAD,
+          );
+          expect(
+            reachable - home,
+            `${label}: reserve silver past the home ring`,
+          ).toBeGreaterThanOrEqual(SILVER_RESERVE_WORTH);
+        }
+      }
+    }
+  });
+
+  for (const players of [2, 3, 4]) {
+    it(`${players} players: the map holds one home seam and one reserve per seat`, () => {
+      // The counterpart to the reach test above: reach alone would pass a
+      // valley that dealt one seat two reserves and its neighbour a share
+      // of someone else's. Every gram of silver on the board is accounted
+      // for by the seats, at the same price each.
+      for (const seed of SEEDS) {
+        const world = makeWorld(seed, players);
+        let total = 0;
+        for (let i = 0; i < tileCount(world.map.size); i++) {
+          if (world.map.resource[i] === TileResource.SilverDep)
+            total += world.map.resourceAmt[i]!;
+        }
+        expect(total, `seed ${seed}, ${players}p: silver on the board`).toBe(
+          players * (SILVER_HOME_WORTH + SILVER_RESERVE_WORTH),
+        );
+      }
+    });
+  }
 
   it('solo: the classic mid-ring layout is untouched', () => {
     for (const seed of SEEDS) {

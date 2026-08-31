@@ -107,8 +107,18 @@ import {REPLAY_VERSION} from './replayVersion';
 // cargo and a killed worker's tool fall as salvage where he stood
 // instead of dying with him. A logged sale or serf loss re-runs
 // differently from that tick on (see replayVersion.ts).
-const EXPECTED_VERSION = 35;
-const EXPECTED_HASH = 'e1a4453eac3563195cd47f2b184a2e07';
+// 36 for the reserve silver seam: every start on every map now has a
+// second seam out past its home ring, so a generated world re-rolls
+// differently from the same seed and four mission maps' tiles moved
+// outright (see replayVersion.ts). The seat that opens it is brain and
+// rule work, which playback never runs — the bump is the ground.
+// Still 36 after the road techs (systems/ai.ts AI_HAUL): a seat hauling
+// from a post out in the country now researches Cobbled Boots and then
+// Masonry ahead of its printed line. Brain only — playback never runs a
+// brain — so yesterday's logs play back exactly; the hash is over raw
+// bytes, which is why it moved anyway.
+const EXPECTED_VERSION = 36;
+const EXPECTED_HASH = '869de03c51c22c0dad85f1a5cfe48771';
 
 /**
  * Everything a replay's playback depends on, as raw source:

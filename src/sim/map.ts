@@ -306,6 +306,56 @@ export const CASTLE_OPENING_SIGHT =
  */
 export const WATER_ACCESS_RADIUS = 16;
 
+/**
+ * The distance bands worldgen lays metal in, measured from a start's
+ * anchor (from the map's middle on a solo world, where the middle IS
+ * home). `wide` is what the last, desperate tier looks out to on a seed
+ * whose ground refuses the band proper.
+ *
+ * `HOME` is the birthright: the iron and the silver a faction opens on,
+ * near enough that the first mine is a build order rather than an
+ * expedition.
+ *
+ * `RESERVE` is the second silver seam, and it is deliberately a walk. A
+ * home seam is a finite number of loads — 180 of them — and a match that
+ * runs past it used to end with every seat's purse empty and no purse
+ * anywhere to refill it: no hires, no research, an economy that could
+ * only shrink. There is always somewhere else to dig now, and what it
+ * costs is the haul.
+ */
+export const HOME_SEAM_BAND = {min: 9, max: 13, wide: 17} as const;
+export const RESERVE_SEAM_BAND = {min: 21, max: 27, wide: 30} as const;
+
+/**
+ * How far a reserve seam's CENTER stands off every start, its own
+ * included.
+ *
+ * Two promises in one number. Nothing of the seam may fall inside a home
+ * ring — a reserve that leaked into anyone's `HOME_SEAM_BAND.wide` would
+ * quietly make that seat's birthright richer than its rivals', which is
+ * the one thing the fairness audit exists to refuse — and a seam lies up
+ * to SEAM_REACH tiles off the center it was drawn at, so the center keeps
+ * that much further back again (17 + 3, and one more for the rounding of
+ * the draw). It applies to the seat's own door as well as a rival's:
+ * "further out" is the whole point of the reserve, and a reserve within
+ * arm's reach of the castle is just a bigger birthright.
+ */
+export const RESERVE_SEAM_KEEPOUT = 21;
+
+/**
+ * What a silver seam is worth, home and reserve.
+ *
+ * The home figure is the tech tree (79) plus hands at four apiece with
+ * something left over; the reserve is priced under it on purpose. It is
+ * the seam that keeps a long match alive rather than a second birthright:
+ * enough to go on hiring and finish the tree, far enough out that opening
+ * it costs a mine, a hauler's road and the ground to defend it. (The
+ * campaign's own two-seam valley, Hold the Valley, has run 150 and 120
+ * since it was authored; this is that shape, generated.)
+ */
+export const SILVER_HOME_WORTH = 180;
+export const SILVER_RESERVE_WORTH = 120;
+
 /** Smoothstep of t clamped to [0, 1]. */
 function ease01(t: number): number {
   const c = t < 0 ? 0 : t > 1 ? 1 : t;
@@ -829,6 +879,10 @@ export function generateMap(
     // ring could hand both iron seams to one side of a two-player map.
     // Placement draws polar offsets from the start's anchor, preferring
     // high ground.
+    //
+    // And every faction gets a second silver seam a band further out, on
+    // the same terms: the birthright is finite, and a map that holds one
+    // purse per seat is a map whose late game is a slow bankruptcy.
     const isOwnGround = (s: StartSpot, x: number, y: number): boolean => {
       const a = anchorOf(s);
       return Math.hypot(x - a.x, y - a.y) <= startDist(x, y) + 1e-6;
@@ -845,16 +899,91 @@ export function generateMap(
         () => true, // pathological seed: any grass in the band beats no seam
       ];
       for (const [ti, pred] of tiers.entries()) {
-        const reach = ti === tiers.length - 1 ? 17 : 13; // last tier looks wider
+        // Last tier looks wider.
+        const {min, max, wide} = HOME_SEAM_BAND;
+        const reach = ti === tiers.length - 1 ? wide : max;
         for (let tries = 0; tries < 60; tries++) {
           const ang = rng.range(0, Math.PI * 2);
-          const d = rng.range(9, reach);
+          const d = rng.range(min, reach);
           const x = Math.round(a.x + Math.cos(ang) * d);
           const y = Math.round(a.y + Math.sin(ang) * d);
           if (playEdgeDist(map, x, y) < 3) continue;
           if (map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass) continue;
           if (!pred(x, y)) continue;
           if (placeSeam(res, budget, x, y) > 0) return;
+        }
+      }
+    };
+    /**
+     * The reserve seam: silver a band further out than the birthright, and
+     * unambiguously this seat's — every rival start at least `MARGIN`
+     * further from it than this one is, so the whole seam (which lies up
+     * to SEAM_REACH off the center it is drawn at) sits on home ground
+     * rather than straddling a border.
+     *
+     * Enumerated rather than thrown at. Dart-throwing is fine for a ring
+     * nine tiles out, where most of the circle is the seat's own valley;
+     * at twenty-one the band is mostly somebody else's ground, the sea, or
+     * hillside, and sixty misses fell through to "any grass in the band" —
+     * which in a three-seat valley handed one seat two reserves and its
+     * neighbour none. So this collects every tile that keeps the promise
+     * and draws one of those, and only relaxes the promise (height, then
+     * distance, then ownership) when nothing at all qualifies.
+     */
+    const reserveSeamFor = (start: StartSpot): void => {
+      const a = anchorOf(start);
+      const MARGIN = 4;
+      const from = (x: number, y: number): number =>
+        Math.hypot(x - a.x, y - a.y);
+      const ownAlone = (x: number, y: number): boolean =>
+        starts.every(
+          s =>
+            s === start ||
+            Math.hypot(x - anchorOf(s).x, y - anchorOf(s).y) >=
+              from(x, y) + MARGIN,
+        );
+      const nearestTo = (x: number, y: number): boolean =>
+        starts.every(
+          s =>
+            s === start ||
+            Math.hypot(x - anchorOf(s).x, y - anchorOf(s).y) >= from(x, y),
+        );
+      const band = RESERVE_SEAM_BAND;
+      const tiers: ((x: number, y: number) => boolean)[] = [
+        (x, y) =>
+          from(x, y) <= band.max && ownAlone(x, y) && heightAt(x, y) > 0.8,
+        (x, y) => from(x, y) <= band.max && ownAlone(x, y),
+        (x, y) => from(x, y) <= band.wide && ownAlone(x, y),
+        // A tight valley can leave no ground that is this seat's by a
+        // clear margin. Nearest-to-me is the weaker claim that still means
+        // "mine": the seam may graze a border, and a border seam a rival
+        // can also walk to beats a seat with no second purse at all.
+        (x, y) => from(x, y) <= band.wide && nearestTo(x, y),
+        (x, y) => from(x, y) <= band.wide, // shared ground beats no reserve
+      ];
+      for (const pred of tiers) {
+        const open: [number, number][] = [];
+        for (let y = p0; y < p0 + play; y++) {
+          for (let x = p0; x < p0 + play; x++) {
+            if (from(x, y) < band.min) continue;
+            if (playEdgeDist(map, x, y) < 3) continue;
+            if (startDist(x, y) < RESERVE_SEAM_KEEPOUT) continue;
+            if (map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass) continue;
+            if (!pred(x, y)) continue;
+            open.push([x, y]);
+          }
+        }
+        // A center inside a grove or against the water writes nothing, so
+        // a miss draws again from what is left rather than giving up.
+        for (let tries = 0; tries < 40 && open.length > 0; tries++) {
+          const k = rng.int(open.length);
+          const [x, y] = open[k]!;
+          open.splice(k, 1);
+          if (
+            placeSeam(TileResourceNs.SilverDep, SILVER_RESERVE_WORTH, x, y) > 0
+          ) {
+            return;
+          }
         }
       }
     };
@@ -867,8 +996,12 @@ export function generateMap(
       // the techs or the people and never both, and the seats that drew
       // less spent the back half of the match with nothing to spend.
       seamFor(start, TileResourceNs.IronDep, 144);
-      seamFor(start, TileResourceNs.SilverDep, 180);
+      seamFor(start, TileResourceNs.SilverDep, SILVER_HOME_WORTH);
     }
+    // The reserves last, once every home seam is down: a reserve is drawn
+    // against what the ground already holds, and one drawn before its
+    // neighbour's birthright could sit on the tiles that birthright wanted.
+    for (const start of starts) reserveSeamFor(start);
 
     // Gold is the exception by design: contested, not owned. It sits in
     // the middle — equidistant from every start, and the bandit camp that
@@ -913,6 +1046,26 @@ export function generateMap(
           if (placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1) > 0) break;
         }
       }
+    }
+    // The reserve seam, out past the classic ring — the one thing a solo
+    // world does NOT keep draw for draw, because the thing it was missing
+    // is a second purse (RESERVE_SEAM_BAND). Drawn last, after every
+    // classic deposit is down, so the mid-ring itself lands exactly where
+    // it always did.
+    const onOuterRing = (x0: number, y0: number): boolean => {
+      const dc = centerDist(x0, y0);
+      return dc >= RESERVE_SEAM_BAND.min && dc <= RESERVE_SEAM_BAND.max;
+    };
+    for (let tries = 0; tries < 40; tries++) {
+      const [x, y] = spotPref(4, RESERVE_SEAM_KEEPOUT, [
+        (x0, y0) => onOuterRing(x0, y0) && heightAt(x0, y0) > 1.0,
+        onOuterRing,
+        // Pathological seed: the whole band is lake or hillside. Anything
+        // past the keep-out beats a valley with one seam in it.
+        (x0, y0) => centerDist(x0, y0) <= RESERVE_SEAM_BAND.wide,
+      ]);
+      if (placeSeam(TileResourceNs.SilverDep, SILVER_RESERVE_WORTH, x, y) > 0)
+        break;
     }
   }
 
@@ -1497,6 +1650,27 @@ export function nearestResource(
   cx: number,
   cy: number,
 ): number {
+  return nearestResourceOutside(map, code, cx, cy, []);
+}
+
+/**
+ * The same question, asked of ground nobody is already digging: the nearest
+ * live tile of a resource that lies outside every one of `worked` — a
+ * gatherer's origin and the square radius it reaches over, the way
+ * `findResourceNear` measures.
+ *
+ * This is what "go and find the next seam" means to a seat whose mine is
+ * running out. Plain `nearestResource` would answer with a tile the tired
+ * mine can already reach and site its successor on top of it, which is a
+ * second mine sharing one seam rather than a second seam.
+ */
+export function nearestResourceOutside(
+  map: GameMap,
+  code: number,
+  cx: number,
+  cy: number,
+  worked: readonly {x: number; y: number; radius: number}[],
+): number {
   const size = map.size;
   const lo = playMin(map);
   const hi = playMax(map);
@@ -1507,10 +1681,16 @@ export function nearestResource(
       const i = y * size + x;
       if (map.resource[i] !== code || map.resourceAmt[i]! <= 0) continue;
       const d = Math.abs(x - cx) + Math.abs(y - cy);
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
+      if (d >= bestDist) continue;
+      if (
+        worked.some(
+          w => Math.abs(x - w.x) <= w.radius && Math.abs(y - w.y) <= w.radius,
+        )
+      ) {
+        continue;
       }
+      bestDist = d;
+      best = i;
     }
   }
   return best;
