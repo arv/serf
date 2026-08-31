@@ -166,6 +166,26 @@ describe('save/load', () => {
     );
     expect(out).toHaveLength(2);
   });
+
+  it('opens a save written before a man carried his own full health', () => {
+    // Unit.maxHp is the same kind of change as garrisonKind above: a missing
+    // optional, not a new shape, so the format did not move for it. What has
+    // to hold is the reading. Every man in an older file was spawned at his
+    // kind's number and the file never said otherwise, so that is what he
+    // comes back with — and it must be a number, because a unit loaded
+    // without one divides his health by nothing and draws an empty bar.
+    const world = createWorld({seed: 5, players: [{kind: PlayerKind.human}]});
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    const saved = JSON.parse(serializeWorld(world)) as {
+      world: {units: Record<string, unknown>[]};
+    };
+    for (const u of saved.world.units) delete u.maxHp; // as an older build wrote it
+
+    const back = deserializeWorld(JSON.stringify(saved));
+    const loaded = back.units.get(knight.id)!;
+    expect(loaded.maxHp).toBe(UNIT_DEFS[UnitTypeId.knight].hp);
+    expect(loaded.hp).toBe(loaded.maxHp);
+  });
 });
 
 const GRIDS = [

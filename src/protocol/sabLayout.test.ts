@@ -8,7 +8,17 @@ import {
 } from './sabLayout';
 
 function unit(id: number, x: number, y: number): UnitSnapshot {
-  return {id, x, y, kind: 1, owner: 0, hpPct: 255, carrying: 0, action: 0};
+  return {
+    id,
+    x,
+    y,
+    kind: 1,
+    owner: 0,
+    hpPct: 255,
+    maxHp: 80,
+    carrying: 0,
+    action: 0,
+  };
 }
 
 describe('SAB slot protocol', () => {
@@ -24,6 +34,11 @@ describe('SAB slot protocol', () => {
     expect(reader.latest.xs[i1]).toBeCloseTo(1.5);
     expect(reader.latest.ys[i1]).toBeCloseTo(2.5);
     expect(reader.latest.aux[i1 * AUX_STRIDE]).toBe(1); // kind
+    // The health pair: the fraction, and the maximum it is a fraction of.
+    // They ride adjacent-but-apart, so an offset that slips takes one of
+    // them silently — a bar at full over a man on his last legs.
+    expect(reader.latest.aux[i1 * AUX_STRIDE + 2]).toBe(255); // hpPct
+    expect(reader.latest.aux[i1 * AUX_STRIDE + 9]).toBe(80); // maxHp
   });
 
   it('keeps the previous publish for interpolation', () => {

@@ -13,8 +13,10 @@ import {
   tileCount,
 } from '../shared/grid.ts';
 import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion.ts';
+import {UNIT_DEFS} from './defs/units.ts';
 import type {GameMap} from './map.ts';
 import type {PlayerState} from './player.ts';
+import type {Unit} from './units.ts';
 import type {MatchOutcome, World} from './world.ts';
 
 /**
@@ -192,7 +194,17 @@ export function deserializeWorld(json: string): World {
     nextJobId: w.nextJobId,
     map,
     units: new Map(
-      (w.units as {id: number}[]).map(u => [u.id, u]),
+      // A unit carries its own full health now (Unit.maxHp — armour
+      // research moves it off the kind's number). A file written before it
+      // did has only the kind's to go on, which is what every man in it was
+      // spawned with anyway; without the fill-in his health reads as NaN
+      // and his bar draws empty.
+      (w.units as (Omit<Unit, 'maxHp'> & {maxHp?: number})[]).map(u => [
+        u.id,
+        (u.maxHp === undefined
+          ? {...u, maxHp: UNIT_DEFS[u.kind].hp}
+          : u) as Unit,
+      ]),
     ) as World['units'],
     buildings: new Map(
       (w.buildings as {id: number}[]).map(b => [b.id, b]),

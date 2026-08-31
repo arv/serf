@@ -12,7 +12,7 @@ import {goodEntries} from '../defs/goods.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
-import type {Building} from '../entities.ts';
+import type {Building, Owner} from '../entities.ts';
 import {findPath, nearestWalkable} from '../path.ts';
 import {popCapOf, populationOf} from '../population.ts';
 import {getModifier, isUnitUnlocked} from '../techHelpers.ts';
@@ -22,6 +22,18 @@ import {spawnUnit, type World} from '../world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 type GoodId = Enum<typeof GoodId>;
+
+/**
+ * What a soldier of this kind musters at under his lord's armour research —
+ * his own full health from that day on, which is what `Unit.maxHp` carries
+ * and what every wound is measured against. The kind's number is only the
+ * base the research multiplies.
+ */
+function armoredHp(world: World, owner: Owner, kind: UnitTypeId): number {
+  return Math.round(
+    UNIT_DEFS[kind].hp * getModifier(world, owner, ModifierKey.militaryHp),
+  );
+}
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -48,10 +60,9 @@ export function trainingSystem(world: World): void {
       b.trainQueue.shift();
       const door = doorOf(world, b);
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
-      unit.hp = Math.round(
-        UNIT_DEFS[head.unit].hp *
-          getModifier(world, b.owner, ModifierKey.militaryHp),
-      );
+      // Both numbers: he leaves whole, and what whole means for him is the
+      // armoured figure, not his kind's.
+      unit.hp = unit.maxHp = armoredHp(world, b.owner, head.unit);
       marchToRally(world, b, unit);
     }
   }
@@ -171,16 +182,21 @@ export function evictGarrison(world: World, b: Building, n: number): void {
     // shifted — which man of an identical pair walks out first is a
     // question about nothing.
     const kept = b.garrisonHp?.pop();
+    // Armour research is a soldier's; a serf goes back to work as he was.
+    // Read now rather than remembered: only the wound is kept, so a tower
+    // that was manned before the smiths finished sends its men down under
+    // the armour the realm has today.
+    if (!isLevy) unit.maxHp = armoredHp(world, b.owner, kind);
     if (kept !== undefined) {
       unit.hp = kept;
+      // A man is never carrying more than his own full health says he can:
+      // what he climbed up with stands even if the reckoning above is
+      // somehow lower.
+      unit.maxHp = Math.max(unit.maxHp, kept);
     } else if (!isLevy) {
-      // Armour research is a soldier's; a serf goes back to work as he was.
       // Only for a garrison that never recorded a man (a save from before
       // garrisonHp) — otherwise what he walked in with stands.
-      unit.hp = Math.round(
-        UNIT_DEFS[kind].hp *
-          getModifier(world, b.owner, ModifierKey.militaryHp),
-      );
+      unit.hp = unit.maxHp;
     }
     // The bow does not reload for free either: a man leaving a tower that has
     // just loosed carries what is left of its clock, or standing down between

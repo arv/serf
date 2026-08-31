@@ -206,6 +206,10 @@ export function encodeHot(
     // range byte that turns its bearing into a target point for arrows.
     out[off + 19] = u.facing ?? 0;
     out[off + 20] = u.targetDist ?? 0;
+    // What full health means for this man (armour research moves it off his
+    // kind's number), so the client can read hpPct as his own fraction and
+    // print the pair.
+    out[off + 21] = u.maxHp;
     off += UNIT_BYTES;
   }
   return out;
@@ -237,6 +241,7 @@ function decodeHot(data: Uint8Array): HotFrame {
       profession: data[off + 18]!,
       facing: data[off + 19]!,
       targetDist: data[off + 20]!,
+      maxHp: data[off + 21]!,
     });
     off += UNIT_BYTES;
   }

@@ -554,6 +554,19 @@ export class SceneSync {
     return this.#reader.latest.aux[li * AUX_STRIDE]!;
   }
 
+  /**
+   * This unit's own full health, in hitpoints — what the health byte is a
+   * fraction OF. Armour research musters a soldier above his kind's number
+   * (a knight at 120 against a base of 80), so the kind's def cannot answer
+   * this; the sim publishes the man's own (UnitSnapshot.maxHp). Saturates at
+   * 255. Null when the unit is not in the latest publish.
+   */
+  maxHpOf(id: number): number | null {
+    const li = this.#reader.latest.index.get(id);
+    if (li === undefined) return null;
+    return this.#reader.latest.aux[li * AUX_STRIDE + 9]!;
+  }
+
   /** A corpse: still published, for the length of the death animation. */
   isDead(id: number): boolean {
     const li = this.#reader.latest.index.get(id);
@@ -724,7 +737,9 @@ export class SceneSync {
 
       // Health bar when damaged, hovered, or selected. Decided here, where
       // the hp and the highlight are to hand; written into the instanced
-      // mesh below, once this unit's final position is known.
+      // mesh below, once this unit's final position is known. The byte is
+      // the man's own fraction (UnitSnapshot.hpPct), so an armoured soldier's
+      // bar drops on his first wound rather than at his kind's full health.
       let barPct = -1;
       if (!offScreen) {
         const hpPct = latest.aux[a + 2]! / 255;

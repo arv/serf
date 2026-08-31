@@ -26,7 +26,7 @@ function unit(
   owner: number,
   action: number = ACTION.idle,
 ): UnitSnapshot {
-  return {id, x, y, kind: 5, owner, hpPct: 255, carrying: 0, action};
+  return {id, x, y, kind: 5, owner, hpPct: 255, maxHp: 80, carrying: 0, action};
 }
 
 function rig(units: UnitSnapshot[]): SceneSync {
