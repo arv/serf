@@ -112,8 +112,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // differently from the same seed and four mission maps' tiles moved
 // outright (see replayVersion.ts). The seat that opens it is brain and
 // rule work, which playback never runs — the bump is the ground.
+// Still 36 after the road techs (systems/ai.ts AI_HAUL): a seat hauling
+// from a post out in the country now researches Cobbled Boots and then
+// Masonry ahead of its printed line. Brain only — playback never runs a
+// brain — so yesterday's logs play back exactly; the hash is over raw
+// bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 36;
-const EXPECTED_HASH = 'd162e83f3f8b04da9c2188ff8d1bc1cd';
+const EXPECTED_HASH = '869de03c51c22c0dad85f1a5cfe48771';
 
 /**
  * Everything a replay's playback depends on, as raw source:

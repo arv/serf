@@ -29,6 +29,7 @@ import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries, type GoodAmounts} from '../defs/goods.ts';
 import * as PostureId from '../defs/postureIdEnum.ts';
+import * as TechIdNs from '../defs/techIdEnum.ts';
 import {TECH_DEFS, type TechId} from '../defs/techs.ts';
 import * as UnitClass from '../defs/unitClassEnum.ts';
 import {UNIT_DEFS, WEAPON_OF} from '../defs/units.ts';
@@ -266,6 +267,42 @@ type StanceState =
  * the haulage pool in dribs.
  */
 export const AI_REPAIR_BELOW = 0.7;
+
+/**
+ * The road, as the research queue sees it.
+ *
+ * A seat that has opened the reserve seam (economyRules.ts
+ * `openReserveMine`) is carrying every load of silver twenty-odd tiles,
+ * and at that length what the village most needs is not another
+ * building — it is the walk to be shorter. Cobbled Boots is 15% off every
+ * trip a serf makes for four wheat and two silver, and Masonry behind it
+ * paves whatever the haulers have worn into a trail: another 35%,
+ * permanent, and aimed by the traffic itself, so the road that gets
+ * cobbled is precisely the long one.
+ *
+ * Both are in the tree already and every playbook lists the boots; what
+ * the long haul changes is WHEN, and whether the paving behind them is
+ * worth a slot at all. Off a long road, paving is the comfort the
+ * abbot's own line calls it and it stays last. On one, it is the highest
+ * return on the board.
+ *
+ * `longHaul` is measured storehouse to post as the crow flies, which is
+ * the one reach here that is NOT manhattan, and deliberately: worldgen's
+ * seam bands are euclidean, and this number's whole job is to fall
+ * between them. The home band ends at seventeen and a mine on it stands
+ * a tile or two further out again; the reserve keeps out to twenty-one
+ * (map.ts HOME_SEAM_BAND, RESERVE_SEAM_KEEPOUT). Twenty says "the
+ * reserve, or a home seam right at the rim of its band" and leaves the
+ * posts every village has from its first minute — the larder's grove and
+ * outcrop, eleven or twelve tiles out — alone. Read in manhattan the two
+ * bands overlap and the trigger fires on the opening woodcutter, which
+ * is a permanent reordering of every playbook wearing a situational
+ * rule's clothes.
+ */
+export const AI_HAUL = {
+  longHaul: 20,
+  techs: [TechIdNs.cobbledBoots, TechIdNs.masonry] as readonly TechId[],
+} as const;
 
 /** How far from a target a defender still counts as defending it. The game's
  * longest leash is `acquireRadius * 1.6` = 12.8 tiles, so twelve covers
@@ -1094,11 +1131,29 @@ export class AiBrain {
     // that names a tech ahead of its prereq skips past it rather than
     // stalling the whole queue on an order the sim will refuse.
     if (!techs.active) {
-      const next = s.researchOrder.find(
-        id =>
-          !techs.researched.includes(id) &&
-          TECH_DEFS[id].prereqs.every(pre => techs.researched.includes(pre)),
-      );
+      const open = (id: TechId): boolean =>
+        !techs.researched.includes(id) &&
+        TECH_DEFS[id].prereqs.every(pre => techs.researched.includes(pre));
+      // The road jumps the queue while one is being walked (AI_HAUL). The
+      // playbook is still the seat's identity — this is the one insertion
+      // the ground makes, and it goes quiet the moment both road techs are
+      // in or the long post is gone.
+      //
+      // It jumps only when the shelf can pay for it TODAY, which the
+      // printed line pointedly does not have to: the queue's own rule is
+      // to name the first eligible tech and then wait until it can afford
+      // that one, and a seat waiting on eight stone for a tech its
+      // playbook never asked for would be a plan held hostage by an
+      // optimization. Unaffordable, the road simply waits for a beat when
+      // it is not, and the plan runs meanwhile.
+      const paidToday = (id: TechId): boolean =>
+        goodEntries(TECH_DEFS[id].cost).every(
+          ([good, n]) => (stock[good] ?? 0) >= n,
+        );
+      const road = this.#longHaul(mine, baseX, baseY)
+        ? AI_HAUL.techs.find(id => open(id) && paidToday(id))
+        : undefined;
+      const next = road ?? s.researchOrder.find(open);
       if (next && hasBuilt(BuildingTypeId.abbey)) {
         const cost = TECH_DEFS[next].cost;
         const ok = goodEntries(cost).every(
@@ -1661,6 +1716,27 @@ export class AiBrain {
           ? st.found
           : st.opening;
     return pick ? stanceWarKnobs(pick) : null;
+  }
+
+  /**
+   * Is a post of this seat's out in the country — far enough from the
+   * storehouse that the walk, rather than the digging, is what its output
+   * costs (AI_HAUL.longHaul)?
+   *
+   * Any gatherer counts, in any state: a scaffold twenty tiles out is a
+   * road being walked with stone on it, which is the same argument for
+   * boots as the mine that will stand there. What it is really asking
+   * about is the reserve seam — nothing else in a plan is routinely that
+   * far from home.
+   */
+  #longHaul(mine: readonly Building[], baseX: number, baseY: number): boolean {
+    for (const b of mine) {
+      const def = BUILDING_DEFS[b.type];
+      if (!gatherRecipeOf(def)) continue;
+      const c = gatherOrigin(def, b.x, b.y);
+      if (exactDist(c.x - baseX, c.y - baseY) >= AI_HAUL.longHaul) return true;
+    }
+    return false;
   }
 
   /** Soldiers standing, tower garrisons included — the stance gate's count,

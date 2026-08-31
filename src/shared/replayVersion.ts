@@ -43,7 +43,11 @@
  * for the bump (playback never runs a brain): `openReserveMine`
  * (sim/economyRules.ts) sites a second mine on the reserve while the
  * first still has ore in reach, rather than waiting for the stall
- * watchdog to notice a hole in the ground with nothing left in it.
+ * watchdog to notice a hole in the ground with nothing left in it — and
+ * once it is walking that road, the research queue sends for the boots
+ * and then the paving ahead of whatever the playbook had printed next
+ * (systems/ai.ts AI_HAUL). Both are decisions; a log holds the orders
+ * they produced, and the tick that executes those did not move.
  */
 /**
  * 35: a sale leaves salvage on the field — nothing teleports. Selling

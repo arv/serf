@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
 import {tileIdx} from '../shared/grid.ts';
 import {AiSeats} from './aiSeats.ts';
 import * as CommandKind from './commandKindEnum.ts';
@@ -41,6 +42,8 @@ import {
   placeSite,
   spawnUnit,
 } from './world.ts';
+
+type TechId = Enum<typeof TechId>;
 
 function digest(world: World): unknown {
   return {
@@ -1461,5 +1464,92 @@ describe('the seat that sees its seam running out', () => {
     )!;
     store.stock = {...store.stock, [GoodId.stone]: 0};
     expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+});
+
+describe('the road to a far post', () => {
+  /**
+   * A village with its abbey up, a full shelf, and one post — near the
+   * castle or out in the country, which is the whole question.
+   */
+  function withPost(
+    far: boolean,
+    techs: TechId[] = [],
+    shelf: GoodAmounts = {},
+  ): {world: World; brain: AiBrain} {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {
+      [GoodId.wheat]: 10,
+      [GoodId.stone]: 10,
+      [GoodId.wood]: 10,
+      [GoodId.silver]: 20,
+      ...shelf,
+    });
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 27, 27);
+    // Twenty-four tiles of road — the reserve seam's kind of distance —
+    // or three, the larder's.
+    addBuiltHut(world, far ? 54 : 33, 30, false);
+    world.players[0]!.techs.researched.push(...techs);
+    return {
+      world,
+      brain: new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.steward],
+        world.map.size,
+      ),
+    };
+  }
+
+  function researchOrdered(brain: AiBrain, world: World): TechId | undefined {
+    world.tick += AI_PACING.decisionInterval;
+    const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    for (const c of commands)
+      if (c.kind === CommandKind.research) return c.tech;
+    return undefined;
+  }
+
+  it('sends for the boots first while a post is out in the country', () => {
+    // The reserve seam is twenty tiles of walking each way, and at that
+    // length the cheapest thing on the board is a shorter walk. The
+    // printed line opens on Soldiery; the road outranks it.
+    const {world, brain} = withPost(true);
+    expect(researchOrdered(brain, world)).toBe(TechId.cobbledBoots);
+  });
+
+  it('keeps to the printed line when every post is at the door', () => {
+    const {world, brain} = withPost(false);
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+
+  it('paves the long road once the boots are in', () => {
+    // Masonry is in no playbook but the abbot's, and last there — paving
+    // is a comfort on a short road. On a long one it is 35% off every
+    // load, aimed by the traffic itself.
+    const {world, brain} = withPost(true, [TechId.cobbledBoots]);
+    expect(researchOrdered(brain, world)).toBe(TechId.masonry);
+  });
+
+  it('leaves the paving alone on a village that walks nowhere', () => {
+    const {world, brain} = withPost(false, [TechId.cobbledBoots]);
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+
+  it('lets the plan run rather than waiting on stone it has not got', () => {
+    // The queue's own rule is to name a tech and then wait until it can
+    // afford that one. The road does not get that: it is an optimization,
+    // and a seat sitting on an empty quarry while Ironworking waits for a
+    // tech its playbook never asked for is a plan held hostage.
+    const {world, brain} = withPost(true, [TechId.cobbledBoots], {
+      [GoodId.stone]: 0,
+    });
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+
+  it('returns to the plan once the road techs are in', () => {
+    const {world, brain} = withPost(true, [
+      TechId.cobbledBoots,
+      TechId.masonry,
+    ]);
+    expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
   });
 });
