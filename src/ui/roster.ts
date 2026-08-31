@@ -77,13 +77,16 @@ function isUnitTypeId(kind: number): kind is UnitTypeId {
 /**
  * Whole men last, once the card has to choose who to draw.
  *
- * This is a legal sort key only because it can never go back: a unit is
- * spawned at its kind's hitpoints and nothing in the sim ever raises them
- * again — buildings mend, people do not (see the tower that "is not a
- * hospital" in combat.test.ts). So a man crosses from whole to hurt once
- * in his life, moves up the card once, and stays put. Sorting on how hurt
- * he is would not have that property: the tiles would re-order on every
- * arrow, which is exactly when the player is trying to read them.
+ * This is a legal sort key only because it can never go back: nothing in
+ * the sim gives a person hitpoints back once he has lost them — buildings
+ * mend, people do not (see the tower that "is not a hospital" in
+ * combat.test.ts). Research does raise what a soldier is *trained* at
+ * (ModifierKey.militaryHp — Mail Armor, Gilded Arms), but that is the
+ * number he walks out of the barracks with, not a gain he makes later. So
+ * a man crosses from whole to hurt once in his life, moves up the card
+ * once, and stays put. Sorting on how hurt he is would not have that
+ * property: the tiles would re-order on every arrow, which is exactly when
+ * the player is trying to read them.
  */
 function woundRank(u: SelectedUnit): number {
   return u.hp < u.maxHp ? 0 : 1;
@@ -133,6 +136,15 @@ export function rosterOf(
  * kind's maximum, so this cannot be exact — it is out by at most half a
  * point on the biggest unit in the game, which is under what the card
  * prints anyway.
+ *
+ * The kind's maximum, note, and not this man's: the publisher divides by
+ * the same UNIT_DEFS number (protocol/snapshot.ts) and clamps at full, so a
+ * soldier trained under armor research — who walks out with half again the
+ * hitpoints of his kind — reads as whole until he is down to what an
+ * unarmored one starts with. The card is optimistic about him rather than
+ * wrong about anyone else, and it is the same byte the bar over his head
+ * has always drawn. Telling his true maximum apart from his kind's would
+ * take a wider publish than this card is worth.
  *
  * The floor at 1 is the one place that matters: a knight on his last point
  * of 80 rounds to zero, and a card reading "0/80" over someone still

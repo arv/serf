@@ -1461,7 +1461,17 @@ export function SelectionPanel(props: {
                       />
                     )}
                   >
-                    <span class="sel-tile">
+                    {/* The tile is a picture of a man and a bar, which
+                        says nothing at all out loud — so it carries the
+                        sentence itself, and the glyph inside it stays
+                        hidden rather than being read out as a second
+                        name. The tooltip says the same words to a
+                        pointer. */}
+                    <span
+                      class="sel-tile"
+                      role="img"
+                      aria-label={`${unitName(unit().kind)}, ${unit().hp} of ${unit().maxHp} hitpoints`}
+                    >
                       <UnitIcon unit={unit().kind} size={16} decorative />
                       <span class="bar">
                         <span
