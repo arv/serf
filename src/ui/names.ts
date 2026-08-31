@@ -43,6 +43,27 @@ export function unitName(unit: UnitTypeId): string {
   return UNIT_NAMES[unit];
 }
 
+/**
+ * Plurals, spelled out rather than suffixed: the selection card names a
+ * squad of one kind as what it is ("6 Spearmen"), and an -s on the end of
+ * every name gets that one wrong. `n` of 1 gives the singular back, so the
+ * caller can hand over whatever it happens to be holding.
+ */
+const UNIT_PLURALS: Record<UnitTypeId, string> = {
+  [UnitTypeId.serf]: 'Serfs',
+  [UnitTypeId.worker]: 'Workers',
+  [UnitTypeId.knight]: 'Knights',
+  [UnitTypeId.spearman]: 'Spearmen',
+  [UnitTypeId.archer]: 'Archers',
+  [UnitTypeId.bandit]: 'Bandits',
+  [UnitTypeId.banditArcher]: 'Bandit Archers',
+  [UnitTypeId.marauder]: 'Marauders',
+};
+
+export function unitNamePlural(unit: UnitTypeId, n: number): string {
+  return n === 1 ? UNIT_NAMES[unit] : UNIT_PLURALS[unit];
+}
+
 const GOOD_NAMES: Record<GoodId, string> = {
   [GoodId.water]: 'Water',
   [GoodId.wheat]: 'Wheat',

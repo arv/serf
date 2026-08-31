@@ -33,6 +33,7 @@ import {
 import {fullscreen, guardEsc} from '../ui/fullscreen';
 import {techName, unitName} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
+import {rosterOf, sameRoster, type SelectedUnit} from '../ui/roster';
 import {nudgeSpeed} from '../ui/speedControl';
 import {
   bandArm,
@@ -64,6 +65,7 @@ import {
   setSelection,
   setSelectionGroup,
   setSelectionOwner,
+  setSelectionUnits,
   setTechPanelOpen,
   stock,
   techPanelOpen,
@@ -209,6 +211,10 @@ export class Controls {
    * The HUD gets the one crumb it needs (selectionGroup) pushed to it.
    */
   #groups = new Map<number, ControlGroup>();
+  /** What the card was last told the selection is, to compare against. */
+  #roster: readonly SelectedUnit[] = [];
+  /** The publish #roster was read out of; -1 until the first one. */
+  #rosterSeq = -1;
   /** The last group number called back, for the second press that rides
    * the camera out to it instead of re-selecting what is already selected. */
   #lastRecall: {digit: number; time: number} | null = null;
@@ -812,7 +818,10 @@ export class Controls {
     return this.#hoverBuilding;
   }
 
-  /** Drop ids that no longer exist (deaths); call once per frame. */
+  /**
+   * Drop ids that no longer exist (deaths), and refresh what the card
+   * knows about the people still in hand; call once per frame.
+   */
   prune(): void {
     let changed = false;
     for (const id of this.#selection) {
@@ -854,6 +863,33 @@ export class Controls {
     // straggler nobody had selected), so it is refreshed even when the
     // selection itself came through the frame untouched.
     else if (groupsChanged) this.#publishGroup();
+    // Health moves without the selection changing at all — that is what a
+    // fight is — so the roster is offered the frame rather than refreshed
+    // only when ids come and go. #publishRoster is what decides whether
+    // there is a new publish behind the frame, and then whether what it
+    // says is worth telling anyone about.
+    this.#publishRoster();
+  }
+
+  /**
+   * Hand the card the selection as people: kind and hitpoints per head.
+   *
+   * The ids alone make "4 units selected", which reads the same for four
+   * serfs and for four knights — so the card reads the live publish for
+   * what each of them is and how much is left of them. Only a change the
+   * card would actually print reaches the signal; see sameRoster.
+   */
+  #publishRoster(force = false): void {
+    // Nothing in the roster is interpolated — kinds and health are read
+    // straight off the last publish — so between publishes there is
+    // provably nothing to find, and this is the frame loop.
+    const seq = this.#sync.publishSeq;
+    if (!force && seq === this.#rosterSeq) return;
+    this.#rosterSeq = seq;
+    const next = rosterOf(this.#selection, this.#sync);
+    if (sameRoster(next, this.#roster)) return;
+    this.#roster = next;
+    setSelectionUnits(next);
   }
 
   #setSel(sel: Set<number>): void {
@@ -872,6 +908,10 @@ export class Controls {
     this.#selection = sel;
     setSelection(new Set(sel));
     setSelectionOwner(this.#soleOwner(sel));
+    // Straight away rather than at the next prune(), and past the publish
+    // gate: a click that picks up a knight has to draw his card on the
+    // frame it happened, and the card is nothing but the roster.
+    this.#publishRoster(true);
     this.#publishGroup();
     // An order with nobody left to carry it out: the squad was let go, or
     // prune() just buried the last of them. Disarm rather than leave the
