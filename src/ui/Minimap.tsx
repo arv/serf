@@ -32,6 +32,20 @@ export interface MinimapSource {
   jumpTo(x: number, z: number): void;
   /** Glide the camera over — the tap that jumps and looks. */
   glideTo(x: number, z: number): void;
+  /**
+   * Whether a plain click on the chart means an order rather than a look —
+   * an attack-move, a move or a rally flag, armed and waiting for its
+   * target (Controls.orderArmed). Asked before the gesture commits,
+   * because the press that would order is the same one that would steer.
+   */
+  orderArmed(): boolean;
+  /**
+   * Give that order at a chart point (Controls.orderAtMapPoint).
+   * `secondary` is the right button, which is the plain move whether or
+   * not anything was armed; `px`/`py` are the click in client pixels, so
+   * the confirming pulse blooms on the chart the player is looking at.
+   */
+  order(x: number, z: number, secondary: boolean, px: number, py: number): void;
   myPlayerId: number;
 }
 
@@ -57,6 +71,13 @@ const TAP_SLOP_PX = 10;
  * the grid (Shift+wheel, Insert/Delete, [ ]); the chart itself stays north-up
  * the way Warcraft's does, rather than turning with the camera — and a
  * ripple wherever a standing alert toast knows a place.
+ *
+ * Orders travel by chart too, the same gestures the map itself takes:
+ * right-click sends the selection there, and a click with A or M armed
+ * sends the attack-move or the plain move (a finger gives them on the
+ * release, since its press may still turn into a drag of the camera).
+ * That is the whole point of having the valley at two pixels a tile — a
+ * squad can be sent to the far corner without the camera going along.
  *
  * Three manners, picked by the frame it is mounted in:
  *   · 'pan' — the standing desktop card: press anywhere and the camera is
@@ -277,15 +298,35 @@ export function Minimap(props: {
       ),
     };
   };
+  /**
+   * Hand a chart click to the order path, and — on the phone sheet — get
+   * out of the way of what it just ordered, the same courtesy the tap that
+   * merely looks somewhere gets.
+   */
+  const giveOrder = (e: PointerEvent, secondary: boolean): void => {
+    const p = toWorld(e);
+    src.order(p.x, p.z, secondary, e.clientX, e.clientY);
+    if (props.mode === MinimapModeNs.jump) props.onNavigate?.();
+  };
+
   /** A press is live (either steering mode). */
   let down = false;
   /** The press has traveled past the tap slop and is steering the camera. */
   let scrubbing = false;
+  /**
+   * The press is spending an armed order rather than steering. A mouse
+   * spends it on the press and is done; a finger holds the claim until it
+   * lifts, and drops it the moment the gesture turns into a drag — what
+   * travels is a camera, and the order stays armed for the tap that means
+   * it.
+   */
+  let ordering = false;
   let downX = 0;
   let downY = 0;
   const reset = (): void => {
     down = false;
     scrubbing = false;
+    ordering = false;
   };
 
   return (
@@ -296,11 +337,30 @@ export function Minimap(props: {
       onPointerDown={e => {
         if (props.mode === MinimapModeNs.thumb) return;
         e.preventDefault();
+        // The right button is an order here exactly as it is on the map,
+        // and never a look: it gives one and the gesture is over. (The
+        // context menu is already held off document-wide, in main.ts.)
+        if (e.button === 2) {
+          giveOrder(e, true);
+          return;
+        }
+        // Nothing else is a steering wheel — a middle click on a chart
+        // means paste on some platforms and nothing on the rest.
+        if (e.button !== 0) return;
         capturePointer(canvas, e);
         down = true;
         scrubbing = false;
+        ordering = src.orderArmed();
         downX = e.clientX;
         downY = e.clientY;
+        if (ordering) {
+          // A mouse commits on the press, the way the map's armed click
+          // does; a finger waits for the release (see `ordering`).
+          if (e.pointerType === 'touch') return;
+          giveOrder(e, false);
+          reset();
+          return;
+        }
         // The desktop card answers the press itself; the sheet waits to
         // see whether this is a tap or a drag.
         if (props.mode === MinimapModeNs.pan) {
@@ -316,6 +376,10 @@ export function Minimap(props: {
           Math.hypot(e.clientX - downX, e.clientY - downY) > TAP_SLOP_PX
         ) {
           scrubbing = true;
+          // A finger that traveled is driving the camera, not aiming an
+          // order. The armed order is not spent by that — it keeps
+          // standing for the tap that means it.
+          ordering = false;
         }
         if (!scrubbing) return;
         const p = toWorld(e);
@@ -324,7 +388,14 @@ export function Minimap(props: {
       onPointerUp={e => {
         if (!down) return;
         const wasScrub = scrubbing;
+        const wasOrder = ordering;
         reset();
+        // The finger's half of the armed order — a mouse spent it on the
+        // press (see `ordering`).
+        if (wasOrder) {
+          giveOrder(e, false);
+          return;
+        }
         if (props.mode !== MinimapModeNs.jump) return;
         if (wasScrub) {
           // The drag already steered the camera where it was let go; the

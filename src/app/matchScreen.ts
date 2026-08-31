@@ -733,6 +733,11 @@ export async function runMatch(
       viewQuad: out => renderer.rig.viewQuad(out),
       jumpTo: (x, z) => renderer.rig.focusOn(x, z),
       glideTo: (x, z) => renderer.rig.glideTo(x, z),
+      // Orders given on the chart, which are the map's own orders aimed
+      // at a tile rather than down the camera.
+      orderArmed: () => controls.orderArmed(),
+      order: (x, z, secondary, px, py) =>
+        controls.orderAtMapPoint(x, z, secondary, px, py),
       myPlayerId: config.myPlayerId,
     },
   });
