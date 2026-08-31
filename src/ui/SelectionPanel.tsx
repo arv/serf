@@ -11,7 +11,7 @@ import {
 import {BUILDING_DEFS, gatherRecipeOf, repairBill} from '../sim/defs/buildings';
 import {type GoodAmounts, goodEntries, goodKeys} from '../sim/defs/goods';
 import type {UnitTypeId} from '../sim/defs/units';
-import {GoodIcon, LockIcon} from './icons';
+import {GoodIcon, LockIcon, UnitIcon} from './icons';
 import {Key} from './shortcut';
 import {
   myPlayerId,
@@ -20,6 +20,7 @@ import {
   selectedBuilding,
   selection,
   selectionGroup,
+  selectionUnits,
   setTechPanelOpen,
   simTick,
   stock,
@@ -44,11 +45,25 @@ import {
   unitTechGate,
 } from './commands';
 import {levyOrder} from './levy';
-import {buildingName, goodName, techName, unitName} from './names';
+import {
+  buildingName,
+  goodName,
+  techName,
+  unitName,
+  unitNamePlural,
+} from './names';
 import * as OrderMode from './orderModeEnum.ts';
+import {hpFraction, hpTone, rosterGroups} from './roster';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type OrderMode = Enum<typeof OrderMode>;
+
+/**
+ * How many people the card draws a tile for. Six to a row (see .sel-roster)
+ * and four rows: an army bigger than that is read by its kinds line, not by
+ * counting faces, and the card has a phone screen to leave some of.
+ */
+const ROSTER_TILES = 24;
 
 function GoodsLine(props: {amounts: GoodAmounts}) {
   const entries = () => goodEntries(props.amounts).filter(([, n]) => n > 0);
@@ -160,6 +175,31 @@ export function SelectionPanel(props: {
    */
   const noRoom = (queued = 0): boolean =>
     population().pop + queued >= population().cap;
+
+  /**
+   * The selection as people rather than ids — kind and hitpoints a head,
+   * in display order. Controls refills it once a frame, and only when a
+   * number the card prints has actually moved.
+   */
+  const roster = () => selectionUnits();
+  /** The one in hand, when it is one — the card that gets a name. */
+  const lone = () => (roster().length === 1 ? roster()[0]! : null);
+  const kinds = () => rosterGroups(roster());
+  /** All of one kind, so the head can name them: knights, not units. */
+  const soleKind = () => (kinds().length === 1 ? kinds()[0]!.kind : null);
+  /** The kind the head speaks for — one man's, or a whole squad's when
+   * they are all the same. Null for a mixed band, which has none. */
+  const headKind = () => lone()?.kind ?? soleKind();
+  /**
+   * The tiles the card actually draws. Four rows of six is as far down the
+   * screen as this card may grow — past that a phone held sideways is all
+   * roster and no valley — and the last cell goes to the count of who did
+   * not fit rather than to an arbitrary twenty-fifth man.
+   */
+  const shown = () =>
+    roster().length > ROSTER_TILES
+      ? roster().slice(0, ROSTER_TILES - 1)
+      : roster();
   return (
     <>
       <style>{`
@@ -193,6 +233,10 @@ export function SelectionPanel(props: {
         .hud-selection { display: flex; flex-direction: column; gap: 6px; }
 
         .sel-head { display: flex; align-items: center; gap: 10px; }
+        /* Glyph and name travel together — one tooltip target, and one
+           item in the head's row, so the health pinned to the right of it
+           has a single edge to sit against either way. */
+        .sel-head .sel-who { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
         .sel-head .name { font-size: 13.5px; font-weight: 600; color: #f0ede4; }
         .sel-head .bar {
           flex: 1; height: 4px; border-radius: 2px; overflow: hidden;
@@ -201,9 +245,21 @@ export function SelectionPanel(props: {
         .sel-head .bar > span {
           display: block; height: 100%; border-radius: 2px; background: #8fbb56;
         }
+        /* The count at the head of a squad's card keeps a slot too — a
+           casualty taking it from 10 to 9 must not slide the group badge
+           beside it. */
+        .sel-head .name .num { min-width: 2ch; }
         .sel-head .hp { font-size: 11.5px; color: #9b988d; }
         .sel-head .hp .num { min-width: 3ch; }
         .sel-head .hp .num.max { text-align: left; }
+        /* Health, in the three colors the tiles use: fine, hurt, and
+           about to be a casualty. A bar sliding through every shade
+           between green and red says "something is happening"; three
+           steps say which of the three things the player has to decide
+           — leave him, pull him out, or write him off. */
+        .sel-head .bar > span.hurt { background: #e0b74f; }
+        .sel-head .bar > span.dire { background: #d0714f; }
+
         /* The control-group badge, quiet beside the name: it is the same
            crumb the unit card carries, and the name is what the head is
            for. Muted like the hp text rather than set in the name's own
@@ -232,7 +288,62 @@ export function SelectionPanel(props: {
         .sel-starved { color: #d98a6a; font-size: 12px; }
         .sel-starved .num { display: inline-block; min-width: 3ch; text-align: right; }
 
+        /* ——— Who is in hand ———
+           The kinds line and the roster below it are the answer to
+           "what did I just pick up?", and both are built to the same
+           rule as the rest of the card: nothing is sized by its own
+           text. The kinds are icons and counts, so eight of them still
+           fit one line; the roster is a declared grid of six columns
+           and a fixed row height, so a tile is a sixth of the card
+           whether the man in it has 8 hitpoints or 80. */
+        .sel-kinds { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; }
+        .sel-kinds .kind { display: inline-flex; align-items: center; gap: 3px; }
+        .sel-kinds .n { font-size: 12px; color: #cfcbbe; min-width: 2ch; }
+
+        .sel-roster {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          grid-auto-rows: var(--sel-tile-h);
+          gap: 5px;
+        }
+        .hud-selection { --sel-tile-h: 33px; }
+        /* Room for a thumb's worth of tooltip press, the same trade the
+           queue's slots make one card over. */
+        @media (pointer: coarse) { .hud-selection { --sel-tile-h: 40px; } }
+        /* The tooltip wrapper is what the grid places, so the tile has to
+           fill it to keep the cell's edges. */
+        .sel-roster > .tipwrap { display: block; min-width: 0; height: 100%; }
+        .sel-tile {
+          box-sizing: border-box;
+          display: flex; flex-direction: column; justify-content: center; gap: 3px;
+          height: 100%; padding: 3px 4px; border-radius: 5px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.09);
+        }
+        .sel-tile .face { display: flex; align-items: center; justify-content: center; gap: 3px; }
+        /* A slot cut for the biggest number any unit in the game carries,
+           so a knight taking a hit cannot shuffle the icon beside him. */
+        .sel-tile .face .hp {
+          font-size: 10.5px; color: #cfcbbe;
+          min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums;
+        }
+        .sel-tile .bar {
+          height: 3px; border-radius: 2px; overflow: hidden;
+          background: rgba(255, 255, 255, 0.12);
+        }
+        .sel-tile .bar > span { display: block; height: 100%; background: #8fbb56; }
+        .sel-tile .bar > span.hurt { background: #e0b74f; }
+        .sel-tile .bar > span.dire { background: #d0714f; }
+        /* The overflow cell — the tail of a big army, counted. */
+        .sel-tile.more {
+          align-items: center; justify-content: center;
+          font-size: 12px; color: #9b988d; background: none; border-style: dashed;
+        }
+
         .sel-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        /* Pinned right, where it stood back when a count line shared this
+           row and pushed it there. */
+        #ui .sel-row button.sel-close { margin-left: auto; }
         #ui .sel-row button { min-height: 0; padding: 3px 10px; }
         .sel-label { opacity: 0.7; font-size: 12px; }
 
@@ -1109,26 +1220,171 @@ export function SelectionPanel(props: {
       </Show>
 
       <Show when={!selectedBuilding() && selection().size > 0}>
+        {/* ——— The people card ———
+            It used to say "4 units selected" and nothing else, which is
+            the same sentence for four serfs about to be caught in a raid
+            and for four knights who can answer it — and which of those it
+            is was the whole decision the player was making. So: who they
+            are, and how much is left of them.
+            One picked up gets a card like a building's, name and health
+            across the head. Several get the head as a count, a line of
+            kinds under it, and a tile per head with its own hitpoints —
+            the wounded one in a squad is what the player is looking for,
+            and an average would hide exactly that. */}
         <div class="hud-selection panel">
-          <div class="sel-row">
-            <span style={{'flex': '1', 'min-width': '150px'}}>
-              <span class="num">{selection().size}</span>{' '}
-              {selection().size === 1 ? 'unit' : 'units'} selected
-              {/* The whole feedback loop for control groups. Ctrl+1 changes
-                  nothing a player can see — the same units stay selected —
-                  so without this badge the stamp is a keypress into the
-                  void, and the only way to find out whether it took is to
-                  press 1 and hope. It doubles as the teaching: a recall
-                  that lights up "group 1" says what the number row does.
+          <div class="sel-head">
+            {/* Both spellings of the head keep the same shape — icon,
+                name, group badge, then health pinned right — so picking
+                up a second knight does not move the buttons under it. */}
+            {/* The head names them, and the tip behind it is the same
+                card the drill ground shows before you pay for one: what
+                the kind is worth, and what it loses to. A mixed band has
+                no one kind to describe, so its tip says where to read the
+                mixture instead. */}
+            <TipWrap
+              tip={() =>
+                headKind() ? (
+                  <UnitTip unit={headKind()!} />
+                ) : (
+                  <TextTip
+                    title="A mixed band"
+                    body="The line under the count is the tally by kind; each tile below is one of them, carrying their own hitpoints."
+                  />
+                )
+              }
+            >
+              <span class="sel-who">
+                <Show when={headKind()}>
+                  <UnitIcon unit={headKind()!} size={17} decorative />
+                </Show>
+                <Show
+                  when={lone()}
+                  fallback={
+                    <span class="name">
+                      <span class="num">{selection().size}</span>{' '}
+                      {/* A squad of one kind is named as what it is: six
+                          knights read as "6 Knights", not as six of
+                          something. A mixed band has no such word and
+                          falls back to the count — the kinds line under
+                          this is what answers it there. */}
+                      {soleKind()
+                        ? unitNamePlural(soleKind()!, selection().size)
+                        : selection().size === 1
+                          ? 'unit'
+                          : 'units'}{' '}
+                      selected
+                    </span>
+                  }
+                >
+                  <span class="name">{unitName(lone()!.kind)}</span>
+                </Show>
+              </span>
+            </TipWrap>
+            {/* The whole feedback loop for control groups. Ctrl+1 changes
+                nothing a player can see — the same units stay selected —
+                so without this badge the stamp is a keypress into the
+                void, and the only way to find out whether it took is to
+                press 1 and hope. It doubles as the teaching: a recall
+                that lights up "group 1" says what the number row does.
 
-                  Tested against null rather than truthiness, and read again
-                  inside rather than through Show's callback: group 0 is a
-                  real group and a falsy number, and the callback would hand
-                  back the boolean the `when` narrowed to, not the digit. */}
-              <Show when={selectionGroup() !== null}>
-                <span class="note"> · group {selectionGroup()}</span>
+                Tested against null rather than truthiness, and read again
+                inside rather than through Show's callback: group 0 is a
+                real group and a falsy number, and the callback would hand
+                back the boolean the `when` narrowed to, not the digit. */}
+            <Show when={selectionGroup() !== null}>
+              <span class="note">group {selectionGroup()}</span>
+            </Show>
+            {/* One in hand gets the building card's own head: a bar and
+                the numbers behind it. A squad's health is on the tiles,
+                where it can say which of them is the hurt one — so the
+                head keeps the space empty rather than averaging them. */}
+            <Show when={lone()}>
+              <span class="bar">
+                <span
+                  class={hpTone(hpFraction(lone()!))}
+                  style={{width: `${Math.round(hpFraction(lone()!) * 100)}%`}}
+                />
+              </span>
+              <span class="hp">
+                <span class="num">{lone()!.hp}</span>/
+                <span class="num max">{lone()!.maxHp}</span>
+              </span>
+            </Show>
+          </div>
+
+          {/* What the band swept up, counted by kind: the one line that
+              answers "did I just grab my woodcutters too?" without
+              counting tiles. Icons rather than words, so eight kinds
+              cannot wrap the line and lift every button above it; the
+              tooltip on each says the name. */}
+          <Show when={roster().length > 1 && kinds().length > 1}>
+            <div class="sel-kinds">
+              <For each={kinds()}>
+                {group => (
+                  <TipWrap
+                    tip={() => (
+                      <TextTip
+                        title={unitNamePlural(group.kind, group.count)}
+                        body={`${group.count} in the selection.`}
+                      />
+                    )}
+                  >
+                    <span class="kind">
+                      <UnitIcon unit={group.kind} size={15} decorative />
+                      <span class="n">{group.count}</span>
+                    </span>
+                  </TipWrap>
+                )}
+              </For>
+            </div>
+          </Show>
+
+          {/* A tile per head: what it is, what is left of it. Indexed
+              rather than keyed, because the roster is rebuilt whenever a
+              printed number moves and the order it comes in is fixed
+              (fighters first, then by id) — so a tile stays the tile it
+              was and only its number changes under it. */}
+          <Show when={roster().length > 1}>
+            <div class="sel-roster">
+              <Index each={shown()}>
+                {unit => (
+                  <TipWrap
+                    tip={() => (
+                      <TextTip
+                        title={unitName(unit().kind)}
+                        body={`${unit().hp} of ${unit().maxHp} hitpoints.`}
+                      />
+                    )}
+                  >
+                    <span class="sel-tile">
+                      <span class="face">
+                        <UnitIcon unit={unit().kind} size={15} decorative />
+                        <span class="hp">{unit().hp}</span>
+                      </span>
+                      <span class="bar">
+                        <span
+                          class={hpTone(hpFraction(unit()))}
+                          style={{
+                            width: `${Math.round(hpFraction(unit()) * 100)}%`,
+                          }}
+                        />
+                      </span>
+                    </span>
+                  </TipWrap>
+                )}
+              </Index>
+              {/* An army past the card's four rows. The count keeps the
+                  card from growing without limit down a phone screen, and
+                  the kinds line above has already said what they are. */}
+              <Show when={roster().length > shown().length}>
+                <span class="sel-tile more">
+                  +{roster().length - shown().length}
+                </span>
               </Show>
-            </span>
+            </div>
+          </Show>
+
+          <div class="sel-row">
             {/* The A/M shortcuts' home on screen — and, tapped, the touch way
                 to the two orders a finger otherwise cannot ask for: the plain
                 walk that ignores what it passes, and the full attack-move.
@@ -1172,7 +1428,12 @@ export function SelectionPanel(props: {
                 <Key label="Move" k="M" />
               </button>
             </TipWrap>
-            <button onClick={() => props.onDeselect()}>✕</button>
+            {/* Let them go — pinned to the far end of the row it shares
+                with the two order buttons, which is where it stood when
+                the count line was still holding this row open. */}
+            <button class="sel-close" onClick={() => props.onDeselect()}>
+              ✕
+            </button>
           </div>
           {/* An armed order outranks the standing advice: what the next
               click does has just changed, and "right-click to send them"

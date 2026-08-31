@@ -536,6 +536,16 @@ export class SceneSync {
     return true;
   }
 
+  /**
+   * Which publish the reads below are answering from. The worker publishes
+   * twenty times a second and the loop runs at sixty-odd: anything derived
+   * from the buffer rather than interpolated across it — the selection
+   * card's roster — can sit out the frames in between.
+   */
+  get publishSeq(): number {
+    return this.#reader.latest.publishSeq;
+  }
+
   /** All unit ids in the latest publish (for band select). */
   get latestIds(): Map<number, number> {
     return this.#reader.latest.index;
@@ -552,6 +562,18 @@ export class SceneSync {
     const li = this.#reader.latest.index.get(id);
     if (li === undefined) return null;
     return this.#reader.latest.aux[li * AUX_STRIDE]!;
+  }
+
+  /**
+   * How much of this unit is left, as the raw aux byte (0..255 = none..full).
+   * The selection card turns it back into hitpoints against the kind's
+   * maximum — the same arithmetic the hp bar over their head does, drawn in
+   * words for the one (or twenty) the player has picked up.
+   */
+  hpPctOf(id: number): number | null {
+    const li = this.#reader.latest.index.get(id);
+    if (li === undefined) return null;
+    return this.#reader.latest.aux[li * AUX_STRIDE + 2]!;
   }
 
   /** A corpse: still published, for the length of the death animation. */

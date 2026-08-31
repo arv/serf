@@ -241,6 +241,17 @@ refuses out loud rather than answering with an empty selection. The
 selection card names the group it is standing on, which is the whole
 feedback loop: Ctrl+1 changes nothing else a player can see.
 
+That card says who is in hand, not how many: one person picked up gets a
+name, a glyph and their health across the head, the way a building's card
+already does. A squad gets the count (named as its kind when they are all
+one — "6 Spearmen"), a line of kinds and counts for what the band swept up,
+and a tile per head carrying that head's own hitpoints — three colors, so
+the one man about to fall is findable in a squad of twenty rather than
+averaged away. The kind and the health come off the same shared buffer the
+renderer draws from, re-read once per publish rather than once per frame
+(`ui/roster.ts`); past four rows of tiles the tail is counted instead of
+drawn, so an army cannot grow the card down a phone screen.
+
 A number holds whatever was selected when it was stamped, and that is either
 a band of people or one of your buildings — the same either/or the selection
 itself is. A building on a number is the economy's half of the binding:
