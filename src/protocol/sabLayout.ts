@@ -74,7 +74,18 @@ function slotViews(
   return {count, ids, xs, ys, aux};
 }
 
-/** What the writer needs per unit. */
+/**
+ * What the writer needs per unit.
+ *
+ * Every field but the position pair is one byte on the wire, and both
+ * writers below store what they are handed as a plain typed-array store —
+ * which truncates and wraps rather than saturating. Holding the range is
+ * therefore the producer's job, not theirs: snapshot.ts rounds, clamps and
+ * masks each of these on the way out (hpPct and maxHp saturate, facing
+ * wraps a full turn on purpose, targetDist is held off zero), and
+ * decodeHot's rows come back out of bytes already. A row from anywhere
+ * else owes the same.
+ */
 export interface UnitSnapshot {
   id: number;
   x: number;
@@ -89,8 +100,10 @@ export interface UnitSnapshot {
   hpPct: number;
   /**
    * The unit's own full health in hitpoints, so a reader can turn `hpPct`
-   * back into the absolute pair a card prints ("104/120"). Saturates at 255,
-   * which is well clear of anything a soldier musters at today (120).
+   * back into the absolute pair a card prints ("104/120"). Saturated at 255
+   * by the producer (see above), which is well clear of the 120 a soldier
+   * musters at today — a modifier that ever carried a man past a byte would
+   * read as capped there, never as wrapped.
    */
   maxHp: number;
   carrying: number;

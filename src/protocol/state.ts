@@ -208,7 +208,8 @@ export function encodeHot(
     out[off + 20] = u.targetDist ?? 0;
     // What full health means for this man (armour research moves it off his
     // kind's number), so the client can read hpPct as his own fraction and
-    // print the pair.
+    // print the pair. Stored raw like every byte above it — the row arrives
+    // already in range (UnitSnapshot).
     out[off + 21] = u.maxHp;
     off += UNIT_BYTES;
   }
