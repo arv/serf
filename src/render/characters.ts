@@ -621,8 +621,10 @@ function fishingPoleProp(): THREE.Group {
   return wrap;
 }
 
-/** How far down its own haft a tool is gripped, world units. */
-const GRIP_SLIDE = 0.14;
+/** How far down its own haft a tool is gripped, world units. Exported so
+ * the model lab's live knobs re-derive the slide from the same number
+ * rather than a copy of it. */
+export const GRIP_SLIDE = 0.14;
 
 /**
  * Relaxed grip: mid-haft, head tipped out and a touch forward. Tools sat
@@ -640,8 +642,8 @@ function gripPose<T extends THREE.Object3D>(tool: T, pitch = 0): T {
   tool.rotation.set(0.35, 0, -0.55 + pitch);
   // The slide has to run down the tool's OWN haft. `position` lands in
   // the hand's frame and is applied after the rotation, so the bare
-  // (0, -0.14, 0) this used to be carried the haft sideways out of the
-  // fist as much as down it: every hand tool in the game hung a haft's
+  // (0, -GRIP_SLIDE, 0) this used to be carried the haft sideways out of
+  // the fist as much as down it: every hand tool in the game hung a haft's
   // width — 0.08 world, three times the shaft's own radius — clear of the
   // hand that was supposed to be gripping it, the fist closed on air
   // beside the wood. Rotated into the pose, the slide moves the grip
@@ -762,7 +764,7 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
     // The pose lives on the holder, not the tool: the rod cancels these
     // very angles from inside itself (fishingPoleProp), so re-posing the
     // tool would undo its own fix-up.
-    gripPose(visual.toolCustom, WORK_TOOL_PITCH[workKind]);
+    gripPose(visual.toolCustom, WORK_TOOL_PITCH[workKind] ?? 0);
     visual.toolCustom.add(make());
     if (visual.defaultTool) visual.defaultTool.visible = false;
   } else if (visual.defaultTool) {
@@ -1042,7 +1044,7 @@ function makeKayKitCharacter(
       // The profession's own tool: carried at rest like a soldier carries
       // a sword, worked with on site, and stowed only while the hands are
       // full of goods (TOOL_STOWED).
-      proceduralTool = gripPose(look.tool(), look.gripPitch);
+      proceduralTool = gripPose(look.tool(), look.gripPitch ?? 0);
       proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
       toolAnchor.add(proceduralTool);
     }

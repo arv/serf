@@ -16,6 +16,7 @@ import {WORK} from '../../src/protocol/sabLayout';
 import * as AnimKey from '../../src/render/animKeyEnum.ts';
 import {loadGlbAssets, makeGlbBuilding} from '../../src/render/assets';
 import {
+  GRIP_SLIDE,
   loadCharacterAssets,
   makeCharacter,
   playAnimation,
@@ -146,7 +147,7 @@ function tunePose(tool: THREE.Object3D | undefined): void {
   if (rz !== null) tool.rotation.z = Number(rz);
   // Re-derive the grip slide from whatever aim we just set: it runs down
   // the tool's own haft, so it moves with the pose (see gripPose).
-  tool.position.set(0, -0.14, 0).applyEuler(tool.rotation);
+  tool.position.set(0, -GRIP_SLIDE, 0).applyEuler(tool.rotation);
 }
 
 const strip = params.get('strip');
