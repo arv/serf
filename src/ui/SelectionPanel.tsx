@@ -363,6 +363,13 @@ export function SelectionPanel(props: {
           display: flex; flex-direction: column; justify-content: center; gap: 3px;
           width: 100%; height: 100%; padding: 3px 4px; border-radius: 5px;
           font-size: 12px;
+          /* Zero, because a coarse pointer gives every button in the HUD a
+             44px floor (Hud.tsx) and the cell it has to sit in is 40. The
+             row is the thumb target here — the whole of it, which is why
+             the tile fills it — so the floor made each face four pixels
+             taller than the row it was drawn in and pushed it over the
+             one below. The grid decides the height; the button obeys. */
+          min-height: 0;
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.09);
         }
