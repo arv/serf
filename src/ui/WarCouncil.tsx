@@ -1,22 +1,15 @@
-import {For, Index, Show, createSignal, type Accessor} from 'solid-js';
+import {For, Show, createSignal, type Accessor} from 'solid-js';
 import {MAX_SEATS, type LobbyConfig} from '../protocol/lobby';
 import type {Enum} from '../shared/enum.ts';
 import {
-  AI_STRATEGIES,
-  AI_STRATEGY_ORDER,
-  parseStrategyId,
-  type AiStrategyId,
-} from '../sim/defs/aiStrategies';
-import {
-  DIFFICULTIES,
   DIFFICULTY_KEYS,
-  DIFFICULTY_ORDER,
   type DifficultyId,
   parseDifficultyId,
 } from '../sim/defs/difficulty.ts';
 import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as CouncilPhaseNs from './councilPhaseEnum.ts';
+import {DifficultyRow, difficultyHint} from './difficulty';
 import {DiceIcon, Glide, spotlight} from './menuChrome';
 export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
 
@@ -132,37 +125,19 @@ export function WarCouncil(props: CouncilHooks) {
    * the rows all read this rather than config.ai, or the menu would light
    * up a seat the match is never going to fill.
    */
-  const aiFill = (): number =>
-    Math.max(0, Math.min(v().config.ai, seatsLeft()));
-
-  /**
-   * One entry per computer chair: the playbook the host named for it, or
-   * undefined for the ones left to the seed. Which opponent Random will
-   * turn out to be is not shown — the council could derive it from the
-   * seed, but a roll everyone can read before the march is not a roll.
-   */
-  const picks = (): (AiStrategyId | undefined)[] =>
-    Array.from({length: aiFill()}, (_, i) =>
-      parseStrategyId(v().config.bots[i]),
-    );
-
   /** The tier the host has set, or `normal` for a room that names none —
-   * a room restored from a snapshot written before difficulty existed, or
-   * a word the wire contract let through that no tier answers to. */
+   * one restored from a snapshot written before the dial was wired, or a
+   * word the wire contract let through that no tier answers to. */
   const tier = (): DifficultyId =>
     parseDifficultyId(v().config.difficulty) ?? DifficultyIdNs.normal;
 
-  const setBot = (index: number, id: string): void => {
-    const bots = [...v().config.bots];
-    bots[index] = id === '' ? null : id;
-    props.onConfig({bots});
-  };
+  const aiFill = (): number =>
+    Math.max(0, Math.min(v().config.ai, seatsLeft()));
 
   /** The table, always MAX_SEATS chairs: humans, then the computer seats
    * the host asked for, then what is still open. */
   const rows = (): SeatRow[] => {
     const {seats, yourSeat} = v();
-    const named = picks();
     const out: SeatRow[] = seats.map((s, i) => ({
       color: SEAT_COLORS[i % SEAT_COLORS.length]!,
       who: i === yourSeat ? 'You' : 'Ally',
@@ -170,15 +145,15 @@ export function WarCouncil(props: CouncilHooks) {
       stateClass: s.connected ? 'ready' : 'away',
       open: false,
     }));
-    for (let i = 0; i < named.length; i++) {
-      // A chair the host named says who is in it; one left on Random
-      // stays 'Computer' until the match introduces them.
+    for (let i = 0; i < aiFill(); i++) {
+      // 'Computer', never a playbook's name. The council knows which one
+      // the seed will deal — the whole config is on the relay — but a
+      // lineup everyone can read before the march is not a roll, and the
+      // march is where you find out who you are up against.
       out.push({
         color: SEAT_COLORS[out.length % SEAT_COLORS.length]!,
-        who: named[i] ? AI_STRATEGIES[named[i]!].name : 'Computer',
-        // The status column carries whichever fact the name did not: a
-        // named chair is still a computer, an unnamed one is just ready.
-        state: named[i] ? 'computer' : 'ready',
+        who: 'Computer',
+        state: 'ready',
         stateClass: 'ready',
         open: false,
       });
@@ -303,69 +278,14 @@ export function WarCouncil(props: CouncilHooks) {
                   </div>
                 </div>
 
-                <Show when={picks().length > 0}>
-                  <div class="row">
-                    <div>
-                      <div class="row-label">Who they are</div>
-                      <div class="row-hint">
-                        {isHost()
-                          ? 'Random keeps it to itself until the march'
-                          : 'Set by the host'}
-                      </div>
-                    </div>
-                    <div class="opponents">
-                      {/* Index, not For — see the same picker in StartMenu:
-                          keying on the item makes two Random seats one. */}
-                      <Index each={picks()}>
-                        {(pick, i) => (
-                          <select
-                            disabled={!isHost()}
-                            value={pick() ?? ''}
-                            onChange={e => setBot(i, e.currentTarget.value)}
-                          >
-                            <option value="">Random</option>
-                            <For each={AI_STRATEGY_ORDER}>
-                              {id => (
-                                <option value={id}>
-                                  {AI_STRATEGIES[id].name}
-                                </option>
-                              )}
-                            </For>
-                          </select>
-                        )}
-                      </Index>
-                    </div>
-                  </div>
-                </Show>
-
-                <Show when={aiFill() > 0}>
-                  <div class="row">
-                    <div>
-                      <div class="row-label">Difficulty</div>
-                      <div class="row-hint">
-                        {isHost()
-                          ? 'How well the computer seats play — never what they are given'
-                          : 'Set by the host'}
-                      </div>
-                    </div>
-                    <div class="pills" style={{'--n': DIFFICULTY_ORDER.length}}>
-                      <Glide index={DIFFICULTY_ORDER.indexOf(tier())} />
-                      <For each={DIFFICULTY_ORDER}>
-                        {id => (
-                          <button
-                            class={tier() === id ? 'on' : ''}
-                            disabled={!isHost()}
-                            onClick={() =>
-                              props.onConfig({difficulty: DIFFICULTY_KEYS[id]})
-                            }
-                          >
-                            {DIFFICULTIES[id].name}
-                          </button>
-                        )}
-                      </For>
-                    </div>
-                  </div>
-                </Show>
+                <DifficultyRow
+                  value={tier()}
+                  onChange={id =>
+                    props.onConfig({difficulty: DIFFICULTY_KEYS[id]})
+                  }
+                  hint={difficultyHint(isHost() ? 'skirmish' : 'guest')}
+                  disabled={!isHost()}
+                />
 
                 <div class="row">
                   <div>

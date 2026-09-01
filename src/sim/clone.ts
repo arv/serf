@@ -73,6 +73,7 @@ export function cloneWorld(world: World): World {
     units,
     buildings,
     jobs,
+    starts: world.starts.map(s => ({...s})),
     ledger: {
       produced: goods(world.ledger.produced),
       consumed: goods(world.ledger.consumed),
