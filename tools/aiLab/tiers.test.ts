@@ -7,7 +7,8 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
 
 /**
  * The tier ordering, pinned: normal beats easy, hard beats both, and hard
- * never loses a valley to easy that the valley did not decide itself.
+ * all but never loses a valley to easy that the valley did not decide
+ * itself (one in 192 pairs on the full sweeps).
  *
  * That last clause is the assertion to read, and the reason the headline
  * here is a pair tally rather than a percentage. A mirrored win rate
@@ -72,11 +73,12 @@ describe('the difficulty tiers, against each other', () => {
     }
   }, 300_000);
 
-  it('never loses a valley to easy that the valley did not decide', () => {
+  it('loses no valley to easy on the pinned seeds', () => {
     // The strong claim, and the one that survives the map generator's
-    // lopsided starts. Measured over 96 seed-and-playbook pairs on two
-    // ranges: hard did not lose one. Per playbook, so a tier that only
-    // works for three lords fails here.
+    // lopsided starts. Over the full sweeps — 192 seed-and-playbook pairs
+    // on two ranges — hard lost exactly one, so this is a pin on seeds
+    // known to be clean rather than a claim of never. Per playbook, so a
+    // tier that only works for three lords fails here.
     const s = played.get(key(DifficultyId.hard, DifficultyId.easy))!;
     for (const [id, row] of s.byStrategy) {
       expect(
@@ -88,9 +90,9 @@ describe('the difficulty tiers, against each other', () => {
   });
 
   it('leaves easy behind on the raw rate too', () => {
-    // Both stronger tiers, comfortably — easy is ~85% behind normal and
-    // ~92% behind hard on the sweeps, so a strict majority at this sample
-    // size is not a coin toss.
+    // Both stronger tiers, comfortably — easy loses 83% of its duels to
+    // normal and 87% to hard on the sweeps, so a strict majority at this
+    // sample size is not a coin toss.
     for (const harder of [DifficultyId.normal, DifficultyId.hard]) {
       const s = played.get(key(harder, DifficultyId.easy))!;
       expect(s.wins * 2, say(harder, DifficultyId.easy)).toBeGreaterThan(
@@ -117,7 +119,7 @@ describe('the difficulty tiers, against each other', () => {
     // anything: an interval clear of 50 is a result, one straddling it is
     // not, and no duels at all is no information.
     expect(wilson(0, 0)).toEqual([0, 100]);
-    const [lo, hi] = wilson(163, 191); // a recorded normal-v-easy sweep
+    const [lo, hi] = wilson(317, 381); // the pooled normal-v-easy sweep
     expect(lo).toBeGreaterThan(50);
     expect(hi).toBeLessThan(100);
     const [near] = wilson(53, 95); // ...and one that straddled it

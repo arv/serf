@@ -69,8 +69,8 @@ export type DifficultyId = Enum<typeof DifficultyIdNs>;
  * reason.
  *
  * So `hard` buys what its knobs can honestly buy and stops. Against
- * `easy` that is total (see below). Against `normal` it is 60.4%
- * [53.3, 67.2] over 187 duels — a real edge with genuine losses in it —
+ * `easy` that is all but total (see below). Against `normal` it is 60.7%
+ * [55.7, 65.5] over 374 duels — a real edge with genuine losses in it —
  * and the way to more is not a bigger number here. It is either a
  * capability `normal` lacks (reading the rival's arms and training the
  * counter, say) or the resource handout this table exists to avoid.
@@ -86,17 +86,19 @@ export type DifficultyId = Enum<typeof DifficultyIdNs>;
  * research purse held shut, spears instead of swords, and a muster bar it
  * will never reach so it never comes for your castle at all.
  *
- * Measured that way, on 96 seed-and-playbook pairs across two ranges,
- * `hard` did not lose a single valley to `easy` that the valley itself did
- * not decide (tools/aiLab/tiers.ts, `lostBoth = 0`). The raw mirrored rate
- * is 88% rather than 100% because this map generator deals some starts so
- * unequal that whoever holds the better one wins both seatings whatever
- * tier is sitting in it — and a seed like that contributes one win and one
- * loss to any rate, forever. See tools/aiLab/README.md for why that makes
- * the pair tally, not the percentage, the number to read.
+ * Measured that way, over 192 seed-and-playbook pairs across two ranges,
+ * `hard` lost exactly one valley to `easy` that the valley itself had not
+ * already decided (tools/aiLab/tiers.ts pair tally; the Abbot, seed 1098).
+ * The raw mirrored rate is 87%, and it cannot be 100% for a reason that
+ * has nothing to do with the tiers: this map generator deals some starts
+ * so unequal that whoever holds the better one wins both seatings whatever
+ * tier sits in it, and a seed like that contributes one win and one loss
+ * to any rate, forever. See tools/aiLab/README.md for why that makes the
+ * pair tally, not the percentage, the number to read — and for how that
+ * tally read a clean zero at half the depth, which is its own lesson.
  *
- * `normal` over `easy` reads 85.3% on the same sweep, so the deck is
- * ordered on the raw rate as well as on the tally.
+ * `normal` over `easy` reads 83.2% pooled on the same sweep, so the deck
+ * is ordered on the raw rate as well as on the tally.
  *
  * Pure data and integer arithmetic, like everything else in defs/: the
  * brain runs beside the sim on whichever host owns the world, and two

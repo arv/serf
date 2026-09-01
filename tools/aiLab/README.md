@@ -110,39 +110,53 @@ classifies them (`PairTally` in tiers.ts):
   worth tuning against.
 
 `lost = 0` is the honest reading of "it always wins". Hard against easy is
-exactly that: **zero lost valleys over 96 seed-and-playbook pairs across
-both ranges**, while the raw rate reads ~92% — the missing 8% is entirely
-seeds the map had already decided. Chasing that last 8% with knobs is
-chasing the map generator.
+very nearly that: **one lost valley in 192 seed-and-playbook pairs** across
+both ranges (the Abbot, seed 1098), against a raw rate of 87%. Nearly all
+of the missing 13% is ground the map had already decided, and chasing it
+with knobs is chasing the map generator.
 
-The standing baseline, 24 seeds on range 101 — four playbooks, both
-seatings, so 192 duels a pairing:
+Note how that number moved with depth, because it is the same trap as
+everywhere else here: at twelve seeds a range the tally read a clean zero
+across 96 pairs, and it took twenty-four to turn up the one real loss.
+"Zero so far" and "zero" are different claims. Quote the depth.
 
-```
-normal v easy    163/191  85.3%  [79.6, 89.7]  WINS
-hard   v easy    169/192  88.0%  [82.7, 91.9]  WINS
-hard   v normal  113/187  60.4%  [53.3, 67.2]  WINS
-```
-
-Monotone, every pairing clear of the 50% null. Read the two easy pairings
-with the section above in mind: 88% is not the ceiling of hard-against-easy
-because hard falls short of it, it is the ceiling because a fifth of these
-valleys decide themselves. On the pair tally hard lost NONE of them —
-zero lost valleys over 96 seed-and-playbook pairs, twelve seeds deep on
-each of two ranges:
+The standing baseline, 24 seeds on each of two ranges — four playbooks,
+both seatings, so 192 duels a pairing per range:
 
 ```
-             range 101                    range 1000
-steward      9 swept,  3 split, 0 lost    11 swept, 1 split, 0 lost
-warlord     11 swept,  1 split, 0 lost    11 swept, 1 split, 0 lost
-abbot       11 swept,  1 split, 0 lost    10 swept, 2 split, 0 lost
-fletcher     9 swept,  3 split, 0 lost     6 swept, 6 split, 0 lost
+                 range 101                      range 1000
+normal v easy    163/191  85.3%  [79.6, 89.7]   154/190  81.1%  [74.9, 86.0]
+hard   v easy    169/192  88.0%  [82.7, 91.9]   165/192  85.9%  [80.3, 90.2]
+hard   v normal  113/187  60.4%  [53.3, 67.2]   114/187  61.0%  [53.8, 67.7]
+
+pooled: normal v easy   317/381  83.2%  [79.1, 86.6]
+        hard   v easy   334/384  87.0%  [83.2, 90.0]
+        hard   v normal 227/374  60.7%  [55.7, 65.5]
 ```
 
-Hard against normal is the honest weak spot: 60.4% is a real edge, but the
-pair tally shows genuine losses (3, 1, 2 and 5 lost valleys per playbook
-over twelve seeds), not just unlucky ground. The section below is why it is
-not higher.
+Monotone, every pairing clear of the 50% null, and the two ranges agree to
+within four points on all three.
+
+Read the two easy pairings with the section above in mind: 87% is not where
+hard ran out of strength, it is where the map generator ran out of fair
+valleys. The pair tally, 24 seeds on each range:
+
+```
+             range 101                     range 1000
+steward     19 swept,  5 split, 0 lost     22 swept,  2 split, 0 lost
+warlord     22 swept,  2 split, 0 lost     20 swept,  4 split, 0 lost
+abbot       18 swept,  6 split, 0 lost     16 swept,  7 split, 1 lost
+fletcher    14 swept, 10 split, 0 lost     12 swept, 12 split, 0 lost
+```
+
+One genuine loss in 192 pairs. The Fletcher is the one to watch: on range
+1000 half its valleys decide themselves, which says as much about how
+lopsided an archer start can be as it does about the tier.
+
+Hard against normal is the honest weak spot: 60.7% pooled is a real edge,
+but the pair tally shows genuine losses (3, 1, 2 and 5 per playbook over
+twelve seeds), not just unlucky ground. The section below is why it is not
+higher.
 
 Two lessons, both bought the expensive way.
 
@@ -163,6 +177,12 @@ tuned; past a point they detune it. Getting hard meaningfully past 60%
 against normal is not a bigger number in the table. It needs either a
 capability normal lacks (reading the rival's arms and training the
 counter, say) or the resource handout the tier table exists to avoid.
+
+One more guard worth keeping: a tier has to stay a PLAYER, not just a
+loser. `pnpm balance 16 101 --difficulty easy` puts an easy seat alone on a
+campaign map against the bandits, and it still takes 29 of 64 — weakened,
+not broken. A tier that could not win a map at all would score beautifully
+in the duel and be no fun to meet.
 
 The ordering is also pinned in the suite (`tools/aiLab/tiers.test.ts`), on a
 small fixed seed set, so a change that inverts it fails CI rather than

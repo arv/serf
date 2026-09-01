@@ -153,7 +153,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // 10, 15, at the printed cadence, so a normal seat's beats did not move; and
 // brains do not run in playback anyway.)
 const EXPECTED_VERSION = 38;
-const EXPECTED_HASH = 'f1df32b4582dd30b7e0f7ac095158a6a';
+const EXPECTED_HASH = 'cf442c6c931a4aad388bb55fae22f5f3';
 
 /**
  * Everything a replay's playback depends on, as raw source:
