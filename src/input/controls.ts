@@ -2134,6 +2134,49 @@ export class Controls {
     this.#setBuilding(null);
   }
 
+  /**
+   * A face on the selection card, clicked or tapped.
+   *
+   * The card's tiles are the squad the player is already holding, so this
+   * is the same gesture the map's click is, aimed at a picture instead of
+   * at a man forty tiles away: plain picks him out of the band on his own,
+   * and shift drops him from it. Both are `#selectAtPoint`'s rule with the
+   * pick already made — additive toggles, and a tile is by definition one
+   * of the selected, so shift on one always means "not him".
+   *
+   * The finger gets the plain half for free (a tap is a click) and the
+   * shift half not at all, which is the same bargain the map makes it.
+   *
+   * There is deliberately no double-click here, though the map has one
+   * (two clicks on a man take his whole kind). It cannot work on a tile:
+   * the first click leaves one man selected, the roster stops drawing at
+   * one, and the second click of the pair lands on whatever the card
+   * shrank away from — the map behind it, which reads as a click on grass
+   * and lets the squad go. The gesture stays where it works.
+   */
+  pickUnit(id: number, additive: boolean): void {
+    // Before the guard below, not after it. The finger's double-tap
+    // escalation re-aims at the tile the *first* tap ordered, so a face
+    // pressed between two taps on the same patch of grass would hand a
+    // full attack-move to a different set of men, at a target chosen for
+    // the men no longer holding it. What cancels that is the player
+    // turning to the card at all — not whether the press happened to
+    // find a live man, which is a race they neither see nor caused. Put
+    // after the guard, the one case the guard exists for was also the
+    // one case that left the tap armed. Every other path that changes
+    // who is selected drops it unconditionally too: #touchTap on a unit
+    // or a building, a group recalled, deselectAll.
+    this.#lastMoveTap = null;
+    // Belt and braces: a card cannot be showing a man the publish has
+    // buried, but the click arrives a frame after the paint either way.
+    if (!this.#sync.latestIds.has(id) || this.#sync.isDead(id)) return;
+    this.#setBuilding(null);
+    const sel = additive ? new Set(this.#selection) : new Set<number>();
+    if (additive && sel.has(id)) sel.delete(id);
+    else sel.add(id);
+    this.#setSel(sel);
+  }
+
   /** Select every soldier you own — the phone answer to band-dragging an army. */
   selectArmy(): void {
     const sel = new Set<number>();

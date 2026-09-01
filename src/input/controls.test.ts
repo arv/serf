@@ -569,6 +569,178 @@ describe('band select', () => {
   });
 });
 
+/**
+ * The roster tiles on the selection card. They are pictures of the men
+ * already in hand, and clicking one means what clicking the man himself
+ * means — so these check the card's picks against the map's rule rather
+ * than against a rule of their own.
+ */
+describe('picking a face off the selection card', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    vi.stubGlobal('window', {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    vi.unstubAllGlobals();
+  });
+
+  it('takes the one clicked out of the band', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.addUnit(3, 0, 0);
+    h.band(...around([h.screenOf(1), h.screenOf(2), h.screenOf(3)]));
+
+    h.controls.pickUnit(2, false);
+
+    expect([...selection()]).toEqual([2]);
+  });
+
+  it('drops him with shift, which is the only thing shift can mean here', () => {
+    // Every tile is one of the selected, so the map's additive toggle has
+    // exactly one branch left on this card: not him.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.controls.pickUnit(2, true);
+
+    expect([...selection()]).toEqual([1]);
+  });
+
+  it('toggles both ways as a method, though the card only reaches one', () => {
+    // pickUnit is the map's additive rule, and that rule adds as readily
+    // as it drops — this pins the second half so a future caller can lean
+    // on it. The roster cannot: its tiles ARE the selection, so a dropped
+    // man's tile goes with him and there is nothing left to shift-click.
+    // On the card shift is a one-way "not him"; putting him back is the
+    // map's job, or a control group's.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.controls.pickUnit(2, true);
+    h.controls.pickUnit(2, true);
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it('refuses a man the publish has buried', () => {
+    // The click lands a frame after the paint, and a tile can outlive its
+    // man by that frame. Picking him would put a dead id in the selection
+    // for prune() to find, and the order in between would go to nobody.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.controls.pickUnit(99, false);
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it('does not let the next ground tap escalate an order this squad never gave', () => {
+    // The finger's double-tap escalation re-aims at the tile the *first*
+    // tap ordered. Tap the grass, pick a face off the card, tap the same
+    // grass again inside the window: without dropping the remembered tap
+    // that second one reads as a repeat, and a man who was not even
+    // selected for the first order gets a full attack-move at its target.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+    const grass = {x: 700, y: 420};
+    const tap = (): void => {
+      h.canvas.fire('pointerdown', touchPtr(grass.x, grass.y));
+      h.canvas.fire('pointerup', touchPtr(grass.x, grass.y));
+    };
+
+    tap();
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      attack: 'half',
+    });
+
+    h.controls.pickUnit(2, false);
+    tap();
+
+    // The half order again — a fresh one for the man now in hand — rather
+    // than the escalated attack-move the remembered tap would have made.
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      attack: 'half',
+    });
+    expect(h.commands.at(-1)).not.toMatchObject({attack: true});
+  });
+
+  it('cancels the escalation even when the face it pressed has just died', () => {
+    // The stale-id guard's own case: the click lands a frame after the
+    // paint and finds nobody. The selection rightly does not change — but
+    // the player did turn to the card, so the grass tap before it is just
+    // as stale as if the press had landed. Clearing after the guard left
+    // exactly this path armed.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+    const grass = {x: 700, y: 420};
+    const tap = (): void => {
+      h.canvas.fire('pointerdown', touchPtr(grass.x, grass.y));
+      h.canvas.fire('pointerup', touchPtr(grass.x, grass.y));
+    };
+
+    tap();
+    h.controls.pickUnit(99, false); // nobody: the man is already buried
+    tap();
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      attack: 'half',
+    });
+    expect(h.commands.at(-1)).not.toMatchObject({attack: true});
+  });
+
+  it('closes a building card that was somehow still standing', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.band(...around([h.screenOf(1)]));
+    setSelectedBuilding(building(7));
+
+    h.controls.pickUnit(1, false);
+
+    expect([...selection()]).toEqual([1]);
+    expect(selectedBuilding()).toBeNull();
+  });
+});
+
 describe('control groups', () => {
   let controls: ReturnType<typeof harness>['controls'] | null = null;
 

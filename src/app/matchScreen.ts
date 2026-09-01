@@ -703,6 +703,7 @@ export async function runMatch(
   const unmountHud = mountHud(host, {
     selectArmy: () => controls.selectArmy(),
     deselect: () => controls.deselectAll(),
+    pickUnit: (id, additive) => controls.pickUnit(id, additive),
     place: type => controls.setPlacement(type),
     armOrder: mode => controls.armOrder(mode),
     save: saveGame,

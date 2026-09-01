@@ -158,6 +158,8 @@ export function SelectionPanel(props: {
   onHire: () => void;
   onCancelHire: (index: number) => void;
   onDeselect: () => void;
+  /** One face on the roster, clicked: him alone, or dropped with shift. */
+  onPickUnit: (id: number, additive: boolean) => void;
   onArmOrder: (mode: OrderMode | null) => void;
   onClearRally: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
@@ -349,12 +351,33 @@ export function SelectionPanel(props: {
         /* The tooltip wrapper is what the grid places, so the tile has to
            fill it to keep the cell's edges. */
         .sel-roster > .tipwrap { display: block; min-width: 0; height: 100%; }
-        .sel-tile {
+        /* Written against the id rather than the bare class because the
+           tile is a button now, and the HUD's own button rule — 13px
+           text, 10px corners, 7px of padding — is the more specific
+           selector of the two. A cell a sixth the width of
+           the card cannot afford any of that. The gold hover it also
+           brings is kept: this is a thing you click, and it should say so
+           under the cursor. */
+        #ui .sel-tile {
           box-sizing: border-box;
           display: flex; flex-direction: column; justify-content: center; gap: 3px;
-          height: 100%; padding: 3px 4px; border-radius: 5px;
+          width: 100%; height: 100%; padding: 3px 4px; border-radius: 5px;
+          font-size: 12px;
+          /* Zero, because a coarse pointer gives every button in the HUD a
+             44px floor (Hud.tsx) and the cell it has to sit in is 40. The
+             row is the thumb target here — the whole of it, which is why
+             the tile fills it — so the floor made each face four pixels
+             taller than the row it was drawn in and pushed it over the
+             one below. The grid decides the height; the button obeys. */
+          min-height: 0;
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.09);
+        }
+        /* The keyboard's turn: the roster is a row of buttons now, so it
+           is tabbable, and a focus ring that the mouse never shows is
+           what tells someone arriving by Tab which man they are on. */
+        #ui .sel-tile:focus-visible {
+          outline: 2px solid rgba(229, 196, 105, 0.8); outline-offset: 1px;
         }
         .sel-tile > svg { display: block; margin: 0 auto; }
         .sel-tile .bar {
@@ -364,8 +387,14 @@ export function SelectionPanel(props: {
         .sel-tile .bar > span { display: block; height: 100%; background: #8fbb56; }
         .sel-tile .bar > span.hurt { background: #e0b74f; }
         .sel-tile .bar > span.dire { background: #d0714f; }
-        /* The overflow cell — the tail of a big army, counted. */
-        .sel-tile.more {
+        /* The overflow cell — the tail of a big army, counted. A span,
+           not a button: there is no one man behind it to pick.
+           Carries the id for the same reason the rule above does, and it
+           is the rule above it is fighting: a bare .sel-tile.more is two
+           classes, which loses to one id and one class however many
+           classes it stacks up, and the cell came out wearing a filled
+           tile's back and border instead of its own dashed outline. */
+        #ui .sel-tile.more {
           align-items: center; justify-content: center;
           font-size: 12px; color: #9b988d; background: none; border-style: dashed;
         }
@@ -1456,27 +1485,47 @@ export function SelectionPanel(props: {
               them a tile stays the tile it was, and the bar under it is
               the only thing that travels. */}
           <Show when={roster().length > 1}>
-            <div class="sel-roster">
+            {/* The instruction lives on the group, said once when a
+                reader steps into it, rather than on all two dozen faces.
+                A tile's accessible name is the man and his health,
+                because that is what changes tile to tile and what a
+                reader is walking the grid to compare; hanging "click to
+                take him on his own, shift-click to leave him behind" off
+                each name would read that sentence twenty-four times to
+                someone tabbing through and bury the one number that
+                differs. The pointer gets the same words from the
+                tooltip, which is exactly the audience the tooltip
+                cannot reach. */}
+            <div
+              class="sel-roster"
+              role="group"
+              aria-label="The band in hand. Click a face to take that man on his own; shift-click to leave him behind."
+            >
               <Index each={shown()}>
                 {unit => (
                   <TipWrap
                     tip={() => (
                       <TextTip
-                        title={unitName(unit().kind)}
-                        body={`${unit().hp} of ${unit().maxHp} hitpoints.`}
+                        title={`${unitName(unit().kind)} · ${unit().hp} of ${unit().maxHp} hitpoints`}
+                        body="Click to take him on his own; shift-click to leave him behind. The same two a click on the man himself gives."
                       />
                     )}
                   >
-                    {/* The tile is a picture of a man and a bar, which
-                        says nothing at all out loud — so it carries the
-                        sentence itself, and the glyph inside it stays
-                        hidden rather than being read out as a second
-                        name. The tooltip says the same words to a
-                        pointer. */}
-                    <span
+                    {/* A button, because it is one: the tile is the man,
+                        and clicking a man is how this game has always
+                        picked him up. The whole of it is the target
+                        rather than the glyph, so a thumb has the cell.
+
+                        It also has to name itself out loud — a picture
+                        and a bar name nobody — so the label is the man
+                        and his health, and the glyph inside stays hidden
+                        rather than being read out as a second name after
+                        it. What the click does is said once on the group
+                        above, not again on every face. */}
+                    <button
                       class="sel-tile"
-                      role="img"
                       aria-label={`${unitName(unit().kind)}, ${unit().hp} of ${unit().maxHp} hitpoints`}
+                      onClick={e => props.onPickUnit(unit().id, e.shiftKey)}
                     >
                       <UnitIcon unit={unit().kind} size={16} decorative />
                       <span class="bar">
@@ -1487,7 +1536,7 @@ export function SelectionPanel(props: {
                           }}
                         />
                       </span>
-                    </span>
+                    </button>
                   </TipWrap>
                 )}
               </Index>
