@@ -259,6 +259,12 @@ export const MENU_STYLE = `
 #menu select:active { transform: translateY(1px); transition-duration: var(--press-in);
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.45); }
 #menu select option { color: #e4e1d6; background: #23231f; }
+/* A field that cannot be changed yet: it still reads as a field — the row
+   is there to say what the setting IS — but it takes no press and no
+   hover, the way a pill the table has no room for does above. */
+#menu select:disabled { cursor: default; color: #7c7d74; opacity: 1; }
+#menu select:disabled:hover { color: #7c7d74; border-color: rgba(255,255,255,0.11); }
+#menu select:disabled:active { transform: none; box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 1px 0 rgba(0,0,0,0.35); }
 
 #menu input { padding: 7px 10px; font: inherit; font-size: 13.5px; color: #f2efe4;
   background: linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.44) 100%);
