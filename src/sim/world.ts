@@ -123,6 +123,18 @@ export interface World {
   pendingDeltas: MapDelta[];
   /** Faction state per seat; index === owner id === command playerId. */
   players: PlayerState[];
+  /**
+   * Where each seat's castle was planted, in seat order — the storehouse
+   * footprint origin, the same grid coordinate worldgen built from.
+   *
+   * It rides the world because it is no longer recoverable from the table:
+   * a skirmish deals the spots out at random (seatStarts below), and an
+   * authored campaign map carries its own. The AI steers scouts by it
+   * (searchLandmarks and rivalDoorstep in systems/ai.ts, which say what
+   * that costs in fairness), so it has to survive a save and a clone like
+   * any other world state.
+   */
+  starts: StartSpot[];
   raidState: {nextRaidTick: number; wave: number};
   /** Sandbox switches for tweaking the game (the ?admin panel). */
   admin: AdminState;
@@ -302,6 +314,42 @@ export function startLayout(
 }
 
 /**
+ * The start table dealt out to seats: `startLayout`'s spots, shuffled by
+ * the seed so seat 0 is not forever the same doorstep on the same ring.
+ *
+ * The table is a fixed function of size and seat count, so before this
+ * every skirmish opened with the human in the classic north-west plateau
+ * and the first opponent diagonally opposite. The valley changed with the
+ * seed; where you stood in it never did.
+ *
+ * Only the ASSIGNMENT is rolled — the spots themselves are unchanged,
+ * and worldgen still carves them in table order, so a seed's map is the
+ * map it always was and the fairness contract (mapFairness.test.ts) is
+ * untouched. Solo has one spot and nothing to deal.
+ *
+ * Its own Rng stream, for the reason shuffledStrategies keeps one: drawing
+ * from worldgen's would shift every tree and seam on the map, and the seed
+ * is a promise about the valley. The offset differs from the playbook
+ * deal's so one seed does not correlate the two.
+ */
+export function seatStarts(
+  play: number,
+  margin: number,
+  seats: number,
+  seed: number,
+): [number, number][] | undefined {
+  const table = startLayout(play, margin, seats);
+  if (!table || table.length < 2) return table;
+  const dealt = [...table];
+  const rng = new Rng(((seed | 0) ^ 0x51a7) | 0);
+  for (let i = dealt.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    [dealt[i], dealt[j]] = [dealt[j]!, dealt[i]!];
+  }
+  return dealt;
+}
+
+/**
  * The bandit camp's candidate corners — one inset from each map corner,
  * sized so the 3-wide footprint mirrors exactly (reproduces the classic
  * 10/51 pair at 64). Exported so the AI's scout landmarks are the same
@@ -375,11 +423,23 @@ export function createWorld(
     starts = authored.starts;
   } else {
     const size = resolveMapSize(config.mapSize);
-    const layout = startLayout(size, marginFor(size), config.players.length);
+    const margin = marginFor(size);
+    const layout = startLayout(size, margin, config.players.length);
     if (!layout)
       throw new Error(`no start layout for ${config.players.length} players`);
-    starts = layout.map(([x, y]) => ({x, y}));
-    map = generateMap(rng, starts, size);
+    // Worldgen reads the table in table order — the spots it carves, the
+    // land bridges it lays between them and the seams it reserves are the
+    // same whoever ends up standing there — so the map is generated first
+    // and the seats are dealt in afterwards. Same set, same guarantees,
+    // rolled assignment (seatStarts).
+    map = generateMap(
+      rng,
+      layout.map(([x, y]) => ({x, y})),
+      size,
+    );
+    starts = seatStarts(size, margin, config.players.length, seed)!.map(
+      ([x, y]) => ({x, y}),
+    );
   }
 
   const world: World = {
@@ -396,6 +456,9 @@ export function createWorld(
     // The seed deals the AI seats their playbooks here, once, and the
     // world carries the result from then on (see PlayerState.strategy).
     players: config.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
+    // Copied, not aliased: `starts` is a local the mission branch took
+    // straight off the parsed map file.
+    starts: starts.map(s => ({...s})),
     // The raid clock scales with the PLAYABLE span (the scenery margin
     // adds no marching distance for anyone).
     raidState: {

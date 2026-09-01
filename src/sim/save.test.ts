@@ -15,6 +15,7 @@ import {
   createWorld,
   placeBuiltBuilding,
   spawnUnit,
+  startLayout,
   type World,
 } from './world.ts';
 
@@ -118,6 +119,42 @@ describe('save/load', () => {
     // ~0.40 MB. The ceiling moves with the measurement each time, so the
     // next thing to print itself in digits per tile is still caught here.
     expect(size).toBeLessThan(510_000);
+  });
+
+  it('opens a save written before the seats were dealt their spots', () => {
+    // World.starts arrived with the rolled deal (seatStarts in world.ts).
+    // A file older than it sat on the fixed table in seat order — which is
+    // a missing optional, not a new shape, so the format did not move for
+    // it. What has to hold is the reading: the table, rebuilt, in the same
+    // order the build that wrote the file used.
+    const world = createWorld({
+      seed: 5,
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+    });
+    const file = JSON.parse(serializeWorld(world)) as {
+      world: {starts?: unknown};
+    };
+    expect(file.world.starts).toBeDefined();
+    delete file.world.starts; // as an older build wrote it
+
+    const back = deserializeWorld(JSON.stringify(file));
+    const play = back.map.play;
+    const margin = (back.map.size - play) / 2;
+    expect(back.starts).toEqual(
+      startLayout(play, margin, 2)!.map(([x, y]) => ({x, y})),
+    );
+  });
+
+  it('carries the dealt spots back through a round-trip', () => {
+    // The deal is the world's, not the table's: a loaded four-seat match
+    // has to put every castle back where its seat actually stood, or the
+    // AI's scouts walk to an empty field.
+    const world = createWorld({
+      seed: 20260901,
+      players: Array.from({length: 4}, () => ({kind: PlayerKind.human})),
+    });
+    const back = deserializeWorld(serializeWorld(world));
+    expect(back.starts).toEqual(world.starts);
   });
 
   it('opens a save written before towers knew who was in them', () => {

@@ -83,6 +83,10 @@ export function worldFromEditor(
     ledger: {produced: {}, consumed: {}},
     pendingDeltas: [],
     players: cfg.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
+    // Authored ground: the editor placed these seat by seat, so they are
+    // taken as written rather than dealt (createWorld rolls only the
+    // generated table). Copied — `starts` is the playtest's own.
+    starts: starts.map(s => ({...s})),
     // The raid clock scales with the PLAYABLE span, exactly as createWorld's
     // does (the margin adds no marching distance for anyone).
     raidState: {nextRaidTick: firstRaidTickFor(map.play), wave: 0},

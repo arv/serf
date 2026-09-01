@@ -139,8 +139,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // take what the man is carrying as its floor: armour research is older
 // than the field, so an older file already holds soldiers above their
 // kind's number. Load-time reading only; no tick moved.)
-const EXPECTED_VERSION = 37;
-const EXPECTED_HASH = 'a6ecc80321a451cbb1e0874f1704854e';
+const EXPECTED_VERSION = 38;
+const EXPECTED_HASH = 'f0c4a12e7d5ace08e17b45dd3f5154ad';
 
 /**
  * Everything a replay's playback depends on, as raw source:

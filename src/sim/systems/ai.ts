@@ -56,7 +56,7 @@ import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {SeatVision} from '../visibility.ts';
 import * as WarBehaviorIdNs from '../warBehaviorIdEnum.ts';
-import {campCorners, startLayout, type World} from '../world.ts';
+import {campCorners, type World} from '../world.ts';
 
 export type WarBehaviorId = Enum<typeof WarBehaviorIdNs>;
 
@@ -2889,23 +2889,17 @@ export function pickHarassTarget(
 
 /**
  * Where on this map an enemy worth finding could be standing. Not vision —
- * map lore: rival castles sit on the start table the server calls "a fixed
- * table anyone can read in the source", and worldgen seeds bandit camps at
- * the middle and the far corners (world.ts). A human learns both in one
- * game; the scout still has to walk there and look.
+ * map lore: castles stand on the world's start spots (world.starts, the
+ * shuffled start table), and worldgen seeds bandit camps at the middle and
+ * the far corners (world.ts). A human learns both in one game; the scout
+ * still has to walk there and look.
  */
 function searchLandmarks(world: World): [number, number][] {
   const size = world.map.size;
   const pts: [number, number][] = [];
   // Rival doorsteps (the seat's own start is explored from tick 0 and
   // drops out on its own). Storehouses are 3x3, so +1 is the center.
-  for (const [sx, sy] of startLayout(
-    world.map.play,
-    playMin(world.map),
-    world.players.length,
-  ) ?? []) {
-    pts.push([sx + 1, sy + 1]);
-  }
+  for (const {x: sx, y: sy} of world.starts) pts.push([sx + 1, sy + 1]);
   // Camp seeds: the middle, then the corners — the very spots worldgen
   // seeds from (campCorners), at their 3x3 centers.
   pts.push([size / 2, size / 2]);
@@ -2972,19 +2966,22 @@ export function approachPoint(
 
 /**
  * Where a rival's garrison stands: four tiles south of their castle door —
- * derived from the same public start table the landmarks come from, and
- * the very spot this brain rallies its own army to. Walking a scout there
- * is how a seat learns what a rival's army is made of.
+ * off the same start table the landmarks come from, and the very spot this
+ * brain rallies its own army to. Walking a scout there is how a seat learns
+ * what a rival's army is made of.
+ *
+ * The spots are public; which seat drew which is not, since the deal is
+ * rolled (seatStarts in world.ts). The brain is handed the pairing anyway
+ * — the alternative is a scout that walks every doorstep on the map before
+ * it can put a name to one, which is the search it already runs, only
+ * slower and dumber. It buys the AI an opening address, never a reading:
+ * everything it learns there it still has to walk to and see.
  */
 export function rivalDoorstep(world: World, owner: Owner): number {
   const size = world.map.size;
-  const start = startLayout(
-    world.map.play,
-    playMin(world.map),
-    world.players.length,
-  )?.[owner];
+  const start = world.starts[owner];
   if (!start) return -1;
-  return tileIdx(start[0] + 1, Math.min(size - 1, start[1] + 5), size);
+  return tileIdx(start.x + 1, Math.min(size - 1, start.y + 5), size);
 }
 
 /**
