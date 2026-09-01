@@ -381,8 +381,13 @@ export function SelectionPanel(props: {
         .sel-tile .bar > span.hurt { background: #e0b74f; }
         .sel-tile .bar > span.dire { background: #d0714f; }
         /* The overflow cell — the tail of a big army, counted. A span,
-           not a button: there is no one man behind it to pick. */
-        .sel-tile.more {
+           not a button: there is no one man behind it to pick.
+           Carries the id for the same reason the rule above does, and it
+           is the rule above it is fighting: a bare .sel-tile.more is two
+           classes, which loses to one id and one class however many
+           classes it stacks up, and the cell came out wearing a filled
+           tile's back and border instead of its own dashed outline. */
+        #ui .sel-tile.more {
           align-items: center; justify-content: center;
           font-size: 12px; color: #9b988d; background: none; border-style: dashed;
         }
