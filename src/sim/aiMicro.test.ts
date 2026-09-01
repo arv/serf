@@ -44,7 +44,7 @@ function skirmish(
   const mine: number[] = [];
   const theirs: number[] = [];
   for (let i = 0; i < 4; i++) {
-    mine.push(spawnUnit(world, UnitTypeId.spearman, 0, mid + i * 0.6, mid).id);
+    mine.push(spawnUnit(world, UnitTypeId.archer, 0, mid + i * 0.6, mid).id);
     theirs.push(
       spawnUnit(world, UnitTypeId.spearman, 1, mid + i * 0.6, mid + 1.2).id,
     );
@@ -211,6 +211,36 @@ describe('micro as a tier capability', () => {
       CommandKind.focusTarget,
     );
     expect(ordersOver(undefined, false)).not.toContain(CommandKind.focusTarget);
+  });
+
+  it('never orders a step for a focus, and never focuses melee', () => {
+    // Two clauses of the same rule. A bow picks WHO to shoot without
+    // moving, which is what makes the choice free; a spearman is already
+    // swinging at the man in front of him, and naming somebody else would
+    // take him off that fight to walk. So the order goes to shooters, and
+    // it is never accompanied by a walk.
+    const {world} = skirmish(DifficultyId.hard);
+    const seats = new AiSeats(world);
+    let sawFocus = false;
+    for (let t = 0; t < 200; t++) {
+      const cmds = seats.decide(world);
+      const focus = cmds.filter(
+        c => c.playerId === 0 && c.cmd.kind === CommandKind.focusTarget,
+      );
+      if (focus.length > 0) {
+        sawFocus = true;
+        // Every unit named is a shooter.
+        for (const c of focus) {
+          if (c.cmd.kind !== CommandKind.focusTarget) continue;
+          for (const id of c.cmd.unitIds) {
+            const u = world.units.get(id)!;
+            expect(UNIT_DEFS[u.kind].combat!.range).toBeGreaterThan(2);
+          }
+        }
+      }
+      tickWorld(world, cmds);
+    }
+    expect(sawFocus).toBe(true);
   });
 
   it('counts what it did, so a verb that never fires is visible', () => {

@@ -48,7 +48,9 @@
  * A seventeenth command kind rides along: `focusTarget`, which puts a
  * named squad on one enemy — a unit, or a building with `building: true`. It is the only order in the game that
  * names a target — everything else leaves that to `acquireUnit` — and the
- * `hard` tier's brain issues it (warBehaviorIdEnum `focusFire`), and so
+ * `hard` tier's brain issues it for its ARCHERS (warBehaviorIdEnum
+ * `focusFire`: a bow can choose whom to shoot without moving, which a
+ * spearman already swinging at the man in front of him cannot), and so
  * does the player: a right-click or an A-click on something hostile now
  * sends an attack-move and this, where before it could only name the
  * ground. Pure format on its own, exactly as the rally point (20) and the herald

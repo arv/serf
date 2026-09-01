@@ -530,6 +530,12 @@ const MILITARY = new Set<UnitTypeId>([
  * seat into emptying its yard. */
 const MIN_SORTIE = 3;
 
+/** Past this a weapon reaches rather than swings — the same line
+ * systems/combat.ts draws when it decides who kites. A shooter can choose
+ * its target without moving, which is the whole reason focus fire is a
+ * shooter's verb. */
+const MELEE_REACH = 2;
+
 /** The war behaviors, spelled — the lab's `--war` flag and its traces. */
 export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.harassSortie]: 'harassSortie',
@@ -605,9 +611,9 @@ export const AI_WAR = {
    * acquire radius that would drag him back in, no further: he is meant to
    * rejoin the next fight, not walk home. */
   withdrawStep: 7,
-  /** Soldiers that must be in the fight before focus fire is worth an
-   * order. Two men already both hit whatever is nearest; the gain starts
-   * where the damage would otherwise be spread. */
+  /** Bows that must bear on the same man before focus fire is worth an
+   * order. Two already both hit whatever is nearest; the gain starts where
+   * the volley would otherwise be spread. */
   focusMin: 3,
   /**
    * The herald's telegraph: a full assault on a rival CASTLE is announced
@@ -2533,19 +2539,29 @@ export class AiBrain {
   }
 
   /**
-   * Focus fire: put the squad on one enemy instead of letting each man
-   * take the nearest thing he counters.
+   * Focus fire — archers only, on the enemy nearest to dying that they can
+   * already hit, and never a step taken for it.
    *
-   * The pick is the enemy closest to dying among those already engaged —
-   * lowest health first, id to break a tie so two hosts choose the same
-   * man. Flat damage is again the reason it pays: killing one outright
-   * removes his whole output, where spreading the same damage across
-   * three removes none of it.
+   * Every clause there is load-bearing, and the first cut of this verb had
+   * none of them. It focused the whole squad and let them walk to the
+   * target, which measured WORSE than no micro at all (60.8% to 57.7%
+   * against `normal`, on both seed ranges). The reason is what a melee
+   * line is: a spearman is already hitting the man in front of him, and
+   * an order naming someone else takes him off that fight to walk — so
+   * "concentrate the damage" bought a hole in the line and spent the
+   * damage it was concentrating.
    *
-   * Deliberately only over enemies the squad has ALREADY found. Naming a
-   * target further off would be an order to chase, and combatSystem drops
-   * a target past acquireRadius * 1.6 anyway — so the order would be spent
-   * pulling the line apart for a man it never reaches.
+   * A bow has the one property that makes the choice free: it can pick
+   * WHO to shoot without moving, because everything inside its range is
+   * equally reachable. So the verb is archers, choosing among what is
+   * already in reach, and the choice is the wounded one — flat damage
+   * means a man at a sliver still hits full force, so finishing him
+   * removes a whole bow from the other side where spreading the volley
+   * removes none.
+   *
+   * And it does not follow. A target that walks out of range is left to
+   * the sim, which re-acquires; chasing a fleeing man is how archers end
+   * up in front of the line they were shooting over.
    */
   #focusFire(
     world: World,
@@ -2554,21 +2570,48 @@ export class AiBrain {
     spokenFor: Set<EntityId>,
   ): void {
     if (!this.#micro || !this.#warOn(WarBehaviorIdNs.focusFire)) return;
-    const fighters = army.filter(
-      u =>
-        !spokenFor.has(u.id) && u.targetId !== undefined && !u.targetIsBuilding,
-    );
-    if (fighters.length < AI_WAR.focusMin) return;
+    const archers: Unit[] = [];
+    for (const u of army) {
+      if (spokenFor.has(u.id)) continue;
+      const c = UNIT_DEFS[u.kind].combat;
+      // The sim's own test for a shooter (systems/combat.ts kiting).
+      if (c && c.range > MELEE_REACH) archers.push(u);
+    }
+    if (archers.length < AI_WAR.focusMin) return;
+
+    // Who can hit whom, right now. Nothing outside a bow's range is a
+    // candidate, which is what keeps this from ever becoming an order to
+    // walk somewhere.
+    const shooters = new Map<EntityId, Unit[]>();
+    for (const u of archers) {
+      const range = UNIT_DEFS[u.kind].combat!.range;
+      for (const other of world.units.values()) {
+        if (other.dead || other.owner === this.playerId) continue;
+        if (!UNIT_DEFS[other.kind].combat) continue;
+        if (exactDist(other.x - u.x, other.y - u.y) > range) continue;
+        const list = shooters.get(other.id);
+        if (list) list.push(u);
+        else shooters.set(other.id, [u]);
+      }
+    }
+
+    // The nearest to dying that enough bows can reach. Ties by id, so two
+    // hosts reading the same field choose the same man.
     let best: Unit | undefined;
-    for (const u of fighters) {
-      const t = world.units.get(u.targetId!);
-      if (!t || t.dead || t.owner === this.playerId) continue;
-      if (!best || t.hp < best.hp || (t.hp === best.hp && t.id < best.id))
+    let bestOn: Unit[] = [];
+    for (const [id, on] of shooters) {
+      if (on.length < AI_WAR.focusMin) continue;
+      const t = world.units.get(id);
+      if (!t) continue;
+      if (!best || t.hp < best.hp || (t.hp === best.hp && t.id < best.id)) {
         best = t;
+        bestOn = on;
+      }
     }
     if (!best) return;
+
     // Everyone already on him is an order nobody needs.
-    const switching = fighters.filter(u => u.targetId !== best.id);
+    const switching = bestOn.filter(u => u.targetId !== best.id);
     if (switching.length === 0) return;
     for (const u of switching) spokenFor.add(u.id);
     commands.push({
