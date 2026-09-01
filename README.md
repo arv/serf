@@ -271,7 +271,9 @@ is precisely when they are being read.
 The faces are buttons. Clicking one takes that man on his own and
 shift-clicking leaves him behind — the same two a click on him out in the
 valley gives, since a tile is one of the selected by definition and the
-map's additive click is a toggle. They are real buttons rather than
+map's additive click is a toggle. Only those two: a man dropped from the
+card takes his tile with him, so there is nothing left there to click, and
+it is the map or his control group that brings him back. They are real buttons rather than
 pictures that listen, so Tab walks the roster and the hover says the thing
 can be clicked before you try it. No double-click: the first click leaves
 one man selected, the roster stops drawing below two, and the second would

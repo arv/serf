@@ -629,9 +629,13 @@ describe('picking a face off the selection card', () => {
     expect([...selection()]).toEqual([1]);
   });
 
-  it('adds a man back that shift had dropped', () => {
-    // The toggle runs both ways, same as the map's: the card can put back
-    // what it just took out, which is what makes a slipped click undoable.
+  it('toggles both ways as a method, though the card only reaches one', () => {
+    // pickUnit is the map's additive rule, and that rule adds as readily
+    // as it drops — this pins the second half so a future caller can lean
+    // on it. The roster cannot: its tiles ARE the selection, so a dropped
+    // man's tile goes with him and there is nothing left to shift-click.
+    // On the card shift is a one-way "not him"; putting him back is the
+    // map's job, or a control group's.
     const h = harness();
     controls = h.controls;
     h.addUnit(1, -5, -3);
