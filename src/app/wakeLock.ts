@@ -169,7 +169,13 @@ export function domWakeLockPort(nav: Navigator = navigator): WakeLockPort {
       const granted = await api.request('screen');
       return {
         release: () => granted.release(),
-        onRelease: fn => granted.addEventListener('release', fn),
+        // `once`, because that is what the interface above promises: a
+        // spent sentinel is spent, and a UA that dispatched a second
+        // release would be announcing a lock this side stopped tracking
+        // at the first. It also lets go of the callback — and through it
+        // the controller — rather than holding both for the life of a
+        // sentinel the browser keeps.
+        onRelease: fn => granted.addEventListener('release', fn, {once: true}),
       };
     },
   };
