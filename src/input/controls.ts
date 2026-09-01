@@ -2158,6 +2158,14 @@ export class Controls {
     // Belt and braces: a card cannot be showing a man the publish has
     // buried, but the click arrives a frame after the paint either way.
     if (!this.#sync.latestIds.has(id) || this.#sync.isDead(id)) return;
+    // Whoever this squad now is, they never made that tap. The finger's
+    // double-tap escalation re-aims at the tile the *first* tap ordered,
+    // so a tile picked between two taps on the same patch of grass would
+    // hand a full attack-move to a different set of men, at a target
+    // chosen for the men who are no longer holding it. Every other path
+    // that changes who is selected drops the tap for this reason —
+    // #touchTap on a unit or a building, a group recalled, deselectAll.
+    this.#lastMoveTap = null;
     this.#setBuilding(null);
     const sel = additive ? new Set(this.#selection) : new Set<number>();
     if (additive && sel.has(id)) sel.delete(id);

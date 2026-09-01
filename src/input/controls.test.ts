@@ -659,6 +659,41 @@ describe('picking a face off the selection card', () => {
     expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
   });
 
+  it('does not let the next ground tap escalate an order this squad never gave', () => {
+    // The finger's double-tap escalation re-aims at the tile the *first*
+    // tap ordered. Tap the grass, pick a face off the card, tap the same
+    // grass again inside the window: without dropping the remembered tap
+    // that second one reads as a repeat, and a man who was not even
+    // selected for the first order gets a full attack-move at its target.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+    const grass = {x: 700, y: 420};
+    const tap = (): void => {
+      h.canvas.fire('pointerdown', touchPtr(grass.x, grass.y));
+      h.canvas.fire('pointerup', touchPtr(grass.x, grass.y));
+    };
+
+    tap();
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      attack: 'half',
+    });
+
+    h.controls.pickUnit(2, false);
+    tap();
+
+    // The half order again — a fresh one for the man now in hand — rather
+    // than the escalated attack-move the remembered tap would have made.
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      attack: 'half',
+    });
+    expect(h.commands.at(-1)).not.toMatchObject({attack: true});
+  });
+
   it('closes a building card that was somehow still standing', () => {
     const h = harness();
     controls = h.controls;
