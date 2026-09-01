@@ -64,9 +64,13 @@ export interface BuildStep {
 
 export interface AiStrategy {
   id: AiStrategyId;
-  /** Shown to the player when they pick their opponents. */
+  /** What to call this playbook: the lab's tables and the match's own
+   * introductions. No setup screen shows it any more — a player is not
+   * asked to choose between four opponents they have never met, and the
+   * seed deals them (dealStrategies). */
   name: string;
-  /** One line on how this opponent plays. */
+  /** One line on how this opponent plays. Prose for whoever is reading the
+   * playbooks — nothing renders it. */
   blurb: string;
 
   // — Economy —

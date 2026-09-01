@@ -140,7 +140,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // than the field, so an older file already holds soldiers above their
 // kind's number. Load-time reading only; no tick moved.)
 const EXPECTED_VERSION = 38;
-const EXPECTED_HASH = '8b09fc245a5af69864fed48b5bb187c3';
+const EXPECTED_HASH = '70ecb828233127d5d9880c1a1b410fac';
 
 /**
  * Everything a replay's playback depends on, as raw source:

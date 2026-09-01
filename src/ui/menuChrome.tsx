@@ -240,7 +240,6 @@ export const MENU_STYLE = `
 #menu .pills button:disabled { cursor: default; color: #55564f; }
 #menu .pills button:disabled:active { transform: none; }
 
-#menu .opponents { display: flex; flex-direction: column; gap: 6px; }
 /* A select is not "chosen and lifted out" — it is a field with a value
    in it, so it wears the inputs' dark sunk face rather than the plaque,
    which made a pair of these the brightest thing in the card. */

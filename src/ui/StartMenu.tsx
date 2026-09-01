@@ -32,12 +32,7 @@ import {
 } from '../sim/defs/missions';
 import {SHORT} from './breakpoints';
 import {isMissionComplete, isMissionUnlocked} from './campaign';
-import {
-  DEFAULT_DIFFICULTY,
-  DIFFICULTY_HINT,
-  DIFFICULTY_NAMES,
-  DIFFICULTY_ORDER,
-} from './difficulty';
+import {DifficultyRow} from './difficulty';
 import {fullscreen} from './fullscreen';
 import {LockIcon} from './icons';
 import {releaseMenuBackdrop} from './menuBackdrop';
@@ -81,40 +76,6 @@ function rollSeed(): number {
 }
 
 const AI_SEATS = Array.from({length: OPTIONS.maxOpponents + 1}, (_, i) => i);
-
-/**
- * The difficulty row, shared by the skirmish pane and the campaign ledger
- * so the two screens cannot drift apart on a control neither of them can
- * change yet.
- *
- * No signal behind it: the select is disabled and pinned to the default,
- * so there is nothing for a player to change and nothing for the launch
- * URL to carry. When the dial is wired, the state arrives here.
- */
-function DifficultyRow() {
-  return (
-    <div class="row">
-      <div>
-        <div class="row-label">Difficulty</div>
-        <div class="row-hint">{DIFFICULTY_HINT}</div>
-      </div>
-      {/* `selected` on the option, not `value` on the select: Solid sets
-          the property, and a select whose options are created after it
-          (by the For below) drops the assignment and shows the first
-          row. Nothing here ever changes the value, so the attribute is
-          the whole state. */}
-      <select disabled>
-        <For each={DIFFICULTY_ORDER}>
-          {id => (
-            <option value={id} selected={id === DEFAULT_DIFFICULTY}>
-              {DIFFICULTY_NAMES[id]}
-            </option>
-          )}
-        </For>
-      </select>
-    </div>
-  );
-}
 
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
