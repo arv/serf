@@ -1727,7 +1727,11 @@ export class AiBrain {
    * means in knobs is #stanceKnobs' business.
    */
   #updateStance(world: World, baseX: number, baseY: number): void {
-    const st = this.strategy.stances;
+    // The TIERED cascade: a difficulty may move when this seat stops
+    // opening and starts prosecuting the war (foundAfterArmy). Everything
+    // else about the cascade — which posture each state wears, whether a
+    // raid breaks the mood — is the playbook's own at every setting.
+    const st = this.#tiered.stances;
     const tick = world.tick;
     const underAttack = (): boolean =>
       hostileNear(
@@ -1772,7 +1776,7 @@ export class AiBrain {
    * `--stances off`. */
   #stanceKnobs(): StanceKnobs | null {
     if (!this.#stancePolicy) return null;
-    const st = this.strategy.stances;
+    const st = this.#tiered.stances;
     const pick =
       this.#stanceState === STANCE_FORTIFY
         ? {posture: PostureId.fortify}

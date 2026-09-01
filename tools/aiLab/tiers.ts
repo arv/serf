@@ -102,16 +102,47 @@ export function wilson(k: number, n: number): [number, number] {
   return [(100 * (centre - half)) / d, (100 * (centre + half)) / d];
 }
 
+/**
+ * How a seed's two seatings came out — the measurement that says whether a
+ * tier or the VALLEY decided the match, and the one to read first.
+ *
+ * A mirrored win rate cannot tell those apart, and on this map generator
+ * the difference is most of the story. Some seeds deal two starts so
+ * unequal that whoever holds the better one wins both seatings whatever
+ * tier is sitting there; such a seed contributes exactly one win and one
+ * loss to the rate, so it drags every result toward 50% and caps what any
+ * tier can ever score. Pairing the seatings separates them:
+ *
+ * - **sweep** — the tier won both seatings. It beat the valley.
+ * - **split** — the same SEAT won both. The valley decided; the tier was
+ *   not the variable.
+ * - **lostBoth** — the weaker tier won both seatings. A genuine loss, and
+ *   the only kind worth tuning against.
+ *
+ * `lostBoth === 0` is therefore the honest reading of "it always wins":
+ * on every valley that did not decide itself, it did.
+ */
+export interface PairTally {
+  sweeps: number;
+  splits: number;
+  lostBoth: number;
+}
+
 export interface DuelSweep {
   /** Duels the first tier won, and duels that reached a winner at all. */
   wins: number;
   decided: number;
   undecided: number;
+  /** Seed-pairs by who decided them; see PairTally. */
+  pairs: PairTally;
   /** The same, per playbook — so a tier that only works for one lord is
    * visible rather than averaged away. Collected in the one pass: a duel
    * costs about two seconds, and re-playing the sweep per playbook to
    * print a breakdown would double the bill for numbers already in hand. */
-  byStrategy: Map<AiStrategyId, {wins: number; decided: number}>;
+  byStrategy: Map<
+    AiStrategyId,
+    {wins: number; decided: number; pairs: PairTally}
+  >;
 }
 
 /** Every playbook, every seed, both seatings: tier A against tier B. */
@@ -126,11 +157,19 @@ export function sweepTiers(
   let wins = 0;
   let decided = 0;
   let undecided = 0;
-  const byStrategy = new Map<AiStrategyId, {wins: number; decided: number}>();
+  const pairs: PairTally = {sweeps: 0, splits: 0, lostBoth: 0};
+  const byStrategy: DuelSweep['byStrategy'] = new Map();
   for (const strategy of strategies) {
-    const row = {wins: 0, decided: 0};
+    const row = {
+      wins: 0,
+      decided: 0,
+      pairs: {sweeps: 0, splits: 0, lostBoth: 0},
+    };
     byStrategy.set(strategy, row);
     for (const seed of seeds) {
+      // Both seatings of this seed together, so the pair can be classified
+      // (see PairTally) rather than only counted.
+      const took: boolean[] = [];
       for (const layout of [0, 1] as const) {
         const tiers: [DifficultyId, DifficultyId] =
           layout === 0 ? [a, b] : [b, a];
@@ -142,14 +181,28 @@ export function sweepTiers(
         decided++;
         row.decided++;
         // Seat `layout` is the one wearing tier A in this seating.
-        if (winner === layout) {
+        const tookIt = winner === layout;
+        took.push(tookIt);
+        if (tookIt) {
           wins++;
           row.wins++;
         }
       }
+      // An undecided seating leaves the pair unclassifiable — it says
+      // nothing about who the valley favoured — so only complete pairs are
+      // tallied.
+      if (took.length !== 2) continue;
+      const key =
+        took[0] && took[1]
+          ? 'sweeps'
+          : !took[0] && !took[1]
+            ? 'lostBoth'
+            : 'splits';
+      pairs[key]++;
+      row.pairs[key]++;
     }
   }
-  return {wins, decided, undecided, byStrategy};
+  return {wins, decided, undecided, pairs, byStrategy};
 }
 
 if (process.argv[1]?.endsWith('tiers.ts')) {
@@ -171,11 +224,13 @@ if (process.argv[1]?.endsWith('tiers.ts')) {
     const [lo, hi] = wilson(sweep.wins, sweep.decided);
     const rate = sweep.decided ? (100 * sweep.wins) / sweep.decided : 0;
     const verdict = lo > 50 ? 'WINS' : hi < 50 ? 'LOSES' : 'no result';
+    const p = sweep.pairs;
     console.log(
       `${DIFFICULTY_KEYS[a].padEnd(6)} v ${DIFFICULTY_KEYS[b].padEnd(6)} ` +
         `${String(sweep.wins).padStart(3)}/${String(sweep.decided).padEnd(3)} ` +
         `${rate.toFixed(1).padStart(5)}%  [${lo.toFixed(1)}, ${hi.toFixed(1)}]  ` +
-        `${verdict}  (undecided ${sweep.undecided}, ` +
+        `${verdict}   valleys: ${p.sweeps} swept, ${p.splits} decided ` +
+        `themselves, ${p.lostBoth} lost  (undecided ${sweep.undecided}, ` +
         `${((Date.now() - t0) / 1000).toFixed(0)}s)`,
     );
     return sweep;
@@ -185,7 +240,10 @@ if (process.argv[1]?.endsWith('tiers.ts')) {
     const row = sweeps.map((sweep, i) => {
       const cell = sweep.byStrategy.get(strategy)!;
       const [a, b] = pairs[i]!;
-      return `${DIFFICULTY_KEYS[a][0]}v${DIFFICULTY_KEYS[b][0]} ${cell.wins}/${cell.decided}`;
+      return (
+        `${DIFFICULTY_KEYS[a][0]}v${DIFFICULTY_KEYS[b][0]} ` +
+        `${cell.wins}/${cell.decided} (lost ${cell.pairs.lostBoth})`
+      );
     });
     console.log(`${AI_STRATEGY_KEYS[strategy].padEnd(9)} ${row.join('   ')}`);
   }

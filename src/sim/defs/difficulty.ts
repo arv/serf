@@ -2,6 +2,7 @@ import type {Enum} from '../../shared/enum.ts';
 import type {AiStrategy} from './aiStrategies.ts';
 import * as DifficultyIdNs from './difficultyEnum.ts';
 import {goodEntries, type GoodAmounts} from './goods.ts';
+import * as UnitTypeIdNs from './unitTypeIdEnum.ts';
 
 export type DifficultyId = Enum<typeof DifficultyIdNs>;
 
@@ -45,19 +46,57 @@ export type DifficultyId = Enum<typeof DifficultyIdNs>;
  * harassing you is not a personality being flattened, it is the same lord
  * playing badly, which is what was asked for.
  *
- * The rule survived a check rather than a vote. Three candidates were
- * tried against hard-versus-normal in the tier duel and none of them beat
- * the table as printed: forcing `retreats: false` (36/63, against 36/63
- * for leaving it alone — identical, to the duel), a distinctly wider
- * village (70/124 against 74/127), and a faster decision clock for hard
- * (33/63). Those are small samples and the honest reading of them is "no
- * effect worth the identity", not "measurably worse" — but the rule asked
- * for evidence to break it and none arrived, so the lords keep their
- * refusals. The tiers' own ordering is measured properly, twenty-four
- * seeds deep on two independent ranges: normal over easy 59.7%, hard over
- * easy 67.9%, hard over normal 60.7%, every interval clear of the 50%
- * null and the two ranges agreeing to within three points. See
- * tools/aiLab/README.md.
+ * ## Why `hard` is tuned gently, and what that cost
+ *
+ * Because piling more on it makes it WORSE, which is not a thing anyone
+ * guesses. A deliberate ceiling test — every hard knob pushed to its clamp
+ * at once, mustering at three, a quarter of the cooldown, twice the
+ * village, thinking twice as often — scored 52.2% against `normal` where
+ * the gentle table scores ~56-60%, and dragged the Warlord to 29%: a
+ * playbook mustering at three with no time to arm them throws its men away
+ * one at a time. The knobs are not a difficulty axis that keeps going.
+ * They tune a line that was already tuned, and past a point they detune
+ * it.
+ *
+ * Three narrower candidates went the same way and are recorded so nobody
+ * re-runs them: forcing `retreats: false` (36/63, against 36/63 for
+ * leaving it alone — identical, to the duel), a wider village (70/124
+ * against 74/127), and a faster clock for hard (33/63). A confidence gate
+ * on hard is the interesting one: it HELPED against easy (+5 points, by
+ * keeping hard from feeding its army to a Fletcher's towers) and HURT
+ * against normal by the same amount, because refusing marginal fights
+ * against an equal is just passivity. It is not in the table for that
+ * reason.
+ *
+ * So `hard` buys what its knobs can honestly buy and stops. Against
+ * `easy` that is total (see below). Against `normal` it is 60.4%
+ * [53.3, 67.2] over 187 duels — a real edge with genuine losses in it —
+ * and the way to more is not a bigger number here. It is either a
+ * capability `normal` lacks (reading the rival's arms and training the
+ * counter, say) or the resource handout this table exists to avoid.
+ *
+ * ## What `easy` is for, and why it lost its home guard
+ *
+ * `easy` was first written as a turtle: a twelve-tile home guard, refusing
+ * any fight without clear odds. That is a *defensively strong* seat, which
+ * is the opposite of the brief — it survived sieges it had no business
+ * surviving. What makes a seat beatable is not timidity, it is a village
+ * that never grows the army in the first place: the house limit at its
+ * floor, the hire target at its floor, one man in the barracks queue, the
+ * research purse held shut, spears instead of swords, and a muster bar it
+ * will never reach so it never comes for your castle at all.
+ *
+ * Measured that way, on 96 seed-and-playbook pairs across two ranges,
+ * `hard` did not lose a single valley to `easy` that the valley itself did
+ * not decide (tools/aiLab/tiers.ts, `lostBoth = 0`). The raw mirrored rate
+ * is 88% rather than 100% because this map generator deals some starts so
+ * unequal that whoever holds the better one wins both seatings whatever
+ * tier is sitting in it — and a seed like that contributes one win and one
+ * loss to any rate, forever. See tools/aiLab/README.md for why that makes
+ * the pair tally, not the percentage, the number to read.
+ *
+ * `normal` over `easy` reads 85.3% on the same sweep, so the deck is
+ * ordered on the raw rate as well as on the tally.
  *
  * Pure data and integer arithmetic, like everything else in defs/: the
  * brain runs beside the sim on whichever host owns the world, and two
@@ -104,6 +143,28 @@ export interface Difficulty {
   /** Percent of the doorstep re-scout period — how soon this lord comes to
    * read your yard again. */
   scoutRefreshPct: number;
+  /**
+   * Soldiers standing before the seat's `found` stance takes over — the
+   * moment it stops opening and starts prosecuting a war it has seen a
+   * castle for (AiStrategy.stances.foundAfterArmy). Null leaves the
+   * playbook's own.
+   *
+   * The one knob here that changes WHEN a seat commits rather than how
+   * hard it swings, which is why it moves the needle where a dozen
+   * magnitude nudges did not. Hard commits the moment it finds you; easy
+   * waits for a muster its own house limit will not let it reach, so it
+   * opens all game and never comes.
+   */
+  foundAfterArmy: number | null;
+  /**
+   * Arms every soldier with the spear and nothing else — the cheapest
+   * weapon in the game and the one that loses to the knight it will meet.
+   * A playbook's `trainPreference` and `weaponMix` are among the loudest
+   * things about it (the Fletcher's bows, the Warlord's swords), so this
+   * is a softening lever only: `easy` uses it, and the header's rule keeps
+   * `hard` from having an equivalent.
+   */
+  spearsOnly: boolean;
   /**
    * Percent of AI_PACING.decisionInterval — how long this lord takes
    * between thoughts. A slower beat is a seat that notices a raid, a stall
@@ -216,16 +277,25 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     barracksQueueDepth: -1,
     // 60 wants a clear win before marching at all (see
     // AiStrategy.marchConfidence): an easy seat refuses the even fight it
-    // would otherwise take, which is what makes it beatable rather than
-    // merely slow.
+    // would otherwise take.
     marchConfidence: 60,
-    // Twelve tiles of guard: an easy lord answers a knock at his own gate
-    // instead of pressing an attack on yours.
-    homeGuardFloor: 12,
+    // No floor, and this is the correction the measurements forced. A home
+    // guard reads like timidity and plays like a wall: the twelve tiles
+    // that used to be here kept an easy seat's whole army in its own yard,
+    // where it defended the castle far better than it had any business
+    // doing. An easy lord is beatable because it never fields much, not
+    // because it huddles.
+    homeGuardFloor: 0,
     prefersRivals: false,
     retreats: true,
     harass: 'off',
     scoutRefreshPct: 175,
+    // A muster this village cannot reach: fourteen soldiers on a thirty-bed
+    // cap that also has to staff every post. So an easy seat never leaves
+    // its opening for the stance that goes and takes a castle — it defends,
+    // it putters, and it does not come for you.
+    foundAfterArmy: 14,
+    spearsOnly: true,
     // A thought every two seconds where everyone else gets one a second.
     // The seat is not dumber for it — same playbook, same rules — it is
     // LATE: the raid is already in the yard, the sortie has already died,
@@ -233,10 +303,14 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     // else. That reads as an opponent you can get ahead of, which is what
     // an easy setting is for.
     decisionIntervalPct: 200,
-    serfTarget: -3,
+    // The village, at its floors. Everything above is about when the army
+    // moves; this is why there is barely an army to move — the house limit
+    // clamps to 2 (thirty beds against the printed forty), the hire target
+    // to 6, and the research purse stays shut so even those come slowly.
+    serfTarget: -6,
     researchReservePct: 175,
-    houseLimit: -1,
-    housingHeadroom: -1,
+    houseLimit: -3,
+    housingHeadroom: -3,
     startStockPct: 150,
     startSerfs: 2,
     firstRaidTickPct: 150,
@@ -260,6 +334,8 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     retreats: null,
     harass: 'keep',
     scoutRefreshPct: 100,
+    foundAfterArmy: null,
+    spearsOnly: false,
     decisionIntervalPct: 100,
     serfTarget: 0,
     researchReservePct: 100,
@@ -289,6 +365,8 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     retreats: null,
     harass: 'press',
     scoutRefreshPct: 65,
+    foundAfterArmy: null,
+    spearsOnly: false,
     decisionIntervalPct: 100,
     serfTarget: 3,
     researchReservePct: 60,
@@ -399,6 +477,19 @@ export function applyDifficulty(
       CLAMP.researchReserve,
     ),
     houseLimit: clamp(s.houseLimit + d.houseLimit, CLAMP.houseLimit),
+    stances:
+      d.foundAfterArmy === null
+        ? s.stances
+        : {...s.stances, foundAfterArmy: d.foundAfterArmy},
+    ...(d.spearsOnly
+      ? {
+          // Index 0 of a forge's recipeOptions is the spear; one entry
+          // means every smith, however old, takes it (see
+          // AiStrategy.weaponMix).
+          trainPreference: [UnitTypeIdNs.spearman],
+          weaponMix: [0],
+        }
+      : {}),
     housingHeadroom: clamp(
       s.housingHeadroom + d.housingHeadroom,
       CLAMP.housingHeadroom,

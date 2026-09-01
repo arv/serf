@@ -22,6 +22,7 @@ import {
 } from './difficulty.ts';
 import * as DifficultyIdNs from './difficultyEnum.ts';
 import * as GoodId from './goodIdEnum.ts';
+import * as UnitTypeId from './unitTypeIdEnum.ts';
 
 const PLAYBOOKS = AI_STRATEGY_ORDER.map(id => AI_STRATEGIES[id]);
 const TIERS: DifficultyId[] = DIFFICULTY_ORDER;
@@ -54,6 +55,15 @@ describe('the difficulty table', () => {
       expect(easy.serfTarget).toBeLessThan(hard.serfTarget);
       expect(easy.marchConfidence).toBeGreaterThan(hard.marchConfidence);
       expect(easy.harass).toBeUndefined();
+      expect(easy.houseLimit).toBeLessThan(hard.houseLimit);
+      expect(easy.barracksQueueDepth).toBeLessThan(hard.barracksQueueDepth);
+      // Easy arms everyone with the cheapest weapon in the game and waits
+      // for a muster its own house limit will not let it reach — so it
+      // never leaves its opening for the stance that takes a castle.
+      expect(easy.trainPreference).toEqual([UnitTypeId.spearman]);
+      expect(easy.stances.foundAfterArmy).toBeGreaterThan(
+        hard.stances.foundAfterArmy ?? 0,
+      );
     }
   });
 
@@ -95,6 +105,13 @@ describe('the difficulty table', () => {
       expect(hard.prefersRivals).toBe(s.prefersRivals);
       if (!s.harass) expect(hard.harass).toBeUndefined();
       else expect(hard.harass!.size).toBeGreaterThan(s.harass.size);
+      // Its arms and its stance cascade are its own, whole: `spearsOnly`
+      // and `foundAfterArmy` are softening levers, and hard has neither.
+      // (The Abbot's "wait for ten before you go" is exactly the kind of
+      // trait hard would flatten, and it measured worse for doing it.)
+      expect(hard.trainPreference).toEqual(s.trainPreference);
+      expect(hard.weaponMix).toEqual(s.weaponMix);
+      expect(hard.stances).toEqual(s.stances);
     }
   });
 

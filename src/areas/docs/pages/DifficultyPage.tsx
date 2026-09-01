@@ -13,7 +13,9 @@ import {
   type Difficulty,
   type DifficultyId,
 } from '../../../sim/defs/difficulty.ts';
+import * as UnitTypeId from '../../../sim/defs/unitTypeIdEnum.ts';
 import {AI_PACING} from '../../../sim/systems/ai.ts';
+import {unitName} from '../../../ui/names';
 import {Section} from '../components';
 import {fmtSecs} from '../data';
 
@@ -78,6 +80,24 @@ const WAR: Row[] = [
     label: 'Re-reads your yard every',
     note: 'How often it walks a scout to your doorstep to count what you have.',
     value: s => fmtSecs(s.scoutRefreshAfter ?? DEFAULT_SCOUT_REFRESH),
+  },
+  {
+    label: 'Arms its soldiers with',
+    note: 'What the forges make and the barracks trains. The spear is the cheapest weapon in the game, and it loses to the knight it will meet.',
+    value: s =>
+      s.trainPreference.map(u => unitName(u)).join(', ') +
+      (s.trainPreference.length === 1 &&
+      s.trainPreference[0] === UnitTypeId.spearman
+        ? ' only'
+        : ''),
+  },
+  {
+    label: 'Musters for a siege at',
+    note: 'Soldiers standing before it stops building and starts prosecuting a war on a castle it has found.',
+    value: s =>
+      s.stances.foundAfterArmy
+        ? `${s.stances.foundAfterArmy} soldiers`
+        : 'as soon as it finds you',
   },
   {
     label: 'Thinks every',
@@ -258,10 +278,13 @@ export function DifficultyPage(): JSX.Element {
           <li>
             <strong>It does not flatten the four lords into one.</strong> Half
             of what a playbook is is what it refuses to do — the Abbot never
-            raids, the Steward turns a losing march for home — and the hardest
-            setting sharpens what a lord already does rather than granting it
-            somebody else’s habits. Easy is allowed to talk one out of a habit;
-            hard is not allowed to give it one.
+            raids, the Steward turns a losing march for home — so the hardest
+            setting sharpens what a lord already does and is never allowed to
+            grant it somebody else’s habits: at Hard every opponent keeps its
+            own arms, its own refusals and its own cascade, and only the
+            magnitudes move. Easy is under no such duty. It may talk a lord out
+            of raiding and hand it all spears, because a lord playing badly is
+            what was asked for.
           </li>
         </ul>
       </Section>

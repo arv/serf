@@ -91,33 +91,78 @@ neutral third party that kills one seat turns a duel into a coin toss the
 mirror cannot cancel. A Wilson 95% interval straddling 50% is not a
 result, exactly as above.
 
-The standing baseline, 24 seeds on each of two ranges — four playbooks,
-both seatings, so 192 duels a pairing per range:
+### Read the pair tally before the percentage
+
+The mirror makes the null exactly 50%. What it does NOT do is let a win
+rate reach 100%, and that is worth understanding before anyone tries to
+tune toward one.
+
+Some seeds deal two starts so unequal that whoever holds the better one
+wins **both** seatings, whatever tier is sitting in it. Such a seed
+contributes exactly one win and one loss to the rate — forever, at any
+tier strength. So the sweep pairs the two seatings of each seed and
+classifies them (`PairTally` in tiers.ts):
+
+- **swept** — the tier won both seatings. It beat the valley.
+- **split** — the same SEAT won both. The valley decided; the tier was not
+  the variable.
+- **lost** — the weaker tier won both. A genuine loss, and the only kind
+  worth tuning against.
+
+`lost = 0` is the honest reading of "it always wins". Hard against easy is
+exactly that: **zero lost valleys over 96 seed-and-playbook pairs across
+both ranges**, while the raw rate reads ~92% — the missing 8% is entirely
+seeds the map had already decided. Chasing that last 8% with knobs is
+chasing the map generator.
+
+The standing baseline, 24 seeds on range 101 — four playbooks, both
+seatings, so 192 duels a pairing:
 
 ```
-                 range 101                      range 1000
-normal v easy    109/179  60.9%  [53.6, 67.7]   109/186  58.6%  [51.4, 65.4]
-hard   v easy    128/183  69.9%  [62.9, 76.1]   122/185  65.9%  [58.9, 72.4]
-hard   v normal  113/187  60.4%  [53.3, 67.2]   114/187  61.0%  [53.8, 67.7]
-
-pooled: normal v easy 218/365 59.7% [54.6, 64.6]
-        hard   v easy 250/368 67.9% [63.0, 72.5]
-        hard   v normal 227/374 60.7% [55.7, 65.5]
+normal v easy    163/191  85.3%  [79.6, 89.7]  WINS
+hard   v easy    169/192  88.0%  [82.7, 91.9]  WINS
+hard   v normal  113/187  60.4%  [53.3, 67.2]  WINS
 ```
 
-Monotone, every pairing clear of the 50% null, and — the part that makes
-it believable — the two ranges agree to within three points on all three.
-The widest gap is the widest pairing, as it should be.
+Monotone, every pairing clear of the 50% null. Read the two easy pairings
+with the section above in mind: 88% is not the ceiling of hard-against-easy
+because hard falls short of it, it is the ceiling because a fifth of these
+valleys decide themselves. On the pair tally hard lost NONE of them —
+zero lost valleys over 96 seed-and-playbook pairs, twelve seeds deep on
+each of two ranges:
 
-Note how much power this took, because it is the trap this file exists to
-warn about. At 96 duels hard-versus-normal read 53/95, 55.8%, [45.8, 65.4]
-— "no result" — and it would have been easy to read that as a weak tier
-and start turning knobs. It was not weak, it was under-measured: the same
-tier is 227/374 pooled. Three candidate strengthenings tried at that
-sample size (forcing `retreats: false`, a distinctly wider village, a
-faster decision clock for hard) all came in at or below the printed table,
-which is exactly what noise looks like, and the table shipped unchanged.
-Run the seeds before you turn the knobs.
+```
+             range 101                    range 1000
+steward      9 swept,  3 split, 0 lost    11 swept, 1 split, 0 lost
+warlord     11 swept,  1 split, 0 lost    11 swept, 1 split, 0 lost
+abbot       11 swept,  1 split, 0 lost    10 swept, 2 split, 0 lost
+fletcher     9 swept,  3 split, 0 lost     6 swept, 6 split, 0 lost
+```
+
+Hard against normal is the honest weak spot: 60.4% is a real edge, but the
+pair tally shows genuine losses (3, 1, 2 and 5 lost valleys per playbook
+over twelve seeds), not just unlucky ground. The section below is why it is
+not higher.
+
+Two lessons, both bought the expensive way.
+
+**Measure before you tune.** At 96 duels hard-versus-normal read 53/95,
+55.8%, [45.8, 65.4] — "no result" — and it would have been easy to read
+that as a weak tier. It was not weak, it was under-measured: at 187 duels
+the same tier is 60.4% with the interval clear. Three candidate
+strengthenings tried at the small sample (forcing `retreats: false`, a
+wider village, a faster clock for hard) all came in at or below the
+printed table, which is exactly what noise looks like.
+
+**The knobs have a ceiling, and it is not at the end of their range.** A
+deliberate ceiling test — every hard knob pushed to its clamp at once,
+mustering at three, a quarter of the cooldown, twice the village, thinking
+twice as often — scored **48/92, 52.2%**, BELOW the gentle table, and
+dragged the Warlord to 29%. These knobs tune a line that was already
+tuned; past a point they detune it. Getting hard meaningfully past 60%
+against normal is not a bigger number in the table. It needs either a
+capability normal lacks (reading the rival's arms and training the
+counter, say) or the resource handout the tier table exists to avoid.
 
 The ordering is also pinned in the suite (`tools/aiLab/tiers.test.ts`), on a
 small fixed seed set, so a change that inverts it fails CI rather than

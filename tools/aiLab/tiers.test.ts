@@ -3,30 +3,26 @@ import {AI_STRATEGY_KEYS} from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import {DIFFICULTY_KEYS} from '../../src/sim/defs/difficulty.ts';
 import * as DifficultyId from '../../src/sim/defs/difficultyEnum.ts';
-import {sweepTiers, wilson} from './tiers.ts';
+import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
 
 /**
- * The tier ordering, pinned: normal beats easy, hard beats both.
+ * The tier ordering, pinned: normal beats easy, hard beats both, and hard
+ * never loses a valley to easy that the valley did not decide itself.
  *
- * A regression pin rather than a measurement. The sim is deterministic, so
- * each of these duels has exactly one answer and there is no sampling here
- * to draw a conclusion from — the numbers to argue from are in README.md,
- * where `pnpm tiers` runs the same duels twenty-four seeds deep on two
- * independent ranges. What this file buys is that a change which INVERTS
- * the ordering fails CI instead of waiting for someone to remember to
- * re-run a sweep.
+ * That last clause is the assertion to read, and the reason the headline
+ * here is a pair tally rather than a percentage. A mirrored win rate
+ * cannot reach 100% on this map generator however strong a tier is: some
+ * seeds deal two starts so unequal that whoever holds the better one wins
+ * BOTH seatings whatever tier is sitting there, and each such seed
+ * contributes one win and one loss to the rate forever. Pairing the
+ * seatings separates the valley from the tier — see PairTally in tiers.ts
+ * — and `lostBoth === 0` is what "it always wins" honestly means.
  *
- * Small for that reason: two seeds, four playbooks, both seatings is 16
- * duels a pair, which is enough to catch an inversion and nowhere near
- * enough to decide one. So the assertions are shaped to what 16 duels can
- * honestly carry — each pair merely must not go BACKWARDS, and the strict
- * majority is asked of the pooled three pairings and of hard-against-easy,
- * the widest and most robust gap (69.9% over 183 duels on the sweep, where
- * hard-against-normal is 58.3% over 127 and is the one an under-powered
- * pin would fail on a coin toss).
- *
- * A failure here means "go run `pnpm tiers 24` on both ranges", not "the
- * tier is broken".
+ * A regression pin, not a measurement: the sim is deterministic, so each
+ * duel here has exactly one answer and there is no sampling to conclude
+ * from. The numbers to argue from are in README.md, twenty-four seeds deep
+ * on two independent ranges. A failure here means "go run `pnpm tiers 24`
+ * on both ranges", not "the tier is broken".
  */
 
 /** Two seeds, strided as the sweeps stride them. */
@@ -43,72 +39,77 @@ const STRATEGIES = [
 
 type Tier = (typeof DifficultyId)[keyof typeof DifficultyId];
 
-/** The three orderings, harder tier first. */
 const PAIRS: [Tier, Tier][] = [
   [DifficultyId.normal, DifficultyId.easy],
   [DifficultyId.hard, DifficultyId.easy],
   [DifficultyId.hard, DifficultyId.normal],
 ];
 
-interface Scored {
-  label: string;
-  wins: number;
-  decided: number;
-  rows: string;
+const played = new Map<string, DuelSweep>();
+const key = (a: Tier, b: Tier): string =>
+  `${DIFFICULTY_KEYS[a]} v ${DIFFICULTY_KEYS[b]}`;
+
+/** What a sweep came out as, spelled for a failure message. */
+function say(a: Tier, b: Tier): string {
+  const s = played.get(key(a, b))!;
+  const rows = [...s.byStrategy]
+    .map(
+      ([id, r]) =>
+        `${AI_STRATEGY_KEYS[id]} ${r.wins}/${r.decided} ` +
+        `(swept ${r.pairs.sweeps}, split ${r.pairs.splits}, lost ${r.pairs.lostBoth})`,
+    )
+    .join(', ');
+  return `${key(a, b)}: ${s.wins}/${s.decided} — ${rows}`;
 }
 
 describe('the difficulty tiers, against each other', () => {
-  /**
-   * Every pair once, in a hook rather than at collection time — 48 duels is
-   * about a minute of work, and a file is collected before it is allowed to
-   * take that long. Played once for all three assertions below, so the
-   * suite pays for 48 duels and not 144.
-   */
-  const scored: Scored[] = [];
   beforeAll(() => {
-    for (const [harder, weaker] of PAIRS) {
-      const sweep = sweepTiers(
-        harder,
-        weaker,
-        SEEDS,
-        STRATEGIES,
-        96,
-        MAX_TICKS,
-      );
-      scored.push({
-        label: `${DIFFICULTY_KEYS[harder]} v ${DIFFICULTY_KEYS[weaker]}`,
-        wins: sweep.wins,
-        decided: sweep.decided,
-        rows: [...sweep.byStrategy]
-          .map(([id, r]) => `${AI_STRATEGY_KEYS[id]} ${r.wins}/${r.decided}`)
-          .join(', '),
-      });
+    // Every pairing once, in a hook rather than at collection time — 48
+    // duels is about a minute of work, and a file is collected before it is
+    // allowed to take that long. Played once for every assertion below.
+    for (const [a, b] of PAIRS) {
+      played.set(key(a, b), sweepTiers(a, b, SEEDS, STRATEGIES, 96, MAX_TICKS));
     }
   }, 300_000);
-  const say = (s: Scored): string =>
-    `${s.label}: ${s.wins}/${s.decided} — ${s.rows}`;
 
-  it('never lets a harder tier fall behind a weaker one', () => {
-    // Non-inferiority, which is all 16 duels can carry per pair. An
-    // inversion — the harder tier losing the pairing outright — is what
-    // this is here to catch.
-    for (const s of scored) {
-      expect(s.wins * 2, say(s)).toBeGreaterThanOrEqual(s.decided);
+  it('never loses a valley to easy that the valley did not decide', () => {
+    // The strong claim, and the one that survives the map generator's
+    // lopsided starts. Measured over 96 seed-and-playbook pairs on two
+    // ranges: hard did not lose one. Per playbook, so a tier that only
+    // works for three lords fails here.
+    const s = played.get(key(DifficultyId.hard, DifficultyId.easy))!;
+    for (const [id, row] of s.byStrategy) {
+      expect(
+        row.pairs.lostBoth,
+        `${AI_STRATEGY_KEYS[id]} — ${say(DifficultyId.hard, DifficultyId.easy)}`,
+      ).toBe(0);
+    }
+    expect(s.pairs.lostBoth).toBe(0);
+  });
+
+  it('leaves easy behind on the raw rate too', () => {
+    // Both stronger tiers, comfortably — easy is ~85% behind normal and
+    // ~92% behind hard on the sweeps, so a strict majority at this sample
+    // size is not a coin toss.
+    for (const harder of [DifficultyId.normal, DifficultyId.hard]) {
+      const s = played.get(key(harder, DifficultyId.easy))!;
+      expect(s.wins * 2, say(harder, DifficultyId.easy)).toBeGreaterThan(
+        s.decided,
+      );
     }
   });
 
-  it('wins the ordering pooled across the three pairings', () => {
-    const wins = scored.reduce((n, s) => n + s.wins, 0);
-    const decided = scored.reduce((n, s) => n + s.decided, 0);
+  it('keeps hard ahead of normal', () => {
+    // Non-inferiority, and deliberately no more. Hard is around 60% against
+    // normal on the full sweeps — a real edge, but one that 16 duels cannot
+    // resolve, and the ceiling test in defs/difficulty.ts is why it is not
+    // higher: the knobs stop paying long before 75%. An inversion is what
+    // this catches.
+    const s = played.get(key(DifficultyId.hard, DifficultyId.normal))!;
     expect(
-      wins * 2,
-      `pooled ${wins}/${decided} — ${scored.map(say).join(' | ')}`,
-    ).toBeGreaterThan(decided);
-  });
-
-  it('wins the widest gap outright: hard against easy', () => {
-    const s = scored.find(x => x.label === 'hard v easy')!;
-    expect(s.wins * 2, say(s)).toBeGreaterThan(s.decided);
+      s.wins * 2,
+      say(DifficultyId.hard, DifficultyId.normal),
+    ).toBeGreaterThanOrEqual(s.decided);
   });
 
   it('scores a mirrored sweep against a 50% null', () => {
@@ -116,7 +117,7 @@ describe('the difficulty tiers, against each other', () => {
     // anything: an interval clear of 50 is a result, one straddling it is
     // not, and no duels at all is no information.
     expect(wilson(0, 0)).toEqual([0, 100]);
-    const [lo, hi] = wilson(128, 183); // the recorded hard-v-easy sweep
+    const [lo, hi] = wilson(163, 191); // a recorded normal-v-easy sweep
     expect(lo).toBeGreaterThan(50);
     expect(hi).toBeLessThan(100);
     const [near] = wilson(53, 95); // ...and one that straddled it

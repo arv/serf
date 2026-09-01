@@ -145,12 +145,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // recorded tick; a commission scaling the human seat's larder, hands and
 // raid clock by the tier is config the world is BUILT from, and an older
 // build drops the field and rebuilds a different opening. See
-// replayVersion.ts. (Still 38 after the beat stagger was generalized from a
+// replayVersion.ts. (Still 38 after `easy` was retuned — spears only, a
+// muster bar it cannot reach, its village at the clamps — and after the
+// stance cascade became tierable: all of it is brain-only, and playback
+// never runs a brain. Still 38 after the beat stagger was generalized from a
 // fixed 5-tick stride to slots across the interval — the same offsets, 0, 5,
 // 10, 15, at the printed cadence, so a normal seat's beats did not move; and
 // brains do not run in playback anyway.)
 const EXPECTED_VERSION = 38;
-const EXPECTED_HASH = '50ecdc08e6fb510e1a2ecd64801e7fcb';
+const EXPECTED_HASH = 'f1df32b4582dd30b7e0f7ac095158a6a';
 
 /**
  * Everything a replay's playback depends on, as raw source:
