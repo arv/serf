@@ -185,6 +185,33 @@ describe('a commission at a difficulty', () => {
     expect(world.raidState.nextRaidTick).toBeLessThan(printed.peace);
   });
 
+  it('scales the gap between raid waves, and only on a commission', async () => {
+    // The half of the campaign setting that decides a mission: the opening
+    // peace is the dramatic number, but a commission is won or lost on
+    // whether the village can rebuild BETWEEN waves.
+    const afterFirstWave = async (
+      difficulty?: Enum<typeof DifficultyId>,
+    ): Promise<number> => {
+      const world = await createWorldAsync({
+        ...missionWorldConfig(MissionId.levy),
+        ...(difficulty ? {difficulty} : {}),
+      });
+      // Straight to the first wave, then read the clock it set for the next.
+      world.tick = world.raidState.nextRaidTick;
+      const before = world.raidState.wave;
+      tickWorld(world, []);
+      expect(world.raidState.wave).toBe(before + 1);
+      return world.raidState.nextRaidTick - world.tick;
+    };
+    const [easy, printed, hard] = await Promise.all([
+      afterFirstWave(DifficultyId.easy),
+      afterFirstWave(),
+      afterFirstWave(DifficultyId.hard),
+    ]);
+    expect(easy).toBeGreaterThan(printed);
+    expect(hard).toBeLessThan(printed);
+  });
+
   it('leaves a skirmish opening alone at every tier', () => {
     // The other half of the promise, and the one that matters in
     // multiplayer: outside a commission the tier is how well the computer

@@ -45,9 +45,17 @@
  * cadence it is arithmetically the same offsets (0, 5, 10, 15), and it is
  * brain pacing either way.
  *
+ * The commission's raid pressure scales with it too — the gap between
+ * waves after the first, and how many raiders one wave may hold
+ * (systems/bandits.ts). Those are ticks, not decisions: the wave lands on
+ * a different tick and arrives a different size, so they belong to this
+ * bump for the same reason the larder does.
+ *
  * A skirmish or a multiplayer match scales nothing — every seat there
- * opens with the larder it always had — and a match that names no tier is
- * `normal`, which is the printed game byte for byte. So every log recorded
+ * opens with the larder it always had, and faces the raids it always did,
+ * since there the bandits are a neutral third party every seat shares —
+ * and a match that names no tier is `normal`, which is the printed game
+ * byte for byte. So every log recorded
  * before this build describes a world this build still rebuilds exactly;
  * the bump is for the logs recorded after it.
  */

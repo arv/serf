@@ -146,6 +146,47 @@ export interface Difficulty {
    * read your yard again. */
   scoutRefreshPct: number;
   /**
+   * Percent of AI_INTEL.trustFor — how long a sighting still says something
+   * about tomorrow's battle.
+   *
+   * Memory, never vision. A tier may change how long a seat remembers what
+   * it legitimately saw and how much of it it takes seriously; it may never
+   * change what its people can see. That line is what keeps `hard` from
+   * being a cheat, and it is why the fog model (systems/ai.ts) is untouched
+   * at every setting.
+   *
+   * It reaches further than it looks. `#counterPlan` will not retool for a
+   * rival whose picture has gone stale, so an easy seat that forgets
+   * quickly stops answering what you field at all — it keeps making what
+   * its playbook printed while you walk knights into its spearmen. The
+   * counter-arming is not removed from easy; it is starved of the evidence
+   * it runs on, which is the same weakness a slow scout would produce and
+   * needs no second switch.
+   */
+  intelTrustPct: number;
+  /**
+   * Added to AI_INTEL.minSighting — fighters that have to be seen at once
+   * before the seat calls it an army rather than an anecdote. Higher is a
+   * seat that under-reacts to a real muster; lower is one that takes a
+   * thin sighting seriously. Never below 1.
+   */
+  minSighting: number;
+  /**
+   * Percent of the stance engine's clocks (AI_STANCE.evalPeriod and
+   * `dwell`) — how often a seat re-reads which mood it should be in, and
+   * how long it must hold one before it may change again.
+   *
+   * A different weakness from a slow decision beat, and it reads
+   * differently across the table. A late seat is uniformly behind; a seat
+   * with long stance clocks is behind ONLY when the situation turns, and
+   * then very visibly — it keeps besieging after its own yard is burning,
+   * it keeps turtling long after you have left. The break-in to `fortify`
+   * is exempt in the engine itself, so even the sluggish tier still
+   * answers a hostile in the yard on the beat.
+   */
+  stanceLatencyPct: number;
+
+  /**
    * Soldiers standing before the seat's `found` stance takes over — the
    * moment it stops opening and starts prosecuting a war it has seen a
    * castle for (AiStrategy.stances.foundAfterArmy). Null leaves the
@@ -202,6 +243,20 @@ export interface Difficulty {
   startSerfs: number;
   /** Percent of the opening peace before the first bandit raid. */
   firstRaidTickPct: number;
+  /**
+   * Percent of the gap between raid waves after the first. The opening
+   * peace is the more dramatic number and the between-waves clock is the
+   * one that decides the commission: a mission is won or lost on whether
+   * the village can rebuild between raids, and that gap is where the
+   * pressure actually lives.
+   */
+  raidIntervalPct: number;
+  /**
+   * Added to RAID_CAP, the most raiders one wave may hold. The wave's
+   * composition still escalates exactly as authored; this is only how many
+   * of it arrive.
+   */
+  raidCap: number;
 }
 
 /**
@@ -257,6 +312,52 @@ const MIN_DECISION_INTERVAL = 8;
  * Ticks between one seat's decision beats at this tier, given the printed
  * cadence. See Difficulty.decisionIntervalPct.
  */
+/** How long a sighting still counts, at this tier (AI_INTEL.trustFor). */
+export function scaleIntelTrust(
+  printed: number,
+  tier: DifficultyId | undefined,
+): number {
+  return Math.max(500, pct(printed, difficultyOf(tier).intelTrustPct));
+}
+
+/** Fighters seen at once before the seat calls it an army
+ * (AI_INTEL.minSighting). Never below one — a seat that cannot believe in
+ * a single soldier has no picture at all. */
+export function scaleMinSighting(
+  printed: number,
+  tier: DifficultyId | undefined,
+): number {
+  return Math.max(1, printed + difficultyOf(tier).minSighting);
+}
+
+/** One of the stance engine's clocks, at this tier (AI_STANCE.evalPeriod or
+ * `dwell` — both move together, since a mood re-read more often but held
+ * just as long is a mood that still cannot change). */
+export function scaleStanceClock(
+  printed: number,
+  tier: DifficultyId | undefined,
+): number {
+  return Math.max(100, pct(printed, difficultyOf(tier).stanceLatencyPct));
+}
+
+/** The gap between raid waves on a commission (raidIntervalFor). */
+export function scaleRaidInterval(
+  printed: number,
+  tier: DifficultyId | undefined,
+): number {
+  const d = difficultyOf(tier);
+  return d.raidIntervalPct === 100 ? printed : pct(printed, d.raidIntervalPct);
+}
+
+/** The most raiders one wave may hold on a commission (RAID_CAP). Never
+ * below two: a "wave" of one is not a raid, it is a straggler. */
+export function scaleRaidCap(
+  printed: number,
+  tier: DifficultyId | undefined,
+): number {
+  return Math.max(2, printed + difficultyOf(tier).raidCap);
+}
+
 export function scaleDecisionInterval(
   printed: number,
   tier: DifficultyId | undefined,
@@ -292,6 +393,9 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     retreats: true,
     harass: 'off',
     scoutRefreshPct: 175,
+    intelTrustPct: 60,
+    minSighting: 2,
+    stanceLatencyPct: 250,
     // A muster this village cannot reach: fourteen soldiers on a thirty-bed
     // cap that also has to staff every post. So an easy seat never leaves
     // its opening for the stance that goes and takes a castle — it defends,
@@ -316,6 +420,8 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     startStockPct: 150,
     startSerfs: 2,
     firstRaidTickPct: 150,
+    raidIntervalPct: 150,
+    raidCap: -2,
   },
 
   // The printed game. Every additive is 0, every percentage is 100 and
@@ -336,6 +442,9 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     retreats: null,
     harass: 'keep',
     scoutRefreshPct: 100,
+    intelTrustPct: 100,
+    minSighting: 0,
+    stanceLatencyPct: 100,
     foundAfterArmy: null,
     spearsOnly: false,
     decisionIntervalPct: 100,
@@ -346,6 +455,8 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     startStockPct: 100,
     startSerfs: 0,
     firstRaidTickPct: 100,
+    raidIntervalPct: 100,
+    raidCap: 0,
   },
 
   [DifficultyIdNs.hard]: {
@@ -367,6 +478,9 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     retreats: null,
     harass: 'press',
     scoutRefreshPct: 65,
+    intelTrustPct: 150,
+    minSighting: -1,
+    stanceLatencyPct: 70,
     foundAfterArmy: null,
     spearsOnly: false,
     decisionIntervalPct: 100,
@@ -377,6 +491,8 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     startStockPct: 70,
     startSerfs: -1,
     firstRaidTickPct: 70,
+    raidIntervalPct: 70,
+    raidCap: 2,
   },
 };
 

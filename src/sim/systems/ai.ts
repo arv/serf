@@ -28,6 +28,9 @@ import {
   applyDifficulty,
   type DifficultyId,
   scaleDecisionInterval,
+  scaleIntelTrust,
+  scaleMinSighting,
+  scaleStanceClock,
 } from '../defs/difficulty.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries, type GoodAmounts} from '../defs/goods.ts';
@@ -625,6 +628,19 @@ export class AiBrain {
    * stretched by the tier (defs/difficulty.ts). Fixed for the seat's life,
    * so it is resolved once here rather than on every tick. */
   readonly #decisionInterval: number;
+  /**
+   * The intel and stance clocks this seat runs on — AI_INTEL.trustFor and
+   * `minSighting`, and the stance engine's evaluation and dwell periods —
+   * with the tier applied. Fixed for the seat's life, so they are resolved
+   * once here rather than read through a helper on every beat.
+   *
+   * Memory and mood, never vision: what the seat's people can SEE is the
+   * same at every setting (see Difficulty.intelTrustPct).
+   */
+  readonly #intelTrust: number;
+  readonly #minSighting: number;
+  readonly #stanceEval: number;
+  readonly #stanceDwell: number;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -812,6 +828,10 @@ export class AiBrain {
       AI_PACING.decisionInterval,
       difficulty,
     );
+    this.#intelTrust = scaleIntelTrust(AI_INTEL.trustFor, difficulty);
+    this.#minSighting = scaleMinSighting(AI_INTEL.minSighting, difficulty);
+    this.#stanceEval = scaleStanceClock(AI_STANCE.evalPeriod, difficulty);
+    this.#stanceDwell = scaleStanceClock(AI_STANCE.dwell, difficulty);
     this.#vision = new SeatVision(mapSize);
   }
 
@@ -1481,7 +1501,7 @@ export class AiBrain {
         // march, recall, re-herald, for as long as anyone wandered by.
         // Mid-march the alarm wants a real force, and minSighting is
         // already where the intel draws that line.
-        this.#attacking ? AI_INTEL.minSighting : 1,
+        this.#attacking ? this.#minSighting : 1,
       )
     ) {
       // Someone is at the gates and the muster is not ready: everyone home,
@@ -1784,8 +1804,8 @@ export class AiBrain {
       return;
     }
     if (tick < this.#stanceEvalDue) return;
-    this.#stanceEvalDue = tick + AI_STANCE.evalPeriod;
-    if (tick - this.#stanceSince < AI_STANCE.dwell) return;
+    this.#stanceEvalDue = tick + this.#stanceEval;
+    if (tick - this.#stanceSince < this.#stanceDwell) return;
     const want: StanceState =
       st.underAttackBreak && underAttack()
         ? STANCE_FORTIFY
@@ -2197,7 +2217,7 @@ export class AiBrain {
     if (
       !pic ||
       pic.seenTick < 0 ||
-      world.tick - pic.seenTick > AI_INTEL.trustFor
+      world.tick - pic.seenTick > this.#intelTrust
     )
       return null;
     const {heavy, light, ranged} = rosterMuster(pic).counts;
@@ -2576,7 +2596,7 @@ export class AiBrain {
     // first stamps the archetype's fact, and every one restamps the
     // grudge's clock (#grudge).
     for (const [owner, n] of atGate) {
-      if (n < AI_INTEL.minSighting) continue;
+      if (n < this.#minSighting) continue;
       const pic = this.#pictureOf(owner);
       if (pic.firstAttackTick < 0) pic.firstAttackTick = tick;
       pic.lastRaidTick = tick;
@@ -2584,9 +2604,9 @@ export class AiBrain {
 
     for (const pic of this.#intel.values()) {
       for (const [id, seen] of pic.roster) {
-        if (tick - seen.tick > AI_INTEL.trustFor) pic.roster.delete(id);
+        if (tick - seen.tick > this.#intelTrust) pic.roster.delete(id);
       }
-      if (pic.seenTick === tick && pic.roster.size >= AI_INTEL.minSighting) {
+      if (pic.seenTick === tick && pic.roster.size >= this.#minSighting) {
         pic.richSeenTick = tick;
       }
       if (tick - pic.sampledTick >= AI_INTEL.samplePeriod) {
@@ -2736,10 +2756,10 @@ export class AiBrain {
     let bestOwner: Owner = -1;
     for (const [owner, pic] of this.#intel) {
       if (!world.players[owner]?.alive) continue;
-      if (pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor)
+      if (pic.seenTick < 0 || world.tick - pic.seenTick > this.#intelTrust)
         continue;
       const muster = rosterMuster(pic);
-      if (muster.total < AI_INTEL.minSighting) continue;
+      if (muster.total < this.#minSighting) continue;
       const s: Sighting = {
         tick: pic.seenTick,
         counts: muster.counts,

@@ -2,6 +2,7 @@ import type {Enum} from '../../shared/enum.ts';
 import {Rng} from '../../shared/rng.ts';
 import {RAID_CAP, raidIntervalFor} from '../defs/balance.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {scaleRaidCap, scaleRaidInterval} from '../defs/difficulty.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import {BANDIT, isPlayerOwner, type Building} from '../entities.ts';
 import * as GameEventKind from '../gameEventKindEnum.ts';
@@ -29,7 +30,17 @@ export function banditsSystem(world: World, rng: Rng): void {
   // the clock follows the commutes, and the scenery margin (size is 2x play
   // on every generated map) adds marching distance for no one. Passing the
   // full grid side here doubled every between-waves gap.
-  world.raidState.nextRaidTick = world.tick + raidIntervalFor(world.map.play);
+  // A commission's raid pressure scales with the tier, and this clock is
+  // the half of it that decides the mission: the opening peace is the more
+  // dramatic number, but a commission is won or lost on whether the village
+  // can rebuild BETWEEN waves. Outside a commission nothing scales — a
+  // skirmish and a multiplayer match face the raids they always did,
+  // because there the bandits are a neutral third party every seat shares
+  // and the tier is only how well the computer plays.
+  const tier =
+    world.missionId !== undefined ? world.players[0]?.difficulty : undefined;
+  world.raidState.nextRaidTick =
+    world.tick + scaleRaidInterval(raidIntervalFor(world.map.play), tier);
   const wave = world.raidState.wave;
 
   const roster: UnitTypeId[] = [];
@@ -37,7 +48,7 @@ export function banditsSystem(world: World, rng: Rng): void {
   for (let i = 0; i < bandits; i++) roster.push(UnitTypeId.bandit);
   for (let i = 0; i < wave - 2; i++) roster.push(UnitTypeId.banditArcher);
   for (let i = 0; i < wave - 4; i++) roster.push(UnitTypeId.marauder);
-  roster.length = Math.min(roster.length, RAID_CAP);
+  roster.length = Math.min(roster.length, scaleRaidCap(RAID_CAP, tier));
 
   const target = pickTarget(world, rng);
   if (!target) return;

@@ -144,7 +144,9 @@ import {REPLAY_VERSION} from './replayVersion';
 // over composed knobs, plus a slower decision beat on easy), which moves no
 // recorded tick; a commission scaling the human seat's larder, hands and
 // raid clock by the tier is config the world is BUILT from, and an older
-// build drops the field and rebuilds a different opening. See
+// build drops the field and rebuilds a different opening — as does the
+// commission's raid pressure, which moves waves onto different ticks at a
+// different size. See
 // replayVersion.ts. It sits on top of main's own 38 (the seats dealt
 // their start spots), which is why this is 39 and not 38.
 // (Still 39 after `easy` was retuned — spears only, a
@@ -155,7 +157,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // 10, 15, at the printed cadence, so a normal seat's beats did not move; and
 // brains do not run in playback anyway.)
 const EXPECTED_VERSION = 39;
-const EXPECTED_HASH = '980feae9e2b45f44ebe056e6452ef300';
+const EXPECTED_HASH = 'f984d9aaaf893238fbda33e8d3e8a8ba';
 
 /**
  * Everything a replay's playback depends on, as raw source:

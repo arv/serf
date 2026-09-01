@@ -4,17 +4,22 @@ import {
   type AiStrategy,
 } from '../../../sim/defs/aiStrategies.ts';
 import * as AiStrategyId from '../../../sim/defs/aiStrategyIdEnum.ts';
+import {RAID_CAP} from '../../../sim/defs/balance.ts';
 import {
   applyDifficulty,
   DEFAULT_SCOUT_REFRESH,
   DIFFICULTIES,
   DIFFICULTY_ORDER,
   scaleDecisionInterval,
+  scaleIntelTrust,
+  scaleMinSighting,
+  scaleRaidCap,
+  scaleStanceClock,
   type Difficulty,
   type DifficultyId,
 } from '../../../sim/defs/difficulty.ts';
 import * as UnitTypeId from '../../../sim/defs/unitTypeIdEnum.ts';
-import {AI_PACING} from '../../../sim/systems/ai.ts';
+import {AI_INTEL, AI_PACING, AI_STANCE} from '../../../sim/systems/ai.ts';
 import {unitName} from '../../../ui/names';
 import {Section} from '../components';
 import {fmtSecs} from '../data';
@@ -100,6 +105,22 @@ const WAR: Row[] = [
         : 'as soon as it finds you',
   },
   {
+    label: 'Trusts a sighting for',
+    note: 'How long what a scout saw still counts. It never changes what a lord can SEE — only how long it remembers, and a lord that forgets stops re-arming against what you field.',
+    value: (_s, _d, id) => fmtSecs(scaleIntelTrust(AI_INTEL.trustFor, id)),
+  },
+  {
+    label: 'Calls it an army at',
+    note: 'Fighters seen at once before it believes there is a muster rather than a patrol.',
+    value: (_s, _d, id) =>
+      `${scaleMinSighting(AI_INTEL.minSighting, id)} soldiers`,
+  },
+  {
+    label: 'Reconsiders its mood every',
+    note: 'How soon it notices the situation has turned. A raid at its own gate always breaks in at once, whatever this says.',
+    value: (_s, _d, id) => fmtSecs(scaleStanceClock(AI_STANCE.evalPeriod, id)),
+  },
+  {
     label: 'Thinks every',
     note: 'One decision beat. A slower lord is not worse at the game — it is late to it.',
     value: (_s, _d, id) =>
@@ -154,6 +175,15 @@ const COMMISSION: {
   {
     label: 'Peace before the first raid',
     value: d => pctLabel(d.firstRaidTickPct),
+  },
+  {
+    label: 'Gap between waves after it',
+    note: 'The number that decides a commission: whether the village gets to rebuild between raids.',
+    value: d => pctLabel(d.raidIntervalPct),
+  },
+  {
+    label: 'Raiders in a wave, at most',
+    value: d => `${scaleRaidCap(RAID_CAP, d.id)}`,
   },
 ];
 
@@ -248,7 +278,10 @@ export function DifficultyPage(): JSX.Element {
               <For each={COMMISSION}>
                 {row => (
                   <tr>
-                    <td>{row.label}</td>
+                    <td>
+                      {row.label}
+                      {row.note ? <div class="row-note">{row.note}</div> : null}
+                    </td>
                     <For each={DIFFICULTY_ORDER}>
                       {id => <td>{row.value(DIFFICULTIES[id])}</td>}
                     </For>

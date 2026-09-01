@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {ADVICE_RANGES} from '../../ai/advice.ts';
-import {AI_INTEL, AI_PACING, beatOffset} from '../systems/ai.ts';
+import {AI_INTEL, AI_PACING, AI_STANCE, beatOffset} from '../systems/ai.ts';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
@@ -16,6 +16,11 @@ import {
   parseDifficultyId,
   scaleDecisionInterval,
   scaleFirstRaidTick,
+  scaleIntelTrust,
+  scaleMinSighting,
+  scaleRaidCap,
+  scaleRaidInterval,
+  scaleStanceClock,
   scaleStartSerfs,
   scaleStartStock,
   type DifficultyId,
@@ -158,6 +163,64 @@ describe('the difficulty table', () => {
         }
       }
     }
+  });
+
+  it('slows what a seat remembers, and never what it can see', () => {
+    // Memory and inference, never vision — the line that keeps `hard` from
+    // being a cheat. Easy forgets a sighting sooner and needs a bigger
+    // force before it believes in an army; hard remembers longer and acts
+    // on thinner evidence. Neither sees one tile further than the other.
+    const easy = DifficultyIdNs.easy;
+    const hard = DifficultyIdNs.hard;
+    expect(scaleIntelTrust(AI_INTEL.trustFor, easy)).toBeLessThan(
+      AI_INTEL.trustFor,
+    );
+    expect(scaleIntelTrust(AI_INTEL.trustFor, hard)).toBeGreaterThan(
+      AI_INTEL.trustFor,
+    );
+    expect(scaleMinSighting(AI_INTEL.minSighting, easy)).toBeGreaterThan(
+      scaleMinSighting(AI_INTEL.minSighting, hard),
+    );
+    // Never below one: a seat that cannot believe in a single soldier has
+    // no picture at all.
+    expect(scaleMinSighting(1, easy)).toBeGreaterThanOrEqual(1);
+    expect(scaleMinSighting(1, hard)).toBeGreaterThanOrEqual(1);
+    // Normal is the printed game, here as everywhere.
+    for (const printed of [AI_INTEL.trustFor, 1234]) {
+      expect(scaleIntelTrust(printed, DifficultyIdNs.normal)).toBe(printed);
+      expect(scaleIntelTrust(printed, undefined)).toBe(printed);
+    }
+    expect(scaleMinSighting(3, undefined)).toBe(3);
+  });
+
+  it('makes a mood slower to turn, without slowing the alarm', () => {
+    // Both stance clocks move together — a mood re-read more often but held
+    // just as long is a mood that still cannot change. The fortify break-in
+    // is exempt inside the engine itself (systems/ai.ts #updateStance), so
+    // even the sluggish tier still answers a hostile in the yard on the
+    // beat; what gets slow is noticing that the situation has TURNED.
+    for (const printed of [AI_STANCE.evalPeriod, AI_STANCE.dwell]) {
+      expect(scaleStanceClock(printed, DifficultyIdNs.easy)).toBeGreaterThan(
+        printed,
+      );
+      expect(scaleStanceClock(printed, DifficultyIdNs.hard)).toBeLessThan(
+        printed,
+      );
+      expect(scaleStanceClock(printed, DifficultyIdNs.normal)).toBe(printed);
+      expect(scaleStanceClock(printed, undefined)).toBe(printed);
+    }
+  });
+
+  it('scales a commission’s raid pressure, floors included', () => {
+    const easy = DifficultyIdNs.easy;
+    const hard = DifficultyIdNs.hard;
+    expect(scaleRaidInterval(1000, easy)).toBeGreaterThan(1000);
+    expect(scaleRaidInterval(1000, hard)).toBeLessThan(1000);
+    expect(scaleRaidInterval(1000, undefined)).toBe(1000);
+    expect(scaleRaidCap(8, easy)).toBeLessThan(scaleRaidCap(8, hard));
+    expect(scaleRaidCap(8, undefined)).toBe(8);
+    // A "wave" of one is a straggler, not a raid.
+    expect(scaleRaidCap(2, easy)).toBeGreaterThanOrEqual(2);
   });
 
   it('pins the scout-refresh default it copies out of the brain', () => {
