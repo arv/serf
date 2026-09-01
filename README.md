@@ -123,6 +123,29 @@ in the first place. A desktop install usually lands on `standalone` instead,
 which is an ordinary window with a screen still to fill, so there the offer
 stands.
 
+### Screen wake lock
+
+A match asks the platform to keep the display awake, because this game is
+watched more than it is touched: a bread chain laid and then observed is
+minutes with no input at all, and a phone dims and locks in one of them.
+The Screen Wake Lock API is the sanctioned way to say "not yet", and its
+one rule shapes the whole of `src/app/wakeLock.ts` — only a visible page
+may hold one, and the browser takes it back at every hide. So the lock is
+re-asked for on the way back, off the same `HiddenSync` the sim and the
+audio freeze on (the signal built because mobile browsers drop the
+return-to-visible event), and one ask is in flight at a time.
+
+Only a match holds it. The menu is a page you read and leave, and a start
+screen fighting the lock screen would be spending the battery of a game
+nobody started; quitting to it releases, without a reload to do it. Where
+the API is absent (Firefox on Android, any plain-http build) or the answer
+is no (a permissions policy, an OS in battery saver — Chromium refuses
+outright there) nothing is broken: the screen dims on its own schedule,
+exactly as it did before. Nor is a refusal chased — no retry on a timer, and
+none on the spot against an OS that has just said no. The next return to
+visible asks again the way every return does, and the complaint is logged
+once rather than once per return.
+
 ### Navigation
 
 Every screen change happens in one document. The start menu, the War

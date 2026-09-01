@@ -86,6 +86,7 @@ import type {Screen} from './screen';
 import {holdServiceWorkerUpdates} from './serviceWorker';
 import {WorkerSimHost} from './simHost';
 import {stashGet, stashSet} from './stash';
+import {createWakeLock, domWakeLockPort} from './wakeLock';
 
 /**
  * The playing screen, and everything only it needs: three.js, the render
@@ -292,6 +293,17 @@ export async function runMatch(
   // lets the device's audio hardware sleep — the same battery argument as
   // the worker freeze above, one line down. Inherits the gap watchdog too.
   hidden.add(h => setAudioHidden(h));
+  // The other direction, and the reason it hangs off the same signal: a
+  // match is watched more than it is touched — a bread chain laid and then
+  // observed is minutes of no input at all — so the screen is asked to
+  // stay awake while one is up. Only a visible page may hold that lock and
+  // the browser takes it back at every hide, so the ask has to ride the
+  // return to visible, which is precisely what this sync is (see
+  // app/wakeLock.ts). Held for the match and released with it: the menu
+  // this quits to is a page to read and leave, not a screen to defend.
+  const wake = createWakeLock(domWakeLockPort());
+  teardown.push(() => wake.dispose());
+  hidden.add(h => wake.setHidden(h));
   document.addEventListener(
     'visibilitychange',
     () => hidden.set(document.hidden),
