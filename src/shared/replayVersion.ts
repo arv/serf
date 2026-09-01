@@ -46,10 +46,12 @@
  * brain pacing either way.
  *
  * A seventeenth command kind rides along: `focusTarget`, which puts a
- * named squad on one enemy unit. It is the only order in the game that
+ * named squad on one enemy — a unit, or a building with `building: true`. It is the only order in the game that
  * names a target — everything else leaves that to `acquireUnit` — and the
- * `hard` tier's brain is what issues it (warBehaviorIdEnum `focusFire`).
- * Pure format on its own, exactly as the rally point (20) and the herald
+ * `hard` tier's brain issues it (warBehaviorIdEnum `focusFire`), and so
+ * does the player: a right-click or an A-click on something hostile now
+ * sends an attack-move and this, where before it could only name the
+ * ground. Pure format on its own, exactly as the rally point (20) and the herald
  * (34) were: no log written before this build can hold one, and the tick
  * that executes every older order is untouched. It is named here for the
  * reason those two were — a log recorded on this build can carry an order

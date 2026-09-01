@@ -49,13 +49,22 @@ export type SimCommand =
    * one — so killing one enemy outright removes its whole output where
    * spreading the same damage over three removes none of it.
    *
-   * Units only. Buildings are already besieged by the orders that send an
-   * army at them, and a focus order on a wall would just be a slower move.
+   * A building is a legal target too (`building: true`), and means the
+   * same thing: hit THAT one. Left to itself a squad besieges whatever
+   * `nearestEnemyBuilding` puts in reach, which is the wall it happens to
+   * be standing next to rather than the barracks behind it.
+   *
+   * The flag is explicit rather than inferred. Ids are unique across both
+   * maps, so a lookup in each would resolve — but `Unit.targetIsBuilding`
+   * is the sim's own discriminator for which map to read, and a caller
+   * that names a building where it meant a unit is a bug worth failing on
+   * rather than quietly resolving.
    */
   | {
       kind: CommandKindNs.focusTarget;
       unitIds: EntityId[];
       targetId: EntityId;
+      building?: true;
     }
   | {
       kind: CommandKindNs.placeBuilding;
@@ -226,6 +235,7 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         kind: CommandKindNs.focusTarget,
         unitIds: [...(c.unitIds as EntityId[])],
         targetId: c.targetId as EntityId,
+        ...(c.building === true ? {building: true as const} : {}),
       };
     }
     case CommandKindNs.moveUnits: {

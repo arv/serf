@@ -171,7 +171,9 @@ export function applyCommand(
       // A soldier already walking under a plain move order is left alone —
       // combatSystem disengages those before it looks at a target, so
       // writing one would be an order the next tick throws away.
-      const target = world.units.get(cmd.targetId);
+      const target = cmd.building
+        ? world.buildings.get(cmd.targetId)
+        : world.units.get(cmd.targetId);
       if (!target || target.dead || target.owner === playerId) break;
       for (const id of cmd.unitIds) {
         const u = world.units.get(id);
@@ -179,7 +181,12 @@ export function applyCommand(
         if (!UNIT_DEFS[u.kind].combat) continue;
         if (u.task.t === UnitTaskKind.move) continue;
         u.targetId = target.id;
-        u.targetIsBuilding = false;
+        u.targetIsBuilding = cmd.building === true;
+        // A building target never drops by distance, so a squad given one
+        // must be free to walk to it: the path in hand was planned for
+        // whatever it was doing before. combatSystem does the same thing
+        // when it picks up a building on its own.
+        if (cmd.building) u.path = null;
       }
       break;
     }

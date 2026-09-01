@@ -970,7 +970,14 @@ export class Controls {
           return;
         }
         if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
-        else this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
+        // A-click on something hostile means THAT one, not the ground it
+        // stands on. Anywhere else the armed order is the attack-move it
+        // has always been.
+        else if (
+          order !== OrderMode.attack ||
+          !this.#issueFocus(e.clientX, e.clientY)
+        )
+          this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
         this.armOrder(null);
       } else if (e.button === 2) {
         this.armOrder(null);
@@ -1023,7 +1030,7 @@ export class Controls {
       // squad standing it stays the plain move it has always been.
       if (this.#selection.size === 0 && this.#rallyTarget()) {
         this.#issueRally(e.clientX, e.clientY);
-      } else {
+      } else if (!this.#issueFocus(e.clientX, e.clientY)) {
         this.#issueMove(e.clientX, e.clientY, false);
       }
     }
@@ -1200,7 +1207,14 @@ export class Controls {
     if (order) {
       if (e.pointerType === 'touch' && e.button === 0 && heldStill) {
         if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
-        else this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
+        // A-click on something hostile means THAT one, not the ground it
+        // stands on. Anywhere else the armed order is the attack-move it
+        // has always been.
+        else if (
+          order !== OrderMode.attack ||
+          !this.#issueFocus(e.clientX, e.clientY)
+        )
+          this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
         this.armOrder(null);
       }
       return;
@@ -1528,6 +1542,23 @@ export class Controls {
     out: {x: number; y: number},
   ): boolean {
     if (!this.#selectable(this.#sync.ownerOf(id))) return false;
+    return this.#unitScreenPosInto(id, now, out);
+  }
+
+  /**
+   * The same, for ANY unit the fog is not holding — selection's ownership
+   * gate lifted.
+   *
+   * Selection wants only your own, because a ring is a promise about who
+   * an order will be spent on. An order AGAINST somebody wants the
+   * opposite: naming a rival's knight is the whole gesture, and the pick
+   * that finds him must not stop at the same fence.
+   */
+  #unitScreenPosInto(
+    id: number,
+    now: number,
+    out: {x: number; y: number},
+  ): boolean {
     const pos = this.#scratchPos;
     if (!this.#sync.positionOfInto(id, now, pos)) return false;
     const groundY = this.#heights.at(pos.x, pos.y);
@@ -1543,6 +1574,30 @@ export class Controls {
     const screen = this.#scratchScreen;
     for (const id of this.#sync.latestIds.keys()) {
       if (!this.#selectableUnitScreenPosInto(id, now, screen)) continue;
+      const dx = screen.x - px;
+      const dy = screen.y - py;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) {
+        bestDist = d;
+        bestId = id;
+      }
+    }
+    return bestId;
+  }
+
+  /** Nearest unit under a screen point that is NOT yours, or -1 — the pick
+   * an order against somebody needs. Bandits count: right-clicking a
+   * raider is as good a way to name him as any. */
+  #hostileUnitAt(px: number, py: number): number {
+    const me = myPlayerId();
+    const now = performance.now();
+    let bestId = -1;
+    let bestDist = CLICK_RADIUS_PX * CLICK_RADIUS_PX;
+    const screen = this.#scratchScreen;
+    for (const id of this.#sync.latestIds.keys()) {
+      const owner = this.#sync.ownerOf(id);
+      if (owner === null || owner === me) continue;
+      if (!this.#unitScreenPosInto(id, now, screen)) continue;
       const dx = screen.x - px;
       const dy = screen.y - py;
       const d = dx * dx + dy * dy;
@@ -2073,6 +2128,82 @@ export class Controls {
     if (!b) return;
     const onSelf = x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
     this.#sendRally(b, x, y, onSelf, px, py);
+  }
+
+  /**
+   * Right-click — or A-click — on something hostile: attack THAT one.
+   *
+   * Two orders, because they do different halves of the job. The
+   * attack-move walks the squad to it and keeps them fighting on the way;
+   * the focus order (`focusTarget`) pins the specific target, which is the
+   * part the sim would otherwise decide for itself — left alone,
+   * `acquireUnit` sends each soldier at the nearest enemy it counters, so
+   * a squad told to kill the barracks stops at the fence in front of it.
+   *
+   * A hostile unit under the cursor wins over the building behind it: a
+   * click on a man standing against a wall means the man. Returns whether
+   * the order went out, so both callers fall through to the plain order
+   * they had before when the cursor is over open ground, one of your own,
+   * or something you have not scouted.
+   */
+  #issueFocus(px: number, py: number): boolean {
+    // The same guard the move order keeps: a click in a finished match
+    // must not pretend to command anybody.
+    if (replayMode()) return false;
+    if (this.#selection.size === 0) return false;
+    const me = myPlayerId();
+    // Only soldiers can be told to attack a thing. A selection of serfs
+    // falls through and keeps the move order it meant.
+    const fighters = [...this.#selection].filter(id => {
+      const kind = this.#sync.kindOf(id);
+      return kind !== null && MILITARY_CODES.has(kind);
+    });
+    if (fighters.length === 0) return false;
+
+    let targetId = -1;
+    let building = false;
+    const unitId = this.#hostileUnitAt(px, py);
+    if (unitId >= 0) targetId = unitId;
+    if (targetId < 0) {
+      const bId = this.#buildingAt(px, py);
+      const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
+      // Explored ground only, for the reason the selection check gives:
+      // the fog may still be showing a building the seat has never walked,
+      // and an order against one is the interface claiming knowledge the
+      // player does not have.
+      if (
+        snap &&
+        snap.owner !== me &&
+        (!this.#fog ||
+          this.#fog.exploredAt(snap.x + snap.w / 2, snap.y + snap.h / 2))
+      ) {
+        targetId = bId;
+        building = true;
+      }
+    }
+    if (targetId < 0) return false;
+
+    const ground = this.#orderTarget(px, py);
+    if (!ground) return false;
+    this.#host.sendCommands([
+      {
+        kind: CommandKind.moveUnits,
+        unitIds: fighters,
+        x: ground.x,
+        y: ground.y,
+        attack: true,
+      },
+      // After the move, never before: applyMoveUnits sets the task, and
+      // the sim skips a focus order for anything on a plain move.
+      {
+        kind: CommandKind.focusTarget,
+        unitIds: fighters,
+        targetId,
+        ...(building ? {building: true as const} : {}),
+      },
+    ]);
+    this.#orderPulse(px, py, true);
+    return true;
   }
 
   /** The wire half of a move order, aimed at a tile directly. */
