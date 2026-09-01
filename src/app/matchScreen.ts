@@ -331,7 +331,7 @@ export async function runMatch(
   const terrain = new TerrainMesh(init.map, heights, id =>
     spoilOf(mirror.buildings.get(id)?.type),
   );
-  renderer.scene.add(terrain.mesh);
+  renderer.scene.add(terrain.group);
   const roads = new RoadDecal(init.map, heights);
   renderer.scene.add(roads.mesh);
   if (import.meta.env.DEV) {

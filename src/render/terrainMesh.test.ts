@@ -61,7 +61,10 @@ function mesh(map: MapView, spoil: SpoilKind = Spoil.Gold): TerrainMesh {
 }
 
 function colors(m: TerrainMesh): Float32Array {
-  const attr = (m.mesh.geometry as THREE.BufferGeometry).getAttribute('color');
+  // Every chunk borrows the one colour attribute of the one lattice, so
+  // any of them hands back the whole buffer this compares.
+  const chunk = m.group.children[0] as THREE.Mesh;
+  const attr = chunk.geometry.getAttribute('color');
   return Float32Array.from(attr.array as ArrayLike<number>);
 }
 
@@ -131,5 +134,173 @@ describe('terrain spoil', () => {
     expect(spoilOf(BuildingTypeId.house)).toBe(Spoil.None);
     expect(spoilOf(BuildingTypeId.woodcutter)).toBe(Spoil.None);
     expect(spoilOf(undefined)).toBe(Spoil.None);
+  });
+});
+
+/**
+ * The ground is cut into chunk meshes so the frustum can throw away the
+ * ground the camera is not looking at. They share one lattice and differ
+ * only in which of its quads they index, which is what keeps the painting
+ * above unaware of them — and what makes the split invisible until it is
+ * wrong, at which point it is a hole in the world, or a chunk drawn twice,
+ * or a square of ground that never culls.
+ *
+ * A valley wide enough to be cut up: the chunk edge is measured in tiles,
+ * and the map the tests above use is narrower than one chunk.
+ */
+const WIDE = 64;
+const WIDE_PLAY = 48;
+
+function wideMap(): MapView {
+  const n = WIDE * WIDE;
+  return {
+    size: WIDE,
+    play: WIDE_PLAY,
+    terrain: new Uint8Array(n).fill(Terrain.Grass),
+    resource: new Uint8Array(n),
+    blocked: new Uint8Array(n),
+    buildingAt: new Int16Array(n).fill(-1),
+    pathLevel: new Uint8Array(n),
+    height: new Float32Array(n).fill(0.6),
+  };
+}
+
+function wideMesh(): TerrainMesh {
+  const map = wideMap();
+  return new TerrainMesh(
+    map,
+    new HeightField(map.height, WIDE),
+    () => Spoil.None,
+  );
+}
+
+describe('terrain chunking', () => {
+  /** The lattice edge in quads, read off the shared attribute rather than
+   * assumed — SEG is the painter's business, not this test's. */
+  function latticeEdge(m: TerrainMesh): number {
+    const first = m.group.children[0] as THREE.Mesh;
+    const verts = first.geometry.getAttribute('position').count;
+    return Math.round(Math.sqrt(verts)) - 1;
+  }
+
+  /** Every triangle every chunk draws, as [a, b, c] vertex indices. */
+  function triangles(m: TerrainMesh): number[][] {
+    const out: number[][] = [];
+    for (const child of m.group.children) {
+      const index = (child as THREE.Mesh).geometry.index!;
+      for (let i = 0; i < index.count; i += 3) {
+        out.push([index.getX(i), index.getX(i + 1), index.getX(i + 2)]);
+      }
+    }
+    return out;
+  }
+
+  it('covers every quad of the lattice exactly once', () => {
+    const m = wideMesh();
+    const grid = latticeEdge(m);
+    const row = grid + 1;
+    const tris = triangles(m);
+    expect(tris).toHaveLength(grid * grid * 2);
+
+    // Both triangles of a quad span the same two rows and columns, so the
+    // lowest row and lowest column among a triangle's three vertices name
+    // the quad it belongs to. (Its lowest vertex *index* does not: three
+    // winds the second triangle from the north-east corner.) Counting
+    // those says how many times each quad is drawn — twice for every quad
+    // on the lattice and nothing else. A chunk that dropped a row leaves
+    // zeroes; one that overlapped its neighbour leaves fours.
+    const drawn = new Map<number, number>();
+    for (const t of tris) {
+      const r = Math.min(...t.map(v => (v / row) | 0));
+      const c = Math.min(...t.map(v => v % row));
+      const quad = r * grid + c;
+      drawn.set(quad, (drawn.get(quad) ?? 0) + 1);
+    }
+    for (let r = 0; r < grid; r++) {
+      for (let c = 0; c < grid; c++) {
+        expect(drawn.get(r * grid + c)).toBe(2);
+      }
+    }
+    expect(drawn.size).toBe(grid * grid);
+  });
+
+  it('cuts the lattice into more than one chunk', () => {
+    expect(wideMesh().group.children.length).toBeGreaterThan(1);
+  });
+
+  it('bounds each chunk to its own ground, not the whole map', () => {
+    const m = wideMesh();
+    for (const child of m.group.children) {
+      const geo = (child as THREE.Mesh).geometry;
+      // Set explicitly, because three derives bounds from the whole shared
+      // position attribute and pays no attention to the index — every
+      // chunk would claim the whole valley, and none would ever be
+      // rejected, which is the entire point of the split.
+      expect(geo.boundingSphere).not.toBeNull();
+      expect(geo.boundingSphere!.radius).toBeLessThan(WIDE_PLAY / 2);
+      expect(geo.boundingBox).not.toBeNull();
+    }
+  });
+
+  it('re-derives a sculpted chunk\u2019s bounds', () => {
+    // The editor's path: move the ground, then ask for the culling bounds
+    // back. Before the split this was one computeBoundingSphere over the
+    // whole lattice; now every chunk has a box of its own to bring up to
+    // date, and a chunk left on its old one culls away ground the player
+    // just raised into view.
+    const map = wideMap();
+    const m = new TerrainMesh(
+      map,
+      new HeightField(map.height, WIDE),
+      () => Spoil.None,
+    );
+    const grid = latticeEdge(m);
+    const boxes = m.group.children.map(
+      c => (c as THREE.Mesh).geometry.boundingBox!.max.y,
+    );
+    // Raise one tile well inside the play square into a hill.
+    const tile = tileIdx(20, 20, WIDE);
+    map.height[tile] = 9;
+    m.reheightTiles([tile]);
+    m.refreshBounds();
+    const after = m.group.children.map(
+      c => (c as THREE.Mesh).geometry.boundingBox!.max.y,
+    );
+    // Exactly the chunks the hill reaches grew; the rest stand where they
+    // were, which is what makes the bounds worth having.
+    expect(after.some((y, i) => y > boxes[i]!)).toBe(true);
+    expect(after.every((y, i) => y >= boxes[i]!)).toBe(true);
+    expect(grid).toBeGreaterThan(0);
+  });
+
+  it('indexes a chunk as narrowly as the lattice allows', () => {
+    // three sizes the lattice's own index by its vertex count, and a chunk
+    // that always took the wider type would hand the GPU a Uint32 index
+    // over a lattice that fits in sixteen bits: twice the memory, and an
+    // extension to ask for on the WebGL1 path. The narrow map here and the
+    // wide one below straddle that boundary.
+    for (const child of mesh(blankMap()).group.children) {
+      expect((child as THREE.Mesh).geometry.index!.array).toBeInstanceOf(
+        Uint16Array,
+      );
+    }
+    for (const child of wideMesh().group.children) {
+      expect((child as THREE.Mesh).geometry.index!.array).toBeInstanceOf(
+        Uint32Array,
+      );
+    }
+  });
+
+  it('gives every chunk the same colour buffer to paint into', () => {
+    const m = wideMesh();
+    const first = (m.group.children[0] as THREE.Mesh).geometry.getAttribute(
+      'color',
+    );
+    for (const child of m.group.children) {
+      // One buffer, uploaded once, painted in runs by repaintTiles. Two
+      // buffers meeting along a shared edge would be two colours claiming
+      // one vertex.
+      expect((child as THREE.Mesh).geometry.getAttribute('color')).toBe(first);
+    }
   });
 });

@@ -102,6 +102,41 @@ export function spoilOf(type: BuildingTypeId | undefined): SpoilKind {
 export type SpoilLookup = (buildingId: number) => SpoilKind;
 
 /**
+ * Chunk edge, in tiles.
+ *
+ * The ground is one lattice of `play * SEG` quads a side — 663,552
+ * triangles on the default valley, the largest single thing in the scene
+ * by a wide margin — and as one mesh it was drawn whole on every frame,
+ * however little of it the camera framed. Cut into chunks it culls like
+ * anything else.
+ *
+ * This is a far better trade than the same cut in ScatterMesh, and for one
+ * reason: the ground is a single material, so a chunk costs exactly one
+ * draw call, where a chunk of scatter costs one per archetype standing in
+ * it. That is what pays for chunks small enough to track the frame
+ * closely. Swept with tools/perf/renderProbe.mjs on seed 7 of the default
+ * valley, reading the main pass, which is the only one the ground is in
+ * (it receives shadows and casts none):
+ *
+ *     edge   calls   main-pass triangles
+ *     none     400   1,109,056   (one mesh for the whole lattice)
+ *       32     406     961,608
+ *       16     413     703,550
+ *        8     437     620,586
+ *
+ * Sixteen is the knee, and by a wide margin: the step down to it buys
+ * 258,000 triangles for seven draw calls, and the step past it buys 83,000
+ * for twenty-four. Ten times the price for a fifth of the goods.
+ *
+ * The chunks share one set of vertex attributes and differ only in their
+ * index, so nothing about the painting below changes: a vertex has the
+ * same global number it always had, the colour buffer is still one buffer
+ * uploaded in runs, and a boundary vertex is one vertex referenced by two
+ * chunks rather than two vertices that could drift apart into a seam.
+ */
+export const TERRAIN_CHUNK_TILES = 16;
+
+/**
  * The ground: one high-resolution mesh painted like a stylized RTS map.
  * Macro layer: per-tile classes (grass, water) sampled through a noise-warped
  * lookup so shorelines wander organically. Meso layer: meadow noise blends
@@ -111,8 +146,21 @@ export type SpoilLookup = (buildingId: number) => SpoilKind;
  * filled squares. Micro layer: a generated blade-speckle detail texture
  * multiplied over everything.
  */
+/** One square of the ground: a mesh indexing its own quads out of the
+ * shared lattice, and the vertex block those quads span. */
+interface TerrainChunk {
+  mesh: THREE.Mesh;
+  /** Vertex rows/columns the chunk covers, inclusive — its quads run to
+   * one short of the last of each. */
+  r0: number;
+  r1: number;
+  c0: number;
+  c1: number;
+}
+
 export class TerrainMesh {
-  readonly mesh: THREE.Mesh;
+  readonly group = new THREE.Group();
+  #chunks: TerrainChunk[] = [];
   #colorAttr: THREE.BufferAttribute;
   #geometry: THREE.PlaneGeometry;
   /** #geometry.attributes.position, memoized — see #paintVertex. */
@@ -216,8 +264,100 @@ export class TerrainMesh {
       vertexColors: true,
       map: makeGroundTexture(play),
     });
-    this.mesh = new THREE.Mesh(this.#geometry, material);
-    this.mesh.receiveShadow = true;
+    this.#buildChunks(material);
+  }
+
+  /**
+   * Cut the lattice into chunk meshes.
+   *
+   * Each one carries its own index and borrows every attribute from
+   * #geometry, which from here on is the lattice's owner rather than
+   * anything drawn: it holds the buffers the chunks point at, and it is
+   * still what computeVertexNormals and the sculpting path work on.
+   *
+   * The indices are sliced out of the one PlaneGeometry built rather than
+   * derived afresh. A quad's six indices sit at a known offset in that
+   * array, and a row of quads is contiguous, so a chunk row is one copy —
+   * and, more to the point, the winding is three's own rather than a
+   * re-derivation of it that could come out inside-out.
+   */
+  #buildChunks(material: THREE.Material): void {
+    const grid = this.#grid;
+    const geometry = this.#geometry;
+    const master = geometry.index!.array;
+    // Match the master's index width rather than always taking the wider
+    // of the two. three sizes its own by the vertex count, so a lattice
+    // that fits in sixteen bits gets a Uint16 index — and handing the GPU
+    // a Uint32 one there is twice the memory for nothing, and asks for
+    // OES_element_index_uint on the WebGL1 path the renderer still
+    // tolerates (see GameRenderer.gpuReady). Every valley the game ships
+    // is wide enough to need Uint32 either way; a narrow one reached
+    // through ?size= is not.
+    const narrow = master instanceof Uint16Array;
+    const step = TERRAIN_CHUNK_TILES * SEG;
+    for (let r0 = 0; r0 < grid; r0 += step) {
+      const r1 = Math.min(grid, r0 + step);
+      for (let c0 = 0; c0 < grid; c0 += step) {
+        const c1 = Math.min(grid, c0 + step);
+        const total = (r1 - r0) * (c1 - c0) * 6;
+        const index = narrow ? new Uint16Array(total) : new Uint32Array(total);
+        let n = 0;
+        for (let r = r0; r < r1; r++) {
+          const from = (r * grid + c0) * 6;
+          const to = (r * grid + c1) * 6;
+          index.set(master.subarray(from, to), n);
+          n += to - from;
+        }
+        const geo = new THREE.BufferGeometry();
+        for (const name of ['position', 'normal', 'uv'] as const) {
+          geo.setAttribute(name, geometry.attributes[name]!);
+        }
+        geo.setAttribute('color', this.#colorAttr);
+        geo.setIndex(new THREE.BufferAttribute(index, 1));
+        const mesh = new THREE.Mesh(geo, material);
+        mesh.receiveShadow = true;
+        const chunk: TerrainChunk = {mesh, r0, r1, c0, c1};
+        this.#chunks.push(chunk);
+        this.group.add(mesh);
+      }
+    }
+    this.refreshBounds();
+  }
+
+  /**
+   * Give every chunk the sphere and box culling tests it against.
+   *
+   * They have to be set rather than computed: three derives a geometry's
+   * bounds from the whole position attribute and pays no attention to the
+   * index, so every chunk would claim the whole valley and none of them
+   * would ever be rejected — which is the entire point of the split. The
+   * chunk's own vertex block gives the exact box instead.
+   */
+  #boundChunk(chunk: TerrainChunk): void {
+    const row = this.#grid + 1;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let r = chunk.r0; r <= chunk.r1; r++) {
+      const base = r * row;
+      for (let c = chunk.c0; c <= chunk.c1; c++) {
+        const y = this.#vertY[base + c]!;
+        if (y < lo) lo = y;
+        if (y > hi) hi = y;
+      }
+    }
+    const x0 = this.#p0 + chunk.c0 / SEG;
+    const x1 = this.#p0 + chunk.c1 / SEG;
+    const z0 = this.#p0 + chunk.r0 / SEG;
+    const z1 = this.#p0 + chunk.r1 / SEG;
+    const geo = chunk.mesh.geometry;
+    geo.boundingBox = new THREE.Box3(
+      new THREE.Vector3(x0, lo, z0),
+      new THREE.Vector3(x1, hi, z1),
+    );
+    geo.boundingSphere = new THREE.Sphere(
+      new THREE.Vector3((x0 + x1) / 2, (lo + hi) / 2, (z0 + z1) / 2),
+      Math.hypot((x1 - x0) / 2, (hi - lo) / 2, (z1 - z0) / 2),
+    );
   }
 
   /** Recolor every vertex from current map state. */
@@ -392,9 +532,11 @@ export class TerrainMesh {
     this.#colorAttr.needsUpdate = true;
   }
 
-  /** Re-derive the culling sphere after sculpting (cheap; call on stroke end). */
+  /** Re-derive the culling bounds after sculpting (cheap; call on stroke
+   * end). Only the height of a chunk's box can have moved — its ground
+   * footprint is fixed by the lattice. */
   refreshBounds(): void {
-    this.#geometry.computeBoundingSphere();
+    for (const chunk of this.#chunks) this.#boundChunk(chunk);
   }
 
   /**
