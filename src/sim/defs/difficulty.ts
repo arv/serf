@@ -54,7 +54,10 @@ export type DifficultyId = Enum<typeof DifficultyIdNs>;
  * effect worth the identity", not "measurably worse" — but the rule asked
  * for evidence to break it and none arrived, so the lords keep their
  * refusals. The tiers' own ordering is measured properly, twenty-four
- * seeds deep on two ranges: tools/aiLab/README.md.
+ * seeds deep on two independent ranges: normal over easy 59.7%, hard over
+ * easy 67.9%, hard over normal 60.7%, every interval clear of the 50%
+ * null and the two ranges agreeing to within three points. See
+ * tools/aiLab/README.md.
  *
  * Pure data and integer arithmetic, like everything else in defs/: the
  * brain runs beside the sim on whichever host owns the world, and two

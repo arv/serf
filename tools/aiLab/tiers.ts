@@ -22,7 +22,6 @@ import {AiSeats} from '../../src/sim/aiSeats.ts';
  * not a result.
  */
 import {
-  AI_STRATEGIES,
   AI_STRATEGY_KEYS,
   AI_STRATEGY_ORDER,
   type AiStrategyId,

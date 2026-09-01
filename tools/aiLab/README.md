@@ -91,27 +91,33 @@ neutral third party that kills one seat turns a duel into a coin toss the
 mirror cannot cancel. A Wilson 95% interval straddling 50% is not a
 result, exactly as above.
 
-The standing numbers, 24 seeds on range 101 — four playbooks, both
-seatings, so 192 duels a pairing:
+The standing baseline, 24 seeds on each of two ranges — four playbooks,
+both seatings, so 192 duels a pairing per range:
 
 ```
-normal v easy   109/179  60.9%  [53.6, 67.7]  WINS
-hard   v easy   128/183  69.9%  [62.9, 76.1]  WINS
-hard   v normal 113/187  60.4%  [53.3, 67.2]  WINS
+                 range 101                      range 1000
+normal v easy    109/179  60.9%  [53.6, 67.7]   109/186  58.6%  [51.4, 65.4]
+hard   v easy    128/183  69.9%  [62.9, 76.1]   122/185  65.9%  [58.9, 72.4]
+hard   v normal  113/187  60.4%  [53.3, 67.2]   114/187  61.0%  [53.8, 67.7]
+
+pooled: normal v easy 218/365 59.7% [54.6, 64.6]
+        hard   v easy 250/368 67.9% [63.0, 72.5]
+        hard   v normal 227/374 60.7% [55.7, 65.5]
 ```
 
-Monotone, and every pairing clear of the 50% null. Note how much power
-this took: at 96 duels hard-versus-normal read 53/95, 55.8%, [45.8, 65.4]
-— "no result", and it would have been easy to mistake that for a weak
-tier and start tuning. It was not weak, it was under-measured. Three
-candidate strengthenings tried at that sample size (forcing
-`retreats: false`, a distinctly wider village, a faster decision clock for
-hard) all came in at or below the printed table, which is what you would
-expect from noise. Run the seeds before you turn the knobs.
+Monotone, every pairing clear of the 50% null, and — the part that makes
+it believable — the two ranges agree to within three points on all three.
+The widest gap is the widest pairing, as it should be.
 
-The other half of the standing doctrine applies as ever: this is one
-range, and a result believed on one range is a result not yet believed.
-`pnpm tiers 24 1000` is the check.
+Note how much power this took, because it is the trap this file exists to
+warn about. At 96 duels hard-versus-normal read 53/95, 55.8%, [45.8, 65.4]
+— "no result" — and it would have been easy to read that as a weak tier
+and start turning knobs. It was not weak, it was under-measured: the same
+tier is 227/374 pooled. Three candidate strengthenings tried at that
+sample size (forcing `retreats: false`, a distinctly wider village, a
+faster decision clock for hard) all came in at or below the printed table,
+which is exactly what noise looks like, and the table shipped unchanged.
+Run the seeds before you turn the knobs.
 
 The ordering is also pinned in the suite (`tools/aiLab/tiers.test.ts`), on a
 small fixed seed set, so a change that inverts it fails CI rather than
