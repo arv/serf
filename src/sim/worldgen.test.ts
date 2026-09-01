@@ -181,5 +181,11 @@ describe('N-player worldgen', () => {
     expect([...a.map.terrain]).toEqual([...b.map.terrain]);
     expect([...a.map.resource]).toEqual([...b.map.resource]);
     expect(a.rngState).toBe(b.rngState);
+    // The deal too, which is the half a networked match leans on: the
+    // server builds the world from the room's config (server/src/rooms.ts)
+    // and a replay of that match rebuilds it from the config the room
+    // recorded. Two builds that disagreed about who sat where would put
+    // every castle in a replay under the wrong banner.
+    expect(a.starts).toEqual(b.starts);
   });
 });
