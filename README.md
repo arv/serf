@@ -140,8 +140,11 @@ screen fighting the lock screen would be spending the battery of a game
 nobody started; quitting to it releases, without a reload to do it. Where
 the API is absent (Firefox on Android, any plain-http build) or the answer
 is no (a permissions policy, an OS in battery saver — Chromium refuses
-outright there) nothing is retried and nothing is broken: the screen dims
-on its own schedule, exactly as it did before.
+outright there) nothing is broken: the screen dims on its own schedule,
+exactly as it did before. Nor is a refusal chased — no retry on a timer, and
+none on the spot against an OS that has just said no. The next return to
+visible asks again the way every return does, and the complaint is logged
+once rather than once per return.
 
 ### Navigation
 
