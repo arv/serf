@@ -44,9 +44,16 @@ export interface PlayerSnap {
    * Warlord…”). Public knowledge — the lobby shows the deal — and absent
    * for humans. */
   strategy?: AiStrategyId;
-  /** An AI seat's difficulty tier, for naming it on screen beside the
-   * playbook. Public knowledge like the deal, and absent for humans and
-   * for a seat playing the printed game. */
+  /**
+   * The tier this seat is playing at. Public knowledge like the deal, and
+   * on EVERY seat rather than the computer ones — unlike `strategy` above,
+   * which only a computer has. A tier is a fact about the match, and the
+   * human seat's copy is the one the end card reads to carry the setting
+   * into the next commission (ui/Hud.tsx).
+   *
+   * Absent only when the match named no tier at all, which reads as
+   * `normal`; a match that named `normal` outright carries it.
+   */
   difficulty?: DifficultyId;
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
