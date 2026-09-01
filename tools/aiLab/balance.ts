@@ -2,6 +2,7 @@
  * The balance sweep: every playbook, many seeds, one table.
  *
  *   node --experimental-strip-types tools/aiLab/balance.ts [seeds] [offset]
+ *                                                            [--difficulty x]
  *
  * Each run is one playbook alone on its own campaign map — the same drive
  * winnable.test.ts does, which is the game's own definition of "can this be
@@ -15,6 +16,15 @@
  * whether the result survives — several plausible changes have died exactly
  * there, having looked like gains on the range they were tuned against.
  * Tune on one range, believe it only after another.
+ *
+ * `--difficulty easy|normal|hard` runs every playbook at one tier, which is
+ * how the tiers themselves are calibrated. The instrument suits the
+ * question: a tier is a change to ONE seat's strength, and this sweep asks
+ * exactly how often that seat takes the map and how fast, against an
+ * opponent — the ground and the bandits — that is identical at every
+ * setting. (The mirrored bake-off is the instrument for seat-versus-seat,
+ * and it does not carry a tier yet.) Read the result the way every other
+ * number here is read: on two ranges, or not at all.
  */
 import type {Enum} from '../../src/shared/enum.ts';
 import {
@@ -24,12 +34,18 @@ import {
   AI_STRATEGY_ORDER,
 } from '../../src/sim/defs/aiStrategies.ts';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import {
+  DIFFICULTY_KEYS,
+  type DifficultyId,
+  parseDifficultyId,
+} from '../../src/sim/defs/difficulty.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 import {AiBrain} from '../../src/sim/systems/ai.ts';
 import {tickWorld} from '../../src/sim/tick.ts';
 import {createWorld} from '../../src/sim/world.ts';
+import {intArgOrExit} from './args.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -56,7 +72,11 @@ const SOLDIERS = new Set<UnitTypeId>([
   UnitTypeId.archer,
 ]);
 
-function playCampaign(id: AiStrategyId, seed: number): Run {
+function playCampaign(
+  id: AiStrategyId,
+  seed: number,
+  difficulty: DifficultyId | undefined,
+): Run {
   // The seat names its playbook rather than being dealt one, so the world's
   // record of what it is playing agrees with the brain actually playing it.
   // Nothing downstream reads that record today — the economy rules take
@@ -64,11 +84,16 @@ function playCampaign(id: AiStrategyId, seed: number): Run {
   // itself is a trap for whatever reads it next. Safe for the numbers:
   // dealStrategies is a pure function of the seed and runs before the
   // world's Rng is constructed, so naming a playbook cannot move the map.
+  // The tier rides the seat, as it does in the game — the world deals it
+  // down and the brain reads it back. Not a mission, so nothing about the
+  // opening is scaled: what this sweep measures is the seat playing better
+  // or worse, never a seat that was handed more.
   const world = createWorld({
     seed,
+    difficulty,
     players: [{kind: PlayerKind.ai, strategy: id}],
   });
-  const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
+  const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size, difficulty);
   let levyTicks = 0;
   for (
     let t = 0;
@@ -115,52 +140,82 @@ function median(xs: number[]): number {
 const mean = (xs: number[]): number =>
   xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 
-function intArg(
-  raw: string | undefined,
-  fallback: number,
-  name: string,
-  min: number,
-): number {
-  if (raw === undefined) return fallback;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < min) {
+/**
+ * The positional arguments, with the `--difficulty <tier>` pair lifted out
+ * of them.
+ *
+ * The guard on `tierAt` is load-bearing, and its absence was a real bug:
+ * `indexOf` answers -1 when the flag is not there, `-1 + 1` is 0, and the
+ * filter then dropped argument ZERO. `balance.ts 32 1000` became
+ * `balance.ts 1000` — a thousand seeds from the default range instead of
+ * thirty-two from 1000 — so the one invocation this file's own README
+ * insists on, the second seed range, had been quietly running the first
+ * one twice. Exported so args.test.ts can hold the line.
+ */
+export function splitArgs(argv: readonly string[]): {
+  positional: string[];
+  tierRaw: string | undefined;
+  named: boolean;
+} {
+  const tierAt = argv.indexOf('--difficulty');
+  const named = tierAt >= 0;
+  return {
+    positional: argv.filter(
+      (a, i) =>
+        !(named && (i === tierAt || i === tierAt + 1)) && !a.startsWith('--'),
+    ),
+    tierRaw: named ? argv[tierAt + 1] : undefined,
+    named,
+  };
+}
+
+// Run only when this file IS the command, so the arg parsing above can be
+// imported and tested without playing 32 campaigns first — the same guard
+// tiers.ts uses for the same reason.
+if (process.argv[1]?.endsWith('balance.ts')) {
+  // Validated rather than coerced: Number('x') is NaN, and a NaN count runs
+  // zero campaigns and prints a table of NaN medians that looks like a result.
+  const {positional, tierRaw, named} = splitArgs(process.argv.slice(2));
+  const difficulty =
+    tierRaw === undefined ? undefined : parseDifficultyId(tierRaw);
+  if (named && difficulty === undefined) {
     console.error(
-      `${name} must be a whole number >= ${min} (got ${JSON.stringify(raw)})\n` +
-        'usage: balance.ts [seeds] [offset]',
+      `--difficulty wants one of ${Object.values(DIFFICULTY_KEYS).join(', ')}` +
+        ` (got ${JSON.stringify(tierRaw)})`,
     );
     process.exit(2);
   }
-  return n;
-}
+  const usage = 'balance.ts [seeds] [offset] [--difficulty easy|normal|hard]';
+  const count = intArgOrExit(positional[0], 32, 'seeds', 1, usage);
+  const offset = intArgOrExit(positional[1], 101, 'offset', 0, usage);
+  // Strided rather than consecutive: neighbouring seeds can generate valleys
+  // that rhyme, and a sweep wants independent maps.
+  const seeds = Array.from({length: count}, (_, i) => offset + i * 7);
+  const ids: readonly AiStrategyId[] = AI_STRATEGY_ORDER;
 
-// Validated rather than coerced: Number('x') is NaN, and a NaN count runs
-// zero campaigns and prints a table of NaN medians that looks like a result.
-const count = intArg(process.argv[2], 32, 'seeds', 1);
-const offset = intArg(process.argv[3], 101, 'offset', 0);
-// Strided rather than consecutive: neighbouring seeds can generate valleys
-// that rhyme, and a sweep wants independent maps.
-const seeds = Array.from({length: count}, (_, i) => offset + i * 7);
-const ids: readonly AiStrategyId[] = AI_STRATEGY_ORDER;
-
-console.log(`${count} seeds from ${offset}, ${MAX_TICKS} ticks each\n`);
-const everyWin: number[] = [];
-let wins = 0;
-let runs = 0;
-for (const id of ids) {
-  const res = seeds.map(s => playCampaign(id, s));
-  const won = res.filter(r => r.outcome === 'win');
-  everyWin.push(...won.map(r => r.tick));
-  wins += won.length;
-  runs += res.length;
+  const tierLabel = difficulty ? DIFFICULTY_KEYS[difficulty] : 'normal';
   console.log(
-    `${AI_STRATEGY_KEYS[id].padEnd(9)} win ${String(won.length).padStart(2)}/${res.length}` +
-      `  median ${String(median(won.map(r => r.tick))).padStart(6)}` +
-      `  dead ${res.filter(r => r.outcome === 'dead').length}` +
-      `  timeout ${res.filter(r => r.outcome === 'timeout').length}` +
-      `  pop ${mean(res.map(r => r.pop)).toFixed(1)}` +
-      `  army ${mean(res.map(r => r.army)).toFixed(1)}` +
-      `  towers ${mean(res.map(r => r.towers)).toFixed(1)}` +
-      `  levyTicks ${Math.round(mean(res.map(r => r.levyTicks)))}`,
+    `${count} seeds from ${offset}, ${MAX_TICKS} ticks each, difficulty ${tierLabel}\n`,
   );
+  const everyWin: number[] = [];
+  let wins = 0;
+  let runs = 0;
+  for (const id of ids) {
+    const res = seeds.map(s => playCampaign(id, s, difficulty));
+    const won = res.filter(r => r.outcome === 'win');
+    everyWin.push(...won.map(r => r.tick));
+    wins += won.length;
+    runs += res.length;
+    console.log(
+      `${AI_STRATEGY_KEYS[id].padEnd(9)} win ${String(won.length).padStart(2)}/${res.length}` +
+        `  median ${String(median(won.map(r => r.tick))).padStart(6)}` +
+        `  dead ${res.filter(r => r.outcome === 'dead').length}` +
+        `  timeout ${res.filter(r => r.outcome === 'timeout').length}` +
+        `  pop ${mean(res.map(r => r.pop)).toFixed(1)}` +
+        `  army ${mean(res.map(r => r.army)).toFixed(1)}` +
+        `  towers ${mean(res.map(r => r.towers)).toFixed(1)}` +
+        `  levyTicks ${Math.round(mean(res.map(r => r.levyTicks)))}`,
+    );
+  }
+  console.log(`\nTOTAL     win ${wins}/${runs}  median ${median(everyWin)}`);
 }
-console.log(`\nTOTAL     win ${wins}/${runs}  median ${median(everyWin)}`);

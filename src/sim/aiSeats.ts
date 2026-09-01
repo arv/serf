@@ -24,12 +24,20 @@ export class AiSeats {
   #brains: AiBrain[];
 
   constructor(world: World) {
-    // The playbook comes off the seat, not off the seat number: the world
-    // was dealt them at creation and has carried them through every save
-    // and restart since.
+    // The playbook AND the tier come off the seat: both were dealt at
+    // creation and both ride the save, so a reloaded match faces the same
+    // opponents playing the same way.
     this.#brains = world.players
       .filter(p => p.kind === PlayerKind.ai)
-      .map(p => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
+      .map(
+        p =>
+          new AiBrain(
+            p.id,
+            strategyOf(p.strategy),
+            world.map.size,
+            p.difficulty,
+          ),
+      );
   }
 
   get count(): number {

@@ -1,68 +1,100 @@
 import {For} from 'solid-js';
+import {
+  DIFFICULTIES,
+  DIFFICULTY_KEYS,
+  DIFFICULTY_ORDER,
+  type DifficultyId,
+} from '../sim/defs/difficulty.ts';
+import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
 
 /**
  * Match difficulty — the one dial the setup screens offer over how hard
  * the valley pushes back.
  *
- * Nothing reads it yet. It ships disabled, pinned to Normal, because the
- * row it occupies is the row that used to let a match name its opponents
- * seat by seat. Naming them was a designer's switch wearing a player's
- * clothes: it asked for a choice between four playbooks nobody had met,
- * and the answer that made the match interesting was always "surprise me".
- * What a player actually wants to say before a match is how hard it should
- * be, so that is the question the row asks now — on the skirmish pane and
- * in the War Council, where the pickers were, and in the campaign, which
- * never had a row at all.
+ * The row it occupies is the row that used to let a match name its
+ * opponents seat by seat. Naming them was a designer's switch wearing a
+ * player's clothes: it asked for a choice between four playbooks nobody
+ * had met, and the answer that made the match interesting was always
+ * "surprise me". What a player actually wants to say before a match is how
+ * hard it should be, so that is the question the row asks — on the
+ * skirmish pane and in the War Council, where the pickers were, and in the
+ * campaign, which never had a row at all.
  *
- * Disabled rather than absent so the shape of the setup screen is settled
- * before the balance work behind it lands: a control that appears later
- * moves everything under it, and a difficulty that quietly did nothing
- * would be worse than one that plainly says it cannot be changed yet.
+ * It shipped disabled and pinned to Normal, so the shape of the setup
+ * screen could settle before the balance work behind it landed. That work
+ * has landed (sim/defs/difficulty.ts), and the state arrives here as the
+ * file said it would.
+ *
+ * The tiers come off the sim's own table rather than a copy kept here: the
+ * ids ride saves, the lobby wire and ?difficulty=, and a menu with its own
+ * private spelling of them is a menu that can name a tier the sim will not
+ * honour.
  */
 
-export const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'] as const;
+/** What every match runs at until a player says otherwise. */
+export const DEFAULT_DIFFICULTY: DifficultyId = DifficultyIdNs.normal;
 
-export type Difficulty = (typeof DIFFICULTY_ORDER)[number];
-
-export const DIFFICULTY_NAMES: Record<Difficulty, string> = {
-  easy: 'Easy',
-  normal: 'Normal',
-  hard: 'Hard',
-};
-
-/** What every match runs at until the dial is wired up. */
-export const DEFAULT_DIFFICULTY: Difficulty = 'normal';
-
-/** The line under the row, on every setup screen. */
-export const DIFFICULTY_HINT = 'Not yet adjustable — every match runs Normal';
+/**
+ * What to say under the row, which is not one answer: the setting does two
+ * different jobs and a hint naming only one of them would be a lie half
+ * the time.
+ *
+ * On a commission it scales what the crown grants you — the larder, the
+ * hands in the yard, and how long the peace holds. In a skirmish it is
+ * purely how well the computer plays; nobody's opening moves, which is the
+ * part worth saying out loud, since "hard" in most games means the
+ * opponent was handed something. A sandbox with no opponents in it is told
+ * plainly that the setting has nothing to touch, rather than left to imply
+ * otherwise. And a joiner in a war council is told whose choice it is.
+ */
+export function difficultyHint(
+  kind: 'campaign' | 'skirmish' | 'sandbox' | 'guest',
+): string {
+  switch (kind) {
+    case 'campaign':
+      return 'Scales the opening the crown grants you, and the peace before the first raid';
+    case 'sandbox':
+      return 'Nothing to set: a sandbox has no opponents';
+    case 'guest':
+      return 'Set by the host';
+    case 'skirmish':
+      return 'How well the computer plays — never what it is given';
+  }
+}
 
 /**
  * The row itself, so the three screens that ask the question cannot drift
- * apart on a control none of them can change yet: the skirmish pane, the
- * campaign ledger, and the War Council.
- *
- * No signal behind it: the select is disabled and pinned to the default,
- * so there is nothing for a player to change, nothing for a launch URL to
- * carry and nothing for the lobby to patch. When the dial is wired, the
- * state arrives here.
+ * apart: the skirmish pane, the campaign ledger, and the War Council.
  */
-export function DifficultyRow() {
+export function DifficultyRow(props: {
+  value: DifficultyId;
+  onChange: (id: DifficultyId) => void;
+  hint: string;
+  /** A joiner watches the host's choice rather than making one. */
+  disabled?: boolean;
+}) {
   return (
     <div class="row">
       <div>
         <div class="row-label">Difficulty</div>
-        <div class="row-hint">{DIFFICULTY_HINT}</div>
+        <div class="row-hint">{props.hint}</div>
       </div>
       {/* `selected` on the option, not `value` on the select: Solid sets
           the property, and a select whose options are created after it
-          (by the For below) drops the assignment and shows the first row.
-          Nothing here ever changes the value, so the attribute is the
-          whole state. */}
-      <select disabled>
+          (by the For below) drops the assignment and shows the first row. */}
+      <select
+        disabled={props.disabled}
+        onChange={e => {
+          const id = DIFFICULTY_ORDER.find(
+            d => DIFFICULTY_KEYS[d] === e.currentTarget.value,
+          );
+          if (id !== undefined) props.onChange(id);
+        }}
+      >
         <For each={DIFFICULTY_ORDER}>
           {id => (
-            <option value={id} selected={id === DEFAULT_DIFFICULTY}>
-              {DIFFICULTY_NAMES[id]}
+            <option value={DIFFICULTY_KEYS[id]} selected={id === props.value}>
+              {DIFFICULTIES[id].name}
             </option>
           )}
         </For>

@@ -20,3 +20,7 @@ export const scoutFlees = 5 as const;
 export type scoutFlees = typeof scoutFlees;
 export const heraldMarch = 6 as const;
 export type heraldMarch = typeof heraldMarch;
+export const focusFire = 7 as const;
+export type focusFire = typeof focusFire;
+export const withdrawWounded = 8 as const;
+export type withdrawWounded = typeof withdrawWounded;

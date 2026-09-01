@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {AiSeats} from './aiSeats';
+import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
+import {deserializeWorld, serializeWorld} from './save.ts';
 import {tickWorld} from './tick';
 import {createWorld} from './world';
 
@@ -63,5 +65,85 @@ describe('AI seats', () => {
     const seats = new AiSeats(world);
     expect(seats.count).toBe(0);
     expect(seats.decide(world)).toEqual([]);
+  });
+});
+
+/**
+ * The difficulty tier's wiring, on the same principle as the seats above:
+ * the tiers themselves are covered by defs/difficulty.test.ts, and what is
+ * covered here is that the setting travels — config to world to seat to
+ * brain — and survives the round trip a save makes.
+ */
+describe('AI seats at a difficulty', () => {
+  it('deals the match tier onto every seat, letting a seat name its own', () => {
+    const world = createWorld({
+      seed: 3,
+      difficulty: DifficultyId.hard,
+      players: [
+        {kind: PlayerKind.human},
+        {kind: PlayerKind.ai},
+        {kind: PlayerKind.ai, difficulty: DifficultyId.easy},
+      ],
+      adminEnabled: false,
+    });
+    expect(world.players.map(p => p.difficulty)).toEqual([
+      DifficultyId.hard,
+      DifficultyId.hard,
+      DifficultyId.easy,
+    ]);
+    const seats = new AiSeats(world);
+    expect(seats.brainFor(1)?.difficulty).toBe(DifficultyId.hard);
+    expect(seats.brainFor(2)?.difficulty).toBe(DifficultyId.easy);
+  });
+
+  it('leaves a match that names no tier playing the printed game', () => {
+    const world = createWorld({
+      seed: 3,
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+      adminEnabled: false,
+    });
+    expect(world.players[1]!.difficulty).toBeUndefined();
+    expect(new AiSeats(world).brainFor(1)?.difficulty).toBeUndefined();
+  });
+
+  it('faces the same opponents at the same tier across a save', () => {
+    // The promise PlayerState.difficulty exists for: brains are rebuilt
+    // from scratch on a reload, and an opponent that got easier across one
+    // would be as much a bug as one that changed its opening.
+    const world = createWorld({
+      seed: 3,
+      difficulty: DifficultyId.hard,
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+      adminEnabled: false,
+    });
+    const reloaded = deserializeWorld(serializeWorld(world));
+    expect(new AiSeats(reloaded).brainFor(1)?.difficulty).toBe(
+      DifficultyId.hard,
+    );
+  });
+
+  it('thinks on a slower beat when the seat is easy', () => {
+    // The lever asked for by name: an easy lord is not dumber, it is late.
+    // Seat 1 stands in for both tiers so the stagger offset is held fixed.
+    const world = createWorld({
+      seed: 3,
+      difficulty: DifficultyId.easy,
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+      adminEnabled: false,
+    });
+    const easy = new AiSeats(world).brainFor(1)!;
+    const printed = new AiSeats(
+      createWorld({
+        seed: 3,
+        players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+        adminEnabled: false,
+      }),
+    ).brainFor(1)!;
+    const beats = (b: {shouldDecide(t: number): boolean}): number => {
+      let n = 0;
+      for (let t = 0; t < 400; t++) if (b.shouldDecide(t)) n++;
+      return n;
+    };
+    expect(beats(easy)).toBe(beats(printed) / 2);
   });
 });

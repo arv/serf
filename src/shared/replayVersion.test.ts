@@ -139,8 +139,26 @@ import {REPLAY_VERSION} from './replayVersion';
 // take what the man is carrying as its floor: armour research is older
 // than the field, so an older file already holds soldiers above their
 // kind's number. Load-time reading only; no tick moved.)
-const EXPECTED_VERSION = 38;
-const EXPECTED_HASH = '70ecb828233127d5d9880c1a1b410fac';
+// 39 for the difficulty setting — and specifically for its campaign half.
+// The computer seats playing harder or easier is brain only (a transform
+// over composed knobs, plus a slower decision beat on easy), which moves no
+// recorded tick; a commission scaling the human seat's larder, hands and
+// raid clock by the tier is config the world is BUILT from, and an older
+// build drops the field and rebuilds a different opening — as does the
+// commission's raid pressure, which moves waves onto different ticks at a
+// different size, and a seventeenth command kind (`focusTarget`) that an
+// older sanitizeCommand would screen out of a log recorded here. See
+// replayVersion.ts. It sits on top of main's own 38 (the seats dealt
+// their start spots), which is why this is 39 and not 38.
+// (Still 39 after `easy` was retuned — spears only, a
+// muster bar it cannot reach, its village at the clamps — and after the
+// stance cascade became tierable: all of it is brain-only, and playback
+// never runs a brain. Still 39 after the beat stagger was generalized from a
+// fixed 5-tick stride to slots across the interval — the same offsets, 0, 5,
+// 10, 15, at the printed cadence, so a normal seat's beats did not move; and
+// brains do not run in playback anyway.)
+const EXPECTED_VERSION = 39;
+const EXPECTED_HASH = 'd742a64125f226d6d3bfe327382cd7fd';
 
 /**
  * Everything a replay's playback depends on, as raw source:

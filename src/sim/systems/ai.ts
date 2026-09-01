@@ -1,6 +1,6 @@
 import type {Enum} from '../../shared/enum.ts';
 import {tileCount, tileIdx, tileX, tileY} from '../../shared/grid.ts';
-import {exactDist} from '../../shared/math.ts';
+import {clamp, exactDist} from '../../shared/math.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {
   addGarrison,
@@ -24,6 +24,15 @@ import {
   repairBill,
 } from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {
+  applyDifficulty,
+  difficultyOf,
+  type DifficultyId,
+  scaleDecisionInterval,
+  scaleIntelTrust,
+  scaleMinSighting,
+  scaleStanceClock,
+} from '../defs/difficulty.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries, type GoodAmounts} from '../defs/goods.ts';
 import * as PostureId from '../defs/postureIdEnum.ts';
@@ -112,8 +121,18 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
 export const AI_PACING = {
   /** Ticks between one seat's decision beats. */
   decisionInterval: 20,
-  /** Beat offset per seat id, so two brains never fire on the same tick. */
-  seatStagger: 5,
+  /**
+   * Seats to spread the beats of, so two brains never fire on the same
+   * tick. The offset is `floor(playerId * interval / seatSlots)` rather
+   * than a fixed stride, which is the same thing at the printed cadence —
+   * four slots into twenty ticks is 0, 5, 10, 15, exactly the stride this
+   * used to be — and keeps the guarantee when a difficulty tier moves the
+   * interval (defs/difficulty.ts). A fixed stride does not: at an interval
+   * of 10 it wraps, and seats 0 and 2 think on the same tick.
+   *
+   * Four because the world has start layouts for one through four seats.
+   */
+  seatSlots: 4,
   /**
    * Impatience: a muster bar that is never met is a game that never ends.
    * Two exhausted villages with the seams mined out can each sit below
@@ -202,7 +221,12 @@ export const AI_PACING = {
  */
 export const AI_STALL = {
   /** Ticks between progress samples. A multiple of `decisionInterval`, so
-   * the sample lands on a beat rather than near one. */
+   * the sample lands on a beat rather than near one — and of the stretched
+   * interval an easy seat runs on (defs/difficulty.ts), which is 40. The
+   * gate is elapsed-time rather than modulo, so a period that stopped
+   * dividing an interval would only drift the sample onto the next beat;
+   * it is a multiple because landing ON one is tidier, not because
+   * anything breaks otherwise. */
   samplePeriod: 2_000,
   /**
    * Samples in the window. The shortest stall this can report is therefore
@@ -240,6 +264,16 @@ export const AI_STANCE = {
   /** A switch holds at least this long (the break-in excepted). */
   dwell: 1000,
 } as const;
+
+/**
+ * Which tick inside its interval a seat thinks on. Spread over the whole
+ * interval rather than a fixed stride, so the "no two brains on one tick"
+ * guarantee holds at any interval a difficulty tier sets — see
+ * AI_PACING.seatSlots.
+ */
+export function beatOffset(playerId: number, interval: number): number {
+  return Math.floor((playerId * interval) / AI_PACING.seatSlots) % interval;
+}
 
 /** The stance engine's three states. What each maps to lives in the
  * playbook (AiStrategy.stances); an unset opening means the printed
@@ -496,6 +530,12 @@ const MILITARY = new Set<UnitTypeId>([
  * seat into emptying its yard. */
 const MIN_SORTIE = 3;
 
+/** Past this a weapon reaches rather than swings — the same line
+ * systems/combat.ts draws when it decides who kites. A shooter can choose
+ * its target without moving, which is the whole reason focus fire is a
+ * shooter's verb. */
+const MELEE_REACH = 2;
+
 /** The war behaviors, spelled — the lab's `--war` flag and its traces. */
 export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.harassSortie]: 'harassSortie',
@@ -504,6 +544,8 @@ export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.retreatMarch]: 'retreatMarch',
   [WarBehaviorIdNs.scoutFlees]: 'scoutFlees',
   [WarBehaviorIdNs.heraldMarch]: 'heraldMarch',
+  [WarBehaviorIdNs.focusFire]: 'focusFire',
+  [WarBehaviorIdNs.withdrawWounded]: 'withdrawWounded',
 };
 
 export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
@@ -513,6 +555,8 @@ export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
   WarBehaviorIdNs.retreatMarch,
   WarBehaviorIdNs.scoutFlees,
   WarBehaviorIdNs.heraldMarch,
+  WarBehaviorIdNs.focusFire,
+  WarBehaviorIdNs.withdrawWounded,
 ];
 
 const WAR_BEHAVIOR_BY_KEY = new Map<string, WarBehaviorId>(
@@ -551,6 +595,27 @@ export const AI_WAR = {
    * whose force reached our yard most recently inside this window. */
   grudgeFor: 6_000,
   /**
+   * Micro (Difficulty.micro), such as a brain can do it here. There is
+   * exactly one order that names a target and one that moves people, so
+   * this is focus fire and pulling the wounded out — no more.
+   *
+   * A soldier below this share of his kind's health is pulled out of the
+   * line. Not lower: damage is flat, so he was worth his whole output
+   * until the blow that would have killed him, and pulling him early
+   * spends real damage to save him. Not higher either — combat power goes
+   * roughly with the square of the headcount, so thinning the line is
+   * paid for immediately and the man is only worth something later.
+   */
+  woundedBelow: 0.34,
+  /** How far back a pulled soldier steps. Far enough to leave the
+   * acquire radius that would drag him back in, no further: he is meant to
+   * rejoin the next fight, not walk home. */
+  withdrawStep: 7,
+  /** Bows that must bear on the same man before focus fire is worth an
+   * order. Two already both hit whatever is nearest; the gain starts where
+   * the volley would otherwise be spread. */
+  focusMin: 3,
+  /**
    * The herald's telegraph: a full assault on a rival CASTLE is announced
    * this many ticks before the army moves — fifteen seconds a defender can
    * actually act on, which is the whole point of a warning. A deliberate
@@ -574,6 +639,44 @@ const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, number>> = {
 export class AiBrain {
   readonly playerId: Owner;
   readonly strategy: AiStrategy;
+  /**
+   * The tier this seat plays at (defs/difficulty.ts), or undefined for the
+   * printed game. Dealt onto the seat when the world was made, so it rides
+   * the save and a resumed match exactly as the playbook does — an
+   * opponent that got easier across a reload would be a bug of the same
+   * kind as one that changed its opening.
+   */
+  readonly difficulty: DifficultyId | undefined;
+  /**
+   * The printed playbook with the tier already applied — the source for the
+   * three knobs no stance and no advice can move (`harass`, `retreats`,
+   * `scoutRefreshAfter`), which are therefore the same every beat and worth
+   * computing once. Everything a stance or advice CAN move is tiered inside
+   * decide() instead, over the composed result; see applyDifficulty for why
+   * the order matters.
+   */
+  readonly #tiered: AiStrategy;
+  /** Ticks between this seat's decision beats — the printed cadence,
+   * stretched by the tier (defs/difficulty.ts). Fixed for the seat's life,
+   * so it is resolved once here rather than on every tick. */
+  readonly #decisionInterval: number;
+  /**
+   * The intel and stance clocks this seat runs on — AI_INTEL.trustFor and
+   * `minSighting`, and the stance engine's evaluation and dwell periods —
+   * with the tier applied. Fixed for the seat's life, so they are resolved
+   * once here rather than read through a helper on every beat.
+   *
+   * Memory and mood, never vision: what the seat's people can SEE is the
+   * same at every setting (see Difficulty.intelTrustPct).
+   */
+  readonly #intelTrust: number;
+  readonly #minSighting: number;
+  readonly #stanceEval: number;
+  readonly #stanceDwell: number;
+  /** Whether this seat micros its soldiers (Difficulty.micro). Gates the
+   * two war behaviours that need it, on top of the lab's own `--war`
+   * ablation, so a tier without micro runs the pre-micro brain exactly. */
+  readonly #micro: boolean;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -655,6 +758,12 @@ export class AiBrain {
   #outpostDefenses = 0;
   #marchRetreats = 0;
   #scoutFled = 0;
+  /** Micro's fingerprints: men pulled out of a line, and focus orders
+   * given. Same reason every other verb keeps a counter — a behavior that
+   * never fires and one that fires without paying read identically in a
+   * win rate. */
+  #withdrawn = 0;
+  #focused = 0;
   #heralds = 0;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
@@ -747,9 +856,25 @@ export class AiBrain {
     this.#warBehaviors = new Set(ids);
   }
 
-  constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
+  constructor(
+    playerId: Owner,
+    strategy: AiStrategy,
+    mapSize: number,
+    difficulty?: DifficultyId,
+  ) {
     this.playerId = playerId;
     this.strategy = strategy;
+    this.difficulty = difficulty;
+    this.#tiered = applyDifficulty(strategy, difficulty);
+    this.#decisionInterval = scaleDecisionInterval(
+      AI_PACING.decisionInterval,
+      difficulty,
+    );
+    this.#intelTrust = scaleIntelTrust(AI_INTEL.trustFor, difficulty);
+    this.#minSighting = scaleMinSighting(AI_INTEL.minSighting, difficulty);
+    this.#micro = difficultyOf(difficulty).micro;
+    this.#stanceEval = scaleStanceClock(AI_STANCE.evalPeriod, difficulty);
+    this.#stanceDwell = scaleStanceClock(AI_STANCE.dwell, difficulty);
     this.#vision = new SeatVision(mapSize);
   }
 
@@ -827,6 +952,8 @@ export class AiBrain {
     scoutFled: number;
     heralds: number;
     stanceSwitches: number;
+    withdrawn: number;
+    focused: number;
   } {
     return {
       firstMarchTick: this.#firstMarchTick,
@@ -838,6 +965,8 @@ export class AiBrain {
       scoutFled: this.#scoutFled,
       heralds: this.#heralds,
       stanceSwitches: this.#stanceSwitches,
+      withdrawn: this.#withdrawn,
+      focused: this.#focused,
     };
   }
 
@@ -872,14 +1001,15 @@ export class AiBrain {
     });
   }
 
-  /** Is `tick` one of this seat's decision beats? (Seats stagger so two
-   * brains never fire on the same tick.) */
+  /**
+   * Is `tick` one of this seat's decision beats? (Seats stagger so two
+   * brains never fire on the same tick — an invariant that survives a
+   * stretched interval and is why a tier may only ever stretch it; see
+   * Difficulty.decisionIntervalPct.)
+   */
   shouldDecide(tick: number): boolean {
-    const {decisionInterval, seatStagger} = AI_PACING;
-    return (
-      tick % decisionInterval ===
-      (this.playerId * seatStagger) % decisionInterval
-    );
+    const interval = this.#decisionInterval;
+    return tick % interval === beatOffset(this.playerId, interval);
   }
 
   /** Read the world, emit this beat's commands. Pure apart from the brain's
@@ -903,16 +1033,25 @@ export class AiBrain {
     const baseY = sh.y + 1;
 
     // --- The stance, then the strategy it colors -----------------------------
-    // Three layers, later over earlier: the printed playbook is the seat's
-    // identity, the stance is its mood (war knobs only — see aiPostures.ts),
-    // and advice through the seam outranks both, so the lab's steering
-    // still measures what it always measured.
+    // Four layers, later over earlier. The printed playbook is the seat's
+    // identity, the stance is its mood (war knobs only — see
+    // aiPostures.ts), and advice through the seam outranks both, so the
+    // lab's steering still measures what it always measured. The
+    // difficulty tier then scales whatever came out — a TRANSFORM rather
+    // than a fourth object merged in among them, because the five knobs a
+    // stance sets are the five a tier most wants to move, and a tier
+    // merged under the stance would be erased by the seat's next mood
+    // while one merged over it would leave the stance engine mute (see
+    // applyDifficulty).
     this.#updateStance(world, baseX, baseY);
-    const s: AiStrategy = {
-      ...this.strategy,
-      ...this.#stanceKnobs(),
-      ...this.#override,
-    };
+    const s: AiStrategy = applyDifficulty(
+      {
+        ...this.strategy,
+        ...this.#stanceKnobs(),
+        ...this.#override,
+      },
+      this.difficulty,
+    );
     const stock = sh.stock;
     const techs = p.techs;
     const researched = (id: TechId): boolean => techs.researched.includes(id);
@@ -1236,6 +1375,11 @@ export class AiBrain {
       return commands;
     }
     this.#defendOutposts(world, mine, army, commands, baseX, baseY, spokenFor);
+    // Micro, last of the reactive verbs and only where the tier grants it:
+    // both read the fight as it stands, so they want every earlier verb's
+    // orders already on the board.
+    this.#withdrawWounded(world, army, commands, baseX, baseY, spokenFor);
+    this.#focusFire(world, army, commands, spokenFor);
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
     const idleFor = world.tick - this.#lastAttackTick;
     const cooled = idleFor > s.attackCooldown;
@@ -1409,7 +1553,7 @@ export class AiBrain {
         // march, recall, re-herald, for as long as anyone wandered by.
         // Mid-march the alarm wants a real force, and minSighting is
         // already where the intel draws that line.
-        this.#attacking ? AI_INTEL.minSighting : 1,
+        this.#attacking ? this.#minSighting : 1,
       )
     ) {
       // Someone is at the gates and the muster is not ready: everyone home,
@@ -1683,7 +1827,11 @@ export class AiBrain {
    * means in knobs is #stanceKnobs' business.
    */
   #updateStance(world: World, baseX: number, baseY: number): void {
-    const st = this.strategy.stances;
+    // The TIERED cascade: a difficulty may move when this seat stops
+    // opening and starts prosecuting the war (foundAfterArmy). Everything
+    // else about the cascade — which posture each state wears, whether a
+    // raid breaks the mood — is the playbook's own at every setting.
+    const st = this.#tiered.stances;
     const tick = world.tick;
     const underAttack = (): boolean =>
       hostileNear(
@@ -1708,8 +1856,8 @@ export class AiBrain {
       return;
     }
     if (tick < this.#stanceEvalDue) return;
-    this.#stanceEvalDue = tick + AI_STANCE.evalPeriod;
-    if (tick - this.#stanceSince < AI_STANCE.dwell) return;
+    this.#stanceEvalDue = tick + this.#stanceEval;
+    if (tick - this.#stanceSince < this.#stanceDwell) return;
     const want: StanceState =
       st.underAttackBreak && underAttack()
         ? STANCE_FORTIFY
@@ -1728,7 +1876,7 @@ export class AiBrain {
    * `--stances off`. */
   #stanceKnobs(): StanceKnobs | null {
     if (!this.#stancePolicy) return null;
-    const st = this.strategy.stances;
+    const st = this.#tiered.stances;
     const pick =
       this.#stanceState === STANCE_FORTIFY
         ? {posture: PostureId.fortify}
@@ -2121,7 +2269,7 @@ export class AiBrain {
     if (
       !pic ||
       pic.seenTick < 0 ||
-      world.tick - pic.seenTick > AI_INTEL.trustFor
+      world.tick - pic.seenTick > this.#intelTrust
     )
       return null;
     const {heavy, light, ranged} = rosterMuster(pic).counts;
@@ -2205,7 +2353,7 @@ export class AiBrain {
       this.#sortie = null;
       return;
     }
-    const maxAge = this.strategy.harass?.maxAge ?? 800;
+    const maxAge = this.#tiered.harass?.maxAge ?? 800;
     const target = world.buildings.get(st.targetId);
     const struck = !target || target.dead;
     let breaking = false;
@@ -2251,7 +2399,7 @@ export class AiBrain {
     spokenFor: Set<EntityId>,
   ): void {
     if (!this.#warOn(WarBehaviorIdNs.harassSortie)) return;
-    const cfg = this.strategy.harass;
+    const cfg = this.#tiered.harass;
     if (!cfg || this.#sortie) return;
     if (world.tick - this.#lastSortieTick <= cfg.cooldown) return;
     if (army.length <= cfg.size) return;
@@ -2324,6 +2472,156 @@ export class AiBrain {
    * (AI_WAR.outpostCooldown), never during a march, and never the last
    * men at home.
    */
+  /**
+   * Pull the wounded out of the line — the cheaper half of micro, and the
+   * half this sim pays best for.
+   *
+   * `strikeUnit` reads the attacker's PRINTED damage and never his
+   * remaining health, and nothing heals a soldier. So a man at a sliver
+   * was contributing everything a fresh man contributes right up to the
+   * blow that ends him, and a man pulled out keeps that for the next
+   * fight. What it costs is the line he leaves, immediately — which is why
+   * the threshold sits low (AI_WAR.woundedBelow) and why this is measured
+   * rather than assumed.
+   *
+   * A plain move order is the disengage: combatSystem drops the target of
+   * anything on one before it looks at targets at all.
+   */
+  #withdrawWounded(
+    world: World,
+    army: Unit[],
+    commands: SimCommand[],
+    baseX: number,
+    baseY: number,
+    spokenFor: Set<EntityId>,
+  ): void {
+    if (!this.#micro || !this.#warOn(WarBehaviorIdNs.withdrawWounded)) return;
+    const hurt: EntityId[] = [];
+    for (const u of army) {
+      if (spokenFor.has(u.id)) continue;
+      // Only men actually in a fight: a unit with no target is not losing
+      // blood this beat, and ordering it about would only break whatever
+      // the rest of the brain had planned for it.
+      if (u.targetId === undefined) continue;
+      if (u.hp >= UNIT_DEFS[u.kind].hp * AI_WAR.woundedBelow) continue;
+      hurt.push(u.id);
+    }
+    if (hurt.length === 0) return;
+    // Never the whole line: a squad that all steps back at once has not
+    // withdrawn its wounded, it has fled, and the fight it leaves is one
+    // the survivors were still winning.
+    if (hurt.length * 2 > army.length) return;
+    for (const id of hurt) spokenFor.add(id);
+    // One step toward home, not home itself. The step is what leaves the
+    // acquire radius; the walk home would take him out of the war.
+    const first = world.units.get(hurt[0]!);
+    if (!first) return;
+    const dx = baseX - first.x;
+    const dy = baseY - first.y;
+    const len = Math.max(1, exactDist(dx, dy));
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: hurt,
+      // Clamped: a step back from a fight near an edge would otherwise
+      // name ground the map does not have.
+      x: clamp(
+        Math.round(first.x + (dx / len) * AI_WAR.withdrawStep),
+        0,
+        world.map.size - 1,
+      ),
+      y: clamp(
+        Math.round(first.y + (dy / len) * AI_WAR.withdrawStep),
+        0,
+        world.map.size - 1,
+      ),
+    });
+    this.#withdrawn += hurt.length;
+  }
+
+  /**
+   * Focus fire — archers only, on the enemy nearest to dying that they can
+   * already hit, and never a step taken for it.
+   *
+   * Every clause there is load-bearing, and the first cut of this verb had
+   * none of them. It focused the whole squad and let them walk to the
+   * target, which measured WORSE than no micro at all (60.8% to 57.7%
+   * against `normal`, on both seed ranges). The reason is what a melee
+   * line is: a spearman is already hitting the man in front of him, and
+   * an order naming someone else takes him off that fight to walk — so
+   * "concentrate the damage" bought a hole in the line and spent the
+   * damage it was concentrating.
+   *
+   * A bow has the one property that makes the choice free: it can pick
+   * WHO to shoot without moving, because everything inside its range is
+   * equally reachable. So the verb is archers, choosing among what is
+   * already in reach, and the choice is the wounded one — flat damage
+   * means a man at a sliver still hits full force, so finishing him
+   * removes a whole bow from the other side where spreading the volley
+   * removes none.
+   *
+   * And it does not follow. A target that walks out of range is left to
+   * the sim, which re-acquires; chasing a fleeing man is how archers end
+   * up in front of the line they were shooting over.
+   */
+  #focusFire(
+    world: World,
+    army: Unit[],
+    commands: SimCommand[],
+    spokenFor: Set<EntityId>,
+  ): void {
+    if (!this.#micro || !this.#warOn(WarBehaviorIdNs.focusFire)) return;
+    const archers: Unit[] = [];
+    for (const u of army) {
+      if (spokenFor.has(u.id)) continue;
+      const c = UNIT_DEFS[u.kind].combat;
+      // The sim's own test for a shooter (systems/combat.ts kiting).
+      if (c && c.range > MELEE_REACH) archers.push(u);
+    }
+    if (archers.length < AI_WAR.focusMin) return;
+
+    // Who can hit whom, right now. Nothing outside a bow's range is a
+    // candidate, which is what keeps this from ever becoming an order to
+    // walk somewhere.
+    const shooters = new Map<EntityId, Unit[]>();
+    for (const u of archers) {
+      const range = UNIT_DEFS[u.kind].combat!.range;
+      for (const other of world.units.values()) {
+        if (other.dead || other.owner === this.playerId) continue;
+        if (!UNIT_DEFS[other.kind].combat) continue;
+        if (exactDist(other.x - u.x, other.y - u.y) > range) continue;
+        const list = shooters.get(other.id);
+        if (list) list.push(u);
+        else shooters.set(other.id, [u]);
+      }
+    }
+
+    // The nearest to dying that enough bows can reach. Ties by id, so two
+    // hosts reading the same field choose the same man.
+    let best: Unit | undefined;
+    let bestOn: Unit[] = [];
+    for (const [id, on] of shooters) {
+      if (on.length < AI_WAR.focusMin) continue;
+      const t = world.units.get(id);
+      if (!t) continue;
+      if (!best || t.hp < best.hp || (t.hp === best.hp && t.id < best.id)) {
+        best = t;
+        bestOn = on;
+      }
+    }
+    if (!best) return;
+
+    // Everyone already on him is an order nobody needs.
+    const switching = bestOn.filter(u => u.targetId !== best.id);
+    if (switching.length === 0) return;
+    for (const u of switching) spokenFor.add(u.id);
+    commands.push({
+      kind: CommandKind.focusTarget,
+      unitIds: switching.map(u => u.id),
+      targetId: best.id,
+    });
+    this.#focused++;
+  }
+
   #defendOutposts(
     world: World,
     mine: readonly Building[],
@@ -2408,7 +2706,7 @@ export class AiBrain {
     baseY: number,
   ): boolean {
     if (!this.#warOn(WarBehaviorIdNs.retreatMarch)) return false;
-    if (!this.strategy.retreats || !this.#attacking) return false;
+    if (!this.#tiered.retreats || !this.#attacking) return false;
     if (army.length === 0 || this.#marchedCount === 0) return false;
     if (army.length * 2 >= this.#marchedCount) return false;
     const target = world.buildings.get(this.#marchTargetId);
@@ -2500,7 +2798,7 @@ export class AiBrain {
     // first stamps the archetype's fact, and every one restamps the
     // grudge's clock (#grudge).
     for (const [owner, n] of atGate) {
-      if (n < AI_INTEL.minSighting) continue;
+      if (n < this.#minSighting) continue;
       const pic = this.#pictureOf(owner);
       if (pic.firstAttackTick < 0) pic.firstAttackTick = tick;
       pic.lastRaidTick = tick;
@@ -2508,9 +2806,9 @@ export class AiBrain {
 
     for (const pic of this.#intel.values()) {
       for (const [id, seen] of pic.roster) {
-        if (tick - seen.tick > AI_INTEL.trustFor) pic.roster.delete(id);
+        if (tick - seen.tick > this.#intelTrust) pic.roster.delete(id);
       }
-      if (pic.seenTick === tick && pic.roster.size >= AI_INTEL.minSighting) {
+      if (pic.seenTick === tick && pic.roster.size >= this.#minSighting) {
         pic.richSeenTick = tick;
       }
       if (tick - pic.sampledTick >= AI_INTEL.samplePeriod) {
@@ -2617,7 +2915,7 @@ export class AiBrain {
       // itself would drop the arithmetic into 32-bit land for a clock a
       // playbook is free to configure large.
       const refreshAfter =
-        this.strategy.scoutRefreshAfter ?? AI_INTEL.refreshAfter;
+        this.#tiered.scoutRefreshAfter ?? AI_INTEL.refreshAfter;
       const stretched = refreshAfter * (1 << (this.#scoutsLost.get(p.id) ?? 0));
       if (world.tick - last <= stretched) continue;
       if (last < bestTick) {
@@ -2660,10 +2958,10 @@ export class AiBrain {
     let bestOwner: Owner = -1;
     for (const [owner, pic] of this.#intel) {
       if (!world.players[owner]?.alive) continue;
-      if (pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor)
+      if (pic.seenTick < 0 || world.tick - pic.seenTick > this.#intelTrust)
         continue;
       const muster = rosterMuster(pic);
-      if (muster.total < AI_INTEL.minSighting) continue;
+      if (muster.total < this.#minSighting) continue;
       const s: Sighting = {
         tick: pic.seenTick,
         counts: muster.counts,

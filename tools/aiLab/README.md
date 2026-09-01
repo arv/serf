@@ -59,6 +59,183 @@ fletcher are the deck's thin end now; abbot is comfortably its strongest.
 Sweeps run one match per `--jobs` process (`--jobs max` uses the machine);
 results are byte-identical to `--jobs 1` for every engine.
 
+## The tier duel
+
+A third instrument, for the one question the other two cannot answer:
+**is a difficulty tier actually harder to play against?**
+
+```sh
+pnpm balance 32 --difficulty hard   # every playbook at one tier, vs the map
+pnpm tiers 12                       # the tiers against each other
+pnpm tiers 12 1000                  # ...from a different range
+```
+
+The two ask different things, and the difference is the whole reason
+`tiers.ts` exists. The balance sweep scores a seat against the ground and
+the bandits — "is this seat effective" — and a hard seat marches sooner
+with fewer men, which against a bandit camp is a gamble it sometimes
+loses. Measured that way (64 seeds across two ranges, 256 campaigns a
+tier) the tiers came out **easy 179, normal 204, hard 200**: easy clearly
+worst, hard and normal a wash on wins — while the *median winning tick*
+ordered perfectly and identically on both ranges, easy ~23.4k, normal
+~20.8k, hard ~17.8k. A tier that takes the map six minutes sooner and
+dies slightly more often trying is not a weaker opponent to sit across
+from; it is a more aggressive one, and win-rate-against-bandits is simply
+the wrong instrument for the question.
+
+`pnpm tiers` is the right one: the same playbook on both seats, the tier
+as the only asymmetry, every seed played in both seatings so the null
+hypothesis is exactly 50% however lopsided the valley's two starts are —
+the same cancellation the bake-off uses for advice. Bandits off, because a
+neutral third party that kills one seat turns a duel into a coin toss the
+mirror cannot cancel. A Wilson 95% interval straddling 50% is not a
+result, exactly as above.
+
+### Read the pair tally before the percentage
+
+The mirror makes the null exactly 50%. What it does NOT do is let a win
+rate reach 100%, and that is worth understanding before anyone tries to
+tune toward one.
+
+Some seeds deal two starts so unequal that whoever holds the better one
+wins **both** seatings, whatever tier is sitting in it. Such a seed
+contributes exactly one win and one loss to the rate — forever, at any
+tier strength. So the sweep pairs the two seatings of each seed and
+classifies them (`PairTally` in tiers.ts):
+
+- **swept** — the tier won both seatings. It beat the valley.
+- **split** — the same SEAT won both. The valley decided; the tier was not
+  the variable.
+- **lost** — the weaker tier won both. A genuine loss, and the only kind
+  worth tuning against.
+
+`lost = 0` is the honest reading of "it always wins", and hard against easy
+now has it: **zero lost valleys in 192 seed-and-playbook pairs** across
+both ranges, against a raw rate of 86%. All of the missing 14% is ground
+the map had already decided, and chasing it with knobs is chasing the map
+generator.
+
+That claim was withdrawn once before believing it a second time, which is
+worth knowing. At twelve seeds a range the tally read a clean zero across
+96 pairs; twenty-four turned up a real loss (the Abbot, seed 1098). It is
+zero again at the deeper count — but "zero so far" and "zero" are
+different claims, and the difference is the depth. Quote the depth.
+
+And do not read the last two off micro. The count went from two to zero
+when micro landed, which is TWO EVENTS out of 192 pairs, and the win rate
+across the same pairing moved by a single duel in 384. That is not a
+result, it is the same small-sample trap this file warns about wearing a
+different hat. Micro's honest record is below: it cost three points, the
+archer restriction bought them back, and the net is nothing measurable.
+
+The standing baseline, 24 seeds on each of two ranges — four playbooks,
+both seatings, so 192 duels a pairing per range:
+
+```
+                 range 101                      range 1000
+normal v easy    163/192  84.9%  [79.1, 89.3]   153/192  79.7%  [73.4, 84.8]
+hard   v easy    169/192  88.0%  [82.7, 91.9]   160/192  83.3%  [77.4, 87.9]
+hard   v normal  113/184  61.4%  [54.2, 68.1]   107/185  57.8%  [50.6, 64.7]
+
+pooled: normal v easy   316/384  82.3%  [78.2, 85.8]
+        hard   v easy   329/384  85.7%  [81.8, 88.8]
+        hard   v normal 220/369  59.6%  [54.5, 64.5]
+```
+
+Monotone and every pairing clear of the 50% null — but read the third row
+before trusting it. The two ranges give hard-against-normal 61.4% and
+57.8%, and earlier builds spread as wide as 64.3% against 57.3% on the
+pairing that matters most. The pooled figure is the number to quote; a
+single range on that row is not.
+
+Read the two easy pairings with the section above in mind: 86% is not where
+hard ran out of strength, it is where the map generator ran out of fair
+valleys — 23 to 32 of the 96 pairs decide themselves. Genuine losses to
+easy are zero on both ranges.
+
+Hard against normal is the honest weak spot, and per playbook it is weaker
+still. Pooled over both ranges, with intervals, only two of the four lords
+are established as ahead of normal at all:
+
+```
+warlord   72/96  75.0%  [65.5, 82.6]  WINS
+abbot     57/90  63.3%  [53.0, 72.6]  WINS
+fletcher  46/87  52.9%  [42.5, 63.0]  no result
+steward   45/96  46.9%  [37.2, 56.8]  no result
+```
+
+Resist the story that wants telling here — this table has already told a
+false one. On range 101 alone an earlier build read steward 52% and warlord
+77%, which invites "hard sharpens an already aggressive lord and cannot
+help a cautious one", and range 1000 reversed the pair (steward 60%,
+warlord 65%). Forty-eight duels a cell cannot rank four playbooks.
+
+Pooled at 96 duels a lord it is still only two intervals that clear the
+null, and the Steward's has drifted below it. Read the rank order as
+unsettled: the honest summary is that hard's edge over normal is real in
+aggregate, uneven across the deck, and not established at all for half of
+it. Anything more specific needs more seeds than anyone has spent.
+
+Two lessons, both bought the expensive way.
+
+**Measure before you tune, and on both ranges before you believe.** At 96
+duels hard-versus-normal read 53/95, 55.8%, [45.8, 65.4] — "no result" —
+and it would have been easy to read that as a weak tier. It was not weak,
+it was under-measured. Three candidate strengthenings tried at that sample
+(forcing `retreats: false`, a wider village, a faster clock for hard) all
+came in at or below the printed table, which is exactly what noise looks
+like.
+
+The trap does not stop at the pooled number. Every claim on this page that
+was later withdrawn — a clean zero on the pair tally, a four-point gain
+from the intel and stance levers, a per-playbook ranking — was true on one
+range and false on the other. One range is a hypothesis. Two is a result.
+The cost of forgetting that is not a wrong number, it is a design argument
+built on top of one.
+
+**A capability can cost as easily as it pays, and the shape matters more
+than the idea.** Micro — focus fire and pulling the wounded out — is the
+one capability difference in the tier table, and its first cut measured at
+57.7% against `normal` where no micro at all measures 60.8%, worse on both
+ranges. It focused every soldier, melee included, and a spearman told to
+attack somebody other than the man in front of him leaves that fight to
+walk. Restricted to archers picking among what they can already hit — a
+bow chooses its target without moving, which is what makes the choice free
+— it recovers to 59.6% [54.5, 64.5] — statistically level with leaving it
+off (60.8%). Same idea, three lines of restriction, three points of
+difference, and a net of zero.
+
+It ships anyway, under the rule warBehaviorIdEnum states for its own
+verbs: a behavior whose payoff is drama rather than win rate still owes
+proof that it does not COST a rate. Micro owes that proof precisely
+because the first cut failed it, and the archers-only cut pays it. Archers
+picking the wounded man out of a line is legible — a player can see it and
+read the opponent as paying attention — which is the same ground
+`heraldMarch` and `scoutFlees` stand on. What it is NOT is an edge, and
+the lost-valley count is not evidence of one.
+
+**The knobs have a ceiling, and it is not at the end of their range.** A
+deliberate ceiling test — every hard knob pushed to its clamp at once,
+mustering at three, a quarter of the cooldown, twice the village, thinking
+twice as often — scored **48/92, 52.2%**, BELOW the gentle table, and
+dragged the Warlord to 29%. These knobs tune a line that was already
+tuned; past a point they detune it. Getting hard meaningfully past 60%
+against normal is not a bigger number in the table. It needs either a
+capability normal lacks (reading the rival's arms and training the
+counter, say) or the resource handout the tier table exists to avoid.
+
+One more guard worth keeping: a tier has to stay a PLAYER, not just a
+loser. `pnpm balance 16 101 --difficulty easy` puts an easy seat alone on a
+campaign map against the bandits, and it still takes 29 of 64 — weakened,
+not broken. A tier that could not win a map at all would score beautifully
+in the duel and be no fun to meet.
+
+The ordering is also pinned in the suite (`tools/aiLab/tiers.test.ts`), on a
+small fixed seed set, so a change that inverts it fails CI rather than
+waiting for someone to re-run a sweep. That test is a *regression pin*, not
+a second measurement: the sim is deterministic, so its duels have one
+answer, and the numbers to argue from are the ones above.
+
 ## The experiment
 
 Per seed, up to three headless matches on one valley, both seats running the

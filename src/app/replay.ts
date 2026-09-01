@@ -3,6 +3,7 @@
 // way the rest of the shared sim tree already does.
 import {sanitizeCommand} from '../sim/commands.ts';
 import {parseStrategyId} from '../sim/defs/aiStrategies.ts';
+import {parseDifficultyId} from '../sim/defs/difficulty.ts';
 import {parseMissionId} from '../sim/defs/missions.ts';
 import {playerKindFromKey} from '../sim/player.ts';
 import type {PlayerCommand} from '../sim/tick.ts';
@@ -113,9 +114,21 @@ function sanitizeConfig(raw: unknown): ReplayData['config'] | null {
     // moves are in the log), so an unknown one degrades to "dealt" rather
     // than sinking the file.
     const strategy = parseStrategyId((entry as {strategy?: unknown}).strategy);
-    players.push({kind: seat, ...(strategy ? {strategy} : {})});
+    // The tier is NOT decorative on playback: on a commission it scales
+    // the human seat's opening larder, the hands in the yard and the raid
+    // clock, so a file that names one has to rebuild the world it was
+    // recorded in. An unknown one degrades to `normal`, the printed game.
+    const difficulty = parseDifficultyId(
+      (entry as {difficulty?: unknown}).difficulty,
+    );
+    players.push({
+      kind: seat,
+      ...(strategy ? {strategy} : {}),
+      ...(difficulty ? {difficulty} : {}),
+    });
   }
   const mission = parseMissionId(c.mission);
+  const difficulty = parseDifficultyId(c.difficulty);
   const myPlayerId = c.myPlayerId;
   return {
     seed: c.seed,
@@ -127,6 +140,7 @@ function sanitizeConfig(raw: unknown): ReplayData['config'] | null {
       ? {banditsEnabled: c.banditsEnabled}
       : {}),
     ...(mission ? {mission} : {}),
+    ...(difficulty ? {difficulty} : {}),
     ...(typeof myPlayerId === 'number' &&
     Number.isInteger(myPlayerId) &&
     myPlayerId >= 0 &&

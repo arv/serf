@@ -41,6 +41,10 @@ export function IndexPage(): JSX.Element {
             Opening stock, hiring, repairs and the raid clock
           </span>
         </DocLink>
+        <DocLink href="/docs/difficulty" class="tile">
+          <span class="t-name">Difficulty</span>
+          <span class="t-sub">What easy, normal and hard actually change</span>
+        </DocLink>
         <DocLink href="/docs/credits" class="tile">
           <span class="t-name">Credits</span>
           <span class="t-sub">

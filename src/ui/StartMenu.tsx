@@ -24,6 +24,8 @@ import {
 import {defaultLobbyConfig} from '../protocol/lobby';
 import {REPLAY_VERSION} from '../shared/replayVersion';
 import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion';
+import {DIFFICULTY_KEYS, type DifficultyId} from '../sim/defs/difficulty.ts';
+import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
 import {
   MISSION_DEFS,
   MISSION_ORDER,
@@ -32,7 +34,7 @@ import {
 } from '../sim/defs/missions';
 import {SHORT} from './breakpoints';
 import {isMissionComplete, isMissionUnlocked} from './campaign';
-import {DifficultyRow} from './difficulty';
+import {DifficultyRow, difficultyHint} from './difficulty';
 import {fullscreen} from './fullscreen';
 import {LockIcon} from './icons';
 import {releaseMenuBackdrop} from './menuBackdrop';
@@ -540,6 +542,12 @@ export function StartMenu(props: StartMenuProps) {
   // launching leaves the menu, and coming back builds it again.
   const seed = rollSeed();
   const [bandits, setBandits] = createSignal(true);
+  // One tier for the whole table. The sim stores it per seat (a future
+  // picker could field one hard lord and two easy ones); nothing here has
+  // ever wanted to ask a player for three answers to one question.
+  const [difficulty, setDifficulty] = createSignal<DifficultyId>(
+    DifficultyIdNs.normal,
+  );
   const [room, setRoom] = createSignal('');
   const [vis, setVis] = createSignal<Visibility>('open');
   const [picked, setPicked] = createSignal<string | null>(null);
@@ -855,6 +863,10 @@ export function StartMenu(props: StartMenuProps) {
     // playbook — the menu just never writes one.)
     p.set('seed', String(seed));
     if (!bandits()) p.set('bandits', '0');
+    // Only a tier that is not the printed game travels: a normal launch
+    // URL is the URL it has always been.
+    if (difficulty() !== DifficultyIdNs.normal)
+      p.set('difficulty', DIFFICULTY_KEYS[difficulty()]);
     return '?' + p.toString();
   };
 
@@ -893,15 +905,18 @@ export function StartMenu(props: StartMenuProps) {
       // id read as an unknown mission, and the launch quietly became a
       // default skirmish with no briefing and no checklist.
       releaseMenuBackdrop();
-      goto(missionUrl(pickedMission()));
+      goto(missionUrl(pickedMission(), difficulty()));
       return;
     }
     if (isMulti()) {
       props.onCouncil({
         mp: isJoin() ? target().toUpperCase() : 'new',
         open: vis() === 'open',
-        // Seats, seed and raids open at their defaults and are set in the
-        // council, where every joiner watches them change.
+        // Seats, seed, raids and the difficulty open at their defaults and
+        // are set in the council, where every joiner watches them change.
+        // Deliberately not the pick from this screen: that picker is not
+        // shown on the multiplayer tab, so carrying it would set the room
+        // from a control the host cannot see.
         init: defaultLobbyConfig(),
       });
       return;
@@ -1247,7 +1262,11 @@ export function StartMenu(props: StartMenuProps) {
                     first minute. Finishing one unseals the next.
                   </div>
                 </div>
-                <DifficultyRow />
+                <DifficultyRow
+                  value={difficulty()}
+                  onChange={setDifficulty}
+                  hint={difficultyHint('campaign')}
+                />
               </Show>
 
               <Show when={shelfSpec() !== null}>
@@ -1426,7 +1445,11 @@ export function StartMenu(props: StartMenuProps) {
                   </div>
                 </div>
 
-                <DifficultyRow />
+                <DifficultyRow
+                  value={difficulty()}
+                  onChange={setDifficulty}
+                  hint={difficultyHint(ai() === 0 ? 'sandbox' : 'skirmish')}
+                />
               </Show>
 
               <Show when={isSingle() && OPTIONS.showBanditsRow}>

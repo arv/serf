@@ -39,6 +39,33 @@ export type SimCommand =
       y: number;
       attack?: true | 'half';
     }
+  /**
+   * Put a squad on one target — focus fire, and the only way a caller can
+   * name a target at all. Every other order leaves that to the sim:
+   * `acquireUnit` picks the nearest enemy weighted by the counter table,
+   * for every soldier on the field, and that stays the default. This says
+   * "all of you, that one", which is worth having because damage here is
+   * flat — a soldier at a sliver of health hits exactly as hard as a fresh
+   * one — so killing one enemy outright removes its whole output where
+   * spreading the same damage over three removes none of it.
+   *
+   * A building is a legal target too (`building: true`), and means the
+   * same thing: hit THAT one. Left to itself a squad besieges whatever
+   * `nearestEnemyBuilding` puts in reach, which is the wall it happens to
+   * be standing next to rather than the barracks behind it.
+   *
+   * The flag is explicit rather than inferred. Ids are unique across both
+   * maps, so a lookup in each would resolve — but `Unit.targetIsBuilding`
+   * is the sim's own discriminator for which map to read, and a caller
+   * that names a building where it meant a unit is a bug worth failing on
+   * rather than quietly resolving.
+   */
+  | {
+      kind: CommandKindNs.focusTarget;
+      unitIds: EntityId[];
+      targetId: EntityId;
+      building?: true;
+    }
   | {
       kind: CommandKindNs.placeBuilding;
       building: BuildingTypeId;
@@ -199,6 +226,18 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const c = raw as Record<string, unknown>;
   switch (c.kind) {
+    case CommandKindNs.focusTarget: {
+      if (!Array.isArray(c.unitIds)) return null;
+      if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
+      if (!c.unitIds.every(isId)) return null;
+      if (!isId(c.targetId)) return null;
+      return {
+        kind: CommandKindNs.focusTarget,
+        unitIds: [...(c.unitIds as EntityId[])],
+        targetId: c.targetId as EntityId,
+        ...(c.building === true ? {building: true as const} : {}),
+      };
+    }
     case CommandKindNs.moveUnits: {
       if (!Array.isArray(c.unitIds)) return null;
       if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;

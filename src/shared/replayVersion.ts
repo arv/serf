@@ -20,6 +20,61 @@
  * directly.
  */
 /**
+ * 39: a match can be set to a difficulty.
+ *
+ * Two halves, and only one of them is the reason for the bump. The
+ * computer seats play harder or easier — a transform over the knobs a
+ * brain has already composed (defs/difficulty.ts), plus a slower decision
+ * beat on `easy` — and that is brain only: playback never runs a brain,
+ * so it moves no recorded tick, exactly as the road techs (36) and the
+ * reserve seam's second mine did not.
+ *
+ * The half that bumps is the campaign. A commission now scales the human
+ * seat's opening by the tier — the storehouse's larder, the hands standing
+ * in the yard at the first tick, and the peace before the first raid — so
+ * `difficulty` is config that the world is BUILT from, like a mission id
+ * (28). An older build's sanitizeConfig drops the field it has never heard
+ * of and rebuilds the commission at its printed opening, which is a
+ * different world from the first tick: different stock on the shelf,
+ * different serfs on the grass, a different raid clock. Version equality
+ * has to mean the world rebuilds the same.
+ *
+ * The beat stagger moved with it — from a fixed 5-tick stride to slots
+ * spread across whatever interval a seat thinks on, so that "no two brains
+ * on one tick" survives a tier stretching the interval. At the printed
+ * cadence it is arithmetically the same offsets (0, 5, 10, 15), and it is
+ * brain pacing either way.
+ *
+ * A seventeenth command kind rides along: `focusTarget`, which puts a
+ * named squad on one enemy — a unit, or a building with `building: true`. It is the only order in the game that
+ * names a target — everything else leaves that to `acquireUnit` — and the
+ * `hard` tier's brain issues it for its ARCHERS (warBehaviorIdEnum
+ * `focusFire`: a bow can choose whom to shoot without moving, which a
+ * spearman already swinging at the man in front of him cannot), and so
+ * does the player: a right-click or an A-click on something hostile now
+ * sends an attack-move and this, where before it could only name the
+ * ground. Pure format on its own, exactly as the rally point (20) and the herald
+ * (34) were: no log written before this build can hold one, and the tick
+ * that executes every older order is untouched. It is named here for the
+ * reason those two were — a log recorded on this build can carry an order
+ * an older sanitizeCommand screens out, and an army that never got its
+ * focus order is a different army.
+ *
+ * The commission's raid pressure scales with it too — the gap between
+ * waves after the first, and how many raiders one wave may hold
+ * (systems/bandits.ts). Those are ticks, not decisions: the wave lands on
+ * a different tick and arrives a different size, so they belong to this
+ * bump for the same reason the larder does.
+ *
+ * A skirmish or a multiplayer match scales nothing — every seat there
+ * opens with the larder it always had, and faces the raids it always did,
+ * since there the bandits are a neutral third party every seat shares —
+ * and a match that names no tier is `normal`, which is the printed game
+ * byte for byte. So every log recorded
+ * before this build describes a world this build still rebuilds exactly;
+ * the bump is for the logs recorded after it.
+ */
+/**
  * 38: the seats are dealt their start spots.
  *
  * The start table (startLayout in sim/world.ts) is a fixed function of the
@@ -398,4 +453,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 38;
+export const REPLAY_VERSION = 39;

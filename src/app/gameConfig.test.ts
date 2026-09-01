@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
+import * as DifficultyId from '../sim/defs/difficultyEnum.ts';
 import * as MissionId from '../sim/defs/missionIdEnum.ts';
 import {MISSION_DEFS, MISSION_ORDER} from '../sim/defs/missions';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
@@ -61,6 +62,31 @@ describe('configFromUrl', () => {
     expect(
       configFromUrl('?ai=1&bots=nonesuch').players[1]!.strategy,
     ).toBeUndefined();
+  });
+
+  it('carries a difficulty into the world, and only a real one', () => {
+    expect(configFromUrl('?ai=1&difficulty=hard').difficulty).toBe(
+      DifficultyId.hard,
+    );
+    // Every seat plays at the match's tier unless it named its own; the
+    // world deals it down (see createWorld), so the config carries one
+    // value rather than a list.
+    expect(configFromUrl('?ai=1').difficulty).toBeUndefined();
+    expect(
+      configFromUrl('?ai=1&difficulty=nonesuch').difficulty,
+    ).toBeUndefined();
+    // A commission takes it too — that is the half of the setting that
+    // scales what the crown grants you.
+    expect(configFromUrl('?mission=clearing&difficulty=easy').difficulty).toBe(
+      DifficultyId.easy,
+    );
+    expect(configFromUrl(missionUrl(MissionId.clearing)).difficulty).toBe(
+      undefined,
+    );
+    expect(
+      configFromUrl(missionUrl(MissionId.clearing, DifficultyId.hard))
+        .difficulty,
+    ).toBe(DifficultyId.hard);
   });
 
   it('ignores junk rather than booting a broken world', () => {

@@ -16,6 +16,12 @@ import {
   gatherOrigin,
   gatherRecipeOf,
 } from './defs/buildings.ts';
+import {
+  type DifficultyId,
+  scaleFirstRaidTick,
+  scaleStartSerfs,
+  scaleStartStock,
+} from './defs/difficulty.ts';
 import {type GoodAmounts, goodKeys, goodEntries} from './defs/goods.ts';
 import {loadMissionMap} from './defs/missionMaps.ts';
 import {MISSION_DEFS, type MissionId} from './defs/missions.ts';
@@ -214,8 +220,26 @@ export function pushDelta(world: World, idx: number): void {
 export interface WorldConfig {
   seed: number;
   /** 1..4 seats; index = playerId. An AI seat may name the playbook it
-   * wants; the ones that don't are dealt from the seed. */
-  players: {kind: PlayerKind; strategy?: AiStrategyId}[];
+   * wants; the ones that don't are dealt from the seed. A seat may also
+   * name its own difficulty, which outranks the match's — the storage is
+   * per-seat so a future picker can field one hard lord and two easy ones;
+   * every picker today sets them alike. */
+  players: {
+    kind: PlayerKind;
+    strategy?: AiStrategyId;
+    difficulty?: DifficultyId;
+  }[];
+  /**
+   * How hard the match is set to (defs/difficulty.ts). Two jobs, and they
+   * are separate on purpose: every AI seat that did not name its own plays
+   * at this tier, and a CAMPAIGN COMMISSION scales the human seat's opening
+   * by it — the larder, the hands in the yard, and the peace before the
+   * first raid. A skirmish or a multiplayer match scales nothing: every
+   * seat there opens with the same larder it always did, and the tier is
+   * purely how well the computer plays. Absent is `normal`, the printed
+   * game.
+   */
+  difficulty?: DifficultyId;
   /** Admin (cheat) commands honored. Default true — networked games pass false. */
   adminEnabled?: boolean;
   /** Bandits exist. Default true; false places no camp, no guards, and
@@ -397,6 +421,18 @@ export function createWorld(
   const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
 
   const deal = dealStrategies(seed, config.players);
+  /**
+   * The tier a seat actually plays at: its own if it named one, otherwise
+   * the match's (see WorldConfig.difficulty). Resolved once here because
+   * two places read it and they must not disagree — the seat's own
+   * PlayerState, and the commission scaling below, which is the human
+   * seat's half of the setting and therefore seat 0's tier rather than the
+   * match's. They used to be written separately, and a seat-0 override
+   * would have been honoured in the save and ignored by the larder.
+   */
+  const seatDifficulty = (i: number): DifficultyId | undefined =>
+    config.players[i]?.difficulty ?? config.difficulty;
+  const humanTier = seatDifficulty(0);
 
   const rng = new Rng(seed);
   let map: GameMap;
@@ -456,14 +492,21 @@ export function createWorld(
     pendingDeltas: [],
     // The seed deals the AI seats their playbooks here, once, and the
     // world carries the result from then on (see PlayerState.strategy).
-    players: config.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
+    players: config.players.map((p, i) =>
+      makePlayer(i, p.kind, deal[i], seatDifficulty(i)),
+    ),
     // Copied, not aliased: `starts` is a local the mission branch took
     // straight off the parsed map file.
     starts: starts.map(s => ({...s})),
     // The raid clock scales with the PLAYABLE span (the scenery margin
     // adds no marching distance for anyone).
     raidState: {
-      nextRaidTick: mission?.firstRaidTick ?? firstRaidTickFor(map.play),
+      nextRaidTick: mission
+        ? scaleFirstRaidTick(
+            mission.firstRaidTick ?? firstRaidTickFor(map.play),
+            humanTier,
+          )
+        : firstRaidTickFor(map.play),
       wave: 0,
     },
     admin: {
@@ -491,8 +534,13 @@ export function createWorld(
     );
     // Mission overrides apply to the human's seat only (seat 0); a mission
     // rival opens with the standard larder.
+    // A commission scales the human's opening by the tier; a skirmish or a
+    // multiplayer match does not, so every seat there — human and computer
+    // alike — opens with the same larder at every setting.
     storehouse.stock = {
-      ...(p === 0 && mission?.startStock ? mission.startStock : START_STOCK),
+      ...(p === 0 && mission
+        ? scaleStartStock(mission.startStock ?? START_STOCK, humanTier)
+        : START_STOCK),
     };
   }
 
@@ -584,8 +632,8 @@ export function createWorld(
   for (let p = 0; p < starts.length; p++) {
     const {x: shX, y: shY} = starts[p]!;
     const serfs =
-      p === 0 && mission?.startSerfs !== undefined
-        ? mission.startSerfs
+      p === 0 && mission
+        ? scaleStartSerfs(mission.startSerfs ?? START_SERFS, humanTier)
         : START_SERFS;
     for (let i = 0; i < serfs; i++) {
       const x = shX - 1 + (i % 5) + 0.5;

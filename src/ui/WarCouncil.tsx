@@ -1,9 +1,15 @@
 import {For, Show, createSignal, type Accessor} from 'solid-js';
 import {MAX_SEATS, type LobbyConfig} from '../protocol/lobby';
 import type {Enum} from '../shared/enum.ts';
+import {
+  DIFFICULTY_KEYS,
+  type DifficultyId,
+  parseDifficultyId,
+} from '../sim/defs/difficulty.ts';
+import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as CouncilPhaseNs from './councilPhaseEnum.ts';
-import {DifficultyRow} from './difficulty';
+import {DifficultyRow, difficultyHint} from './difficulty';
 import {DiceIcon, Glide, spotlight} from './menuChrome';
 export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
 
@@ -119,6 +125,12 @@ export function WarCouncil(props: CouncilHooks) {
    * the rows all read this rather than config.ai, or the menu would light
    * up a seat the match is never going to fill.
    */
+  /** The tier the host has set, or `normal` for a room that names none —
+   * one restored from a snapshot written before the dial was wired, or a
+   * word the wire contract let through that no tier answers to. */
+  const tier = (): DifficultyId =>
+    parseDifficultyId(v().config.difficulty) ?? DifficultyIdNs.normal;
+
   const aiFill = (): number =>
     Math.max(0, Math.min(v().config.ai, seatsLeft()));
 
@@ -266,7 +278,14 @@ export function WarCouncil(props: CouncilHooks) {
                   </div>
                 </div>
 
-                <DifficultyRow />
+                <DifficultyRow
+                  value={tier()}
+                  onChange={id =>
+                    props.onConfig({difficulty: DIFFICULTY_KEYS[id]})
+                  }
+                  hint={difficultyHint(isHost() ? 'skirmish' : 'guest')}
+                  disabled={!isHost()}
+                />
 
                 <div class="row">
                   <div>

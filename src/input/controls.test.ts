@@ -25,6 +25,7 @@ import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {
   buildAim,
   orderMode,
@@ -1620,6 +1621,87 @@ describe('minimap orders', () => {
     });
     // A plain move, not the half order a finger's tap on the map gives.
     expect(h.commands.at(-1)).not.toHaveProperty('attack');
+  });
+
+  /** A selected KNIGHT, not the harness's default kind: only soldiers can
+   * be told to attack a thing, so a focus order needs one. */
+  function warband(): ReturnType<typeof harness> {
+    const h = harness();
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    expect([...selection()]).toEqual([1]);
+    return h;
+  }
+
+  it('right-clicking an enemy soldier focuses the squad on him', () => {
+    const h = warband();
+    controls = h.controls;
+    // A hostile standing somewhere the squad is not.
+    h.addUnit(9, 20, 24, ME + 1, UnitTypeId.knight);
+
+    h.order(h.screenOf(9));
+
+    // Two orders, and both matter: the attack-move walks them to him and
+    // keeps them fighting on the way, the focus pins the man himself.
+    expect(h.commands.at(-2)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      attack: true,
+    });
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.focusTarget,
+      unitIds: [1],
+      targetId: 9,
+    });
+  });
+
+  it('right-clicking an enemy building focuses that building', () => {
+    const h = warband();
+    controls = h.controls;
+    const theirs = {...building(31), owner: ME + 1, x: 24, y: 24};
+    h.addBuilding(theirs);
+
+    h.order(h.at(theirs.x + 0.5, 0, theirs.y + 0.5));
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.focusTarget,
+      unitIds: [1],
+      targetId: theirs.id,
+      building: true,
+    });
+  });
+
+  it('leaves open ground and your own people to the plain move', () => {
+    const h = warband();
+    controls = h.controls;
+    // Empty ground: the order it has always been.
+    h.order(h.at(30.7, 0, 42.2));
+    expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.moveUnits});
+    expect(h.commands.at(-1)).not.toHaveProperty('attack');
+
+    // One of your own is not a target — clicking a friend must not turn
+    // the squad on him.
+    h.addUnit(4, 20, 24, ME, UnitTypeId.knight);
+    h.order(h.screenOf(4));
+    expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.moveUnits});
+  });
+
+  it('spends an armed A on an enemy as a focus, not a ground attack-move', () => {
+    const h = warband();
+    controls = h.controls;
+    h.addUnit(9, 20, 24, ME + 1, UnitTypeId.knight);
+    h.type('A');
+    expect(h.controls.orderArmed()).toBe(true);
+
+    h.click(h.screenOf(9));
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.focusTarget,
+      unitIds: [1],
+      targetId: 9,
+    });
+    // Still one-shot, exactly as the ground attack-move is.
+    expect(orderMode()).toBeNull();
   });
 
   it('spends an armed A on the chart as an attack-move', () => {
