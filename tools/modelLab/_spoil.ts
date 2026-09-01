@@ -121,7 +121,7 @@ const terrain = new TerrainMesh(map, heights, (id): SpoilKind => {
           : Spoil.None;
 });
 terrain.repaintAll();
-scene.add(terrain.mesh);
+scene.add(terrain.group);
 
 // The seam itself, as the game scatters it — the whole point is whether the
 // spoil joins up with this.
