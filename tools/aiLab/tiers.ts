@@ -35,6 +35,7 @@ import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 import {tickWorld} from '../../src/sim/tick.ts';
 import {createWorld} from '../../src/sim/world.ts';
+import {intArgOrExit} from './args.ts';
 
 /** Long enough for a decided duel; a pair still standing is a draw, and a
  * draw counts for neither side. */
@@ -206,8 +207,12 @@ export function sweepTiers(
 }
 
 if (process.argv[1]?.endsWith('tiers.ts')) {
-  const count = Number(process.argv[2] ?? 12);
-  const offset = Number(process.argv[3] ?? 101);
+  // Validated, not coerced: a NaN count runs zero duels and still prints
+  // the table, every rate 0.0% and every verdict "no result" — a typo that
+  // looks exactly like a finding. See args.ts.
+  const usage = 'tiers.ts [seeds] [offset]';
+  const count = intArgOrExit(process.argv[2], 12, 'seeds', 1, usage);
+  const offset = intArgOrExit(process.argv[3], 101, 'offset', 0, usage);
   const seeds = Array.from({length: count}, (_, i) => offset + i * 7);
   const pairs: [DifficultyId, DifficultyId][] = [
     [DifficultyIdNs.normal, DifficultyIdNs.easy],

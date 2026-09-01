@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {intArg} from './args.ts';
 import {splitArgs} from './balance.ts';
 
 /**
@@ -62,5 +63,43 @@ describe('the balance sweep’s arguments', () => {
       '32',
       '1000',
     ]);
+  });
+});
+
+/**
+ * And the numbers themselves, which have the same shape of failure one
+ * level down: `Number('x')` is NaN, `Array.from({length: NaN})` is empty,
+ * and a script handed a typo runs nothing while still printing its table —
+ * "NaN seeds", 0.0%, "no result" on every row. A reader cannot tell that
+ * from a real negative result, which is the whole problem.
+ *
+ * `balance.ts` validated from the start; `tiers.ts` did not, and shipped a
+ * measuring instrument that answered mistyped questions. They share one
+ * check now, and this is it.
+ */
+describe('whole-number arguments', () => {
+  it('takes the fallback only when the argument is absent', () => {
+    expect(intArg(undefined, 32, 1)).toBe(32);
+    // Present but wrong is NOT the fallback — that would hide the typo.
+    expect(intArg('x', 32, 1)).toBeNull();
+  });
+
+  it('rejects what Number() would quietly accept', () => {
+    expect(intArg('x', 32, 1)).toBeNull();
+    expect(intArg('12.5', 32, 1)).toBeNull();
+    expect(intArg('Infinity', 32, 1)).toBeNull();
+    expect(intArg('', 32, 1)).toBeNull(); // Number('') is 0, below min 1.
+  });
+
+  it('holds the floor, which differs by argument', () => {
+    // A count of zero duels is a mistake; an offset of zero is a seed.
+    expect(intArg('0', 32, 1)).toBeNull();
+    expect(intArg('0', 101, 0)).toBe(0);
+    expect(intArg('-1', 101, 0)).toBeNull();
+  });
+
+  it('accepts a plain count', () => {
+    expect(intArg('24', 32, 1)).toBe(24);
+    expect(intArg('1000', 101, 0)).toBe(1000);
   });
 });

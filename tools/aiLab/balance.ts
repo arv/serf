@@ -45,6 +45,7 @@ import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 import {AiBrain} from '../../src/sim/systems/ai.ts';
 import {tickWorld} from '../../src/sim/tick.ts';
 import {createWorld} from '../../src/sim/world.ts';
+import {intArgOrExit} from './args.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -139,24 +140,6 @@ function median(xs: number[]): number {
 const mean = (xs: number[]): number =>
   xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 
-function intArg(
-  raw: string | undefined,
-  fallback: number,
-  name: string,
-  min: number,
-): number {
-  if (raw === undefined) return fallback;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < min) {
-    console.error(
-      `${name} must be a whole number >= ${min} (got ${JSON.stringify(raw)})\n` +
-        'usage: balance.ts [seeds] [offset]',
-    );
-    process.exit(2);
-  }
-  return n;
-}
-
 /**
  * The positional arguments, with the `--difficulty <tier>` pair lifted out
  * of them.
@@ -167,7 +150,7 @@ function intArg(
  * `balance.ts 1000` — a thousand seeds from the default range instead of
  * thirty-two from 1000 — so the one invocation this file's own README
  * insists on, the second seed range, had been quietly running the first
- * one twice. Exported so balanceArgs.test.ts can hold the line.
+ * one twice. Exported so args.test.ts can hold the line.
  */
 export function splitArgs(argv: readonly string[]): {
   positional: string[];
@@ -202,8 +185,9 @@ if (process.argv[1]?.endsWith('balance.ts')) {
     );
     process.exit(2);
   }
-  const count = intArg(positional[0], 32, 'seeds', 1);
-  const offset = intArg(positional[1], 101, 'offset', 0);
+  const usage = 'balance.ts [seeds] [offset] [--difficulty easy|normal|hard]';
+  const count = intArgOrExit(positional[0], 32, 'seeds', 1, usage);
+  const offset = intArgOrExit(positional[1], 101, 'offset', 0, usage);
   // Strided rather than consecutive: neighbouring seeds can generate valleys
   // that rhyme, and a sweep wants independent maps.
   const seeds = Array.from({length: count}, (_, i) => offset + i * 7);
