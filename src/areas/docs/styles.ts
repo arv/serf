@@ -119,6 +119,11 @@ export const DOCS_STYLE = `
 #docs td { padding: 9px 14px; border-top: 1px solid rgba(255,255,255,0.06);
   font-variant-numeric: tabular-nums; vertical-align: baseline; }
 #docs tr:first-child td { border-top: none; }
+/* A row that needs a line of why, under the what — the difficulty grid's
+   knobs mean nothing from their names alone. Sits inside the first cell so
+   the numeric columns stay on one baseline. */
+#docs td .row-note { margin-top: 3px; font-size: 12px; line-height: 1.45;
+  color: #85857c; font-variant-numeric: normal; max-width: 34ch; }
 
 #docs ul.refs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 #docs ul.refs li { color: #b3b1a6; }

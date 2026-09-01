@@ -368,7 +368,9 @@ already does, so the abbot's refusal to raid survives the hardest setting
 in the game. In the **campaign** the same control does a second, separate
 job: it scales the commission's own opening — the larder, the hands in the
 yard, and the peace before the first raid — leaving the ground, the
-objectives and the prebuilt village exactly as authored. Every layer is
+objectives and the prebuilt village exactly as authored. What each setting
+actually changes is spelled out in the field guide at `/docs/difficulty`,
+computed from the sim's own table rather than written down beside it. Every layer is
 measured before it ships, and `tools/aiLab/` is the measuring instrument: a seed-sweeping,
 seat-mirrored bake-off with error bars, per-behavior ablation flags and a
 per-playbook FINGERPRINTS table (`pnpm bakeoff --help`, and the README

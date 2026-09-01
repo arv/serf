@@ -123,6 +123,7 @@ describe('the docs router', () => {
     expect(parseDocsPath('/docs/techs')).toEqual({page: 'techs'});
     expect(parseDocsPath('/docs/commands')).toEqual({page: 'commands'});
     expect(parseDocsPath('/docs/basics')).toEqual({page: 'basics'});
+    expect(parseDocsPath('/docs/difficulty')).toEqual({page: 'difficulty'});
     expect(parseDocsPath('/docs/credits')).toEqual({page: 'credits'});
   });
 
@@ -131,5 +132,6 @@ describe('the docs router', () => {
     expect(parseDocsPath('/docs/buildings/constructor').page).toBe('missing');
     expect(parseDocsPath('/docs/nothing').page).toBe('missing');
     expect(parseDocsPath('/docs/buildings/bakery/extra').page).toBe('missing');
+    expect(parseDocsPath('/docs/difficulty/hard').page).toBe('missing');
   });
 });
