@@ -69,10 +69,11 @@ export type DifficultyId = Enum<typeof DifficultyIdNs>;
  * reason.
  *
  * So `hard` buys what its knobs can honestly buy and stops. Against
- * `easy` that is all but total (see below). Against `normal` it is 60.8%
- * [55.7, 65.6] over 367 duels — a real edge with genuine losses in it,
- * and one the intel and stance levers below did NOT measurably widen:
- * they read +4 points on one seed range and -4 on the other —
+ * `easy` that is total (see below). Against `normal` it is 59.6%
+ * [54.5, 64.5] over 369 duels — a real edge with genuine losses in it,
+ * uneven across the deck (the Warlord clears 75%, the Steward is not
+ * established as ahead at all), and one neither the intel and stance
+ * levers nor micro measurably widened —
  * and the way to more is not a bigger number here. It is either a
  * capability `normal` lacks (reading the rival's arms and training the
  * counter, say) or the resource handout this table exists to avoid.
@@ -191,6 +192,23 @@ export interface Difficulty {
    * remaining health, and nothing heals. So a soldier pulled out at a
    * sliver was contributing his full output right up to the moment he
    * would have died, and he is still worth that in the next fight.
+   *
+   * Measured, and the first version was NEGATIVE: focusing the whole
+   * squad, melee included, scored 57.7% against `normal` where no micro
+   * at all scores 60.8% — worse on both seed ranges. A spearman already
+   * swinging at the man in front of him, told to attack somebody else,
+   * leaves that fight to walk; the verb bought a hole in the line and
+   * spent the damage it meant to concentrate. Restricted to archers
+   * choosing among what they can already hit, it reads 59.6%
+   * [54.5, 64.5]: no longer a cost, and indistinguishable from leaving it
+   * off. What it does buy is against `easy`, where the lost-valley count
+   * goes from two in 192 pairs to ZERO on both ranges — hard now takes
+   * every valley easy does not win by terrain alone.
+   *
+   * So this is kept for the property and the legibility, not for an edge
+   * against `normal` that the numbers do not support. The two verbs have
+   * only ever been measured together; `setWarBehaviors` is the seam for
+   * telling them apart if anyone wants to.
    */
   micro: boolean;
   /**

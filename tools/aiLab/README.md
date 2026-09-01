@@ -109,16 +109,18 @@ classifies them (`PairTally` in tiers.ts):
 - **lost** — the weaker tier won both. A genuine loss, and the only kind
   worth tuning against.
 
-`lost = 0` is the honest reading of "it always wins". Hard against easy is
-very nearly that: **one lost valley in 192 seed-and-playbook pairs** across
-both ranges (the Abbot, seed 1098), against a raw rate of 87%. Nearly all
-of the missing 13% is ground the map had already decided, and chasing it
-with knobs is chasing the map generator.
+`lost = 0` is the honest reading of "it always wins", and hard against easy
+now has it: **zero lost valleys in 192 seed-and-playbook pairs** across
+both ranges, against a raw rate of 86%. All of the missing 14% is ground
+the map had already decided, and chasing it with knobs is chasing the map
+generator.
 
-Note how that number moved with depth, because it is the same trap as
-everywhere else here: at twelve seeds a range the tally read a clean zero
-across 96 pairs, and it took twenty-four to turn up the one real loss.
-"Zero so far" and "zero" are different claims. Quote the depth.
+That claim was withdrawn once before believing it a second time, which is
+worth knowing. At twelve seeds a range the tally read a clean zero across
+96 pairs; twenty-four turned up a real loss (the Abbot, seed 1098). It is
+zero again now at the deeper count, with micro closing the last two — but
+"zero so far" and "zero" are different claims, and the difference is the
+depth. Quote the depth.
 
 The standing baseline, 24 seeds on each of two ranges — four playbooks,
 both seatings, so 192 duels a pairing per range:
@@ -126,43 +128,47 @@ both seatings, so 192 duels a pairing per range:
 ```
                  range 101                      range 1000
 normal v easy    163/192  84.9%  [79.1, 89.3]   153/192  79.7%  [73.4, 84.8]
-hard   v easy    168/192  87.5%  [82.1, 91.5]   160/192  83.3%  [77.4, 87.9]
-hard   v normal  117/182  64.3%  [57.1, 70.9]   106/185  57.3%  [50.1, 64.2]
+hard   v easy    169/192  88.0%  [82.7, 91.9]   160/192  83.3%  [77.4, 87.9]
+hard   v normal  113/184  61.4%  [54.2, 68.1]   107/185  57.8%  [50.6, 64.7]
 
 pooled: normal v easy   316/384  82.3%  [78.2, 85.8]
-        hard   v easy   328/384  85.4%  [81.5, 88.6]
-        hard   v normal 223/367  60.8%  [55.7, 65.6]
+        hard   v easy   329/384  85.7%  [81.8, 88.8]
+        hard   v normal 220/369  59.6%  [54.5, 64.5]
 ```
 
 Monotone and every pairing clear of the 50% null — but read the third row
-before trusting it. The two ranges give hard-against-normal 64.3% and
-57.3%: a seven-point spread on the pairing that matters most, wider than
-any change ever measured on it. The pooled 60.8% is the number to quote;
-either range alone is not.
+before trusting it. The two ranges give hard-against-normal 61.4% and
+57.8%, and earlier builds spread as wide as 64.3% against 57.3% on the
+pairing that matters most. The pooled figure is the number to quote; a
+single range on that row is not.
 
-Read the two easy pairings with the section above in mind: 85% is not where
+Read the two easy pairings with the section above in mind: 86% is not where
 hard ran out of strength, it is where the map generator ran out of fair
-valleys — 22 to 30 of the 96 pairs decide themselves. Genuine losses to
-easy are 1 per range in each pairing.
+valleys — 23 to 32 of the 96 pairs decide themselves. Genuine losses to
+easy are zero on both ranges.
 
 Hard against normal is the honest weak spot, and per playbook it is weaker
 still. Pooled over both ranges, with intervals, only two of the four lords
 are established as ahead of normal at all:
 
 ```
-warlord   68/96  70.8%  [61.1, 79.0]  WINS
+warlord   72/96  75.0%  [65.5, 82.6]  WINS
 abbot     57/90  63.3%  [53.0, 72.6]  WINS
-steward   54/96  56.3%  [46.3, 65.7]  no result
-fletcher  44/85  51.8%  [41.3, 62.1]  no result
+fletcher  46/87  52.9%  [42.5, 63.0]  no result
+steward   45/96  46.9%  [37.2, 56.8]  no result
 ```
 
-Resist the story that wants telling here. On range 101 alone this table
-read steward 52% and warlord 77%, which invites "hard sharpens an already
-aggressive lord and cannot help a cautious one" — and range 1000 reversed
-the two (steward 60%, warlord 65%). Forty-eight duels a cell is not enough
-to rank four playbooks, and the ranking was fitted to noise. What survives
-pooling is only that the Warlord gains most and the Fletcher gains nothing
-measurable; anything more specific needs more seeds than anyone has spent.
+Resist the story that wants telling here — this table has already told a
+false one. On range 101 alone an earlier build read steward 52% and warlord
+77%, which invites "hard sharpens an already aggressive lord and cannot
+help a cautious one", and range 1000 reversed the pair (steward 60%,
+warlord 65%). Forty-eight duels a cell cannot rank four playbooks.
+
+Pooled at 96 duels a lord it is still only two intervals that clear the
+null, and the Steward's has drifted below it. Read the rank order as
+unsettled: the honest summary is that hard's edge over normal is real in
+aggregate, uneven across the deck, and not established at all for half of
+it. Anything more specific needs more seeds than anyone has spent.
 
 Two lessons, both bought the expensive way.
 
@@ -180,6 +186,18 @@ from the intel and stance levers, a per-playbook ranking — was true on one
 range and false on the other. One range is a hypothesis. Two is a result.
 The cost of forgetting that is not a wrong number, it is a design argument
 built on top of one.
+
+**A capability can cost as easily as it pays, and the shape matters more
+than the idea.** Micro — focus fire and pulling the wounded out — is the
+one capability difference in the tier table, and its first cut measured at
+57.7% against `normal` where no micro at all measures 60.8%, worse on both
+ranges. It focused every soldier, melee included, and a spearman told to
+attack somebody other than the man in front of him leaves that fight to
+walk. Restricted to archers picking among what they can already hit — a
+bow chooses its target without moving, which is what makes the choice free
+— it recovers to 59.6% [54.5, 64.5], and buys the lost-valley count
+against `easy` down from two in 192 pairs to zero on both ranges. Same
+idea, three lines of restriction, three points of difference.
 
 **The knobs have a ceiling, and it is not at the end of their range.** A
 deliberate ceiling test — every hard knob pushed to its clamp at once,
