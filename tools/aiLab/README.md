@@ -118,9 +118,15 @@ generator.
 That claim was withdrawn once before believing it a second time, which is
 worth knowing. At twelve seeds a range the tally read a clean zero across
 96 pairs; twenty-four turned up a real loss (the Abbot, seed 1098). It is
-zero again now at the deeper count, with micro closing the last two — but
-"zero so far" and "zero" are different claims, and the difference is the
-depth. Quote the depth.
+zero again at the deeper count — but "zero so far" and "zero" are
+different claims, and the difference is the depth. Quote the depth.
+
+And do not read the last two off micro. The count went from two to zero
+when micro landed, which is TWO EVENTS out of 192 pairs, and the win rate
+across the same pairing moved by a single duel in 384. That is not a
+result, it is the same small-sample trap this file warns about wearing a
+different hat. Micro's honest record is below: it cost three points, the
+archer restriction bought them back, and the net is nothing measurable.
 
 The standing baseline, 24 seeds on each of two ranges — four playbooks,
 both seatings, so 192 duels a pairing per range:
@@ -195,9 +201,18 @@ ranges. It focused every soldier, melee included, and a spearman told to
 attack somebody other than the man in front of him leaves that fight to
 walk. Restricted to archers picking among what they can already hit — a
 bow chooses its target without moving, which is what makes the choice free
-— it recovers to 59.6% [54.5, 64.5], and buys the lost-valley count
-against `easy` down from two in 192 pairs to zero on both ranges. Same
-idea, three lines of restriction, three points of difference.
+— it recovers to 59.6% [54.5, 64.5] — statistically level with leaving it
+off (60.8%). Same idea, three lines of restriction, three points of
+difference, and a net of zero.
+
+It ships anyway, under the rule warBehaviorIdEnum states for its own
+verbs: a behavior whose payoff is drama rather than win rate still owes
+proof that it does not COST a rate. Micro owes that proof precisely
+because the first cut failed it, and the archers-only cut pays it. Archers
+picking the wounded man out of a line is legible — a player can see it and
+read the opponent as paying attention — which is the same ground
+`heraldMarch` and `scoutFlees` stand on. What it is NOT is an edge, and
+the lost-valley count is not evidence of one.
 
 **The knobs have a ceiling, and it is not at the end of their range.** A
 deliberate ceiling test — every hard knob pushed to its clamp at once,

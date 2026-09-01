@@ -201,14 +201,16 @@ export interface Difficulty {
    * spent the damage it meant to concentrate. Restricted to archers
    * choosing among what they can already hit, it reads 59.6%
    * [54.5, 64.5]: no longer a cost, and indistinguishable from leaving it
-   * off. What it does buy is against `easy`, where the lost-valley count
-   * goes from two in 192 pairs to ZERO on both ranges — hard now takes
-   * every valley easy does not win by terrain alone.
+   * off. Against `easy` the lost-valley count went from two in 192 pairs
+   * to zero — but that is two events, and the win rate on the same
+   * pairing moved by one duel in 384, so it is not evidence of a gain and
+   * is not offered as one.
    *
-   * So this is kept for the property and the legibility, not for an edge
-   * against `normal` that the numbers do not support. The two verbs have
-   * only ever been measured together; `setWarBehaviors` is the seam for
-   * telling them apart if anyone wants to.
+   * So this is kept for legibility, under the rule warBehaviorIdEnum
+   * states for its own verbs: a payoff that is drama rather than win rate
+   * still owes proof that it does not COST a rate. The first cut failed
+   * that; this one pays it. The two verbs have only ever been measured
+   * together — `setWarBehaviors` is the seam for telling them apart.
    */
   micro: boolean;
   /**
