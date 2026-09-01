@@ -1,5 +1,10 @@
 import {describe, expect, it, vi} from 'vitest';
-import {createWakeLock, type WakeLockPort, type WakeSentinel} from './wakeLock';
+import {
+  createWakeLock,
+  domWakeLockPort,
+  type WakeLockPort,
+  type WakeSentinel,
+} from './wakeLock';
 
 /**
  * A browser that grants screen locks, refuses them, or has never heard of
@@ -63,6 +68,24 @@ function fakePort(opts?: {
     },
   };
 }
+
+describe('domWakeLockPort', () => {
+  it('reads a browser that has no API as unsupported', () => {
+    expect(domWakeLockPort({} as Navigator).supported).toBe(false);
+  });
+
+  it('refuses a half-built API the same way, and says why', async () => {
+    // A polyfill that defined the object and not the method. `supported`
+    // already answered false, so the controller never gets here; a caller
+    // that does gets the reason rather than "api.request is not a
+    // function".
+    const nav = {wakeLock: {}} as unknown as Navigator;
+    const port = domWakeLockPort(nav);
+
+    expect(port.supported).toBe(false);
+    await expect(port.request()).rejects.toThrow('no Screen Wake Lock API');
+  });
+});
 
 describe('wakeLock', () => {
   it('takes the screen when the page is visible and gives it back when hidden', async () => {
@@ -136,6 +159,18 @@ describe('wakeLock', () => {
 
     expect(wake.held()).toBe(false);
     expect(port.granted[0]?.released).toBe(true);
+
+    // And stays down when spoken to again. A match's teardown takes this
+    // apart before it takes the visibility listener off (they are pushed
+    // in that order and run in reverse), so the sink outlives the screen
+    // by a step; a return to visible landing in that step would otherwise
+    // take a lock for a match that no longer exists — and nothing left
+    // would ever release it.
+    wake.setHidden(false);
+    await port.settle();
+
+    expect(port.asks()).toBe(1);
+    expect(wake.held()).toBe(false);
   });
 
   it('survives a refusal, and does not narrate it twice', async () => {

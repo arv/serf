@@ -125,14 +125,20 @@ export function createWakeLock(port: WakeLockPort): WakeLock {
     if (held) void held.release().catch(() => {});
   };
 
+  /** One way. A disposed match must never take the screen back, whatever
+   * is still holding a reference to this and calling into it. */
+  let over = false;
+
   return {
     held: () => sentinel !== null,
     setHidden: hidden => {
+      if (over) return;
       want = !hidden;
       if (want) acquire();
       else drop();
     },
     dispose: () => {
+      over = true;
       want = false;
       drop();
     },
@@ -153,9 +159,13 @@ export function domWakeLockPort(nav: Navigator = navigator): WakeLockPort {
   return {
     supported: typeof api?.request === 'function',
     request: async () => {
+      // The same question `supported` asks, asked again — a browser with a
+      // `wakeLock` that cannot `request` is one this must not call into.
       // The controller never asks an unsupported port; a caller that does
-      // anyway gets a rejection, which is the road refusals already take.
-      if (!api) throw new Error('no Screen Wake Lock API');
+      // anyway gets a rejection naming the reason, which is the road
+      // refusals already take.
+      if (typeof api?.request !== 'function')
+        throw new Error('no Screen Wake Lock API');
       const granted = await api.request('screen');
       return {
         release: () => granted.release(),
