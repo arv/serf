@@ -39,6 +39,24 @@ export type SimCommand =
       y: number;
       attack?: true | 'half';
     }
+  /**
+   * Put a squad on one target — focus fire, and the only way a caller can
+   * name a target at all. Every other order leaves that to the sim:
+   * `acquireUnit` picks the nearest enemy weighted by the counter table,
+   * for every soldier on the field, and that stays the default. This says
+   * "all of you, that one", which is worth having because damage here is
+   * flat — a soldier at a sliver of health hits exactly as hard as a fresh
+   * one — so killing one enemy outright removes its whole output where
+   * spreading the same damage over three removes none of it.
+   *
+   * Units only. Buildings are already besieged by the orders that send an
+   * army at them, and a focus order on a wall would just be a slower move.
+   */
+  | {
+      kind: CommandKindNs.focusTarget;
+      unitIds: EntityId[];
+      targetId: EntityId;
+    }
   | {
       kind: CommandKindNs.placeBuilding;
       building: BuildingTypeId;
@@ -199,6 +217,17 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const c = raw as Record<string, unknown>;
   switch (c.kind) {
+    case CommandKindNs.focusTarget: {
+      if (!Array.isArray(c.unitIds)) return null;
+      if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
+      if (!c.unitIds.every(isId)) return null;
+      if (!isId(c.targetId)) return null;
+      return {
+        kind: CommandKindNs.focusTarget,
+        unitIds: [...(c.unitIds as EntityId[])],
+        targetId: c.targetId as EntityId,
+      };
+    }
     case CommandKindNs.moveUnits: {
       if (!Array.isArray(c.unitIds)) return null;
       if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;

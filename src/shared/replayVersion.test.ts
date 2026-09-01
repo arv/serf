@@ -146,7 +146,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // raid clock by the tier is config the world is BUILT from, and an older
 // build drops the field and rebuilds a different opening — as does the
 // commission's raid pressure, which moves waves onto different ticks at a
-// different size. See
+// different size, and a seventeenth command kind (`focusTarget`) that an
+// older sanitizeCommand would screen out of a log recorded here. See
 // replayVersion.ts. It sits on top of main's own 38 (the seats dealt
 // their start spots), which is why this is 39 and not 38.
 // (Still 39 after `easy` was retuned — spears only, a
@@ -157,7 +158,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // 10, 15, at the printed cadence, so a normal seat's beats did not move; and
 // brains do not run in playback anyway.)
 const EXPECTED_VERSION = 39;
-const EXPECTED_HASH = '5b86e3c11641a74b5ec86c573fe6285f';
+const EXPECTED_HASH = 'f0d71bf708fd299d0a31eb2650f8f119';
 
 /**
  * Everything a replay's playback depends on, as raw source:

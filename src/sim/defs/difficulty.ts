@@ -174,6 +174,26 @@ export interface Difficulty {
    */
   minSighting: number;
   /**
+   * Whether the seat micros its soldiers: focus fire, and pulling the
+   * wounded out of the line (warBehaviorIdEnum `focusFire`,
+   * `withdrawWounded`).
+   *
+   * A capability rather than a magnitude, and the only one in this table —
+   * everything else here scales something every tier already does. It sits
+   * outside the header's "hard may only sharpen" rule for the same reason
+   * the war behaviours sit outside a playbook: micro is brain competence,
+   * not a lord's character. No playbook expresses an opinion about pulling
+   * a bleeding man out of a fight, so granting it to `hard` flattens
+   * nobody — where granting `hard` a sortie the Abbot refuses would.
+   *
+   * Worth more here than in most games of this shape, because damage is
+   * flat: `strikeUnit` reads the attacker's printed damage, never its
+   * remaining health, and nothing heals. So a soldier pulled out at a
+   * sliver was contributing his full output right up to the moment he
+   * would have died, and he is still worth that in the next fight.
+   */
+  micro: boolean;
+  /**
    * Percent of the stance engine's clocks (AI_STANCE.evalPeriod and
    * `dwell`) — how often a seat re-reads which mood it should be in, and
    * how long it must hold one before it may change again.
@@ -398,6 +418,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     intelTrustPct: 60,
     minSighting: 2,
     stanceLatencyPct: 250,
+    micro: false,
     // A muster this village cannot reach: fourteen soldiers on a thirty-bed
     // cap that also has to staff every post. So an easy seat never leaves
     // its opening for the stance that goes and takes a castle — it defends,
@@ -448,6 +469,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     minSighting: 0,
     stanceLatencyPct: 100,
     foundAfterArmy: null,
+    micro: false,
     spearsOnly: false,
     decisionIntervalPct: 100,
     serfTarget: 0,
@@ -483,6 +505,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     intelTrustPct: 150,
     minSighting: -1,
     stanceLatencyPct: 70,
+    micro: true,
     foundAfterArmy: null,
     spearsOnly: false,
     decisionIntervalPct: 100,

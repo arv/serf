@@ -1,6 +1,6 @@
 import type {Enum} from '../../shared/enum.ts';
 import {tileCount, tileIdx, tileX, tileY} from '../../shared/grid.ts';
-import {exactDist} from '../../shared/math.ts';
+import {clamp, exactDist} from '../../shared/math.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {
   addGarrison,
@@ -26,6 +26,7 @@ import {
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import {
   applyDifficulty,
+  difficultyOf,
   type DifficultyId,
   scaleDecisionInterval,
   scaleIntelTrust,
@@ -537,6 +538,8 @@ export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.retreatMarch]: 'retreatMarch',
   [WarBehaviorIdNs.scoutFlees]: 'scoutFlees',
   [WarBehaviorIdNs.heraldMarch]: 'heraldMarch',
+  [WarBehaviorIdNs.focusFire]: 'focusFire',
+  [WarBehaviorIdNs.withdrawWounded]: 'withdrawWounded',
 };
 
 export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
@@ -546,6 +549,8 @@ export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
   WarBehaviorIdNs.retreatMarch,
   WarBehaviorIdNs.scoutFlees,
   WarBehaviorIdNs.heraldMarch,
+  WarBehaviorIdNs.focusFire,
+  WarBehaviorIdNs.withdrawWounded,
 ];
 
 const WAR_BEHAVIOR_BY_KEY = new Map<string, WarBehaviorId>(
@@ -583,6 +588,27 @@ export const AI_WAR = {
   /** How long a raid stays worth avenging: the grudge names the rival
    * whose force reached our yard most recently inside this window. */
   grudgeFor: 6_000,
+  /**
+   * Micro (Difficulty.micro), such as a brain can do it here. There is
+   * exactly one order that names a target and one that moves people, so
+   * this is focus fire and pulling the wounded out — no more.
+   *
+   * A soldier below this share of his kind's health is pulled out of the
+   * line. Not lower: damage is flat, so he was worth his whole output
+   * until the blow that would have killed him, and pulling him early
+   * spends real damage to save him. Not higher either — combat power goes
+   * roughly with the square of the headcount, so thinning the line is
+   * paid for immediately and the man is only worth something later.
+   */
+  woundedBelow: 0.34,
+  /** How far back a pulled soldier steps. Far enough to leave the
+   * acquire radius that would drag him back in, no further: he is meant to
+   * rejoin the next fight, not walk home. */
+  withdrawStep: 7,
+  /** Soldiers that must be in the fight before focus fire is worth an
+   * order. Two men already both hit whatever is nearest; the gain starts
+   * where the damage would otherwise be spread. */
+  focusMin: 3,
   /**
    * The herald's telegraph: a full assault on a rival CASTLE is announced
    * this many ticks before the army moves — fifteen seconds a defender can
@@ -641,6 +667,10 @@ export class AiBrain {
   readonly #minSighting: number;
   readonly #stanceEval: number;
   readonly #stanceDwell: number;
+  /** Whether this seat micros its soldiers (Difficulty.micro). Gates the
+   * two war behaviours that need it, on top of the lab's own `--war`
+   * ablation, so a tier without micro runs the pre-micro brain exactly. */
+  readonly #micro: boolean;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -722,6 +752,12 @@ export class AiBrain {
   #outpostDefenses = 0;
   #marchRetreats = 0;
   #scoutFled = 0;
+  /** Micro's fingerprints: men pulled out of a line, and focus orders
+   * given. Same reason every other verb keeps a counter — a behavior that
+   * never fires and one that fires without paying read identically in a
+   * win rate. */
+  #withdrawn = 0;
+  #focused = 0;
   #heralds = 0;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
@@ -830,6 +866,7 @@ export class AiBrain {
     );
     this.#intelTrust = scaleIntelTrust(AI_INTEL.trustFor, difficulty);
     this.#minSighting = scaleMinSighting(AI_INTEL.minSighting, difficulty);
+    this.#micro = difficultyOf(difficulty).micro;
     this.#stanceEval = scaleStanceClock(AI_STANCE.evalPeriod, difficulty);
     this.#stanceDwell = scaleStanceClock(AI_STANCE.dwell, difficulty);
     this.#vision = new SeatVision(mapSize);
@@ -909,6 +946,8 @@ export class AiBrain {
     scoutFled: number;
     heralds: number;
     stanceSwitches: number;
+    withdrawn: number;
+    focused: number;
   } {
     return {
       firstMarchTick: this.#firstMarchTick,
@@ -920,6 +959,8 @@ export class AiBrain {
       scoutFled: this.#scoutFled,
       heralds: this.#heralds,
       stanceSwitches: this.#stanceSwitches,
+      withdrawn: this.#withdrawn,
+      focused: this.#focused,
     };
   }
 
@@ -1328,6 +1369,11 @@ export class AiBrain {
       return commands;
     }
     this.#defendOutposts(world, mine, army, commands, baseX, baseY, spokenFor);
+    // Micro, last of the reactive verbs and only where the tier grants it:
+    // both read the fight as it stands, so they want every earlier verb's
+    // orders already on the board.
+    this.#withdrawWounded(world, army, commands, baseX, baseY, spokenFor);
+    this.#focusFire(world, army, commands, spokenFor);
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
     const idleFor = world.tick - this.#lastAttackTick;
     const cooled = idleFor > s.attackCooldown;
@@ -2420,6 +2466,119 @@ export class AiBrain {
    * (AI_WAR.outpostCooldown), never during a march, and never the last
    * men at home.
    */
+  /**
+   * Pull the wounded out of the line — the cheaper half of micro, and the
+   * half this sim pays best for.
+   *
+   * `strikeUnit` reads the attacker's PRINTED damage and never his
+   * remaining health, and nothing heals a soldier. So a man at a sliver
+   * was contributing everything a fresh man contributes right up to the
+   * blow that ends him, and a man pulled out keeps that for the next
+   * fight. What it costs is the line he leaves, immediately — which is why
+   * the threshold sits low (AI_WAR.woundedBelow) and why this is measured
+   * rather than assumed.
+   *
+   * A plain move order is the disengage: combatSystem drops the target of
+   * anything on one before it looks at targets at all.
+   */
+  #withdrawWounded(
+    world: World,
+    army: Unit[],
+    commands: SimCommand[],
+    baseX: number,
+    baseY: number,
+    spokenFor: Set<EntityId>,
+  ): void {
+    if (!this.#micro || !this.#warOn(WarBehaviorIdNs.withdrawWounded)) return;
+    const hurt: EntityId[] = [];
+    for (const u of army) {
+      if (spokenFor.has(u.id)) continue;
+      // Only men actually in a fight: a unit with no target is not losing
+      // blood this beat, and ordering it about would only break whatever
+      // the rest of the brain had planned for it.
+      if (u.targetId === undefined) continue;
+      if (u.hp >= UNIT_DEFS[u.kind].hp * AI_WAR.woundedBelow) continue;
+      hurt.push(u.id);
+    }
+    if (hurt.length === 0) return;
+    // Never the whole line: a squad that all steps back at once has not
+    // withdrawn its wounded, it has fled, and the fight it leaves is one
+    // the survivors were still winning.
+    if (hurt.length * 2 > army.length) return;
+    for (const id of hurt) spokenFor.add(id);
+    // One step toward home, not home itself. The step is what leaves the
+    // acquire radius; the walk home would take him out of the war.
+    const first = world.units.get(hurt[0]!);
+    if (!first) return;
+    const dx = baseX - first.x;
+    const dy = baseY - first.y;
+    const len = Math.max(1, exactDist(dx, dy));
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: hurt,
+      // Clamped: a step back from a fight near an edge would otherwise
+      // name ground the map does not have.
+      x: clamp(
+        Math.round(first.x + (dx / len) * AI_WAR.withdrawStep),
+        0,
+        world.map.size - 1,
+      ),
+      y: clamp(
+        Math.round(first.y + (dy / len) * AI_WAR.withdrawStep),
+        0,
+        world.map.size - 1,
+      ),
+    });
+    this.#withdrawn += hurt.length;
+  }
+
+  /**
+   * Focus fire: put the squad on one enemy instead of letting each man
+   * take the nearest thing he counters.
+   *
+   * The pick is the enemy closest to dying among those already engaged —
+   * lowest health first, id to break a tie so two hosts choose the same
+   * man. Flat damage is again the reason it pays: killing one outright
+   * removes his whole output, where spreading the same damage across
+   * three removes none of it.
+   *
+   * Deliberately only over enemies the squad has ALREADY found. Naming a
+   * target further off would be an order to chase, and combatSystem drops
+   * a target past acquireRadius * 1.6 anyway — so the order would be spent
+   * pulling the line apart for a man it never reaches.
+   */
+  #focusFire(
+    world: World,
+    army: Unit[],
+    commands: SimCommand[],
+    spokenFor: Set<EntityId>,
+  ): void {
+    if (!this.#micro || !this.#warOn(WarBehaviorIdNs.focusFire)) return;
+    const fighters = army.filter(
+      u =>
+        !spokenFor.has(u.id) && u.targetId !== undefined && !u.targetIsBuilding,
+    );
+    if (fighters.length < AI_WAR.focusMin) return;
+    let best: Unit | undefined;
+    for (const u of fighters) {
+      const t = world.units.get(u.targetId!);
+      if (!t || t.dead || t.owner === this.playerId) continue;
+      if (!best || t.hp < best.hp || (t.hp === best.hp && t.id < best.id))
+        best = t;
+    }
+    if (!best) return;
+    // Everyone already on him is an order nobody needs.
+    const switching = fighters.filter(u => u.targetId !== best.id);
+    if (switching.length === 0) return;
+    for (const u of switching) spokenFor.add(u.id);
+    commands.push({
+      kind: CommandKind.focusTarget,
+      unitIds: switching.map(u => u.id),
+      targetId: best.id,
+    });
+    this.#focused++;
+  }
+
   #defendOutposts(
     world: World,
     mine: readonly Building[],

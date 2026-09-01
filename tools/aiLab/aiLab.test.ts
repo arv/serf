@@ -598,6 +598,8 @@ describe('the fingerprints', () => {
     sortieWithdrawals: 0,
     outpostDefenses: 0,
     marchRetreats: 0,
+    withdrawn: 0,
+    focused: 0,
     scoutFled: 0,
     heralds: 0,
     stanceSwitches: 0,

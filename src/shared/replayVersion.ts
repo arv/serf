@@ -45,6 +45,17 @@
  * cadence it is arithmetically the same offsets (0, 5, 10, 15), and it is
  * brain pacing either way.
  *
+ * A seventeenth command kind rides along: `focusTarget`, which puts a
+ * named squad on one enemy unit. It is the only order in the game that
+ * names a target — everything else leaves that to `acquireUnit` — and the
+ * `hard` tier's brain is what issues it (warBehaviorIdEnum `focusFire`).
+ * Pure format on its own, exactly as the rally point (20) and the herald
+ * (34) were: no log written before this build can hold one, and the tick
+ * that executes every older order is untouched. It is named here for the
+ * reason those two were — a log recorded on this build can carry an order
+ * an older sanitizeCommand screens out, and an army that never got its
+ * focus order is a different army.
+ *
  * The commission's raid pressure scales with it too — the gap between
  * waves after the first, and how many raiders one wave may hold
  * (systems/bandits.ts). Those are ticks, not decisions: the wave lands on

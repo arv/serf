@@ -163,6 +163,26 @@ export function applyCommand(
     case CommandKind.moveUnits:
       applyMoveUnits(world, playerId, cmd);
       break;
+    case CommandKind.focusTarget: {
+      // The one order that names a target. Everything is re-checked here,
+      // because a command arrives off a socket as readily as off a click:
+      // the target must be a living unit belonging to somebody else, and
+      // each unit named must be this player's, alive, and able to fight.
+      // A soldier already walking under a plain move order is left alone —
+      // combatSystem disengages those before it looks at a target, so
+      // writing one would be an order the next tick throws away.
+      const target = world.units.get(cmd.targetId);
+      if (!target || target.dead || target.owner === playerId) break;
+      for (const id of cmd.unitIds) {
+        const u = world.units.get(id);
+        if (!u || u.dead || u.owner !== playerId) continue;
+        if (!UNIT_DEFS[u.kind].combat) continue;
+        if (u.task.t === UnitTaskKind.move) continue;
+        u.targetId = target.id;
+        u.targetIsBuilding = false;
+      }
+      break;
+    }
     case CommandKind.placeBuilding:
       if (
         !buildingDef(cmd.building).systemOnly &&

@@ -36,3 +36,5 @@ export const herald = 15 as const;
 export type herald = typeof herald;
 export const cancelHire = 16 as const;
 export type cancelHire = typeof cancelHire;
+export const focusTarget = 17 as const;
+export type focusTarget = typeof focusTarget;
