@@ -359,16 +359,26 @@ assault fifteen seconds before it moves. **Difficulty** is a fifth layer
 over those (`src/sim/defs/difficulty.ts`): a transform applied to the knobs
 a brain has already composed, so a tier scales whatever mood the seat is in
 rather than pinning it. Easy musters late, refuses an even fight, raids
-nobody and thinks on a half-speed clock; hard grows wider, marches sooner
-and comes looking for you early. It buys none of that with a handout —
-the computer seats open with the same larder as everyone else at every
-setting, and the fog model is untouched — and the rule the table follows is
-that easy may soften anything while hard may only sharpen what a playbook
-already does, so the abbot's refusal to raid survives the hardest setting
-in the game. In the **campaign** the same control does a second, separate
-job: it scales the commission's own opening — the larder, the hands in the
-yard, and the peace before the first raid — leaving the ground, the
-objectives and the prebuilt village exactly as authored. What each setting
+nobody, arms everyone with spears, thinks on a half-speed clock and is
+slower still to notice the situation has turned; hard grows wider, marches
+sooner and comes looking for you early.
+
+It buys none of that with a handout. Every seat opens with the same larder
+at every setting, and the fog model is untouched: a tier scales how long a
+lord REMEMBERS what its scouts saw and how much of it it takes seriously,
+never what its people can see. That distinction does more work than it
+looks — a seat will not re-tool its forges for a rival whose picture has
+gone stale, so an easy lord that forgets quickly stops answering what you
+field at all, and keeps making what its playbook printed while you walk
+knights into its spearmen. The rule the table follows is that easy may
+soften anything while hard may only sharpen what a playbook already does,
+so the abbot's refusal to raid survives the hardest setting in the game.
+
+In the **campaign** the same control does a second, separate job: it
+scales the commission's own opening — the larder, the hands in the yard,
+the peace before the first raid, and then the gap between the waves after
+it, which is the number a commission is actually won or lost on — leaving
+the ground, the objectives and the prebuilt village exactly as authored. What each setting
 actually changes is spelled out in the field guide at `/docs/difficulty`,
 computed from the sim's own table rather than written down beside it. Every layer is
 measured before it ships, and `tools/aiLab/` is the measuring instrument: a seed-sweeping,
