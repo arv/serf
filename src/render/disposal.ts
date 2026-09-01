@@ -64,6 +64,12 @@ export function disposeOwnedSubtree(root: THREE.Object3D): void {
     if (o instanceof THREE.InstancedMesh) o.dispose(); // instance attributes
     free(o.geometry);
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      // Stop at a shared material rather than reaching past it to its
+      // texture. `shared` names the packs' materials and geometries and
+      // not the palette textures hanging off them, so a map freed here is
+      // one the next mesh built from that same material still needs — and
+      // the editor builds one on every stroke.
+      if (shared.has(m)) continue;
       const map = (m as THREE.MeshLambertMaterial).map;
       if (map) free(map);
       free(m);
