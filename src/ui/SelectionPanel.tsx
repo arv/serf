@@ -1473,7 +1473,22 @@ export function SelectionPanel(props: {
               them a tile stays the tile it was, and the bar under it is
               the only thing that travels. */}
           <Show when={roster().length > 1}>
-            <div class="sel-roster">
+            {/* The instruction lives on the group, said once when a
+                reader steps into it, rather than on all two dozen faces.
+                A tile's accessible name is the man and his health,
+                because that is what changes tile to tile and what a
+                reader is walking the grid to compare; hanging "click to
+                take him on his own, shift-click to leave him behind" off
+                each name would read that sentence twenty-four times to
+                someone tabbing through and bury the one number that
+                differs. The pointer gets the same words from the
+                tooltip, which is exactly the audience the tooltip
+                cannot reach. */}
+            <div
+              class="sel-roster"
+              role="group"
+              aria-label="The band in hand. Click a face to take that man on his own; shift-click to leave him behind."
+            >
               <Index each={shown()}>
                 {unit => (
                   <TipWrap
@@ -1489,10 +1504,12 @@ export function SelectionPanel(props: {
                         picked him up. The whole of it is the target
                         rather than the glyph, so a thumb has the cell.
 
-                        It also has to say itself out loud — a picture and
-                        a bar name nobody — so the label is the sentence,
-                        and the glyph inside stays hidden rather than
-                        being read out as a second name after it. */}
+                        It also has to name itself out loud — a picture
+                        and a bar name nobody — so the label is the man
+                        and his health, and the glyph inside stays hidden
+                        rather than being read out as a second name after
+                        it. What the click does is said once on the group
+                        above, not again on every face. */}
                     <button
                       class="sel-tile"
                       aria-label={`${unitName(unit().kind)}, ${unit().hp} of ${unit().maxHp} hitpoints`}
