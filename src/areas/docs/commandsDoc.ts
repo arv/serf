@@ -99,7 +99,8 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.focusTarget]: {
     summary:
       'Put a squad on one enemy — focus fire. Every other order leaves targeting to the sim, which sends each soldier at the nearest enemy it counters; this overrides that for the units named, until the target dies or outruns them. Worth having because damage is flat: a soldier at a sliver of health hits as hard as a fresh one, so killing one outright removes its whole output where spreading the same damage over three removes none.',
-    payload: 'unitIds, targetId (a living enemy unit)',
+    payload:
+      'unitIds, targetId (a living enemy unit, or a standing enemy building with building: true)',
   },
 };
 

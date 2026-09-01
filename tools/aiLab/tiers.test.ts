@@ -7,8 +7,10 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
 
 /**
  * The tier ordering, pinned: normal beats easy, hard beats both, and hard
- * all but never loses a valley to easy that the valley did not decide
- * itself (one in 192 pairs on the full sweeps).
+ * never loses a valley to easy that the valley did not decide itself —
+ * zero in 192 seed-and-playbook pairs on the full sweeps. Quote the depth
+ * with the number: the same tally read one loss at a shallower count, so
+ * "zero" here means zero at 192 pairs, not zero forever.
  *
  * That last clause is the assertion to read, and the reason the headline
  * here is a pair tally rather than a percentage. A mirrored win rate
