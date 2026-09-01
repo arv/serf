@@ -125,48 +125,61 @@ both seatings, so 192 duels a pairing per range:
 
 ```
                  range 101                      range 1000
-normal v easy    163/191  85.3%  [79.6, 89.7]   154/190  81.1%  [74.9, 86.0]
-hard   v easy    169/192  88.0%  [82.7, 91.9]   165/192  85.9%  [80.3, 90.2]
-hard   v normal  113/187  60.4%  [53.3, 67.2]   114/187  61.0%  [53.8, 67.7]
+normal v easy    163/192  84.9%  [79.1, 89.3]   153/192  79.7%  [73.4, 84.8]
+hard   v easy    168/192  87.5%  [82.1, 91.5]   160/192  83.3%  [77.4, 87.9]
+hard   v normal  117/182  64.3%  [57.1, 70.9]   106/185  57.3%  [50.1, 64.2]
 
-pooled: normal v easy   317/381  83.2%  [79.1, 86.6]
-        hard   v easy   334/384  87.0%  [83.2, 90.0]
-        hard   v normal 227/374  60.7%  [55.7, 65.5]
+pooled: normal v easy   316/384  82.3%  [78.2, 85.8]
+        hard   v easy   328/384  85.4%  [81.5, 88.6]
+        hard   v normal 223/367  60.8%  [55.7, 65.6]
 ```
 
-Monotone, every pairing clear of the 50% null, and the two ranges agree to
-within four points on all three.
+Monotone and every pairing clear of the 50% null — but read the third row
+before trusting it. The two ranges give hard-against-normal 64.3% and
+57.3%: a seven-point spread on the pairing that matters most, wider than
+any change ever measured on it. The pooled 60.8% is the number to quote;
+either range alone is not.
 
-Read the two easy pairings with the section above in mind: 87% is not where
+Read the two easy pairings with the section above in mind: 85% is not where
 hard ran out of strength, it is where the map generator ran out of fair
-valleys. The pair tally, 24 seeds on each range:
+valleys — 22 to 30 of the 96 pairs decide themselves. Genuine losses to
+easy are 1 per range in each pairing.
+
+Hard against normal is the honest weak spot, and per playbook it is weaker
+still. Pooled over both ranges, with intervals, only two of the four lords
+are established as ahead of normal at all:
 
 ```
-             range 101                     range 1000
-steward     19 swept,  5 split, 0 lost     22 swept,  2 split, 0 lost
-warlord     22 swept,  2 split, 0 lost     20 swept,  4 split, 0 lost
-abbot       18 swept,  6 split, 0 lost     16 swept,  7 split, 1 lost
-fletcher    14 swept, 10 split, 0 lost     12 swept, 12 split, 0 lost
+warlord   68/96  70.8%  [61.1, 79.0]  WINS
+abbot     57/90  63.3%  [53.0, 72.6]  WINS
+steward   54/96  56.3%  [46.3, 65.7]  no result
+fletcher  44/85  51.8%  [41.3, 62.1]  no result
 ```
 
-One genuine loss in 192 pairs. The Fletcher is the one to watch: on range
-1000 half its valleys decide themselves, which says as much about how
-lopsided an archer start can be as it does about the tier.
-
-Hard against normal is the honest weak spot: 60.7% pooled is a real edge,
-but the pair tally shows genuine losses (3, 1, 2 and 5 per playbook over
-twelve seeds), not just unlucky ground. The section below is why it is not
-higher.
+Resist the story that wants telling here. On range 101 alone this table
+read steward 52% and warlord 77%, which invites "hard sharpens an already
+aggressive lord and cannot help a cautious one" — and range 1000 reversed
+the two (steward 60%, warlord 65%). Forty-eight duels a cell is not enough
+to rank four playbooks, and the ranking was fitted to noise. What survives
+pooling is only that the Warlord gains most and the Fletcher gains nothing
+measurable; anything more specific needs more seeds than anyone has spent.
 
 Two lessons, both bought the expensive way.
 
-**Measure before you tune.** At 96 duels hard-versus-normal read 53/95,
-55.8%, [45.8, 65.4] — "no result" — and it would have been easy to read
-that as a weak tier. It was not weak, it was under-measured: at 187 duels
-the same tier is 60.4% with the interval clear. Three candidate
-strengthenings tried at the small sample (forcing `retreats: false`, a
-wider village, a faster clock for hard) all came in at or below the
-printed table, which is exactly what noise looks like.
+**Measure before you tune, and on both ranges before you believe.** At 96
+duels hard-versus-normal read 53/95, 55.8%, [45.8, 65.4] — "no result" —
+and it would have been easy to read that as a weak tier. It was not weak,
+it was under-measured. Three candidate strengthenings tried at that sample
+(forcing `retreats: false`, a wider village, a faster clock for hard) all
+came in at or below the printed table, which is exactly what noise looks
+like.
+
+The trap does not stop at the pooled number. Every claim on this page that
+was later withdrawn — a clean zero on the pair tally, a four-point gain
+from the intel and stance levers, a per-playbook ranking — was true on one
+range and false on the other. One range is a hypothesis. Two is a result.
+The cost of forgetting that is not a wrong number, it is a design argument
+built on top of one.
 
 **The knobs have a ceiling, and it is not at the end of their range.** A
 deliberate ceiling test — every hard knob pushed to its clamp at once,
