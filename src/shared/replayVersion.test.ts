@@ -157,8 +157,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // fixed 5-tick stride to slots across the interval — the same offsets, 0, 5,
 // 10, 15, at the printed cadence, so a normal seat's beats did not move; and
 // brains do not run in playback anyway.)
+// (Still 39 after the stuck-scout fix and resiteExtractor reading its own
+// condition: systems/ai.ts and economyRules.ts, which is brain and rule
+// layer — the same reasoning the "Still 33 after the glut-forge rule" entry
+// above sets out. A seat now stops re-ordering a walk it cannot make, and
+// sells a hut standing on bare ground; both speak in commands the sim
+// already took, and playback replays the logged commands rather than
+// re-deriving them.)
 const EXPECTED_VERSION = 39;
-const EXPECTED_HASH = 'd742a64125f226d6d3bfe327382cd7fd';
+const EXPECTED_HASH = '0d51d4bcea65748b51431d96df5b795a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

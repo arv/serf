@@ -20,6 +20,7 @@ import * as TechId from './defs/techIdEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {BANDIT, type Building} from './entities.ts';
+import {countResourceNear} from './map.ts';
 import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import {AI_PACING, AI_STALL, AiBrain, LEVY_HOLD} from './systems/ai.ts';
@@ -577,11 +578,11 @@ describe('the stall watchdog', () => {
 
   it('sells a worked-out extractor so the build order can re-site it', () => {
     const world = bareWorld();
-    // Exactly half a woodcutter on the shelf — the other half is what the
-    // sale hands back, and the rule refuses to sell what it could not
-    // rebuild. Not a plank more: a seat with enough to place anything at
-    // all is a seat that is going somewhere, and would not read as stalled.
-    addStorehouse(world, 30, 30, {[GoodId.wood]: 3});
+    // An empty shelf, which is the state a wood famine actually arrives in:
+    // the seat has no wood BECAUSE the hut is standing on bare ground, and
+    // the sale is the only thing that can hand it any. A guard that wanted
+    // the wood first was a guard the case could never clear.
+    addStorehouse(world, 30, 30, {});
     const dead = addBuiltHut(world, 40, 40); // no resource tile in reach
     addResourceTile(world, 12, 12); // ...but a live grove clear across the map
     const brain = new AiBrain(
@@ -589,22 +590,23 @@ describe('the stall watchdog', () => {
       AI_STRATEGIES[AiStrategyId.steward],
       world.map.size,
     );
-    const commands = beatUntil(
-      brain,
-      world,
-      AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
-    );
-    expect(commands).toContainEqual({
+    // The very first beat: a cleared radius is a direct reading of the map
+    // and a permanent one, so it does not wait out the stall window — which
+    // in a real match does not open until AI_STALL.graceUntil, long after
+    // the seat has spent the famine.
+    world.tick += AI_PACING.decisionInterval;
+    expect(brain.decide(world)).toContainEqual({
       kind: CommandKind.sellBuilding,
       buildingId: dead.id,
     });
   });
 
-  it('will not sell a worked-out extractor it could not afford to rebuild', () => {
+  it('will not sell a worked-out extractor with nowhere live to move to', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, {}); // empty shelf: half the cost back is not enough
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 20});
     const dead = addBuiltHut(world, 40, 40);
-    addResourceTile(world, 12, 12);
+    // No live tile anywhere on the map: selling would be losing a building
+    // for nothing, since the build order has no ground to re-site onto.
     const brain = new AiBrain(
       0,
       AI_STRATEGIES[AiStrategyId.steward],
@@ -619,6 +621,57 @@ describe('the stall watchdog', () => {
       kind: CommandKind.sellBuilding,
       buildingId: dead.id,
     });
+  });
+
+  it('sells both dead cutters, then raises one on live trees', () => {
+    // The played case (seed 63759505): two woodcutters worked the same
+    // grove flat, the shelf sat at 0-2 wood for the rest of the match, and
+    // the seat never cut another log. A woodcutter costs 6 with 3 back, so
+    // neither sale alone pays for the replacement and both together do —
+    // which is the whole reason the affordability guard had to go.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 10, 50, {}, 1); // a rival, so the match keeps playing
+    addStorehouse(world, 30, 30, {});
+    const deadA = addBuiltHut(world, 40, 40);
+    const deadB = addBuiltHut(world, 44, 40);
+    for (let x = 12; x < 18; x++) addResourceTile(world, x, 12); // a live grove
+    addSerf(world, 31, 31); // one hand to cart the salvage home
+    // The one build step that costs less than a woodcutter, already
+    // standing — as it is on any seat that has been playing long enough to
+    // work a grove flat. Without it a village with nothing at all spends
+    // the first four planks of the scrap on a well, which is the build
+    // order's ordinary "first affordable step wins" and not this rule's
+    // business.
+    placeBuiltBuilding(world, BuildingTypeId.well, 0, 28, 28);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    const seen: SimCommand[] = [];
+    while (world.tick < 4000) {
+      const beat = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+      seen.push(...beat);
+      tickWorld(
+        world,
+        beat.map(cmd => ({playerId: 0, cmd})),
+      );
+    }
+    const sold = seen.filter(c => c.kind === CommandKind.sellBuilding);
+    expect(sold.map(c => c.buildingId).sort((a, z) => a - z)).toEqual([
+      deadA.id,
+      deadB.id,
+    ]);
+    // And the scrap paid for a hut back on standing timber.
+    const raised = [...world.buildings.values()].filter(
+      b => b.type === BuildingTypeId.woodcutter,
+    );
+    expect(raised.length).toBeGreaterThan(0);
+    for (const b of raised) {
+      expect(
+        countResourceNear(world.map, b.x + 1, b.y + 1, TileResource.Wood, 8),
+      ).toBeGreaterThan(0);
+    }
   });
 
   it('starts a threatened tower, and halts it again once the ground is quiet', () => {

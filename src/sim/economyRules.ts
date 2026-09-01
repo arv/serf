@@ -101,7 +101,14 @@ export interface RuleContext {
   stock: GoodAmounts;
   /** Loose hands: nothing in the village moves without one. */
   serfCount: number;
-  /** The stall watchdog's reading for this beat. */
+  /**
+   * The stall watchdog's reading for this beat. No rule reads it today —
+   * `resiteExtractor` was the last, and 2026-09-01 gave it a condition of
+   * its own (see its comment, and AI_STALL in systems/ai.ts). It is still
+   * assembled because it is the reading a rule for a village that has run
+   * out of ideas without running out of anything nameable would want, and
+   * because the lab counts stalls off the same watchdog.
+   */
   stalled: boolean;
   /**
    * Has the build order already sited a building this beat? A rule that
@@ -146,40 +153,60 @@ export interface EconomyRule {
  * Re-site a worked-out extractor.
  *
  * A gatherer with nothing left in reach is a hand and a hut spent on ground
- * that will never yield again — tree groves regrow only on standing tiles
- * (`systems/production.ts` `regrow`), so a woodcutter that cleared its
- * radius sits on dead earth for the rest of the match, and a seam is simply
- * finished. Selling it is the whole move: the sale frees the resident and
- * leaves half the materials as salvage for the haulers to cart home (plus
- * whatever was piled in the yard), and the build order maintains standing counts,
- * so the next beat places the replacement — against a live deposit, because
- * `spotFor` anchors on `nearestResource`, which only counts tiles with
- * amount left.
+ * that will never yield again. Not a figure of speech: `depleteResourceTile`
+ * (world.ts) writes the last load's tile back to `TileResource.None`, and
+ * `regrow` (systems/production.ts) only ever bumps a tile that is STILL
+ * wood, so a cleared radius has nothing left to grow from. A woodcutter that
+ * felled its grove is standing on dead earth for the rest of the match, and
+ * a seam is simply finished.
  *
- * Two conditions keep it from making things worse: there has to be somewhere
- * live to re-site onto, and the shelf has to already hold the half the
- * refund will not cover. Failing either, selling is just losing a building.
+ * Selling it is the whole move: the sale frees the resident and leaves half
+ * the materials as salvage for the haulers to cart home (plus whatever was
+ * piled in the yard), and the build order maintains standing counts, so the
+ * next beat places the replacement — against a live deposit, because
+ * `spotFor` anchors on `nearestResource`, which only counts tiles with
+ * amount left. Every playbook opens on its woodcutter, so the step the sale
+ * re-opens is the first one the build order reaches.
+ *
+ * One condition, and it is the only one that can make things worse: there
+ * has to be somewhere live to re-site onto. Everything else is upside — a
+ * post that cannot produce is worth its scrap and its worker, and holding
+ * it buys nothing at all.
  */
 /*
- * Measured, and it is the rule that does not pay. Ablated over seeds 1-80
- * with `--engine none`: running it alone fires twice and rescues nothing,
- * leaving the same two matches undecided and the same one pinned at the
- * 120k horizon. `freeCappedHauler` alone rescues both.
+ * What this rule used to also want, and why neither survived a played
+ * replay (2026-09-01, the seed-63759505 wood famine):
  *
- * Kept anyway, and not out of sentiment: its condition wants a gatherer with
- * an exhausted radius AND live ground to move to AND enough on the shelf to
- * rebuild, which is simply rare in eighty seeds — six stalled matches is far
- * too thin a sample to delete a rule over. But it is unproven, and the
- * planning that produced it called it the core fix, which the measurement
- * does not support.
+ * - **The stall watchdog.** `AI_STALL.graceUntil` is 20000 ticks and the
+ *   shortest stall it can report is 14000 more of a village where not one
+ *   of four scalars moved. The seat in that replay ran its two groves flat
+ *   at t=14000 and the match was over at 18617 — the watchdog was still
+ *   inside its grace period, and would have read a seat that was mining,
+ *   hauling and training as perfectly healthy regardless. An exhausted
+ *   radius is not the inference `stalled` exists to corroborate; it is a
+ *   direct reading of the map, and a permanent one (see above). So it is
+ *   read directly, exactly as `freeCappedHauler` reads hands under the
+ *   floor. AI_STALL's comment in systems/ai.ts draws that distinction and
+ *   this rule now sits on the other side of it.
+ *
+ * - **"The shelf must already hold the half the refund will not cover."**
+ *   Sound arithmetic for a live hut, and a deadlock for a dead one: the
+ *   seat had 0-2 wood precisely BECAUSE both its woodcutters were standing
+ *   on bare ground, and a woodcutter costs 6 with 3 back. Wood is its own
+ *   gate — the guard asked the seat to first earn the very thing only the
+ *   sold hut could earn it. Selling both dead huts is what pays for the
+ *   one that goes up on live trees, and neither sale can clear a bar the
+ *   other one has to fund.
+ *
+ * The old ablation over seeds 1-80 (`--engine none`) recorded two firings
+ * and no rescues, and is not evidence about the rule as it stands: both
+ * gates it fails on above were in force for it.
  */
 const resiteExtractor: EconomyRule = {
   id: EconomyRuleIdNs.resiteExtractor,
   when: 'a gatherer has exhausted everything inside its radius',
   phase: RulePhaseNs.recovery,
-  group: 'stallRecovery',
   fire(ctx) {
-    if (!ctx.stalled) return null;
     for (const b of ctx.mine) {
       if (b.state !== BuildingState.built) continue;
       const def = BUILDING_DEFS[b.type as BuildingTypeId];
@@ -193,11 +220,6 @@ const resiteExtractor: EconomyRule = {
       )
         continue;
       if (nearestResource(ctx.world.map, code, b.x, b.y) < 0) continue; // nowhere to go
-      const cost = def.cost;
-      const canRebuild = goodEntries(cost).every(
-        ([good, n]) => (ctx.stock[good] ?? 0) + Math.floor(n / 2) >= n,
-      );
-      if (!canRebuild) continue;
       return {
         commands: [{kind: CommandKind.sellBuilding, buildingId: b.id}],
         claims: [b.id],
@@ -1051,10 +1073,14 @@ const keepTheQueueWarm: EconomyRule = {
  * therefore nothing fires that cannot be ablated.
  */
 export const ECONOMY_RULES: readonly EconomyRule[] = [
-  resiteExtractor,
-  openReserveMine,
+  // freeCappedHauler and resumeDrainedPost lead the recovery phase: they
+  // are the pair the stall sweeps measured, and resiteExtractor — no longer
+  // grouped with them, since a dead grove and a famine of hands are not
+  // alternatives — goes after so it can never take a beat off either.
   freeCappedHauler,
   resumeDrainedPost,
+  resiteExtractor,
+  openReserveMine,
   keepTheToolsComing,
   forgeTheCounter,
   holdTheGlutForge,

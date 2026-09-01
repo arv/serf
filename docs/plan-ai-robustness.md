@@ -58,6 +58,10 @@ forever — and nothing in `AiBrain` can re-site a building. The build order
 is a one-shot list of placements (`defs/aiStrategies.ts`), so once every
 step is placed, `sites=0` is a terminal state.
 
+> (`resiteExtractor` below is what answered this, and as of 2026-09-01 it
+> answers it without waiting for the watchdog — see the correction at the
+> end of phase 1.)
+
 **A collapse with no floor — seeds 44 and 51.** One seat at pop 2, one serf,
 silver 0-1, food 0, while the other runs 21 pop. `survivalFloor: 3` exists
 to catch precisely this and cannot: panic hiring still needs
@@ -249,6 +253,40 @@ it is a reasonable rule; it is simply not what was killing these games.
 ground to move to AND enough on the shelf to rebuild, which is rare in
 eighty seeds, and six stalled matches is too thin a sample to delete a rule
 over. Unproven, not disproven.
+
+### Correction (2026-09-01): it was rare because the gates made it rare
+
+A played replay (seed 63759505) finally supplied the case, and it says the
+ablation above measured the gates rather than the rule. A seat worked both
+its woodcutters' groves flat at t=14000 and never cut another log for the
+rest of the match. Neither gate could ever have let it move:
+
+- **The watchdog.** `AI_STALL.graceUntil` is 20000 ticks and this match
+  ended at 18617, so the window had not opened at all — and it would have
+  read a seat that was still mining, hauling and training as healthy in any
+  case, since `#windowIsFlat` wants FOUR scalars motionless for fourteen
+  thousand ticks. A cleared radius is not an inference wanting
+  corroboration: `depleteResourceTile` writes the last load's tile to
+  `TileResource.None` and `regrow` only ever bumps a tile that is still
+  wood, so the ground is dead for the rest of the match, provably, the beat
+  it clears.
+- **"Enough on the shelf to rebuild."** Sound arithmetic for a live hut and
+  a deadlock for a dead one. A woodcutter costs 6 wood and refunds 3, so the
+  guard wanted 3 on the shelf — and the seat had 0–2 precisely BECAUSE both
+  its cutters were standing on bare ground. Wood gates itself. Selling both
+  dead huts is what pays for the one that goes up on live trees, and neither
+  sale could clear a bar the other one had to fund.
+
+Both are gone. The rule now reads the radius directly, sells on the
+condition, and is no longer grouped with `freeCappedHauler` — a famine of
+hands and a dead grove are not alternatives, and a village can have both.
+The guardrails are in `tools/aiLab/README.md` under the same date: flat
+across three `pnpm balance` ranges, 0 undecided either way.
+
+The honest reading of the original ablation is therefore neither "it pays"
+nor "it does not": it fired twice in eighty seeds because it was allowed to
+fire twice. What is still true, and still the phase's real finding, is that
+`freeCappedHauler` rescued the stalls on its own.
 
 ---
 

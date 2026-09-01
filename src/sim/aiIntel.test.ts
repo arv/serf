@@ -1,12 +1,15 @@
 import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import {UNIT_DEFS} from './defs/units.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {AiBrain, AI_INTEL, doorstepOf, scoutLeg} from './systems/ai.ts';
 import {addStorehouse, bareWorld} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
 import {placeBuiltBuilding, spawnUnit, type World} from './world.ts';
 
 /**
@@ -206,5 +209,94 @@ describe('the intelligence picture', () => {
       brain.decide(world);
     }
     expect(picture(brain)?.reads ?? 0).toBeGreaterThan(before);
+  });
+});
+
+/**
+ * Two rivals and one soldier: seat 1's castle stands in the light (so the
+ * seat HAS a target and a doorstep to read), seat 2's has never been seen
+ * (so its clock is stale forever and the only errand that can answer it is
+ * a walk into the dark). That pairing is what both bugs below needed, and
+ * it is the shape a three-seat match falls into as soon as one rival is
+ * found and the other is not.
+ */
+function twoRivals(): {
+  world: World;
+  brain: AiBrain;
+  scout: ReturnType<typeof spawnUnit>;
+} {
+  const world = bareWorld(1, 3);
+  addStorehouse(world, 30, 30, {});
+  addStorehouse(world, 44, 30, {}, 1);
+  addStorehouse(world, 10, 10, {}, 2);
+  const scout = spawnUnit(world, UnitTypeId.knight, 0, 42.5, 30.5);
+  world.tick = 1000;
+  return {
+    world,
+    scout,
+    brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size),
+  };
+}
+
+describe('the lone scout', () => {
+  it('gives up a walk it cannot make instead of re-ordering it forever', () => {
+    // The replay this pins (seed 63759505, ticks 10045-11925): a scout
+    // stood motionless in the middle of the map for a minute and a half
+    // while the seat ordered him to the same tile every single beat. The
+    // tile was behind a mountain wall, `applyMoveUnits` drops an order it
+    // cannot path, and the guard that exists for exactly this ("ordered
+    // again while standing still = the walk failed; move on") could not
+    // fire, because the goal was being retired and re-picked every beat and
+    // so never counted as ordered twice.
+    const {world, brain, scout} = twoRivals();
+    // A ridge across the map: the dark ground seat 2 is hiding in is real,
+    // and no walk reaches it.
+    for (let y = 20; y < 24; y++)
+      for (let x = 0; x < world.map.size; x++)
+        world.map.blocked[tileIdx(x, y, world.map.size)] = 1;
+    const from = {x: scout.x, y: scout.y};
+    const ordered = new Map<string, number>();
+    for (let t = 0; t < 1200; t++) {
+      const beat = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+      for (const c of beat) {
+        if (c.kind !== CommandKind.moveUnits) continue;
+        if (!c.unitIds.includes(scout.id)) continue;
+        const at = `${c.x},${c.y}`;
+        ordered.set(at, (ordered.get(at) ?? 0) + 1);
+      }
+      tickWorld(
+        world,
+        beat.map(cmd => ({playerId: 0, cmd})),
+      );
+    }
+    // Twice is the guard working: the second identical order is what tells
+    // the seat the way is shut. A third means nobody is counting.
+    expect([...ordered].filter(([, times]) => times > 2)).toEqual([]);
+    // And the man is somewhere else by now, rather than where he started.
+    expect(
+      Math.abs(scout.x - from.x) + Math.abs(scout.y - from.y),
+    ).toBeGreaterThan(20);
+  });
+
+  it('does not re-draft the scout it stood down for wounds', () => {
+    // The other half of the same freeze. `scoutFlees` files the errand and
+    // sends the man north, then clears the post — and the pick below took
+    // the very same soldier straight back, in the same beat, because he was
+    // the fastest idle body in the yard. Two move orders per beat at one
+    // man, forever: the flight never happened and the errand never moved.
+    const {world, brain, scout} = twoRivals();
+    scout.hp = Math.floor(UNIT_DEFS[scout.kind].hp / 4);
+    for (let i = 0; i < 6; i++) {
+      world.tick += 20;
+      const mine = brain
+        .decide(world)
+        .filter(
+          c => c.kind === CommandKind.moveUnits && c.unitIds.includes(scout.id),
+        );
+      expect(mine.length).toBeLessThanOrEqual(1);
+      // Wherever he is sent, it is the garrison rally beside his own
+      // storehouse — not another walk to a rival's gate.
+      for (const c of mine) expect(c).toMatchObject({x: 31, y: 35});
+    }
   });
 });

@@ -729,6 +729,37 @@ and therefore not a result. It stands as a guardrail (no regression) rather
 than as evidence, and the case for the change rests on the replay it was
 cut from. Full write-up in `docs/plan-ai-robustness.md`.
 
+**Update (2026-09-01): `resiteExtractor` lost both of its gates, and the
+row above no longer describes it.** A played replay (seed 63759505) has a
+seat work both its groves flat at t=14000 and never cut another log: the
+match ended at 18617, inside `AI_STALL.graceUntil`, so the watchdog the
+rule waited on had not so much as opened its window — and the rule's other
+condition, "the shelf already holds the half the refund will not cover", is
+a deadlock in the one case it most matters, since the reason the shelf is
+empty is the hut standing on bare ground. It now reads its own condition,
+which is a cleared radius, and the map says that is permanent
+(`depleteResourceTile` writes the tile to `None`; `regrow` only bumps tiles
+that are still wood). So the "2 firings, 0 rescues" row measured a rule
+that could barely fire, not a rule that does not work.
+
+The same replay is where the seats stopped freezing a scout mid-map: a
+search goal taken on a stale rival's behalf was retired the beat it was
+taken, so the guard that writes off a walk the sim keeps dropping ("ordered
+again while standing still") never had two identical orders to compare. In
+that replay **215 of the seats' 290 unit-move orders were no-ops at one
+motionless soldier**; after the fix, 2 of 41. The fingerprint says the same
+thing at sweep scale: `fled` per seat falls from 14.66 to 0.63, because a
+"flight" used to be re-issued at the same wounded man every beat.
+
+Guardrails, all three `pnpm balance` ranges (baseline vs both fixes):
+101 → 94/128 vs 93/128, 1000 → 110/128 vs 104/128, 2000 (64 seeds) →
+199/256 vs 208/256. Pooled 403/512 against 405/512 — flat, and the ranges
+disagree in sign, which is this page's own definition of noise. The
+mirrored sweep (`--engine none --seeds 1-40`) holds 0 undecided on both
+sides; the median match lengthens 17257 → 18569 ticks, which is what a seat
+that no longer parks a soldier or runs out of wood looks like from outside.
+
+
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
 
 The first sweeps the seating mirror made possible. Treat these as a
