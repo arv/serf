@@ -89,12 +89,57 @@ function touchesGrass(map: MapView, idx: number): boolean {
   return false;
 }
 
-interface Archetype {
+/** One archetype's instances within one chunk of the grid. */
+interface Chunk {
   mesh: THREE.InstancedMesh;
-  /** tileIdx -> instance indices belonging to that tile. */
-  byTile: Map<number, number[]>;
   cursor: number;
 }
+
+interface Archetype {
+  /**
+   * Indexed by chunk, and sparse: a chunk with none of this archetype
+   * standing in it never gets a mesh at all.
+   */
+  chunks: (Chunk | undefined)[];
+  /** tileIdx -> instance indices within that tile's own chunk mesh. */
+  byTile: Map<number, number[]>;
+}
+
+/**
+ * Chunk edge, in tiles.
+ *
+ * Scatter used to be one InstancedMesh per archetype spanning the whole
+ * grid. An InstancedMesh is culled as a unit, against the bounding sphere
+ * of every instance in it — so a mesh that reached the far corners could
+ * never be rejected, and every tree on the map was vertex-shaded on every
+ * frame, and again for the shadow pass, however little of the valley the
+ * camera was framing. On the default 96 valley the frame is about 53 units
+ * across and the grid is 152: most of the timber is off screen at any
+ * moment, and all of it was being drawn.
+ *
+ * Split by chunk, the same instances cull for free. The size is a trade
+ * against draw calls, since every chunk in frame costs one call per
+ * archetype standing in it: too small and the call count climbs faster
+ * than the vertex count falls, too large and nothing culls. Swept with
+ * tools/perf/renderProbe.mjs on seed 7 of the default valley:
+ *
+ *     edge   calls   triangles
+ *     none     282   3,330,384   (one mesh per archetype, the old way)
+ *       64     357   2,786,528
+ *       48     396   2,052,738
+ *       32     400   1,724,894
+ *       24     472   1,475,840
+ *       16     536   1,305,452
+ *
+ * Draw calls barely move between 64 and 32 — a frame covers roughly the
+ * same ground however it is diced, and most of the calls are the village
+ * and its people rather than the scenery — and then climb once the chunks
+ * are smaller than the view. 32 is that knee. Below it the trade is real
+ * triangles for real calls, and which of those a phone would rather pay
+ * is a question for a phone: the sweep above is a SwiftShader count, and
+ * counts are all it can honestly give.
+ */
+export const CHUNK_TILES = 32;
 
 const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();
@@ -113,6 +158,8 @@ export class ScatterMesh {
   #heights: HeightField;
   #map: MapView;
   #size: number;
+  #chunkCols = 0;
+  #chunkCount = 0;
   #trees = false;
   #treeSpecies = 0;
   #rockSpecies = 0;
@@ -138,6 +185,14 @@ export class ScatterMesh {
     );
   }
 
+  /** Which chunk a tile falls in. */
+  #chunkOf(tile: number): number {
+    return (
+      ((tileY(tile, this.#size) / CHUNK_TILES) | 0) * this.#chunkCols +
+      ((tileX(tile, this.#size) / CHUNK_TILES) | 0)
+    );
+  }
+
   /** Rock archetype for a seed — a KayKit variant, or the one procedural. */
   #rockName(seed: number): string {
     if (this.#rockSpecies === 0) return 'rock';
@@ -149,12 +204,22 @@ export class ScatterMesh {
     this.#heights = heights;
     this.#map = map;
     this.#size = map.size;
+    this.#chunkCols = Math.ceil(map.size / CHUNK_TILES);
+    this.#chunkCount = this.#chunkCols * this.#chunkCols;
+    const chunkCount = this.#chunkCount;
     const tiles = tileCount(map.size);
-    // Count instances per archetype first (instanced meshes need fixed capacity).
-    let groveTiles = 0;
-    let farGroveTiles = 0;
-    let rockTiles = 0;
-    let oreTiles = 0;
+    // Count instances per archetype first (instanced meshes need fixed
+    // capacity) — and per chunk, since that is what a mesh is now.
+    const perChunk = (): Int32Array => new Int32Array(chunkCount);
+    /** `tally[at] += n`. Every index below comes from #chunkOf, which
+     * cannot leave the grid — the checker just cannot see that. */
+    const add = (tally: Int32Array, at: number, n: number): void => {
+      tally[at] = tally[at]! + n;
+    };
+    const groveTiles = perChunk();
+    const farGroveTiles = perChunk();
+    const rockTiles = perChunk();
+    const oreTiles = perChunk();
     const shoreTiles: number[] = [];
     // Border-ridge dressing: boulders strewn over the rim rock, thinned by
     // hash so the range reads craggy rather than tiled — and thinned much
@@ -172,11 +237,12 @@ export class ScatterMesh {
     const deadTreeTiles: number[] = [];
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
+      const chunk = this.#chunkOf(i);
       if (res === TileResource.Wood) {
-        if (this.#nearShadow(i)) groveTiles++;
-        else farGroveTiles++;
-      } else if (res === TileResource.Rock) rockTiles++;
-      else if (res !== TileResource.None) oreTiles++;
+        if (this.#nearShadow(i)) add(groveTiles, chunk, 1);
+        else add(farGroveTiles, chunk, 1);
+      } else if (res === TileResource.Rock) add(rockTiles, chunk, 1);
+      else if (res !== TileResource.None) add(oreTiles, chunk, 1);
       // Rocky banks: grass tiles touching water, thinned by hash.
       if (
         map.terrain[i] === Terrain.Grass &&
@@ -221,6 +287,25 @@ export class ScatterMesh {
       }
     }
 
+    /** Per-chunk capacity: `per` slots for each of these tiles. */
+    const spread = (
+      tiles: number[],
+      per: number,
+      into = perChunk(),
+    ): Int32Array => {
+      for (const t of tiles) add(into, this.#chunkOf(t), per);
+      return into;
+    };
+    /** Per-chunk capacity: `per` slots for each tile already tallied. */
+    const scale = (
+      src: Int32Array,
+      per: number,
+      into = perChunk(),
+    ): Int32Array => {
+      for (let c = 0; c < chunkCount; c++) add(into, c, src[c]! * per);
+      return into;
+    };
+
     const flat = (color: number) =>
       new THREE.MeshStandardMaterial({
         color,
@@ -240,7 +325,7 @@ export class ScatterMesh {
           `tree${i}`,
           geo,
           trees.material,
-          groveTiles * TREES_PER_TILE,
+          scale(groveTiles, TREES_PER_TILE),
           {
             receiveShadow: false,
           },
@@ -250,7 +335,7 @@ export class ScatterMesh {
           `treeFar${i}`,
           geo,
           trees.material,
-          farGroveTiles * TREES_PER_TILE,
+          scale(farGroveTiles, TREES_PER_TILE),
           {
             castShadow: false,
             receiveShadow: false,
@@ -266,14 +351,14 @@ export class ScatterMesh {
         'culm',
         new THREE.CylinderGeometry(0.03, 0.045, 1, 6),
         new THREE.MeshLambertMaterial({map: culmTexture}),
-        groveTiles * CULMS_PER_TILE,
+        scale(groveTiles, CULMS_PER_TILE),
         {receiveShadow: false}, // dense groves would shadow-spam themselves
       );
       this.#addArchetype(
         'spray',
         crossedQuads(1.5, 1.1),
         foliageMaterial(makeLeafSprite()),
-        groveTiles * CULMS_PER_TILE * 3,
+        scale(groveTiles, CULMS_PER_TILE * 3),
         {castShadow: false, receiveShadow: false},
       );
     }
@@ -283,16 +368,20 @@ export class ScatterMesh {
     const rocks = glbRocks();
     this.#rockSpecies = rocks?.geometries.length ?? 0;
     if (rocks) {
+      // Every species is placed by hash from the same pool of tiles, so
+      // each one is sized for all of them — as it always was, now scoped
+      // to the chunk rather than the map.
+      const rockCap = scale(rockTiles, 2);
+      spread(shoreTiles, 2, rockCap);
+      spread(ridgeTiles, 2, rockCap);
+      scale(oreTiles, 4, rockCap);
+      spread(pebbleTiles, 2, rockCap);
       rocks.geometries.forEach((geo, i) => {
         this.#addArchetype(
           i === 0 ? 'rock' : `rock${i}`,
           geo,
           rocks.material,
-          rockTiles * 2 +
-            shoreTiles.length * 2 +
-            ridgeTiles.length * 2 +
-            oreTiles * 4 +
-            pebbleTiles.length * 2,
+          rockCap,
         );
       });
     } else {
@@ -300,16 +389,17 @@ export class ScatterMesh {
         'rock',
         new THREE.DodecahedronGeometry(0.32),
         flat(0xffffff),
-        rockTiles * 2 +
-          shoreTiles.length * 2 +
-          ridgeTiles.length * 2 +
-          pebbleTiles.length * 2,
+        spread(
+          pebbleTiles,
+          2,
+          spread(ridgeTiles, 2, spread(shoreTiles, 2, scale(rockTiles, 2))),
+        ),
       );
       this.#addArchetype(
         'ore',
         new THREE.OctahedronGeometry(0.16),
         flat(0xffffff),
-        oreTiles * 4,
+        scale(oreTiles, 4),
       );
     }
     // Water doodads ride the same palette texture; no shadow pass — a lily
@@ -321,7 +411,7 @@ export class ScatterMesh {
         'lily',
         doodads.lily,
         doodads.material,
-        lilyTiles.length * 2,
+        spread(lilyTiles, 2),
         {
           castShadow: false,
           receiveShadow: false,
@@ -331,7 +421,7 @@ export class ScatterMesh {
         'reed',
         doodads.reed,
         doodads.material,
-        reedTiles.length * 2,
+        spread(reedTiles, 2),
         {
           castShadow: false,
           receiveShadow: false,
@@ -352,7 +442,7 @@ export class ScatterMesh {
           `bush${i}`,
           geo,
           forest.material,
-          bushTiles.length * 2,
+          spread(bushTiles, 2),
           {
             receiveShadow: false,
           },
@@ -363,7 +453,7 @@ export class ScatterMesh {
           `dead${i}`,
           geo,
           forest.material,
-          deadTreeTiles.length,
+          spread(deadTreeTiles, 1),
           {
             receiveShadow: false,
           },
@@ -374,7 +464,7 @@ export class ScatterMesh {
         'bush',
         crossedQuads(1.05, 0.8),
         foliageMaterial(makeBushSprite()),
-        bushTiles.length * 2,
+        spread(bushTiles, 2),
         {receiveShadow: false},
       );
     }
@@ -382,7 +472,7 @@ export class ScatterMesh {
       'flower',
       crossedQuads(0.5, 0.4),
       foliageMaterial(makeFlowerSprite()),
-      flowerTiles.length * 2,
+      spread(flowerTiles, 2),
       {castShadow: false, receiveShadow: true},
     );
 
@@ -453,9 +543,31 @@ export class ScatterMesh {
     }
 
     for (const a of this.#archetypes.values()) {
-      a.mesh.count = a.cursor;
-      a.mesh.instanceMatrix.needsUpdate = true;
-      if (a.mesh.instanceColor) a.mesh.instanceColor.needsUpdate = true;
+      for (let c = 0; c < chunkCount; c++) {
+        const chunk = a.chunks[c];
+        if (!chunk) continue;
+        // Capacity was an upper bound — a chunk can be sized for a rock
+        // species the hash never chose there. An empty mesh would draw
+        // nothing and still be walked and frustum-tested every frame, for
+        // both cameras, so it goes.
+        if (chunk.cursor === 0) {
+          chunk.mesh.removeFromParent();
+          chunk.mesh.dispose();
+          a.chunks[c] = undefined;
+          continue;
+        }
+        chunk.mesh.count = chunk.cursor;
+        chunk.mesh.instanceMatrix.needsUpdate = true;
+        if (chunk.mesh.instanceColor) {
+          chunk.mesh.instanceColor.needsUpdate = true;
+        }
+        // Pin the sphere culling is tested against while the chunk is
+        // still whole. Left to itself three computes it lazily on the
+        // first frame that tests it — and a chunk first tested after a
+        // grove was felled would take the parked instances (dropped to
+        // y=-100, see removeTile) into its bounds and never cull again.
+        chunk.mesh.computeBoundingSphere();
+      }
     }
   }
 
@@ -490,11 +602,15 @@ export class ScatterMesh {
     dummy.rotation.set(0, 0, 0);
     dummy.scale.setScalar(0.0001);
     dummy.updateMatrix();
+    const chunk = this.#chunkOf(tile);
     for (const a of this.#archetypes.values()) {
       const ids = a.byTile.get(tile);
       if (!ids) continue;
-      for (const id of ids) a.mesh.setMatrixAt(id, dummy.matrix);
-      a.mesh.instanceMatrix.needsUpdate = true;
+      const c = a.chunks[chunk];
+      if (c) {
+        for (const id of ids) c.mesh.setMatrixAt(id, dummy.matrix);
+        c.mesh.instanceMatrix.needsUpdate = true;
+      }
       a.byTile.delete(tile);
     }
   }
@@ -503,19 +619,21 @@ export class ScatterMesh {
     name: string,
     geometry: THREE.BufferGeometry,
     material: THREE.Material,
-    capacity: number,
+    capacity: Int32Array,
     opts?: {castShadow?: boolean; receiveShadow?: boolean},
   ): void {
-    const mesh = new THREE.InstancedMesh(
-      geometry,
-      material,
-      Math.max(capacity, 1),
-    );
-    mesh.castShadow = opts?.castShadow ?? true;
-    mesh.receiveShadow = opts?.receiveShadow ?? true;
-    mesh.count = 0;
-    this.group.add(mesh);
-    this.#archetypes.set(name, {mesh, byTile: new Map(), cursor: 0});
+    const chunks = Array.from<Chunk | undefined>({length: this.#chunkCount});
+    for (let c = 0; c < this.#chunkCount; c++) {
+      const cap = capacity[c]!;
+      if (cap === 0) continue;
+      const mesh = new THREE.InstancedMesh(geometry, material, cap);
+      mesh.castShadow = opts?.castShadow ?? true;
+      mesh.receiveShadow = opts?.receiveShadow ?? true;
+      mesh.count = 0;
+      this.group.add(mesh);
+      chunks[c] = {mesh, cursor: 0};
+    }
+    this.#archetypes.set(name, {chunks, byTile: new Map()});
   }
 
   #put(
@@ -533,14 +651,19 @@ export class ScatterMesh {
     rotZ = 0,
   ): void {
     const a = this.#archetypes.get(name)!;
-    const id = a.cursor++;
+    // The counting pass and this one read the same tiles through the same
+    // hashes, so a chunk with no capacity for this archetype is one
+    // nothing is placed in either. A guard, not a path.
+    const chunk = a.chunks[this.#chunkOf(tile)];
+    if (!chunk) return;
+    const id = chunk.cursor++;
     dummy.position.set(x, y, z);
     dummy.rotation.set(0, rotY, rotZ);
     dummy.scale.set(scaleXZ, scaleY, scaleXZ);
     dummy.updateMatrix();
-    a.mesh.setMatrixAt(id, dummy.matrix);
+    chunk.mesh.setMatrixAt(id, dummy.matrix);
     tmpColor.setHex(color).lerp(new THREE.Color(colorTarget), colorLerp);
-    a.mesh.setColorAt(id, tmpColor);
+    chunk.mesh.setColorAt(id, tmpColor);
     const list = a.byTile.get(tile);
     if (list) list.push(id);
     else a.byTile.set(tile, [id]);
