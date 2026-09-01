@@ -157,52 +157,81 @@ function intArg(
   return n;
 }
 
-// Validated rather than coerced: Number('x') is NaN, and a NaN count runs
-// zero campaigns and prints a table of NaN medians that looks like a result.
-const argv = process.argv.slice(2);
-const tierAt = argv.indexOf('--difficulty');
-const tierRaw = tierAt >= 0 ? argv[tierAt + 1] : undefined;
-const difficulty =
-  tierRaw === undefined ? undefined : parseDifficultyId(tierRaw);
-if (tierAt >= 0 && difficulty === undefined) {
-  console.error(
-    `--difficulty wants one of ${Object.values(DIFFICULTY_KEYS).join(', ')}` +
-      ` (got ${JSON.stringify(tierRaw)})`,
-  );
-  process.exit(2);
+/**
+ * The positional arguments, with the `--difficulty <tier>` pair lifted out
+ * of them.
+ *
+ * The guard on `tierAt` is load-bearing, and its absence was a real bug:
+ * `indexOf` answers -1 when the flag is not there, `-1 + 1` is 0, and the
+ * filter then dropped argument ZERO. `balance.ts 32 1000` became
+ * `balance.ts 1000` — a thousand seeds from the default range instead of
+ * thirty-two from 1000 — so the one invocation this file's own README
+ * insists on, the second seed range, had been quietly running the first
+ * one twice. Exported so balanceArgs.test.ts can hold the line.
+ */
+export function splitArgs(argv: readonly string[]): {
+  positional: string[];
+  tierRaw: string | undefined;
+  named: boolean;
+} {
+  const tierAt = argv.indexOf('--difficulty');
+  const named = tierAt >= 0;
+  return {
+    positional: argv.filter(
+      (a, i) =>
+        !(named && (i === tierAt || i === tierAt + 1)) && !a.startsWith('--'),
+    ),
+    tierRaw: named ? argv[tierAt + 1] : undefined,
+    named,
+  };
 }
-const positional = argv.filter(
-  (a, i) => i !== tierAt && i !== tierAt + 1 && !a.startsWith('--'),
-);
-const count = intArg(positional[0], 32, 'seeds', 1);
-const offset = intArg(positional[1], 101, 'offset', 0);
-// Strided rather than consecutive: neighbouring seeds can generate valleys
-// that rhyme, and a sweep wants independent maps.
-const seeds = Array.from({length: count}, (_, i) => offset + i * 7);
-const ids: readonly AiStrategyId[] = AI_STRATEGY_ORDER;
 
-const tierLabel = difficulty ? DIFFICULTY_KEYS[difficulty] : 'normal';
-console.log(
-  `${count} seeds from ${offset}, ${MAX_TICKS} ticks each, difficulty ${tierLabel}\n`,
-);
-const everyWin: number[] = [];
-let wins = 0;
-let runs = 0;
-for (const id of ids) {
-  const res = seeds.map(s => playCampaign(id, s, difficulty));
-  const won = res.filter(r => r.outcome === 'win');
-  everyWin.push(...won.map(r => r.tick));
-  wins += won.length;
-  runs += res.length;
+// Run only when this file IS the command, so the arg parsing above can be
+// imported and tested without playing 32 campaigns first — the same guard
+// tiers.ts uses for the same reason.
+if (process.argv[1]?.endsWith('balance.ts')) {
+  // Validated rather than coerced: Number('x') is NaN, and a NaN count runs
+  // zero campaigns and prints a table of NaN medians that looks like a result.
+  const {positional, tierRaw, named} = splitArgs(process.argv.slice(2));
+  const difficulty =
+    tierRaw === undefined ? undefined : parseDifficultyId(tierRaw);
+  if (named && difficulty === undefined) {
+    console.error(
+      `--difficulty wants one of ${Object.values(DIFFICULTY_KEYS).join(', ')}` +
+        ` (got ${JSON.stringify(tierRaw)})`,
+    );
+    process.exit(2);
+  }
+  const count = intArg(positional[0], 32, 'seeds', 1);
+  const offset = intArg(positional[1], 101, 'offset', 0);
+  // Strided rather than consecutive: neighbouring seeds can generate valleys
+  // that rhyme, and a sweep wants independent maps.
+  const seeds = Array.from({length: count}, (_, i) => offset + i * 7);
+  const ids: readonly AiStrategyId[] = AI_STRATEGY_ORDER;
+
+  const tierLabel = difficulty ? DIFFICULTY_KEYS[difficulty] : 'normal';
   console.log(
-    `${AI_STRATEGY_KEYS[id].padEnd(9)} win ${String(won.length).padStart(2)}/${res.length}` +
-      `  median ${String(median(won.map(r => r.tick))).padStart(6)}` +
-      `  dead ${res.filter(r => r.outcome === 'dead').length}` +
-      `  timeout ${res.filter(r => r.outcome === 'timeout').length}` +
-      `  pop ${mean(res.map(r => r.pop)).toFixed(1)}` +
-      `  army ${mean(res.map(r => r.army)).toFixed(1)}` +
-      `  towers ${mean(res.map(r => r.towers)).toFixed(1)}` +
-      `  levyTicks ${Math.round(mean(res.map(r => r.levyTicks)))}`,
+    `${count} seeds from ${offset}, ${MAX_TICKS} ticks each, difficulty ${tierLabel}\n`,
   );
+  const everyWin: number[] = [];
+  let wins = 0;
+  let runs = 0;
+  for (const id of ids) {
+    const res = seeds.map(s => playCampaign(id, s, difficulty));
+    const won = res.filter(r => r.outcome === 'win');
+    everyWin.push(...won.map(r => r.tick));
+    wins += won.length;
+    runs += res.length;
+    console.log(
+      `${AI_STRATEGY_KEYS[id].padEnd(9)} win ${String(won.length).padStart(2)}/${res.length}` +
+        `  median ${String(median(won.map(r => r.tick))).padStart(6)}` +
+        `  dead ${res.filter(r => r.outcome === 'dead').length}` +
+        `  timeout ${res.filter(r => r.outcome === 'timeout').length}` +
+        `  pop ${mean(res.map(r => r.pop)).toFixed(1)}` +
+        `  army ${mean(res.map(r => r.army)).toFixed(1)}` +
+        `  towers ${mean(res.map(r => r.towers)).toFixed(1)}` +
+        `  levyTicks ${Math.round(mean(res.map(r => r.levyTicks)))}`,
+    );
+  }
+  console.log(`\nTOTAL     win ${wins}/${runs}  median ${median(everyWin)}`);
 }
-console.log(`\nTOTAL     win ${wins}/${runs}  median ${median(everyWin)}`);
