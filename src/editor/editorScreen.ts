@@ -419,7 +419,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     const grass = new GrassField(map, heights);
     const butterflies = new Butterflies(map, heights);
     renderer.scene.add(
-      terrain.mesh,
+      terrain.group,
       water.mesh,
       margin.mesh,
       scatter.group,
@@ -470,7 +470,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     disposeOwnedSubtree(sc.scatter.group);
     disposeOwnedSubtree(sc.grass.mesh);
     disposeOwnedSubtree(sc.margin.mesh);
-    disposeOwnedSubtree(sc.terrain.mesh);
+    disposeOwnedSubtree(sc.terrain.group);
     sc.butterflies.dispose();
     sc.water.dispose();
     sc = null;

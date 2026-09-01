@@ -169,7 +169,7 @@ export async function startMenuBackdrop(
   const marginMesh = new MarginMesh(world.map, heights);
   const mist = new Mist(world.map);
   renderer.scene.add(
-    terrain.mesh,
+    terrain.group,
     scatter.group,
     grass.mesh,
     water.mesh,
