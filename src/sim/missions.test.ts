@@ -162,6 +162,29 @@ describe('a commission at a difficulty', () => {
     expect(hard.peace).toBeLessThan(printed.peace);
   });
 
+  it('scales the commission by seat 0’s own tier when it names one', async () => {
+    // The seat's tier outranks the match's (WorldConfig.difficulty), and
+    // the commission is the HUMAN seat's half of the setting — so a seat-0
+    // override has to move the larder, not just the number saved on the
+    // seat. These were written separately once, and the save said `hard`
+    // while the storehouse was stocked `easy`.
+    const world = await createWorldAsync({
+      ...missionWorldConfig(MissionId.levy),
+      difficulty: DifficultyId.easy,
+      players: [{kind: PlayerKind.human, difficulty: DifficultyId.hard}],
+    });
+    const keep = [...world.buildings.values()].find(
+      b => b.owner === 0 && b.type === BuildingTypeId.storehouse,
+    )!;
+    const printed = await opening();
+    expect(world.players[0]!.difficulty).toBe(DifficultyId.hard);
+    expect(keep.stock[GoodId.wood] ?? 0).toBeLessThan(printed.wood);
+    expect(
+      [...world.units.values()].filter(u => u.owner === 0).length,
+    ).toBeLessThan(printed.serfs);
+    expect(world.raidState.nextRaidTick).toBeLessThan(printed.peace);
+  });
+
   it('leaves a skirmish opening alone at every tier', () => {
     // The other half of the promise, and the one that matters in
     // multiplayer: outside a commission the tier is how well the computer

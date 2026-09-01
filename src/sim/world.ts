@@ -421,6 +421,18 @@ export function createWorld(
   const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
 
   const deal = dealStrategies(seed, config.players);
+  /**
+   * The tier a seat actually plays at: its own if it named one, otherwise
+   * the match's (see WorldConfig.difficulty). Resolved once here because
+   * two places read it and they must not disagree — the seat's own
+   * PlayerState, and the commission scaling below, which is the human
+   * seat's half of the setting and therefore seat 0's tier rather than the
+   * match's. They used to be written separately, and a seat-0 override
+   * would have been honoured in the save and ignored by the larder.
+   */
+  const seatDifficulty = (i: number): DifficultyId | undefined =>
+    config.players[i]?.difficulty ?? config.difficulty;
+  const humanTier = seatDifficulty(0);
 
   const rng = new Rng(seed);
   let map: GameMap;
@@ -481,7 +493,7 @@ export function createWorld(
     // The seed deals the AI seats their playbooks here, once, and the
     // world carries the result from then on (see PlayerState.strategy).
     players: config.players.map((p, i) =>
-      makePlayer(i, p.kind, deal[i], p.difficulty ?? config.difficulty),
+      makePlayer(i, p.kind, deal[i], seatDifficulty(i)),
     ),
     // Copied, not aliased: `starts` is a local the mission branch took
     // straight off the parsed map file.
@@ -492,7 +504,7 @@ export function createWorld(
       nextRaidTick: mission
         ? scaleFirstRaidTick(
             mission.firstRaidTick ?? firstRaidTickFor(map.play),
-            config.difficulty,
+            humanTier,
           )
         : firstRaidTickFor(map.play),
       wave: 0,
@@ -527,7 +539,7 @@ export function createWorld(
     // alike — opens with the same larder at every setting.
     storehouse.stock = {
       ...(p === 0 && mission
-        ? scaleStartStock(mission.startStock ?? START_STOCK, config.difficulty)
+        ? scaleStartStock(mission.startStock ?? START_STOCK, humanTier)
         : START_STOCK),
     };
   }
@@ -621,7 +633,7 @@ export function createWorld(
     const {x: shX, y: shY} = starts[p]!;
     const serfs =
       p === 0 && mission
-        ? scaleStartSerfs(mission.startSerfs ?? START_SERFS, config.difficulty)
+        ? scaleStartSerfs(mission.startSerfs ?? START_SERFS, humanTier)
         : START_SERFS;
     for (let i = 0; i < serfs; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
