@@ -24,6 +24,11 @@ import {
   repairBill,
 } from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {
+  applyDifficulty,
+  type DifficultyId,
+  scaleDecisionInterval,
+} from '../defs/difficulty.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries, type GoodAmounts} from '../defs/goods.ts';
 import * as PostureId from '../defs/postureIdEnum.ts';
@@ -558,6 +563,27 @@ const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, number>> = {
 export class AiBrain {
   readonly playerId: Owner;
   readonly strategy: AiStrategy;
+  /**
+   * The tier this seat plays at (defs/difficulty.ts), or undefined for the
+   * printed game. Dealt onto the seat when the world was made, so it rides
+   * the save and a resumed match exactly as the playbook does — an
+   * opponent that got easier across a reload would be a bug of the same
+   * kind as one that changed its opening.
+   */
+  readonly difficulty: DifficultyId | undefined;
+  /**
+   * The printed playbook with the tier already applied — the source for the
+   * three knobs no stance and no advice can move (`harass`, `retreats`,
+   * `scoutRefreshAfter`), which are therefore the same every beat and worth
+   * computing once. Everything a stance or advice CAN move is tiered inside
+   * decide() instead, over the composed result; see applyDifficulty for why
+   * the order matters.
+   */
+  readonly #tiered: AiStrategy;
+  /** Ticks between this seat's decision beats — the printed cadence,
+   * stretched by the tier (defs/difficulty.ts). Fixed for the seat's life,
+   * so it is resolved once here rather than on every tick. */
+  readonly #decisionInterval: number;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -731,9 +757,20 @@ export class AiBrain {
     this.#warBehaviors = new Set(ids);
   }
 
-  constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
+  constructor(
+    playerId: Owner,
+    strategy: AiStrategy,
+    mapSize: number,
+    difficulty?: DifficultyId,
+  ) {
     this.playerId = playerId;
     this.strategy = strategy;
+    this.difficulty = difficulty;
+    this.#tiered = applyDifficulty(strategy, difficulty);
+    this.#decisionInterval = scaleDecisionInterval(
+      AI_PACING.decisionInterval,
+      difficulty,
+    );
     this.#vision = new SeatVision(mapSize);
   }
 
@@ -855,13 +892,16 @@ export class AiBrain {
     });
   }
 
-  /** Is `tick` one of this seat's decision beats? (Seats stagger so two
-   * brains never fire on the same tick.) */
+  /**
+   * Is `tick` one of this seat's decision beats? (Seats stagger so two
+   * brains never fire on the same tick — an invariant that survives a
+   * stretched interval and is why a tier may only ever stretch it; see
+   * Difficulty.decisionIntervalPct.)
+   */
   shouldDecide(tick: number): boolean {
-    const {decisionInterval, seatStagger} = AI_PACING;
+    const interval = this.#decisionInterval;
     return (
-      tick % decisionInterval ===
-      (this.playerId * seatStagger) % decisionInterval
+      tick % interval === (this.playerId * AI_PACING.seatStagger) % interval
     );
   }
 
@@ -886,16 +926,25 @@ export class AiBrain {
     const baseY = sh.y + 1;
 
     // --- The stance, then the strategy it colors -----------------------------
-    // Three layers, later over earlier: the printed playbook is the seat's
-    // identity, the stance is its mood (war knobs only — see aiPostures.ts),
-    // and advice through the seam outranks both, so the lab's steering
-    // still measures what it always measured.
+    // Four layers, later over earlier. The printed playbook is the seat's
+    // identity, the stance is its mood (war knobs only — see
+    // aiPostures.ts), and advice through the seam outranks both, so the
+    // lab's steering still measures what it always measured. The
+    // difficulty tier then scales whatever came out — a TRANSFORM rather
+    // than a fourth object merged in among them, because the five knobs a
+    // stance sets are the five a tier most wants to move, and a tier
+    // merged under the stance would be erased by the seat's next mood
+    // while one merged over it would leave the stance engine mute (see
+    // applyDifficulty).
     this.#updateStance(world, baseX, baseY);
-    const s: AiStrategy = {
-      ...this.strategy,
-      ...this.#stanceKnobs(),
-      ...this.#override,
-    };
+    const s: AiStrategy = applyDifficulty(
+      {
+        ...this.strategy,
+        ...this.#stanceKnobs(),
+        ...this.#override,
+      },
+      this.difficulty,
+    );
     const stock = sh.stock;
     const techs = p.techs;
     const researched = (id: TechId): boolean => techs.researched.includes(id);
@@ -2177,7 +2226,7 @@ export class AiBrain {
       this.#sortie = null;
       return;
     }
-    const maxAge = this.strategy.harass?.maxAge ?? 800;
+    const maxAge = this.#tiered.harass?.maxAge ?? 800;
     const target = world.buildings.get(st.targetId);
     const struck = !target || target.dead;
     let breaking = false;
@@ -2223,7 +2272,7 @@ export class AiBrain {
     spokenFor: Set<EntityId>,
   ): void {
     if (!this.#warOn(WarBehaviorIdNs.harassSortie)) return;
-    const cfg = this.strategy.harass;
+    const cfg = this.#tiered.harass;
     if (!cfg || this.#sortie) return;
     if (world.tick - this.#lastSortieTick <= cfg.cooldown) return;
     if (army.length <= cfg.size) return;
@@ -2380,7 +2429,7 @@ export class AiBrain {
     baseY: number,
   ): boolean {
     if (!this.#warOn(WarBehaviorIdNs.retreatMarch)) return false;
-    if (!this.strategy.retreats || !this.#attacking) return false;
+    if (!this.#tiered.retreats || !this.#attacking) return false;
     if (army.length === 0 || this.#marchedCount === 0) return false;
     if (army.length * 2 >= this.#marchedCount) return false;
     const target = world.buildings.get(this.#marchTargetId);
@@ -2541,7 +2590,7 @@ export class AiBrain {
       // itself would drop the arithmetic into 32-bit land for a clock a
       // playbook is free to configure large.
       const refreshAfter =
-        this.strategy.scoutRefreshAfter ?? AI_INTEL.refreshAfter;
+        this.#tiered.scoutRefreshAfter ?? AI_INTEL.refreshAfter;
       const stretched = refreshAfter * (1 << (this.#scoutsLost.get(p.id) ?? 0));
       if (world.tick - last <= stretched) continue;
       if (last < bestTick) {

@@ -355,8 +355,21 @@ numbers per personality, a stance engine that switches its war knobs as
 the match turns (`src/sim/defs/aiPostures.ts`, `AiStrategy.stances`), and
 a set of reactive war verbs — harassment sorties, grudges, outpost
 defense, retreats for the lords that retreat, heralds that announce a full
-assault fifteen seconds before it moves. Every layer is measured before it
-ships, and `tools/aiLab/` is the measuring instrument: a seed-sweeping,
+assault fifteen seconds before it moves. **Difficulty** is a fifth layer
+over those (`src/sim/defs/difficulty.ts`): a transform applied to the knobs
+a brain has already composed, so a tier scales whatever mood the seat is in
+rather than pinning it. Easy musters late, refuses an even fight, raids
+nobody and thinks on a half-speed clock; hard grows wider, marches sooner
+and comes looking for you early. It buys none of that with a handout —
+the computer seats open with the same larder as everyone else at every
+setting, and the fog model is untouched — and the rule the table follows is
+that easy may soften anything while hard may only sharpen what a playbook
+already does, so the abbot's refusal to raid survives the hardest setting
+in the game. In the **campaign** the same control does a second, separate
+job: it scales the commission's own opening — the larder, the hands in the
+yard, and the peace before the first raid — leaving the ground, the
+objectives and the prebuilt village exactly as authored. Every layer is
+measured before it ships, and `tools/aiLab/` is the measuring instrument: a seed-sweeping,
 seat-mirrored bake-off with error bars, per-behavior ablation flags and a
 per-playbook FINGERPRINTS table (`pnpm bakeoff --help`, and the README
 there — which also records why the on-device LLM strategist that once
@@ -370,6 +383,8 @@ pnpm build       # typecheck + production bundle
 pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
 pnpm lint        # oxlint (CI runs it too; `pnpm lint:fix` applies fixes)
 pnpm bakeoff     # AI bake-off (tools/aiLab)
+pnpm balance     # per-playbook campaign sweep (`--difficulty` for a tier)
+pnpm tiers       # easy/normal/hard against each other, seat-mirrored
 ```
 
 Formatting is [oxfmt](https://oxc.rs/docs/guide/usage/formatter)

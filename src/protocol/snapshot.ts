@@ -232,6 +232,7 @@ export function snapPlayers(world: World): PlayerSnap[] {
       kind: p.kind,
       alive: p.alive,
       ...(p.strategy !== undefined ? {strategy: p.strategy} : {}),
+      ...(p.difficulty !== undefined ? {difficulty: p.difficulty} : {}),
       stock: storehouse ? {...storehouse.stock} : {},
       toolWants: toolWants.get(p.id) ?? {},
       pop: heads.get(p.id) ?? 0,

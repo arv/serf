@@ -33,6 +33,18 @@ export interface LobbyConfig {
    * cannot name a playbook that does not exist.
    */
   bots: (string | null)[];
+  /**
+   * How hard the computer seats play: 'easy', 'normal' or 'hard'. One
+   * setting for the table — the sim stores it per seat so a future picker
+   * can vary it, but the waiting room has no reason to make a host set
+   * three of them. An unknown word is the default, `normal`, resolved when
+   * the world is built; kept as a string here for the same reason `bots`
+   * is, so this file stays dependency-free.
+   *
+   * Optional like the room snapshot it may have been restored from: a room
+   * written before difficulty existed names no tier, which is `normal`.
+   */
+  difficulty?: string;
 }
 
 /** Seats at the table, humans and AI together. The world only has start
@@ -51,6 +63,7 @@ export function defaultLobbyConfig(): LobbyConfig {
     seed: DEFAULT_SEED,
     size: DEFAULT_MAP_SIZE,
     bots: [],
+    difficulty: 'normal',
   };
 }
 
@@ -89,6 +102,11 @@ export function sanitizeLobbyConfig(
     out.bots = p.bots
       .slice(0, MAX_SEATS)
       .map(b => (typeof b === 'string' && b.length <= 24 ? b : null));
+  }
+  // Shape only, like `bots`: a word this file has never heard of names no
+  // tier, and the world builder falls back to `normal`.
+  if (typeof p.difficulty === 'string' && p.difficulty.length <= 24) {
+    out.difficulty = p.difficulty;
   }
   return out;
 }

@@ -8,6 +8,7 @@ import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import {firstRaidTickFor} from './defs/balance.ts';
 import {BUILDING_DEFS, TOOL_GOODS, TOOL_OF} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import * as MissionId from './defs/missionIdEnum.ts';
 import {loadMissionMap} from './defs/missionMaps.ts';
@@ -124,6 +125,68 @@ async function playMission(
   }
   return world;
 }
+
+describe('a commission at a difficulty', () => {
+  /** The human seat's larder, hands and raid clock on one commission. */
+  const opening = async (
+    difficulty?: Enum<typeof DifficultyId>,
+  ): Promise<{wood: number; serfs: number; peace: number}> => {
+    const world = await createWorldAsync({
+      ...missionWorldConfig(MissionId.levy),
+      ...(difficulty ? {difficulty} : {}),
+    });
+    const keep = [...world.buildings.values()].find(
+      b => b.owner === 0 && b.type === BuildingTypeId.storehouse,
+    )!;
+    return {
+      wood: keep.stock[GoodId.wood] ?? 0,
+      serfs: [...world.units.values()].filter(u => u.owner === 0).length,
+      peace: world.raidState.nextRaidTick,
+    };
+  };
+
+  it('scales what the crown grants, and the peace before the first raid', async () => {
+    const [easy, printed, hard] = await Promise.all([
+      opening(DifficultyId.easy),
+      opening(),
+      opening(DifficultyId.hard),
+    ]);
+    // The setting's campaign half, in the three numbers it moves. Nothing
+    // about the authored ground, the objectives or the prebuilt village
+    // moves with them: a commission teaches the same lesson at every tier.
+    expect(easy.wood).toBeGreaterThan(printed.wood);
+    expect(hard.wood).toBeLessThan(printed.wood);
+    expect(easy.serfs).toBeGreaterThan(printed.serfs);
+    expect(hard.serfs).toBeLessThan(printed.serfs);
+    expect(easy.peace).toBeGreaterThan(printed.peace);
+    expect(hard.peace).toBeLessThan(printed.peace);
+  });
+
+  it('leaves a skirmish opening alone at every tier', () => {
+    // The other half of the promise, and the one that matters in
+    // multiplayer: outside a commission the tier is how well the computer
+    // PLAYS, never what anybody is handed. Every seat's larder, and the
+    // raid clock over all of them, are the printed ones.
+    const openings = [undefined, DifficultyId.easy, DifficultyId.hard].map(
+      difficulty => {
+        const world = createWorld({
+          seed: 7,
+          ...(difficulty ? {difficulty} : {}),
+          players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+        });
+        return {
+          stocks: [...world.buildings.values()]
+            .filter(b => b.type === BuildingTypeId.storehouse)
+            .map(b => b.stock[GoodId.wood] ?? 0),
+          heads: [...world.units.values()].length,
+          peace: world.raidState.nextRaidTick,
+        };
+      },
+    );
+    expect(openings[1]).toEqual(openings[0]);
+    expect(openings[2]).toEqual(openings[0]);
+  });
+});
 
 describe('the campaign missions', () => {
   it('mission 1 (The Clearing) is won by the taught line: build, hire, stockpile', async () => {

@@ -7,6 +7,14 @@ import {
   parseStrategyId,
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
+import {
+  DIFFICULTIES,
+  DIFFICULTY_KEYS,
+  DIFFICULTY_ORDER,
+  type DifficultyId,
+  parseDifficultyId,
+} from '../sim/defs/difficulty.ts';
+import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as CouncilPhaseNs from './councilPhaseEnum.ts';
 import {DiceIcon, Glide, spotlight} from './menuChrome';
@@ -137,6 +145,12 @@ export function WarCouncil(props: CouncilHooks) {
     Array.from({length: aiFill()}, (_, i) =>
       parseStrategyId(v().config.bots[i]),
     );
+
+  /** The tier the host has set, or `normal` for a room that names none —
+   * a room restored from a snapshot written before difficulty existed, or
+   * a word the wire contract let through that no tier answers to. */
+  const tier = (): DifficultyId =>
+    parseDifficultyId(v().config.difficulty) ?? DifficultyIdNs.normal;
 
   const setBot = (index: number, id: string): void => {
     const bots = [...v().config.bots];
@@ -320,6 +334,35 @@ export function WarCouncil(props: CouncilHooks) {
                           </select>
                         )}
                       </Index>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={aiFill() > 0}>
+                  <div class="row">
+                    <div>
+                      <div class="row-label">Difficulty</div>
+                      <div class="row-hint">
+                        {isHost()
+                          ? 'How well the computer seats play — never what they are given'
+                          : 'Set by the host'}
+                      </div>
+                    </div>
+                    <div class="pills" style={{'--n': DIFFICULTY_ORDER.length}}>
+                      <Glide index={DIFFICULTY_ORDER.indexOf(tier())} />
+                      <For each={DIFFICULTY_ORDER}>
+                        {id => (
+                          <button
+                            class={tier() === id ? 'on' : ''}
+                            disabled={!isHost()}
+                            onClick={() =>
+                              props.onConfig({difficulty: DIFFICULTY_KEYS[id]})
+                            }
+                          >
+                            {DIFFICULTIES[id].name}
+                          </button>
+                        )}
+                      </For>
                     </div>
                   </div>
                 </Show>

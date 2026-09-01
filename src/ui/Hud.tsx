@@ -2330,8 +2330,16 @@ export function Hud(props: {
                   onClick={() => {
                     sessionStorage.removeItem('serf-load-pending');
                     // The same navigation launch() uses: the next
-                    // mission's recipe as the whole query string.
-                    goto(missionUrl(next().id));
+                    // mission's recipe as the whole query string — with
+                    // the tier this commission was played at carried
+                    // forward, since a campaign taken up on hard should
+                    // not quietly drop to normal at the end card.
+                    goto(
+                      missionUrl(
+                        next().id,
+                        playersMeta()[myPlayerId()]?.difficulty,
+                      ),
+                    );
                   }}
                 >
                   Continue: {next().title}

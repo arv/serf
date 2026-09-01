@@ -22,7 +22,25 @@ describe('sanitizeLobbyConfig', () => {
       seed: 123456,
       size: 128,
       bots: [],
+      difficulty: 'normal',
     });
+  });
+
+  it('takes a difficulty as a word and drops anything else', () => {
+    expect(sanitizeLobbyConfig(base, {difficulty: 'hard'}).difficulty).toBe(
+      'hard',
+    );
+    // Shape only, like `bots`: a word no tier answers to is not an error
+    // here, it just names nothing when the world is built.
+    expect(sanitizeLobbyConfig(base, {difficulty: 'nonesuch'}).difficulty).toBe(
+      'nonesuch',
+    );
+    expect(sanitizeLobbyConfig(base, {difficulty: 3}).difficulty).toBe(
+      base.difficulty,
+    );
+    expect(
+      sanitizeLobbyConfig(base, {difficulty: 'x'.repeat(25)}).difficulty,
+    ).toBe(base.difficulty);
   });
 
   it('keeps the base where the patch is silent', () => {

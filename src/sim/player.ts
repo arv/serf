@@ -1,5 +1,6 @@
 import type {Enum} from '../shared/enum.ts';
 import type {AiStrategyId} from './defs/aiStrategies.ts';
+import type {DifficultyId} from './defs/difficulty.ts';
 import type {Owner} from './entities.ts';
 import * as PlayerKindNs from './playerKindEnum.ts';
 import type {TechState} from './world.ts';
@@ -24,6 +25,20 @@ export interface PlayerState {
    * before the deal existed.
    */
   strategy?: AiStrategyId;
+  /**
+   * The tier this seat is playing at, for the same reason `strategy` lives
+   * here rather than in the config: the brains are rebuilt from scratch on
+   * a reload and on a resumed match, and an opponent that got easier across
+   * a save would be as much a bug as one that changed its opening.
+   *
+   * On every seat, human ones included — unlike `strategy`, which only a
+   * computer has. A tier is a fact about the match, and the seat is where
+   * the match writes its facts down: it is what an AI seat's brain plays
+   * at, and it is how the end card knows which setting to carry into the
+   * next commission. Absent on saves from before difficulty existed, which
+   * reads as `normal` — the printed game.
+   */
+  difficulty?: DifficultyId;
   techs: TechState;
   /** Stone-road paving enabled (unlocked by the Masonry tech). */
   pavingUnlocked: boolean;
@@ -35,11 +50,13 @@ export function makePlayer(
   id: Owner,
   kind: PlayerKind,
   strategy?: AiStrategyId,
+  difficulty?: DifficultyId,
 ): PlayerState {
   return {
     id,
     kind,
     strategy,
+    difficulty,
     techs: {researched: [], festivalTicksLeft: 0},
     pavingUnlocked: false,
     alive: true,

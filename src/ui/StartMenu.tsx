@@ -31,6 +31,13 @@ import {
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
 import {
+  DIFFICULTIES,
+  DIFFICULTY_KEYS,
+  DIFFICULTY_ORDER,
+  type DifficultyId,
+} from '../sim/defs/difficulty.ts';
+import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
+import {
   MISSION_DEFS,
   MISSION_ORDER,
   type MissionId,
@@ -98,6 +105,26 @@ function opponentHint(picks: (AiStrategyId | undefined)[]): string {
   if (only) return AI_STRATEGIES[only].blurb;
   return 'Random keeps it to itself until you meet them';
 }
+/**
+ * What to say under the difficulty pills, which is not one answer: the
+ * setting does two different jobs and a hint that named only one of them
+ * would be a lie half the time.
+ *
+ * On a commission it scales what the crown grants you — the larder, the
+ * hands in the yard, and how long the peace holds. In a skirmish it is
+ * purely how well the computer plays; nobody's opening moves, which is the
+ * part worth saying out loud, since "hard" in most games means the
+ * opponent was handed something. And a sandbox with no opponents in it is
+ * told plainly that the setting has nothing to touch, rather than being
+ * left to imply otherwise.
+ */
+function difficultyHint(mode: Mode, opponents: number): string {
+  if (mode === 'campaign')
+    return 'Scales the opening the crown grants you, and the peace before the first raid';
+  if (opponents === 0) return 'Nothing to set: a sandbox has no opponents';
+  return 'How well the computer plays — never what it is given';
+}
+
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
@@ -563,6 +590,12 @@ export function StartMenu(props: StartMenuProps) {
   // launching leaves the menu, and coming back builds it again.
   const seed = rollSeed();
   const [bandits, setBandits] = createSignal(true);
+  // One tier for the whole table. The sim stores it per seat (a future
+  // picker could field one hard lord and two easy ones); nothing here has
+  // ever wanted to ask a player for three answers to one question.
+  const [difficulty, setDifficulty] = createSignal<DifficultyId>(
+    DifficultyIdNs.normal,
+  );
   const [room, setRoom] = createSignal('');
   const [vis, setVis] = createSignal<Visibility>('open');
   const [picked, setPicked] = createSignal<string | null>(null);
@@ -889,6 +922,10 @@ export function StartMenu(props: StartMenuProps) {
     if (named.some(Boolean)) p.set('bots', named.map(b => b ?? '').join(','));
     p.set('seed', String(seed));
     if (!bandits()) p.set('bandits', '0');
+    // Only a tier that is not the printed game travels: a normal launch
+    // URL is the URL it has always been.
+    if (difficulty() !== DifficultyIdNs.normal)
+      p.set('difficulty', DIFFICULTY_KEYS[difficulty()]);
     return '?' + p.toString();
   };
 
@@ -927,7 +964,7 @@ export function StartMenu(props: StartMenuProps) {
       // id read as an unknown mission, and the launch quietly became a
       // default skirmish with no briefing and no checklist.
       releaseMenuBackdrop();
-      goto(missionUrl(pickedMission()));
+      goto(missionUrl(pickedMission(), difficulty()));
       return;
     }
     if (isMulti()) {
@@ -935,8 +972,13 @@ export function StartMenu(props: StartMenuProps) {
         mp: isJoin() ? target().toUpperCase() : 'new',
         open: vis() === 'open',
         // Seats, seed and raids open at their defaults and are set in the
-        // council, where every joiner watches them change.
-        init: defaultLobbyConfig(),
+        // council, where every joiner watches them change — the tier
+        // included, so it carries the pick made here rather than resetting
+        // under the host.
+        init: {
+          ...defaultLobbyConfig(),
+          difficulty: DIFFICULTY_KEYS[difficulty()],
+        },
       });
       return;
     }
@@ -1434,6 +1476,28 @@ export function StartMenu(props: StartMenuProps) {
                     {SHARE_OFFERED
                       ? ` The share button hands a ${shelfSpec()?.noun} to another app or device.`
                       : ''}
+                  </div>
+                </div>
+              </Show>
+
+              <Show when={isSingle() || isCampaign()}>
+                <div class="row">
+                  <div>
+                    <div class="row-label">Difficulty</div>
+                    <div class="row-hint">{difficultyHint(mode(), ai())}</div>
+                  </div>
+                  <div class="pills" style={{'--n': DIFFICULTY_ORDER.length}}>
+                    <Glide index={DIFFICULTY_ORDER.indexOf(difficulty())} />
+                    <For each={DIFFICULTY_ORDER}>
+                      {id => (
+                        <button
+                          class={difficulty() === id ? 'on' : ''}
+                          onClick={() => setDifficulty(id)}
+                        >
+                          {DIFFICULTIES[id].name}
+                        </button>
+                      )}
+                    </For>
                   </div>
                 </div>
               </Show>

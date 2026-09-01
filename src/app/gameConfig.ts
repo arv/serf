@@ -1,6 +1,12 @@
 import {DEFAULT_SEED} from '../protocol/lobby';
 import {parseStrategyId} from '../sim/defs/aiStrategies';
 import {
+  DIFFICULTY_KEYS,
+  type DifficultyId,
+  parseDifficultyId,
+} from '../sim/defs/difficulty.ts';
+import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
+import {
   MISSION_KEYS,
   type MissionId,
   parseMissionId,
@@ -29,8 +35,12 @@ export interface GameConfig extends WorldConfig {
  * commission launched as an ordinary skirmish — pinned seed gone, no
  * briefing card, no objectives checklist.
  */
-export function missionUrl(id: MissionId): string {
-  return `?mission=${MISSION_KEYS[id]}`;
+export function missionUrl(id: MissionId, difficulty?: DifficultyId): string {
+  const tier =
+    difficulty && difficulty !== DifficultyIdNs.normal
+      ? `&difficulty=${DIFFICULTY_KEYS[difficulty]}`
+      : '';
+  return `?mission=${MISSION_KEYS[id]}${tier}`;
 }
 
 export function configFromUrl(search: string): GameConfig {
@@ -40,9 +50,19 @@ export function configFromUrl(search: string): GameConfig {
   // the whole recipe — its pinned seed and seats win over any stray
   // ?seed/?ai in the URL. An unknown name is no mission (the URL is
   // hand-editable); the ordinary parsing below then applies.
+  // ?difficulty=easy|normal|hard. On a commission it scales the opening
+  // the crown grants you — larder, hands, and the peace before the first
+  // raid; in a skirmish it is how well the computer seats play, and
+  // nobody's larder moves. An unknown word is `normal`, the printed game.
+  const difficulty = parseDifficultyId(params.get('difficulty'));
   const mission = parseMissionId(params.get('mission'));
   if (mission) {
-    return {...missionWorldConfig(mission), myPlayerId: 0, adminEnabled: true};
+    return {
+      ...missionWorldConfig(mission),
+      ...(difficulty ? {difficulty} : {}),
+      myPlayerId: 0,
+      adminEnabled: true,
+    };
   }
   // A non-numeric seed used to reach createWorld as NaN and generate a
   // broken world; fall back instead. The menu only ever sends digits, but
@@ -90,6 +110,7 @@ export function configFromUrl(search: string): GameConfig {
   return {
     seed,
     players,
+    ...(difficulty ? {difficulty} : {}),
     ...(mapSize !== undefined ? {mapSize} : {}),
     myPlayerId: 0,
     adminEnabled: true, // solo modes keep the sandbox switches live

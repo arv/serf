@@ -139,8 +139,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // take what the man is carrying as its floor: armour research is older
 // than the field, so an older file already holds soldiers above their
 // kind's number. Load-time reading only; no tick moved.)
-const EXPECTED_VERSION = 37;
-const EXPECTED_HASH = 'a6ecc80321a451cbb1e0874f1704854e';
+// 38 for the difficulty setting — and specifically for its campaign half.
+// The computer seats playing harder or easier is brain only (a transform
+// over composed knobs, plus a slower decision beat on easy), which moves no
+// recorded tick; a commission scaling the human seat's larder, hands and
+// raid clock by the tier is config the world is BUILT from, and an older
+// build drops the field and rebuilds a different opening. See
+// replayVersion.ts.
+const EXPECTED_VERSION = 38;
+const EXPECTED_HASH = 'f5bb842ce326f605003fed82d8d29b2a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

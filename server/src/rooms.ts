@@ -11,6 +11,7 @@ import {AiSeats} from '../../src/sim/aiSeats.ts';
 import type {SimCommand} from '../../src/sim/commands.ts';
 import {parseStrategyId} from '../../src/sim/defs/aiStrategies.ts';
 import {TICK_MS} from '../../src/sim/defs/balance.ts';
+import {parseDifficultyId} from '../../src/sim/defs/difficulty.ts';
 import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import {playerKindFromKey} from '../../src/sim/player.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
@@ -278,6 +279,10 @@ export function matchWorldConfig(room: Room): WorldConfig {
       kind: playerKindFromKey(s.kind) ?? PlayerKind.human,
       strategy: s.kind === 'ai' ? parseStrategyId(bots[picked++]) : undefined,
     })),
+    // One tier for the table. A room restored from a snapshot written
+    // before the field existed names nothing, which is `normal` — the
+    // printed game, and the setting every such match was played at.
+    difficulty: parseDifficultyId(room.config.difficulty),
     // Cheats are a single-player affair; a networked world never honors them.
     adminEnabled: false,
     banditsEnabled: room.config.bandits,

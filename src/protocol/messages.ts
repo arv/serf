@@ -1,6 +1,7 @@
 import type {Enum} from '../shared/enum.ts';
 import type {AiStrategyId} from '../sim/defs/aiStrategies.ts';
 import type {BuildingTypeId} from '../sim/defs/buildings.ts';
+import type {DifficultyId} from '../sim/defs/difficulty.ts';
 import type {GoodAmounts, GoodId} from '../sim/defs/goods.ts';
 import type {MissionId} from '../sim/defs/missions.ts';
 import type {TechId} from '../sim/defs/techs.ts';
@@ -43,6 +44,10 @@ export interface PlayerSnap {
    * Warlord…”). Public knowledge — the lobby shows the deal — and absent
    * for humans. */
   strategy?: AiStrategyId;
+  /** An AI seat's difficulty tier, for naming it on screen beside the
+   * playbook. Public knowledge like the deal, and absent for humans and
+   * for a seat playing the printed game. */
+  difficulty?: DifficultyId;
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
   /** Open tool-gated posts per tool, plus sites still owed their hammer —

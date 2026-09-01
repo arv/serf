@@ -20,6 +20,32 @@
  * directly.
  */
 /**
+ * 38: a match can be set to a difficulty.
+ *
+ * Two halves, and only one of them is the reason for the bump. The
+ * computer seats play harder or easier — a transform over the knobs a
+ * brain has already composed (defs/difficulty.ts), plus a slower decision
+ * beat on `easy` — and that is brain only: playback never runs a brain,
+ * so it moves no recorded tick, exactly as the road techs (36) and the
+ * reserve seam's second mine did not.
+ *
+ * The half that bumps is the campaign. A commission now scales the human
+ * seat's opening by the tier — the storehouse's larder, the hands standing
+ * in the yard at the first tick, and the peace before the first raid — so
+ * `difficulty` is config that the world is BUILT from, like a mission id
+ * (28). An older build's sanitizeConfig drops the field it has never heard
+ * of and rebuilds the commission at its printed opening, which is a
+ * different world from the first tick: different stock on the shelf,
+ * different serfs on the grass, a different raid clock. Version equality
+ * has to mean the world rebuilds the same.
+ *
+ * A skirmish or a multiplayer match scales nothing — every seat there
+ * opens with the larder it always had — and a match that names no tier is
+ * `normal`, which is the printed game byte for byte. So every log recorded
+ * before this build describes a world this build still rebuilds exactly;
+ * the bump is for the logs recorded after it.
+ */
+/**
  * 37: a hire can be called back. cancelHire (command kind 16) strikes one
  * recruit from the castle's queue and returns his silver in full, so the
  * castle's card can carry the barracks' row of cancellable slots instead
@@ -372,4 +398,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 37;
+export const REPLAY_VERSION = 38;

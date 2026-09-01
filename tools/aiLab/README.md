@@ -59,6 +59,46 @@ fletcher are the deck's thin end now; abbot is comfortably its strongest.
 Sweeps run one match per `--jobs` process (`--jobs max` uses the machine);
 results are byte-identical to `--jobs 1` for every engine.
 
+## The tier duel
+
+A third instrument, for the one question the other two cannot answer:
+**is a difficulty tier actually harder to play against?**
+
+```sh
+pnpm balance 32 --difficulty hard   # every playbook at one tier, vs the map
+pnpm tiers 12                       # the tiers against each other
+pnpm tiers 12 1000                  # ...from a different range
+```
+
+The two ask different things, and the difference is the whole reason
+`tiers.ts` exists. The balance sweep scores a seat against the ground and
+the bandits — "is this seat effective" — and a hard seat marches sooner
+with fewer men, which against a bandit camp is a gamble it sometimes
+loses. Measured that way (64 seeds across two ranges, 256 campaigns a
+tier) the tiers came out **easy 179, normal 204, hard 200**: easy clearly
+worst, hard and normal a wash on wins — while the *median winning tick*
+ordered perfectly and identically on both ranges, easy ~23.4k, normal
+~20.8k, hard ~17.8k. A tier that takes the map six minutes sooner and
+dies slightly more often trying is not a weaker opponent to sit across
+from; it is a more aggressive one, and win-rate-against-bandits is simply
+the wrong instrument for the question.
+
+`pnpm tiers` is the right one: the same playbook on both seats, the tier
+as the only asymmetry, every seed played in both seatings so the null
+hypothesis is exactly 50% however lopsided the valley's two starts are —
+the same cancellation the bake-off uses for advice. Bandits off, because a
+neutral third party that kills one seat turns a duel into a coin toss the
+mirror cannot cancel. A Wilson 95% interval straddling 50% is not a
+result, exactly as above.
+
+TIER_RESULTS_PLACEHOLDER
+
+The ordering is also pinned in the suite (`tools/aiLab/tiers.test.ts`), on a
+small fixed seed set, so a change that inverts it fails CI rather than
+waiting for someone to re-run a sweep. That test is a *regression pin*, not
+a second measurement: the sim is deterministic, so its duels have one
+answer, and the numbers to argue from are the ones above.
+
 ## The experiment
 
 Per seed, up to three headless matches on one valley, both seats running the
