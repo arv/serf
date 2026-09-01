@@ -44,15 +44,29 @@ export function disposeOwnedSubtree(root: THREE.Object3D): void {
     shared.add(forest.material);
   }
 
+  // What has already been freed. A subtree is a group of meshes now
+  // rather than the one mesh it used to be — the ground is chunked, and so
+  // is the scatter — and every chunk of a given kind carries the same
+  // material and the same canvas texture. Disposing those once per chunk
+  // is idempotent but pointless, and the count grows with the square of
+  // the map's width, so they are freed once by identity. Geometries are
+  // not deduplicated away by this: each chunk has one of its own, holding
+  // its own index buffer, and each of them does need freeing.
+  const freed = new Set<object>();
+  const free = (thing: {dispose(): void}): void => {
+    if (shared.has(thing) || freed.has(thing)) return;
+    freed.add(thing);
+    thing.dispose();
+  };
+
   root.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     if (o instanceof THREE.InstancedMesh) o.dispose(); // instance attributes
-    if (!shared.has(o.geometry)) o.geometry.dispose();
+    free(o.geometry);
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-      if (shared.has(m)) continue;
       const map = (m as THREE.MeshLambertMaterial).map;
-      if (map && !shared.has(map)) map.dispose();
-      m.dispose();
+      if (map) free(map);
+      free(m);
     }
   });
   root.removeFromParent();

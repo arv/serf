@@ -273,6 +273,24 @@ describe('terrain chunking', () => {
     expect(grid).toBeGreaterThan(0);
   });
 
+  it('indexes a chunk as narrowly as the lattice allows', () => {
+    // three sizes the lattice's own index by its vertex count, and a chunk
+    // that always took the wider type would hand the GPU a Uint32 index
+    // over a lattice that fits in sixteen bits: twice the memory, and an
+    // extension to ask for on the WebGL1 path. The narrow map here and the
+    // wide one below straddle that boundary.
+    for (const child of mesh(blankMap()).group.children) {
+      expect((child as THREE.Mesh).geometry.index!.array).toBeInstanceOf(
+        Uint16Array,
+      );
+    }
+    for (const child of wideMesh().group.children) {
+      expect((child as THREE.Mesh).geometry.index!.array).toBeInstanceOf(
+        Uint32Array,
+      );
+    }
+  });
+
   it('gives every chunk the same colour buffer to paint into', () => {
     const m = wideMesh();
     const first = (m.group.children[0] as THREE.Mesh).geometry.getAttribute(

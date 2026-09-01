@@ -285,12 +285,22 @@ export class TerrainMesh {
     const grid = this.#grid;
     const geometry = this.#geometry;
     const master = geometry.index!.array;
+    // Match the master's index width rather than always taking the wider
+    // of the two. three sizes its own by the vertex count, so a lattice
+    // that fits in sixteen bits gets a Uint16 index — and handing the GPU
+    // a Uint32 one there is twice the memory for nothing, and asks for
+    // OES_element_index_uint on the WebGL1 path the renderer still
+    // tolerates (see GameRenderer.gpuReady). Every valley the game ships
+    // is wide enough to need Uint32 either way; a narrow one reached
+    // through ?size= is not.
+    const narrow = master instanceof Uint16Array;
     const step = TERRAIN_CHUNK_TILES * SEG;
     for (let r0 = 0; r0 < grid; r0 += step) {
       const r1 = Math.min(grid, r0 + step);
       for (let c0 = 0; c0 < grid; c0 += step) {
         const c1 = Math.min(grid, c0 + step);
-        const index = new Uint32Array((r1 - r0) * (c1 - c0) * 6);
+        const total = (r1 - r0) * (c1 - c0) * 6;
+        const index = narrow ? new Uint16Array(total) : new Uint32Array(total);
         let n = 0;
         for (let r = r0; r < r1; r++) {
           const from = (r * grid + c0) * 6;
