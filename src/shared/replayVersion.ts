@@ -31,11 +31,14 @@
  *
  * The ground itself is untouched — worldgen still carves the spots in
  * table order, off the same draws, so a seed's map is the map it always
- * was. What moved is which castle stands on which of them, and that is
- * replay surface twice over: the storehouses and starting serfs are
- * planted for a different seat, and the AI brain steers its scouts by
- * World.starts, so a log recorded on 37 re-runs against a different
- * opening on this build.
+ * was. What moved is which castle stands on which of them: the storehouses
+ * and the starting serfs are planted for a different seat, so a log
+ * recorded on 37 re-runs against a different opening on this build.
+ *
+ * (The brain also stopped being told which rival drew which spot — it
+ * learns a rival's castle by seeing it now, RivalPicture.home — but a
+ * brain change is never the reason for a bump: playback runs the log, not
+ * the brain.)
  *
  * The save format takes `starts` as an optional field (the banditsEnabled
  * precedent, no save-version bump): a file written before the deal existed

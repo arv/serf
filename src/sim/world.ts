@@ -129,10 +129,11 @@ export interface World {
    *
    * It rides the world because it is no longer recoverable from the table:
    * a skirmish deals the spots out at random (seatStarts below), and an
-   * authored campaign map carries its own. The AI steers scouts by it
-   * (searchLandmarks and rivalDoorstep in systems/ai.ts, which say what
-   * that costs in fairness), so it has to survive a save and a clone like
-   * any other world state.
+   * authored campaign map carries its own. The AI reads it as the public
+   * map lore it is — a list of spots someone lives on, with no word on who
+   * (searchLandmarks in systems/ai.ts; the pairing a brain has to scout
+   * for) — so it has to survive a save and a clone like any other world
+   * state.
    */
   starts: StartSpot[];
   raidState: {nextRaidTick: number; wave: number};

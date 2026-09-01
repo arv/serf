@@ -403,6 +403,20 @@ interface IntelSample {
  * standoff costs the same memory as the opening.
  */
 interface RivalPicture {
+  /**
+   * Their castle's footprint origin, once this seat has actually laid eyes
+   * on it; null until then.
+   *
+   * The one fact here that is not a tally, and the reason it is a fact at
+   * all: the seats are dealt their start spots (seatStarts in world.ts),
+   * so where a given rival lives is no longer something the source can be
+   * read for. The spots themselves still are — they are a fixed table and
+   * their plateaus are drawn on the terrain everyone is shipped — which is
+   * why a search walks all of them (searchLandmarks). Which one is WHOSE
+   * has to be found the way the player finds it: by standing somewhere it
+   * can be seen from.
+   */
+  home: {x: number; y: number} | null;
   /** Soldiers seen and not yet written off, by unit id. */
   roster: Map<number, {tick: number; cls: UnitClass}>;
   /** How the roster has grown, oldest first, `seriesLen` deep. */
@@ -437,6 +451,8 @@ interface RivalPicture {
 /** One rival's picture, flattened for anything outside the brain. */
 export interface IntelReport {
   owner: Owner;
+  /** Their castle, or null while this seat has never found it. */
+  home: {x: number; y: number} | null;
   /** Freshest observation of them, -1 if never seen. */
   tick: number;
   /** Soldiers of theirs currently on the roster. */
@@ -834,6 +850,7 @@ export class AiBrain {
       for (const s of pic.series) if (s.total > peak) peak = s.total;
       return {
         owner,
+        home: pic.home,
         tick: pic.seenTick,
         total: muster.total,
         peak,
@@ -1574,14 +1591,25 @@ export class AiBrain {
             const nextRival =
               this.#scoutGoal < 0 ? this.#staleRival(world) : -1;
             if (this.#scoutGoal < 0 && nextRival >= 0) {
-              const door = rivalDoorstep(world, nextRival);
+              const door = this.#rivalDoorstep(world, nextRival);
               if (door >= 0) {
                 this.#scoutGoal = door;
                 this.#scoutIntel = nextRival;
               } else {
-                // No table entry to walk to: call it read, or the scout
+                // Their castle has never been found, so there is no yard to
+                // re-read — only ground left to look at. Search, exactly as
+                // a seat with no target at all does; the walk that finds
+                // them is what turns the stale clock into an address.
+                this.#scoutGoal = nextSearchGoal(
+                  world,
+                  this.#vision,
+                  this.#unreachable,
+                  su.x,
+                  su.y,
+                );
+                // Nothing left unlit either: call it read, or the scout
                 // would ask again every beat forever.
-                this.#stampIntel(world, nextRival);
+                if (this.#scoutGoal < 0) this.#stampIntel(world, nextRival);
               }
             }
             this.#scoutLeg = -1;
@@ -2440,6 +2468,31 @@ export class AiBrain {
         atGate.set(u.owner, (atGate.get(u.owner) ?? 0) + 1);
       }
     }
+    // Whose castle is whose, learned the only way left to learn it: by
+    // having stood somewhere it can be seen from. The spots are public and
+    // a search walks all of them (searchLandmarks); the pairing is not, and
+    // this is where a scout's walk turns one into the other.
+    //
+    // Skipped once every living rival has been placed — the answer never
+    // changes, and this is the one loop over every building on the map that
+    // would otherwise run on every beat of every seat for the whole match.
+    // First castle seen and no correction after: a village that is razed and
+    // rebuilt elsewhere leaves the address stale, which is exactly what the
+    // fixed table used to do, and the scout sent there learns as much by
+    // finding rubble.
+    if (this.#unplacedRival(world)) {
+      for (const b of world.buildings.values()) {
+        if (b.dead || b.type !== BuildingTypeId.storehouse) continue;
+        if (b.owner === this.playerId || !isPlayerOwner(b.owner)) continue;
+        if (this.#intel.get(b.owner)?.home) continue;
+        // canSee, not hasExplored: ground walked past once is not a
+        // standing look at what is on it, and a castle raised after the
+        // scout left would otherwise place itself for free.
+        if (!this.#vision.canSee(b.x + b.w / 2, b.y + b.h / 2)) continue;
+        this.#pictureOf(b.owner).home = {x: b.x, y: b.y};
+      }
+    }
+
     // A raid, not a caller. Every playbook walks a lone scout past a rival's
     // castle in the first four minutes, so "one of theirs came near" fired at
     // minute four against a warlord and against an abbot alike and separated
@@ -2490,11 +2543,34 @@ export class AiBrain {
     }
   }
 
+  /** Is there a living rival whose castle this seat has never found? The
+   * gate on the building sweep above — once the answer is no, it never
+   * becomes yes again. */
+  #unplacedRival(world: World): boolean {
+    for (const p of world.players) {
+      if (p.id === this.playerId || !p.alive || !isPlayerOwner(p.id)) continue;
+      if (!this.#intel.get(p.id)?.home) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Where a rival's garrison stands — or -1 while this seat has never found
+   * their castle, which is a real answer and not a missing one: an address
+   * this brain has not earned is an address it does not get. The caller
+   * treats it as "go and look" (see the scout block in decide).
+   */
+  #rivalDoorstep(world: World, owner: Owner): number {
+    const home = this.#intel.get(owner)?.home;
+    return home ? doorstepOf(world.map.size, home) : -1;
+  }
+
   /** This rival's picture, opened on first contact. */
   #pictureOf(owner: Owner): RivalPicture {
     let pic = this.#intel.get(owner);
     if (!pic) {
       pic = {
+        home: null,
         roster: new Map(),
         series: [],
         seenTick: -1,
@@ -2965,23 +3041,19 @@ export function approachPoint(
 }
 
 /**
- * Where a rival's garrison stands: four tiles south of their castle door —
- * off the same start table the landmarks come from, and the very spot this
- * brain rallies its own army to. Walking a scout there is how a seat learns
- * what a rival's army is made of.
+ * Where a castle's garrison stands: four tiles south of its door, and the
+ * very spot a brain rallies its own army to. Walking a scout there is how a
+ * seat learns what a rival's army is made of.
  *
- * The spots are public; which seat drew which is not, since the deal is
- * rolled (seatStarts in world.ts). The brain is handed the pairing anyway
- * — the alternative is a scout that walks every doorstep on the map before
- * it can put a name to one, which is the search it already runs, only
- * slower and dumber. It buys the AI an opening address, never a reading:
- * everything it learns there it still has to walk to and see.
+ * Pure geometry on a castle someone has already found — the knowing is the
+ * brain's (RivalPicture.home), and this only says where to stand once it
+ * knows.
  */
-export function rivalDoorstep(world: World, owner: Owner): number {
-  const size = world.map.size;
-  const start = world.starts[owner];
-  if (!start) return -1;
-  return tileIdx(start.x + 1, Math.min(size - 1, start.y + 5), size);
+export function doorstepOf(
+  size: number,
+  castle: {x: number; y: number},
+): number {
+  return tileIdx(castle.x + 1, Math.min(size - 1, castle.y + 5), size);
 }
 
 /**

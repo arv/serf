@@ -5,7 +5,7 @@ import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import {AiBrain, AI_INTEL, rivalDoorstep, scoutLeg} from './systems/ai.ts';
+import {AiBrain, AI_INTEL, doorstepOf, scoutLeg} from './systems/ai.ts';
 import {addStorehouse, bareWorld} from './testUtils.ts';
 import {placeBuiltBuilding, spawnUnit, type World} from './world.ts';
 
@@ -174,8 +174,11 @@ describe('the intelligence picture', () => {
     const stampedAt = world.tick;
     // A replacement stands ready at home for the next errand.
     spawnUnit(world, UnitTypeId.knight, 0, 30.5, 28.5);
-    const door = rivalDoorstep(world, 1);
-    expect(door).toBeGreaterThanOrEqual(0);
+    // The rival's castle, which this seat has stood in sight of since the
+    // opening beat — so the brain has an address for it (RivalPicture.home)
+    // and this is the road it walks.
+    expect(picture(brain)?.home).toEqual({x: 44, y: 30});
+    const door = doorstepOf(world.map.size, {x: 44, y: 30});
     const leg = scoutLeg(door, 30.5, 28.5, world.map.size);
     const walksTheDoorstep = (): boolean =>
       moves(brain.decide(world)).some(m => m.x === leg.x && m.y === leg.y);
