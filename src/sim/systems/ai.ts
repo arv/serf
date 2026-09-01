@@ -117,8 +117,18 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
 export const AI_PACING = {
   /** Ticks between one seat's decision beats. */
   decisionInterval: 20,
-  /** Beat offset per seat id, so two brains never fire on the same tick. */
-  seatStagger: 5,
+  /**
+   * Seats to spread the beats of, so two brains never fire on the same
+   * tick. The offset is `floor(playerId * interval / seatSlots)` rather
+   * than a fixed stride, which is the same thing at the printed cadence —
+   * four slots into twenty ticks is 0, 5, 10, 15, exactly the stride this
+   * used to be — and keeps the guarantee when a difficulty tier moves the
+   * interval (defs/difficulty.ts). A fixed stride does not: at an interval
+   * of 10 it wraps, and seats 0 and 2 think on the same tick.
+   *
+   * Four because the world has start layouts for one through four seats.
+   */
+  seatSlots: 4,
   /**
    * Impatience: a muster bar that is never met is a game that never ends.
    * Two exhausted villages with the seams mined out can each sit below
@@ -207,7 +217,12 @@ export const AI_PACING = {
  */
 export const AI_STALL = {
   /** Ticks between progress samples. A multiple of `decisionInterval`, so
-   * the sample lands on a beat rather than near one. */
+   * the sample lands on a beat rather than near one — and of the stretched
+   * interval an easy seat runs on (defs/difficulty.ts), which is 40. The
+   * gate is elapsed-time rather than modulo, so a period that stopped
+   * dividing an interval would only drift the sample onto the next beat;
+   * it is a multiple because landing ON one is tidier, not because
+   * anything breaks otherwise. */
   samplePeriod: 2_000,
   /**
    * Samples in the window. The shortest stall this can report is therefore
@@ -245,6 +260,16 @@ export const AI_STANCE = {
   /** A switch holds at least this long (the break-in excepted). */
   dwell: 1000,
 } as const;
+
+/**
+ * Which tick inside its interval a seat thinks on. Spread over the whole
+ * interval rather than a fixed stride, so the "no two brains on one tick"
+ * guarantee holds at any interval a difficulty tier sets — see
+ * AI_PACING.seatSlots.
+ */
+export function beatOffset(playerId: number, interval: number): number {
+  return Math.floor((playerId * interval) / AI_PACING.seatSlots) % interval;
+}
 
 /** The stance engine's three states. What each maps to lives in the
  * playbook (AiStrategy.stances); an unset opening means the printed
@@ -900,9 +925,7 @@ export class AiBrain {
    */
   shouldDecide(tick: number): boolean {
     const interval = this.#decisionInterval;
-    return (
-      tick % interval === (this.playerId * AI_PACING.seatStagger) % interval
-    );
+    return tick % interval === beatOffset(this.playerId, interval);
   }
 
   /** Read the world, emit this beat's commands. Pure apart from the brain's

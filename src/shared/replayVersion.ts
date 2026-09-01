@@ -39,6 +39,12 @@
  * different serfs on the grass, a different raid clock. Version equality
  * has to mean the world rebuilds the same.
  *
+ * The beat stagger moved with it — from a fixed 5-tick stride to slots
+ * spread across whatever interval a seat thinks on, so that "no two brains
+ * on one tick" survives a tier stretching the interval. At the printed
+ * cadence it is arithmetically the same offsets (0, 5, 10, 15), and it is
+ * brain pacing either way.
+ *
  * A skirmish or a multiplayer match scales nothing — every seat there
  * opens with the larder it always had — and a match that names no tier is
  * `normal`, which is the printed game byte for byte. So every log recorded

@@ -91,7 +91,27 @@ neutral third party that kills one seat turns a duel into a coin toss the
 mirror cannot cancel. A Wilson 95% interval straddling 50% is not a
 result, exactly as above.
 
-TIER_RESULTS_PLACEHOLDER
+The standing numbers, 24 seeds on range 101 — four playbooks, both
+seatings, so 192 duels a pairing:
+
+```
+normal v easy   109/179  60.9%  [53.6, 67.7]  WINS
+hard   v easy   128/183  69.9%  [62.9, 76.1]  WINS
+hard   v normal 113/187  60.4%  [53.3, 67.2]  WINS
+```
+
+Monotone, and every pairing clear of the 50% null. Note how much power
+this took: at 96 duels hard-versus-normal read 53/95, 55.8%, [45.8, 65.4]
+— "no result", and it would have been easy to mistake that for a weak
+tier and start tuning. It was not weak, it was under-measured. Three
+candidate strengthenings tried at that sample size (forcing
+`retreats: false`, a distinctly wider village, a faster decision clock for
+hard) all came in at or below the printed table, which is what you would
+expect from noise. Run the seeds before you turn the knobs.
+
+The other half of the standing doctrine applies as ever: this is one
+range, and a result believed on one range is a result not yet believed.
+`pnpm tiers 24 1000` is the check.
 
 The ordering is also pinned in the suite (`tools/aiLab/tiers.test.ts`), on a
 small fixed seed set, so a change that inverts it fails CI rather than

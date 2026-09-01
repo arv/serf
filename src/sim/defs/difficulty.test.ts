@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {ADVICE_RANGES} from '../../ai/advice.ts';
-import {AI_PACING, AI_INTEL} from '../systems/ai.ts';
+import {AI_INTEL, AI_PACING, beatOffset} from '../systems/ai.ts';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
@@ -57,21 +57,30 @@ describe('the difficulty table', () => {
     }
   });
 
-  it('only ever slows a seat down, never speeds one up', () => {
-    // The stagger invariant: two brains must never think on the same tick,
-    // which holds for any interval at or above the printed one and breaks
-    // below it (seats 0 and 2 collide at 10). See
-    // Difficulty.decisionIntervalPct.
-    const {decisionInterval, seatStagger} = AI_PACING;
+  it('keeps two brains off the same tick at every tier', () => {
+    // The invariant the beat stagger exists for. It used to hold only at or
+    // above the printed cadence — a fixed stride wraps, and seats 0 and 2
+    // collide at an interval of 10 — which is why the offsets are now
+    // spread across whatever interval a tier sets (AI_PACING.seatSlots).
+    // Checked over a range well past what any tier asks for, so the next
+    // one cannot quietly break it.
     for (const tier of TIERS) {
-      const interval = scaleDecisionInterval(decisionInterval, tier);
-      expect(interval).toBeGreaterThanOrEqual(decisionInterval);
+      const interval = scaleDecisionInterval(AI_PACING.decisionInterval, tier);
       const offsets = new Set(
-        [0, 1, 2, 3].map(seat => (seat * seatStagger) % interval),
+        [0, 1, 2, 3].map(seat => beatOffset(seat, interval)),
       );
-      expect(offsets.size).toBe(4);
+      expect(offsets.size, `tier ${DIFFICULTY_KEYS[tier]}`).toBe(4);
     }
+    for (let interval = 8; interval <= 80; interval++) {
+      const offsets = new Set(
+        [0, 1, 2, 3].map(seat => beatOffset(seat, interval)),
+      );
+      expect(offsets.size, `interval ${interval}`).toBe(4);
+    }
+    // The shipped tiers: easy is late, and nobody else moves.
     expect(scaleDecisionInterval(20, DifficultyIdNs.easy)).toBe(40);
+    expect(scaleDecisionInterval(20, DifficultyIdNs.normal)).toBe(20);
+    expect(scaleDecisionInterval(20, DifficultyIdNs.hard)).toBe(20);
   });
 
   it('never lets hard delete a playbook’s refusals', () => {

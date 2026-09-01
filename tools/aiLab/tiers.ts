@@ -64,6 +64,13 @@ export function playDuel(
     // No bandits: a neutral third party that kills one seat turns a duel
     // into a coin toss about who met the camp, which is noise the mirror
     // cannot cancel (the two seats do not meet the same camp).
+    //
+    // The cost, and it is a real one: `prefersRivals` — whether a lord
+    // comes for you or for the nearer bandit camp, and one of the knobs
+    // `easy` softens — cannot show up in a valley with no camp in it. This
+    // instrument measures the tiers with that lever silent, so the gap it
+    // reports for easy is if anything an understatement of the gap in a
+    // game that has bandits on. The balance sweep is where that knob shows.
     banditsEnabled: false,
     players: [
       {kind: PlayerKind.ai, strategy, difficulty: tiers[0]},

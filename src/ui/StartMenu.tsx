@@ -971,14 +971,12 @@ export function StartMenu(props: StartMenuProps) {
       props.onCouncil({
         mp: isJoin() ? target().toUpperCase() : 'new',
         open: vis() === 'open',
-        // Seats, seed and raids open at their defaults and are set in the
-        // council, where every joiner watches them change — the tier
-        // included, so it carries the pick made here rather than resetting
-        // under the host.
-        init: {
-          ...defaultLobbyConfig(),
-          difficulty: DIFFICULTY_KEYS[difficulty()],
-        },
+        // Seats, seed, raids and the difficulty open at their defaults and
+        // are set in the council, where every joiner watches them change.
+        // Deliberately not the pick from this screen: that picker is not
+        // shown on the multiplayer tab, so carrying it would set the room
+        // from a control the host cannot see.
+        init: defaultLobbyConfig(),
       });
       return;
     }

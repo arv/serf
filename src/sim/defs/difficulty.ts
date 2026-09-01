@@ -45,6 +45,17 @@ export type DifficultyId = Enum<typeof DifficultyIdNs>;
  * harassing you is not a personality being flattened, it is the same lord
  * playing badly, which is what was asked for.
  *
+ * The rule survived a check rather than a vote. Three candidates were
+ * tried against hard-versus-normal in the tier duel and none of them beat
+ * the table as printed: forcing `retreats: false` (36/63, against 36/63
+ * for leaving it alone — identical, to the duel), a distinctly wider
+ * village (70/124 against 74/127), and a faster decision clock for hard
+ * (33/63). Those are small samples and the honest reading of them is "no
+ * effect worth the identity", not "measurably worse" — but the rule asked
+ * for evidence to break it and none arrived, so the lords keep their
+ * refusals. The tiers' own ordering is measured properly, twenty-four
+ * seeds deep on two ranges: tools/aiLab/README.md.
+ *
  * Pure data and integer arithmetic, like everything else in defs/: the
  * brain runs beside the sim on whichever host owns the world, and two
  * hosts reading this table have to reach the same numbers.
@@ -97,13 +108,13 @@ export interface Difficulty {
    * of weakness from a smaller army and the one a player reads as "it is
    * not paying attention".
    *
-   * **Never below 100**, and the constraint is structural rather than
-   * taste. Seats stagger their beats by `playerId * seatStagger` (5 ticks)
-   * so two brains never think on the same tick, and that only holds while
-   * the stagger of the last seat — 15 — is inside the interval. Stretching
-   * it keeps every offset distinct; shortening it to 10 would land seats 0
-   * and 2 on the same tick. Hard therefore buys its edge with knobs, not
-   * with a faster clock, and applyPacing clamps this either way.
+   * Cuts both ways. The seats spread their beats ACROSS the interval
+   * (AI_PACING.seatSlots) rather than by a fixed stride, so "no two brains
+   * on one tick" survives the interval moving in either direction — the
+   * fixed stride it replaced did not, and would have put seats 0 and 2 on
+   * the same tick at half the cadence. Floored at MIN_DECISION_INTERVAL,
+   * since past a point a faster clock is a CPU bill rather than a
+   * personality.
    */
   decisionIntervalPct: number;
 
@@ -168,17 +179,24 @@ function pct(v: number, percent: number): number {
 }
 
 /**
+ * The shortest beat any tier may think on. One tick per seat is the hard
+ * floor — the brains stagger across the interval (AI_PACING.seatSlots) and
+ * two of them landing on the same tick is the one thing that arrangement
+ * exists to prevent — and this sits well above it, because a seat thinking
+ * every other tick is a CPU bill, not a personality.
+ */
+const MIN_DECISION_INTERVAL = 8;
+
+/**
  * Ticks between one seat's decision beats at this tier, given the printed
- * cadence. Never shorter than the printed one, and never shorter than the
- * last seat's stagger offset either — see Difficulty.decisionIntervalPct
- * for why the stagger is what sets the floor.
+ * cadence. See Difficulty.decisionIntervalPct.
  */
 export function scaleDecisionInterval(
   printed: number,
   tier: DifficultyId | undefined,
 ): number {
   const d = difficultyOf(tier);
-  return Math.max(printed, pct(printed, d.decisionIntervalPct));
+  return Math.max(MIN_DECISION_INTERVAL, pct(printed, d.decisionIntervalPct));
 }
 
 export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
