@@ -47,6 +47,10 @@ export function bareWorld(seed = 1, playerCount = 1): World {
     players: Array.from({length: playerCount}, (_, i) =>
       makePlayer(i, PlayerKind.human),
     ),
+    // A bare world has no worldgen and no castles; the fixtures that want
+    // seats standing somewhere place them by hand. Empty rather than the
+    // real table, so nothing reads a doorstep this map never built.
+    starts: [],
     raidState: {nextRaidTick: Number.MAX_SAFE_INTEGER, wave: 0}, // raids opt in
     admin: {enabled: true, raidsEnabled: true, instantBuild: false},
     pendingEvents: [],
@@ -76,6 +80,12 @@ export const FIXTURE_TOOLS: GoodAmounts = {
   [GoodId.rod]: 4,
 };
 
+/**
+ * A seat's castle. The FIRST one a seat is given also becomes its start
+ * spot (World.starts), the way worldgen plants a castle on the spot it
+ * dealt — the AI steers scouts by that table, and a fixture that stood a
+ * rival's castle without one left the doorstep unreachable.
+ */
 export function addStorehouse(
   world: World,
   x: number,
@@ -85,6 +95,13 @@ export function addStorehouse(
 ): Building {
   const b = placeBuiltBuilding(world, BuildingTypeId.storehouse, owner, x, y);
   b.stock = {...FIXTURE_TOOLS, ...stock};
+  // Filled, never sparse: a hole in `starts` destructures as undefined in
+  // everything that walks the table (searchLandmarks in systems/ai.ts), so
+  // a fixture that stands seat 1's castle and no one else's would crash the
+  // brain rather than merely leave seat 0 homeless.
+  for (let i = world.starts.length; i < owner; i++)
+    world.starts[i] = {x: 0, y: 0};
+  world.starts[owner] ??= {x, y};
   return b;
 }
 

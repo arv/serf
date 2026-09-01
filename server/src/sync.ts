@@ -137,9 +137,12 @@ export function recomputeVision(room: Room): void {
  *
  * Terrain, height and the natural resource layout go out whole: that is the
  * shape of the world, hiding it would mean streaming terrain geometry, and
- * the map reads as an empty void without it. Start positions come from a
- * fixed function of the map size and seat count anyone can read in the
- * source (startLayout in world.ts).
+ * the map reads as an empty void without it. The start SPOTS come with it:
+ * they are a fixed function of the map size and seat count anyone can read
+ * in the source (startLayout in world.ts), and the plateaus they sit on
+ * are visible in the terrain regardless. Which seat drew which is not part
+ * of that — the deal is rolled from the seed (seatStarts) — and nothing
+ * here ships it.
  *
  * What is withheld is the part that carries ongoing intelligence:
  * `buildingAt` and `pathLevel` — what a rival has built, and where they

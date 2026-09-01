@@ -14,10 +14,10 @@ import {
 } from '../shared/grid.ts';
 import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion.ts';
 import {UNIT_DEFS} from './defs/units.ts';
-import type {GameMap} from './map.ts';
+import {playMin, type GameMap, type StartSpot} from './map.ts';
 import type {PlayerState} from './player.ts';
 import type {Unit} from './units.ts';
-import type {MatchOutcome, World} from './world.ts';
+import {startLayout, type MatchOutcome, type World} from './world.ts';
 
 /**
  * Save/load. The World is serializable by construction (plain records, ID
@@ -66,6 +66,10 @@ interface SaveFile {
     jobs: unknown[];
     ledger: World['ledger'];
     players: PlayerState[];
+    /** Each seat's castle spot. Absent in saves from before the deal was
+     * rolled (seatStarts in world.ts); those worlds sat on the fixed table
+     * in seat order, which is exactly what the fallback below rebuilds. */
+    starts?: StartSpot[];
     raidState: World['raidState'];
     admin?: World['admin'];
     outcome: MatchOutcome;
@@ -107,6 +111,7 @@ export function serializeWorld(world: World): string {
       jobs: [...world.jobs.values()],
       ledger: world.ledger,
       players: world.players,
+      starts: world.starts,
       raidState: world.raidState,
       admin: world.admin,
       outcome: world.outcome,
@@ -226,6 +231,13 @@ export function deserializeWorld(json: string): World {
     ledger: w.ledger,
     pendingDeltas: [],
     players: w.players,
+    starts:
+      w.starts ??
+      startLayout(map.play, playMin(map), w.players.length)?.map(([x, y]) => ({
+        x,
+        y,
+      })) ??
+      [],
     raidState: w.raidState,
     admin: w.admin ?? {enabled: true, raidsEnabled: true, instantBuild: false},
     pendingEvents: [],

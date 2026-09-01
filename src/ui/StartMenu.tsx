@@ -25,12 +25,6 @@ import {defaultLobbyConfig} from '../protocol/lobby';
 import {REPLAY_VERSION} from '../shared/replayVersion';
 import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion';
 import {
-  AI_STRATEGIES,
-  AI_STRATEGY_ORDER,
-  parseStrategyId,
-  type AiStrategyId,
-} from '../sim/defs/aiStrategies';
-import {
   MISSION_DEFS,
   MISSION_ORDER,
   type MissionId,
@@ -38,6 +32,7 @@ import {
 } from '../sim/defs/missions';
 import {SHORT} from './breakpoints';
 import {isMissionComplete, isMissionUnlocked} from './campaign';
+import {DifficultyRow} from './difficulty';
 import {fullscreen} from './fullscreen';
 import {LockIcon} from './icons';
 import {releaseMenuBackdrop} from './menuBackdrop';
@@ -82,22 +77,6 @@ function rollSeed(): number {
 
 const AI_SEATS = Array.from({length: OPTIONS.maxOpponents + 1}, (_, i) => i);
 
-/**
- * What to say under the opponent pickers. A single named opponent gets its
- * whole character, since the player asked for that one by name; anything
- * with a Random seat in it gets the general rule instead.
- *
- * Deliberately says nothing about who Random turned up. The menu could
- * work it out — the deal is a pure function of the seed this screen just
- * rolled — but a roll you can read before the match is not a roll, it is a
- * lineup with extra steps. Finding out who you are up against is the
- * first thing the skirmish has to tell you.
- */
-function opponentHint(picks: (AiStrategyId | undefined)[]): string {
-  const only = picks.length === 1 ? picks[0] : undefined;
-  if (only) return AI_STRATEGIES[only].blurb;
-  return 'Random keeps it to itself until you meet them';
-}
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
@@ -557,8 +536,6 @@ export function StartMenu(props: StartMenuProps) {
   };
   const [mp, setMp] = createSignal<MpMode>(props.start.mp);
   const [ai, setAi] = createSignal(2);
-  // One entry per opponent seat; undefined means 'let the seed deal it'.
-  const [bots, setBots] = createSignal<(AiStrategyId | undefined)[]>([]);
   // One roll per visit to this screen, which is one roll per launch:
   // launching leaves the menu, and coming back builds it again.
   const seed = rollSeed();
@@ -806,17 +783,6 @@ export function StartMenu(props: StartMenuProps) {
     MISSION_ORDER[MISSION_ORDER.length - 1]!;
   const [pickedMission, setPickedMission] = createSignal<MissionId>(frontier());
 
-  /** One entry per opponent seat: the playbook the player named for it, or
-   * undefined for the ones left to the seed. What the seed will actually
-   * deal those is not the menu's business — see opponentHint. */
-  const picks = (): (AiStrategyId | undefined)[] =>
-    Array.from({length: ai()}, (_, i) => bots()[i]);
-  const setBot = (index: number, id: AiStrategyId | undefined): void => {
-    const next = [...bots()];
-    next[index] = id;
-    setBots(next);
-  };
-
   let inFlight = false;
   const refresh = async (): Promise<void> => {
     if (inFlight) return; // a slow server must not stack up polls
@@ -883,10 +849,10 @@ export function StartMenu(props: StartMenuProps) {
   const search = (): string => {
     const p = new URLSearchParams();
     if (ai() > 0) p.set('ai', String(ai()));
-    // Only the named ones travel; a seat left on Random says nothing and
-    // is dealt from the seed at the other end.
-    const named = bots().slice(0, ai());
-    if (named.some(Boolean)) p.set('bots', named.map(b => b ?? '').join(','));
+    // No ?bots: who the opponents are is the seed's to deal, and finding
+    // out is the first thing the match has to tell you. (The parameter
+    // still reads at the other end — it is how the dev testbed pins a
+    // playbook — the menu just never writes one.)
     p.set('seed', String(seed));
     if (!bandits()) p.set('bandits', '0');
     return '?' + p.toString();
@@ -1281,6 +1247,7 @@ export function StartMenu(props: StartMenuProps) {
                     first minute. Finishing one unseals the next.
                   </div>
                 </div>
+                <DifficultyRow />
               </Show>
 
               <Show when={shelfSpec() !== null}>
@@ -1459,39 +1426,7 @@ export function StartMenu(props: StartMenuProps) {
                   </div>
                 </div>
 
-                <Show when={ai() > 0}>
-                  <div class="row">
-                    <div>
-                      <div class="row-label">Who you face</div>
-                      <div class="row-hint">{opponentHint(picks())}</div>
-                    </div>
-                    <div class="opponents">
-                      {/* Index, not For: these are seats, and two of them
-                          reading Random are not the same seat. For keys on
-                          the item, so picking one opponent moved the select
-                          instead of changing it. */}
-                      <Index each={picks()}>
-                        {(pick, i) => (
-                          <select
-                            value={pick() ?? ''}
-                            onChange={e =>
-                              setBot(i, parseStrategyId(e.currentTarget.value))
-                            }
-                          >
-                            <option value="">Random</option>
-                            <For each={AI_STRATEGY_ORDER}>
-                              {id => (
-                                <option value={id}>
-                                  {AI_STRATEGIES[id].name}
-                                </option>
-                              )}
-                            </For>
-                          </select>
-                        )}
-                      </Index>
-                    </div>
-                  </div>
-                </Show>
+                <DifficultyRow />
               </Show>
 
               <Show when={isSingle() && OPTIONS.showBanditsRow}>

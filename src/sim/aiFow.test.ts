@@ -329,6 +329,49 @@ describe('the AI under fog of war', () => {
     for (const r of recipes) expect(r).toMatchObject({index: 1});
   });
 
+  it('will not walk to a doorstep it has never found', () => {
+    // No cheating. The seats are dealt their start spots (seatStarts in
+    // world.ts), so which rival lives on which of them is not something
+    // the brain can read off a table — it has to be seen. Here nothing of
+    // this seat's is anywhere near the rival's castle, so the errand it
+    // owes rival 1 has no address, and the scout goes looking instead.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 66, 66, {}, 1);
+    for (let i = 0; i < 3; i++)
+      spawnUnit(world, UnitTypeId.knight, 0, 33.5, 27.5 + i);
+    // A camp under our own noses, so a target is already known and the
+    // scout is NOT merely out discovering: this is the beat that used to
+    // hand him the rival's address off the start table.
+    placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 36, 30);
+    world.tick = 1000;
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    const single = moveOrders(brain.decide(world)).filter(
+      c => c.unitIds.length === 1,
+    );
+    expect(brain.intelReport().find(r => r.owner === 1)?.home ?? null).toBe(
+      null,
+    );
+    // Someone is out walking — the search is exactly what an unplaced
+    // rival is supposed to produce — but not down the road to a yard this
+    // seat has never laid eyes on.
+    expect(single).toHaveLength(1);
+    expect(single[0]).not.toMatchObject({x: 67, y: 58});
+
+    // Stand a man in sight of their castle and the address is earned: the
+    // pairing is a thing a walk buys, not a thing the source states.
+    spawnUnit(world, UnitTypeId.knight, 0, 64.5, 65.5);
+    brain.decide(world);
+    expect(brain.intelReport().find(r => r.owner === 1)?.home).toEqual({
+      x: 66,
+      y: 66,
+    });
+  });
+
   it('sends the scout to read a rival doorstep once a target is known', () => {
     // Discovery found the castle; intelligence asks what defends it. With
     // a target on the map and no picture of the rival's army, the scout
@@ -348,9 +391,9 @@ describe('the AI under fog of war', () => {
     const commands = brain.decide(world);
     const single = moveOrders(commands).filter(c => c.unitIds.length === 1);
     expect(single).toHaveLength(1);
-    // The doorstep sits at (67, 71): south of the rival castle (start
-    // 66,66 on the 96-map two-seat layout), where their garrison stands.
-    // The scout's first leg is the gate 13 north of it.
+    // The doorstep sits at (67, 71): south of the castle at 66,66 this
+    // seat has found, where their garrison stands. The scout's first leg
+    // is the gate 13 north of it.
     expect(single[0]).toMatchObject({x: 67, y: 58});
   });
 

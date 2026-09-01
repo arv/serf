@@ -36,6 +36,15 @@ export function hashWorld(world: World): number {
   mixU32(world.nextId);
   mixU32(world.nextJobId);
 
+  // The seats' castle spots. Fixed for the life of a world, but the AI
+  // steers scouts by them and a save that dropped them would come back a
+  // different match — which is the kind of loss this digest exists to
+  // catch.
+  for (const s of world.starts) {
+    mixU32(s.x);
+    mixU32(s.y);
+  }
+
   for (const u of world.units.values()) {
     mixU32(u.id);
     mixF64(u.x);

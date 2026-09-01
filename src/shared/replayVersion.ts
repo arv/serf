@@ -20,6 +20,32 @@
  * directly.
  */
 /**
+ * 38: the seats are dealt their start spots.
+ *
+ * The start table (startLayout in sim/world.ts) is a fixed function of the
+ * map size and seat count, so every skirmish opened with the human on the
+ * same plateau and the first opponent diagonally opposite it. The valley
+ * changed with the seed; where you stood in it never did. seatStarts now
+ * shuffles the assignment on its own Rng stream, and the world carries the
+ * result (World.starts) rather than recomputing the table.
+ *
+ * The ground itself is untouched — worldgen still carves the spots in
+ * table order, off the same draws, so a seed's map is the map it always
+ * was. What moved is which castle stands on which of them: the storehouses
+ * and the starting serfs are planted for a different seat, so a log
+ * recorded on 37 re-runs against a different opening on this build.
+ *
+ * (The brain also stopped being told which rival drew which spot — it
+ * learns a rival's castle by seeing it now, RivalPicture.home — but a
+ * brain change is never the reason for a bump: playback runs the log, not
+ * the brain.)
+ *
+ * The save format takes `starts` as an optional field (the banditsEnabled
+ * precedent, no save-version bump): a file written before the deal existed
+ * sat on the table in seat order, which is exactly what the fallback in
+ * sim/save.ts rebuilds.
+ */
+/**
  * 37: a hire can be called back. cancelHire (command kind 16) strikes one
  * recruit from the castle's queue and returns his silver in full, so the
  * castle's card can carry the barracks' row of cancellable slots instead
@@ -372,4 +398,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 37;
+export const REPLAY_VERSION = 38;
