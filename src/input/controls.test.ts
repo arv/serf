@@ -698,6 +698,35 @@ describe('picking a face off the selection card', () => {
     expect(h.commands.at(-1)).not.toMatchObject({attack: true});
   });
 
+  it('cancels the escalation even when the face it pressed has just died', () => {
+    // The stale-id guard's own case: the click lands a frame after the
+    // paint and finds nobody. The selection rightly does not change — but
+    // the player did turn to the card, so the grass tap before it is just
+    // as stale as if the press had landed. Clearing after the guard left
+    // exactly this path armed.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.addUnit(2, 5, 3);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+    const grass = {x: 700, y: 420};
+    const tap = (): void => {
+      h.canvas.fire('pointerdown', touchPtr(grass.x, grass.y));
+      h.canvas.fire('pointerup', touchPtr(grass.x, grass.y));
+    };
+
+    tap();
+    h.controls.pickUnit(99, false); // nobody: the man is already buried
+    tap();
+
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      attack: 'half',
+    });
+    expect(h.commands.at(-1)).not.toMatchObject({attack: true});
+  });
+
   it('closes a building card that was somehow still standing', () => {
     const h = harness();
     controls = h.controls;
