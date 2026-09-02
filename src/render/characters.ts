@@ -159,14 +159,18 @@ const KK_SPECS = new Map<number, KKSpec>([
       attackClip: 'Melee_1H_Attack_Stab',
     },
   ],
-  [5, {file: 'Ranger', right: 'bow_withString', jog: true, ranged: true}],
+  // The bow rides the left hand: the pack's draw and release are authored
+  // for it — the left arm holds the bow out, the right hand goes to the
+  // string. In the right hand it swung to the cheek at full draw while
+  // the bow arm reached out empty.
+  [5, {file: 'Ranger', left: 'bow_withString', jog: true, ranged: true}],
   [6, {file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true}],
   [
     7,
     {
       file: 'Rogue_Hooded',
       tint: 0x7c8290,
-      right: 'bow_withString',
+      left: 'bow_withString',
       back: 'quiver',
       jog: true,
       ranged: true,

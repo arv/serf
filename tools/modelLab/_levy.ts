@@ -100,7 +100,9 @@ function figure(
   made.group.position.set(x * Math.cos(YAW), 0, -x * Math.sin(YAW));
   // Square to the camera: on a roof they face outward, which is right in a
   // match and useless for judging a motion.
-  made.group.rotation.y = YAW;
+  // ?turn=<deg> turns them further: a draw is judged side-on.
+  made.group.rotation.y =
+    YAW + (Number(params.get('turn') ?? '0') * Math.PI) / 180;
   scene.add(made.group);
   if (!made.visual) return;
   playAnimation(made.visual, clip, 0);
@@ -117,7 +119,9 @@ if (strip) {
   const shooting = strip === 'shoot';
   const clip = shooting ? AnimKey.shoot : AnimKey.throwing;
   const kind = shooting ? UnitTypeId.archer : UnitTypeId.serf;
-  const N = 6;
+  // ?n=<count> sets how many; the draw-and-release loop is long enough
+  // that six frames skip the release itself.
+  const N = Number(params.get('n') ?? '6');
   for (let i = 0; i < N; i++)
     figure(kind, clip, (i - (N - 1) / 2) * 0.92, i / N);
 } else {
