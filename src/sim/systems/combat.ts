@@ -17,6 +17,7 @@ import {findPath, findPathToAdjacent, nearestWalkable} from '../path.ts';
 import {clearMarchSpeed, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {destroyBuilding, killUnit, type World} from '../world.ts';
+import {heldByEnemy} from './separation.ts';
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
@@ -225,7 +226,7 @@ export function combatSystem(world: World): void {
         }
       } else if (dist > combat.acquireRadius * 1.6) {
         disengage(unit); // it got away
-      } else {
+      } else if (!fightTheWall(world, liveUnits, unit, combat.range)) {
         chaseUnit(world, unit, targetUnit);
       }
     } else if (targetBuilding) {
@@ -251,6 +252,8 @@ export function combatSystem(world: World): void {
             disengage(unit);
           }
         }
+      } else if (fightTheWall(world, liveUnits, unit, combat.range)) {
+        // Held off the building by the men in front of it: they first.
       } else if (unit.path === null) {
         unit.path = findPathToAdjacent(
           world.map,
@@ -624,6 +627,45 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
     killUnit(world, defender);
     disengage(attacker);
   }
+}
+
+/**
+ * A soldier held off by a standing enemy line (separation.ts holdOff) turns
+ * on the man holding him off instead of pressing at a wall he will never
+ * get through. Without this a knight chasing the archers behind a shield
+ * line stood pinned against it, struck by the line and striking nobody:
+ * retaliation only hands a target to a man who has none, and he had the
+ * archer. The wall is the fight in front of him, so it is the fight he
+ * takes; the swing itself lands next tick, from the in-range branch, as
+ * every other engagement does. Ranged men too — an archer held at the line
+ * has a bow, and kites like any archer with a melee man close.
+ *
+ * The man in particular: separation names who he is pressed against, and
+ * he is always in reach (a body away, and every reach is longer than a
+ * body). The counter-scored pick is only the fallback for a holder who
+ * died between separation and this man's turn — scored acquisition would
+ * otherwise turn him on a countered enemy a step along the line while the
+ * man actually in his way went on striking him.
+ *
+ * True when he was held and found someone; his path is dropped so he
+ * stands and fights rather than walking on into the line. False leaves
+ * the caller's chase or approach as it was.
+ */
+function fightTheWall(
+  world: World,
+  units: readonly Unit[],
+  unit: Unit,
+  range: number,
+): boolean {
+  const holderId = heldByEnemy(unit.id);
+  if (holderId === undefined) return false;
+  let blocker = world.units.get(holderId);
+  if (!blocker || blocker.dead) blocker = acquireUnit(units, unit, range);
+  if (!blocker) return false;
+  unit.targetId = blocker.id;
+  unit.targetIsBuilding = false;
+  unit.path = null;
+  return true;
 }
 
 function chaseUnit(world: World, unit: Unit, target: Unit): void {

@@ -41,7 +41,9 @@ interface UnitVisual {
   /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
   /** Smoothed visual de-overlap offset — render-only; the sim's positions
-   * stay untouched (no unit collision by design). */
+   * stay untouched. The sim keeps soldiers apart itself (separation.ts);
+   * this is what keeps serfs, who walk through everyone, from being drawn
+   * inside one another. */
   sepX: number;
   sepY: number;
   /** Low-passed observed ground speed feeding the gait rate (0 = never
@@ -399,8 +401,11 @@ export class SceneSync {
 
   /**
    * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
-   * apart a little (capped, smoothed by the caller). Purely cosmetic — the
-   * sim has no unit collision by design, so hauling and combat never jam.
+   * apart a little (capped, smoothed by the caller). Purely cosmetic. The
+   * sim holds soldiers further apart than this on its own (separation.ts,
+   * SEPARATION), so for them it is a no-op; civilians have no collision in
+   * the sim — hauling must never jam — and this is all that keeps two serfs
+   * on one tile from being drawn as one.
    */
   #computeSeparation(
     latest: {

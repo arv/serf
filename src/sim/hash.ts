@@ -81,6 +81,11 @@ export function hashWorld(world: World): number {
     // stand identical mid-column and still arrive ticks apart. 0 is a safe
     // "own speed" sentinel: a real pace is always positive.
     mixF64(u.marchSpeed ?? 0);
+    // How long a wall has held this walker steers when he detours round
+    // it. 0 is a safe "no count running" sentinel: a running count is at
+    // least 1, and the field is dropped rather than zeroed when the hold
+    // ends or a detour restarts it (see Unit.heldTicks).
+    mixU32(u.heldTicks ?? 0);
     mix(u.task.t); // task tag
     if (u.task.t === UnitTaskKind.attackMove) {
       // The stored destination steers behavior for many ticks — a clone or

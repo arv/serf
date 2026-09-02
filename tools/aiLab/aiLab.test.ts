@@ -84,8 +84,8 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 }
 
 const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
-/** The full-match fixture, and how deep it has to run. Seat 1 razes seat 0
- * at tick 16052 unadvised and at 10982 advised, so the bound sits above the
+/** The full-match fixture, and how deep it has to run. Seat 0 razes seat 1
+ * at tick 17024 unadvised and at 16570 advised, so the bound sits above the
  * slower of the two with room to spare.
  *
  * It has to run this deep at all because the steward's growth knobs sit
@@ -101,11 +101,13 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * reserve silver seam — on 13 the advised and unadvised wars then ended
  * on the same tick, which asserts nothing — and 20 when the seats stopped
  * re-ordering a scout onto a walk he could not make, which on 8 left the
- * advised war ending 277 ticks LATER than the control). What is being
- * asserted is that advice changes the war, not that any particular map
- * does. */
+ * advised war ending 277 ticks LATER than the control; and the bound to
+ * 18_500 when soldiers took up room and silver went home first (replay
+ * 41 and 40): on 20 seat 0 now wins either way and later, and seat 1
+ * marching at four still ends it 454 ticks sooner). What is being asserted
+ * is that advice changes the war, not that any particular map does. */
 const FULL_MATCH_SEED = 20;
-const FULL_MATCH_TICKS = 16_500;
+const FULL_MATCH_TICKS = 18_500;
 
 describe('wilson intervals', () => {
   it('never reads a clean sweep as certainty', () => {
@@ -290,10 +292,11 @@ describe('a headless match', () => {
   });
 
   it('plays a different war than unadvised — but only if the advice lands in time', async () => {
-    // Advise seat 1: the seat that actually musters on this fixture. Seat 0
-    // dies before its army knobs ever gate a decision, so advising it is a
-    // genuine no-op — which is itself the kind of truth the bake-off's
-    // mirrored arms exist to average out.
+    // Advise seat 1: the seat whose march the advice moves on this fixture.
+    // It musters at four instead of seven, marches earlier, and loses the
+    // war it would have lost anyway — sooner. Which seat the advice reaches
+    // matters, and is itself the kind of truth the bake-off's mirrored arms
+    // exist to average out.
     const control = await playMatch(
       config({seed: FULL_MATCH_SEED, maxTicks: FULL_MATCH_TICKS}),
     );
@@ -319,7 +322,8 @@ describe('a headless match', () => {
     expect(advised.advised).toEqual([
       {playerId: 1, engine: expect.any(String)},
     ]);
-    // Marching at four instead of seven ends the same war sooner.
+    // Marching at four instead of seven ends the same war sooner — for the
+    // seat that marched, in this valley, by losing it sooner.
     expect(advised.decided).toBe(true);
     expect(advised.ticks).toBeLessThan(control.ticks);
     expect(digestOf(advised)).not.toBe(digestOf(control));

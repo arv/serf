@@ -171,8 +171,17 @@ import {REPLAY_VERSION} from './replayVersion';
 // and for the bed count learning to see a recruit inside the barracks
 // (sim/population.ts), which moves the hire gate. In replayVersion.ts
 // at length.
-const EXPECTED_VERSION = 40;
-const EXPECTED_HASH = 'e6b84a966fbdf442865ed847bbf90fa4';
+// 41 for soldiers taking up room (systems/separation.ts, a new tick
+// system between movement and combat): every soldier holds every other
+// soldier off, standers hold their ground and walkers go round, an enemy
+// rank standing its ground is a wall the men held at it fight, and serfs
+// walk through everyone. Positions are the surface — a squad on one enemy
+// stands in a ring now instead of a stack, so every strike, chase and
+// acquisition in a logged battle lands from different ground (see
+// replayVersion.ts). It lands on top of main's 40, the silver tier, which
+// is why this is 41: the two shipped in different PRs.
+const EXPECTED_VERSION = 41;
+const EXPECTED_HASH = 'a28ff456f91021706f2aaf813fdd68a2';
 
 /**
  * Everything a replay's playback depends on, as raw source:

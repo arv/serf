@@ -133,35 +133,47 @@ both seatings, so 192 duels a pairing per range:
 
 ```
                  range 101                      range 1000
-normal v easy    163/192  84.9%  [79.1, 89.3]   153/192  79.7%  [73.4, 84.8]
-hard   v easy    169/192  88.0%  [82.7, 91.9]   160/192  83.3%  [77.4, 87.9]
-hard   v normal  113/184  61.4%  [54.2, 68.1]   107/185  57.8%  [50.6, 64.7]
+normal v easy    187/192  97.4%  [94.0, 98.9]   175/192  91.1%  [86.3, 94.4]
+hard   v easy    181/192  94.3%  [90.0, 96.8]   165/192  85.9%  [80.3, 90.2]
+hard   v normal  106/182  58.2%  [51.0, 65.2]   100/187  53.5%  [46.3, 60.5]
 
-pooled: normal v easy   316/384  82.3%  [78.2, 85.8]
-        hard   v easy   329/384  85.7%  [81.8, 88.8]
-        hard   v normal 220/369  59.6%  [54.5, 64.5]
+pooled: normal v easy   362/384  94.3%  [91.5, 96.2]
+        hard   v easy   346/384  90.1%  [86.7, 92.7]
+        hard   v normal 206/369  55.8%  [50.7, 60.8]
 ```
 
-Monotone and every pairing clear of the 50% null — but read the third row
-before trusting it. The two ranges give hard-against-normal 61.4% and
-57.8%, and earlier builds spread as wide as 64.3% against 57.3% on the
-pairing that matters most. The pooled figure is the number to quote; a
-single range on that row is not.
+Measured on the build where soldiers take up room (replay 41). The same
+sweeps on the main it merged read, pooled, normal-v-easy 359/384 (93.5%),
+hard-v-easy 351/383 (91.6%) and hard-v-normal 216/369 (58.5%, [53.4,
+63.5]): the two easy pairings are unmoved, and hard-against-normal reads
+about three points lower — inside both intervals, so not a result, but
+the direction to expect from a change that makes every fight a ring and
+every standing rank a wall, since those level the field for whoever has
+fewer men. (The easy pairings had already climbed from the 82% and 86%
+an earlier build printed here before silver learned to go home first.)
 
-Read the two easy pairings with the section above in mind: 86% is not where
-hard ran out of strength, it is where the map generator ran out of fair
-valleys — 23 to 32 of the 96 pairs decide themselves. Genuine losses to
-easy are zero on both ranges.
+Monotone, and the pooled figures clear of the 50% null — but read the
+third row before trusting it. The two ranges give hard-against-normal
+58.2% and 53.5%, the second on its own straddles the null, and earlier
+builds spread as wide as 64.3% against 57.3% on the pairing that matters
+most. The pooled figure is the number to quote; a single range on that
+row is not.
+
+Read the two easy pairings with the section above in mind: 90% is not
+where hard ran out of strength, it is where the map generator ran out of
+fair valleys — 11 to 25 of the 96 pairs decide themselves. Genuine losses
+to easy are zero on range 101 and one on range 1000 (the abbot's, on main
+too).
 
 Hard against normal is the honest weak spot, and per playbook it is weaker
-still. Pooled over both ranges, with intervals, only two of the four lords
-are established as ahead of normal at all:
+still. Pooled over both ranges, with intervals, only one of the four lords
+is established as ahead of normal at all:
 
 ```
-warlord   72/96  75.0%  [65.5, 82.6]  WINS
-abbot     57/90  63.3%  [53.0, 72.6]  WINS
-fletcher  46/87  52.9%  [42.5, 63.0]  no result
-steward   45/96  46.9%  [37.2, 56.8]  no result
+warlord   62/96  64.6%  [54.6, 73.4]  WINS
+steward   53/96  55.2%  [45.3, 64.8]  no result
+abbot     45/86  52.3%  [41.9, 62.6]  no result
+fletcher  46/91  50.5%  [40.5, 60.6]  no result
 ```
 
 Resist the story that wants telling here — this table has already told a
@@ -170,8 +182,9 @@ false one. On range 101 alone an earlier build read steward 52% and warlord
 help a cautious one", and range 1000 reversed the pair (steward 60%,
 warlord 65%). Forty-eight duels a cell cannot rank four playbooks.
 
-Pooled at 96 duels a lord it is still only two intervals that clear the
-null, and the Steward's has drifted below it. Read the rank order as
+Pooled at 96 duels a lord it is now only one interval that clears the
+null; an earlier build had two, with the Abbot's since drifted down into
+it. Read the rank order as
 unsettled: the honest summary is that hard's edge over normal is real in
 aggregate, uneven across the deck, and not established at all for half of
 it. Anything more specific needs more seeds than anyone has spent.
