@@ -759,6 +759,30 @@ mirrored sweep (`--engine none --seeds 1-40`) holds 0 undecided on both
 sides; the median match lengthens 17257 → 18569 ticks, which is what a seat
 that no longer parks a soldier or runs out of wood looks like from outside.
 
+**The build order's reserve, and the version of it that was measured and
+thrown away.** A seat that has just sold a worked-out woodcutter holds the
+scrap that was meant to raise its replacement — and every playbook prices
+its well at 4 wood against the cutter's 6, seventh on a list the cutter
+leads, so the build order's "first step that is affordable AND placeable"
+spent it one rung down. The fix holds the shelf for the first unmet
+*gatherer* the seat cannot yet pay for, when there is ground to put it on.
+
+The first draft held for the first unmet step of ANY kind, which is the
+tidier statement of "a priority list is a priority list" and is not what
+the plans were tuned as. Measured over the same three ranges it scores
+**405/512 against 405/512** — dead flat, +8 on one range and −8 on another
+— while visibly shrinking the villages it did not help: the abbot goes from
+20.1 heads to 17.3 and 8.5 soldiers to 7.4, because a seat saving for a
+twelve-stone guard tower stops laying the farms and wells below it. It also
+put `tiers.test.ts`'s hard-vs-normal non-inferiority at 6/13.
+
+Narrowed to gatherers it is nearly a no-op outside the case it was written
+for: 92/128, 107/128, 207/256 (pooled **406/512**), with steward, warlord
+and fletcher scoring bit-identically to the run before it on two of the
+three ranges — the reserve simply never binds for them there. 0 undecided
+and an unchanged median and longest match on the mirrored sweep. The
+producer half of the leapfrog is the bug; the rest of it is the game.
+
 
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
 

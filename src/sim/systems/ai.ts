@@ -1103,19 +1103,66 @@ export class AiBrain {
     // an opening that lays a house before the woodcutter spends the whole
     // starting woodpile on beds it has nobody to fill, and never recovers.
     let placed = false;
+    /**
+     * What the plan is saving up for: the cost of the first unmet GATHERER
+     * the shelf cannot yet cover. Steps below it may spend what is over
+     * this, and nothing else.
+     *
+     * Skipping past an unaffordable step reads a priority list as a
+     * shopping list, and on the one class of step that makes the materials
+     * everything else is priced in, that is a trap rather than a
+     * convenience. Every playbook opens woodcutter (6 wood), quarry (6),
+     * and puts the well (4) seventh — so a seat holding four or five
+     * planks buys the well, and the next four go the same way. Harmless
+     * while the logs keep coming, and unrecoverable the moment they stop:
+     * a seat that has just sold a worked-out woodcutter (see
+     * `resiteExtractor`) holds exactly the scrap that was meant to raise
+     * its replacement, and spends it one step down on something that
+     * cannot cut a log. The producers are why the ordering invariant
+     * holds at all — wood and stone are the only goods any step is priced
+     * in, and the woodcutter and quarry that make them are the first two
+     * steps of all four plans, ahead of every consumer.
+     *
+     * Deliberately not every step. Held for the plan's whole list, this
+     * reserve is measurably a different game rather than a better one:
+     * over three `pnpm balance` ranges it scores 405/512 against the same
+     * 405/512, while a seat saving for a twelve-stone tower stops laying
+     * the roofs and farms below it (the abbot's village drops from 20.1
+     * heads to 17.3). The plans were tuned with the leapfrog in them, and
+     * only the producer half of it is a bug.
+     *
+     * Bounded to ONE step, and only one with ground under it, because the
+     * alternative failure is worse than the one it fixes: a village saving
+     * forever for something it can never place builds nothing at all. A
+     * step with no site (`spotFor` null) is not saved for, and whatever
+     * the seat cannot pay for after that is skipped exactly as before.
+     */
+    let held: GoodAmounts | undefined;
     for (const step of s.build) {
       if (step.after && !researched(step.after)) continue;
       if (step.needs && !has(step.needs)) continue;
       const desired =
         step.more && researched(step.more.after) ? step.more.count : step.count;
       if (countOf(step.type) >= desired) continue;
+      const def = BUILDING_DEFS[step.type];
       // Price before ground. Both tests are pure reads and the step that
       // wins is still the first one that is BOTH affordable and placeable,
       // so the beat plays out identically — but spotFor is a spiral search
       // over the play area (and, anchored, a resource or shore scan before
       // that), and a broke seat used to pay it for every unmet step on the
-      // list, every beat, only to throw the answer away.
-      if (!affordable(BUILDING_DEFS[step.type].cost, stock)) continue;
+      // list, every beat, only to throw the answer away. The reserve costs
+      // that search back at most once a beat: on the first gatherer the
+      // shelf cannot cover, to find out whether there is ground to save for.
+      if (!affordable(def.cost, stock, held)) {
+        if (
+          !held &&
+          gatherRecipeOf(def) &&
+          spotFor(world, step, baseX, baseY)
+        ) {
+          held = def.cost;
+        }
+        continue;
+      }
       const spot = spotFor(world, step, baseX, baseY);
       if (!spot) continue;
       commands.push({
@@ -1142,7 +1189,9 @@ export class AiBrain {
       plannedPopCapOf(world, this.playerId) -
         populationOf(world, this.playerId) <
         s.housingHeadroom &&
-      affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock)
+      // The reserve binds here too: an unplanned roof is the last thing
+      // that should jump the queue in front of the plan's own next step.
+      affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock, held)
     ) {
       const spot = findSpot(world, BuildingTypeId.house, baseX, baseY);
       if (spot) {
@@ -1162,6 +1211,11 @@ export class AiBrain {
     // when the bill is already on the shelf. A repair ordered against an
     // empty storehouse would pin the haulage pool to a wall while the
     // village waits for stone it hasn't quarried yet.
+    //
+    // The build order's reserve does NOT bind here, on that same
+    // half-price arithmetic: a hut already standing is cheaper to keep
+    // than the one being saved for is to raise, and the seat's own
+    // woodcutter is usually the thing on fire.
     let worst: Building | undefined;
     for (const b of mine) {
       if (
@@ -3077,9 +3131,21 @@ export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
   return Math.max(floor, armyAttackSize - impatience);
 }
 
-/** Is every line of this cost sitting in the storehouse? */
-function affordable(cost: GoodAmounts, stock: GoodAmounts): boolean {
-  return goodEntries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
+/**
+ * Is every line of this cost sitting in the storehouse — over and above
+ * anything a step ahead of this one in the plan is saving for?
+ *
+ * `held` is the build order's reserve (see the loop in `decide`). Absent, or
+ * empty, this is the plain "can the shelf pay for it" it has always been.
+ */
+function affordable(
+  cost: GoodAmounts,
+  stock: GoodAmounts,
+  held?: GoodAmounts,
+): boolean {
+  return goodEntries(cost).every(
+    ([good, n]) => (stock[good] ?? 0) - (held?.[good] ?? 0) >= n,
+  );
 }
 
 function ownedBuildings(world: World, owner: Owner): Building[] {

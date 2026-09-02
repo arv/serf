@@ -601,6 +601,41 @@ describe('the stall watchdog', () => {
     });
   });
 
+  it('saves its last planks for the woodcutter instead of buying a well', () => {
+    // The other half of the wood famine. The build order takes the first
+    // step that is both affordable and placeable, and every playbook prices
+    // its well at 4 against a woodcutter's 6 — so a seat holding the scrap
+    // of the hut it just sold bought the well with it, and the log supply
+    // it was saving for never came back.
+    const plank = (wood: number, grove: boolean): SimCommand[] => {
+      const world = bareWorld(1, 2);
+      addStorehouse(world, 10, 50, {}, 1);
+      addStorehouse(world, 30, 30, {[GoodId.wood]: wood});
+      if (grove) for (let x = 12; x < 18; x++) addResourceTile(world, x, 12);
+      const brain = new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.steward],
+        world.map.size,
+      );
+      world.tick += AI_PACING.decisionInterval;
+      return brain
+        .decide(world)
+        .filter(c => c.kind === CommandKind.placeBuilding);
+    };
+    const well = {building: BuildingTypeId.well};
+    const cutter = {building: BuildingTypeId.woodcutter};
+
+    // Two planks short of the cutter, with trees to put it on: hold them.
+    expect(plank(4, true)).toEqual([]);
+    // Enough, and the plan's own first step goes up.
+    expect(plank(6, true)).toMatchObject([cutter]);
+    // No trees anywhere on the map, so there is nothing to save for and
+    // saving would only freeze the village: the well is the right answer
+    // and the seat still lays it. This is the guard that keeps the reserve
+    // from being a deadlock.
+    expect(plank(4, false)).toMatchObject([well]);
+  });
+
   it('will not sell a worked-out extractor with nowhere live to move to', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {[GoodId.wood]: 20});
