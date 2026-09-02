@@ -492,8 +492,7 @@ async function loadKayKitCharacters(): Promise<boolean> {
         const last = times[times.length - 1]!;
         if (fade > 0 && total - fade > last) {
           times.push(total - fade);
-          for (let c = 0; c < size; c++)
-            values.push(values[values.length - size]!);
+          values.push(...values.slice(-size));
         }
         // Close the loop: ease back to the opening pose over `fade`.
         times.push(total);
