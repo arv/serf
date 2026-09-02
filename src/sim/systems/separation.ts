@@ -59,7 +59,7 @@ export function separationSystem(world: World): void {
   // heldIds after this, and a stale entry would have a man fight a wall
   // that is no longer there. The one soldier left on a map has nobody to
   // be held by, so his count ends too.
-  heldIds.clear();
+  heldBy.clear();
   if (n < 2) {
     if (n === 1 && soldiers[0]!.heldTicks !== undefined)
       soldiers[0]!.heldTicks = undefined;
@@ -170,7 +170,7 @@ export function separationSystem(world: World): void {
       holdX = px;
       holdY = py;
     }
-    if (heldIds.has(u.id)) {
+    if (heldBy.has(u.id)) {
       u.heldTicks = (u.heldTicks ?? 0) + 1;
       if (u.heldTicks >= DETOUR_AFTER) {
         detour(world, u, soldiers);
@@ -283,8 +283,9 @@ function detour(world: World, u: Unit, soldiers: readonly Unit[]): void {
  * The sweep runs both ways from `i`, bounded by where the projection has
  * carried him so far rather than by where he started, with a body's margin.
  *
- * Every walker held is noted in heldIds for combat, which runs next:
- * a man walking at something behind the wall fights the wall instead.
+ * Every walker held is noted in heldBy, with the man he ends up against,
+ * for combat, which runs next: a man walking at something behind the wall
+ * fights the wall instead — that man in particular.
  * The result is written to holdX/holdY (a pair of numbers per soldier
  * per tick is an allocation).
  */
@@ -299,7 +300,7 @@ function holdOff(
   projY = a.y + py;
   const n = soldiers.length;
   const reach = SEPARATION * 2;
-  let held = false;
+  let holder = -1;
   for (let pass = 0; pass < HOLD_PASSES; pass++) {
     // Bounded by where the projection has carried him SO FAR, not where he
     // started: each pass can move him most of a body, and a sweep measured
@@ -307,11 +308,13 @@ function holdOff(
     // up against. The array is sorted by x, so the distance grows
     // monotonically in each direction and the break stays sound.
     for (let j = i - 1; j >= 0 && projX - soldiers[j]!.x < reach; j--)
-      if (project(soldiers, i, j, pass === 0)) held = true;
+      if (project(soldiers, i, j, pass === 0)) holder = j;
     for (let j = i + 1; j < n && soldiers[j]!.x - projX < reach; j++)
-      if (project(soldiers, i, j, pass === 0)) held = true;
+      if (project(soldiers, i, j, pass === 0)) holder = j;
   }
-  if (held) heldIds.add(a.id);
+  // The man he ends up against: the last one to put him back is the one
+  // he is standing at when the passes settle.
+  if (holder >= 0) heldBy.set(a.id, soldiers[holder]!.id);
   holdX = projX - a.x;
   holdY = projY - a.y;
 }
@@ -402,16 +405,19 @@ const DETOUR_AFTER = 10;
  * of a few multiplies on the handful of men pinned at a wall. */
 const HOLD_PASSES = 8;
 
-/** Soldiers put back outside an enemy's arm's length this tick. */
-const heldIds = new Set<number>();
+/** Soldiers put back outside an enemy's arm's length this tick, and the
+ * id of the man each ended up against. */
+const heldBy = new Map<number, number>();
 
 /**
- * Was this soldier held off by a standing enemy this tick? Read by combat,
- * which runs right after separation: a man who cannot get past the wall
- * should fight the wall.
+ * The standing enemy who held this soldier off this tick, or undefined if
+ * nobody did. Read by combat, which runs right after separation: a man who
+ * cannot get past the wall should fight the wall — and this is the man in
+ * it he is pressed against, not whichever enemy in reach the counter table
+ * happens to favor.
  */
-export function heldByEnemy(id: number): boolean {
-  return heldIds.has(id);
+export function heldByEnemy(id: number): number | undefined {
+  return heldBy.get(id);
 }
 
 /**

@@ -7,6 +7,7 @@ import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {BANDIT} from './entities.ts';
 import {hashWorld} from './hash.ts';
 import {findPath} from './path.ts';
+import {combatSystem} from './systems/combat.ts';
 import {movementSystem} from './systems/movement.ts';
 import {
   SEPARATION,
@@ -292,13 +293,50 @@ describe('a standing enemy line', () => {
     knight.pathIdx = 0;
     knight.task = {t: UnitTaskKind.move};
     walk(world, 3, () => {});
-    expect(heldByEnemy(knight.id)).toBe(true);
+    expect(heldByEnemy(knight.id)).toBe(sentry.id);
     expect(knight.heldTicks).toBe(3);
 
     sentry.dead = true;
     walk(world, 1, () => {});
-    expect(heldByEnemy(knight.id)).toBe(false);
+    expect(heldByEnemy(knight.id)).toBeUndefined();
     expect(knight.heldTicks).toBeUndefined();
+  });
+
+  it('is fought by the man actually in the way, not the best matchup in reach', () => {
+    // A knight pressed against an enemy knight, with an enemy spearman a
+    // step along the line: in reach, not holding him, and the counter
+    // table's favorite (heavy beats light). The fight he takes is the wall
+    // in front of him — the man striking him — not the better score.
+    const world = bareWorld(1, 2);
+    const wall = spawnUnit(world, UnitTypeId.knight, 1, 30.5, 30.5);
+    const archer = spawnUnit(world, UnitTypeId.archer, 1, 33.5, 30.5);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 29.95, 30.5);
+    knight.path = findPath(world.map, 29, 30, 36, 30);
+    knight.pathIdx = 0;
+    knight.task = {t: UnitTaskKind.attackMove, destX: 36, destY: 30};
+    knight.targetId = archer.id;
+    knight.targetIsBuilding = false;
+
+    movementSystem(world);
+    separationSystem(world);
+    expect(heldByEnemy(knight.id)).toBe(wall.id);
+    // The bait steps in beside him after the hold has settled him — the
+    // hold slides a walker along the line, so where he ends up is not where
+    // he was put — a stride off, well inside reach and out of the wall.
+    const bait = spawnUnit(
+      world,
+      UnitTypeId.spearman,
+      1,
+      knight.x,
+      knight.y + 0.8,
+    );
+    // It really is the better-scored pick, and really is in reach.
+    expect(dist(knight, bait)).toBeLessThan(1.3);
+    expect(dist(knight, bait) / 1.5).toBeLessThan(dist(knight, wall));
+
+    combatSystem(world);
+    expect(knight.targetId).toBe(wall.id);
+    expect(knight.path).toBeNull();
   });
 
   it('is fought by the man it holds off, not pressed at', () => {

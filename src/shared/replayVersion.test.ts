@@ -181,7 +181,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // replayVersion.ts). It lands on top of main's 40, the silver tier, which
 // is why this is 41: the two shipped in different PRs.
 const EXPECTED_VERSION = 41;
-const EXPECTED_HASH = '725448c1b9b9a56469fe781686b72599';
+const EXPECTED_HASH = 'a28ff456f91021706f2aaf813fdd68a2';
 
 /**
  * Everything a replay's playback depends on, as raw source:
