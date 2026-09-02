@@ -442,15 +442,17 @@ async function loadKayKitCharacters(): Promise<boolean> {
     /**
      * Two clips played end to end as one loop, `first` then `second`,
      * for a pack action authored in halves. The loop is exactly twice
-     * `first`'s length: `second` is kept for that length less `blend`,
-     * and the last `blend` seconds ease every bone from where `second`
-     * was cut back to `first`'s opening pose — the crossfade the mixer
+     * `first`'s length: `second` is kept for that length less `blend`
+     * (clamped to the half), and the last `blend` seconds ease every bone
+     * from where `second` was cut back to `first`'s opening pose — the
+     * crossfade the mixer
      * would give two actions, baked in so one looping action carries the
      * whole shot and its release lands at phase 0.5 by construction,
      * not by measurement (LOOP_CUES, and the arrow's release watch in
      * sceneSync and buildingSync, count on that). Tracks `second` has and
      * `first` lacks are dropped: the one such track in the pack (the
-     * release's handslot.l scale) is a constant 1.
+     * release's handslot.l scale) is a constant 1. A track `first` has
+     * and `second` lacks holds `first`'s last pose until the blend.
      */
     const sequence = (
       firstName: string,
@@ -462,8 +464,10 @@ async function loadKayKitCharacters(): Promise<boolean> {
       const second = clips.get(secondName);
       if (!first || !second) return null;
       const D = first.duration;
-      const keep = D - blend;
       const total = 2 * D;
+      // The blend lives inside the second half; 0 makes the wrap a snap.
+      const fade = clamp(blend, 0, D);
+      const keep = D - fade;
       const tracks = first.tracks.map(t => {
         const size = t.getValueSize();
         const times: number[] = Array.from(t.times);
@@ -472,7 +476,7 @@ async function loadKayKitCharacters(): Promise<boolean> {
         if (tail) {
           for (let k = 0; k < tail.times.length; k++) {
             const time = tail.times[k]!;
-            if (time > keep) break;
+            if (time >= keep) break;
             // The halves meet at D: `first` already keys its last pose
             // there, so `second`'s opening key would double the time.
             if (D + time <= times[times.length - 1]!) continue;
@@ -481,7 +485,17 @@ async function loadKayKitCharacters(): Promise<boolean> {
               values.push(tail.values[k * size + c]!);
           }
         }
-        // Close the loop: ease back to the opening pose over `blend`.
+        // Hold the pose until the blend begins. A track `second` lacks,
+        // or one whose keys stop short of `keep`, would otherwise drift
+        // toward the opening pose from its last key onward — most of
+        // the second half rather than the last `fade` seconds of it.
+        const last = times[times.length - 1]!;
+        if (fade > 0 && total - fade > last) {
+          times.push(total - fade);
+          for (let c = 0; c < size; c++)
+            values.push(values[values.length - size]!);
+        }
+        // Close the loop: ease back to the opening pose over `fade`.
         times.push(total);
         for (let c = 0; c < size; c++) values.push(t.values[c]!);
         const Track = t.constructor as new (

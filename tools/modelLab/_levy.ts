@@ -23,6 +23,12 @@ import {makeLights, makeRenderer, YAW, PITCH} from './scene';
 
 const params = new URLSearchParams(location.search);
 const t = Number(params.get('t') ?? '0');
+/** A numeric param, or `fallback` when absent or not a finite number —
+ * a typo in a hand-typed URL should draw the default, not NaN. */
+const num = (name: string, fallback: number): number => {
+  const v = Number(params.get(name) ?? NaN);
+  return Number.isFinite(v) ? v : fallback;
+};
 
 await Promise.all([loadGlbAssets(), loadCharacterAssets()]);
 
@@ -101,8 +107,7 @@ function figure(
   // Square to the camera: on a roof they face outward, which is right in a
   // match and useless for judging a motion.
   // ?turn=<deg> turns them further: a draw is judged side-on.
-  made.group.rotation.y =
-    YAW + (Number(params.get('turn') ?? '0') * Math.PI) / 180;
+  made.group.rotation.y = YAW + (num('turn', 0) * Math.PI) / 180;
   scene.add(made.group);
   if (!made.visual) return;
   playAnimation(made.visual, clip, 0);
@@ -121,7 +126,7 @@ if (strip) {
   const kind = shooting ? UnitTypeId.archer : UnitTypeId.serf;
   // ?n=<count> sets how many; the draw-and-release loop is long enough
   // that six frames skip the release itself.
-  const N = Number(params.get('n') ?? '6');
+  const N = Math.max(1, Math.floor(num('n', 6)));
   for (let i = 0; i < N; i++)
     figure(kind, clip, (i - (N - 1) / 2) * 0.92, i / N);
 } else {
