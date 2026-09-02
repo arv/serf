@@ -26,8 +26,12 @@
  * every other soldier off at arm's length (systems/separation.ts, run
  * between movement and combat every tick): two closer than SEPARATION are
  * pushed apart, a man standing his ground is not budged by one walking
- * into him, and the walker is turned aside so he goes round. Serfs and
- * workers are exempt both ways, so no errand ever jams behind a crowd.
+ * into him, and the walker is turned aside so he goes round. Against a
+ * standing ENEMY the hold is absolute — a rank of knights is a wall; a
+ * soldier held at it fights the man holding him (combat.ts fightTheWall)
+ * rather than the archer behind, and a walker wedged at it for half a
+ * second re-plans his route round it (Unit.heldTicks). Serfs and workers
+ * are exempt both ways, so no errand ever jams behind a crowd.
  *
  * This is a tick change through and through. A squad that converged on one
  * enemy used to stop stacked on the first point of its route within reach;

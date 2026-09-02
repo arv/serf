@@ -6,10 +6,13 @@ import {checkInvariants} from './debug/invariants.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {BANDIT} from './entities.ts';
 import {hashWorld} from './hash.ts';
-import {SEPARATION} from './systems/separation.ts';
+import {findPath} from './path.ts';
+import {movementSystem} from './systems/movement.ts';
+import {SEPARATION, separationSystem} from './systems/separation.ts';
 import {addStorehouse, bareWorld, cmds} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import type {Unit} from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {spawnUnit, type World} from './world.ts';
 
 function run(world: World, ticks: number): void {
@@ -180,5 +183,128 @@ describe('a squad closing on one enemy', () => {
     run(a.world, 20 * 10);
     run(b.world, 20 * 10);
     expect(hashWorld(a.world)).toBe(hashWorld(b.world));
+  });
+});
+
+/**
+ * The enemy's line is a wall. Within a side the hold is soft (allies always
+ * squeeze past in the end, so an army cannot wedge itself), but a walker
+ * against a standing enemy is put back outside arm's length in full every
+ * tick, so a rank of knights standing their ground is genuinely between the
+ * spearmen and the archers behind it.
+ */
+describe('a standing enemy line', () => {
+  /** Movement and separation alone: the line must stand still for the
+   * claim to be about the hold, and combat would have it chase. */
+  function walk(world: World, ticks: number, check: () => void): void {
+    for (let i = 0; i < ticks; i++) {
+      movementSystem(world);
+      separationSystem(world);
+      check();
+    }
+  }
+
+  it('cannot be walked through, and is walked round', () => {
+    const world = bareWorld();
+    const line: Unit[] = [];
+    for (let y = 28; y <= 32; y++)
+      line.push(spawnUnit(world, UnitTypeId.marauder, BANDIT, 30.5, y + 0.5));
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 24.5, 30.5);
+    knight.path = findPath(world.map, 24, 30, 36, 30);
+    knight.pathIdx = 0;
+    knight.task = {t: UnitTaskKind.move};
+
+    let arrived = false;
+    walk(world, 20 * 30, () => {
+      // Never inside anyone's arm's length once the tick has settled — to
+      // within a hair: in a gap he is put out of one man's circle and into
+      // the edge of the next, and the passes converge rather than land...
+      for (const m of line)
+        expect(dist(knight, m)).toBeGreaterThanOrEqual(SEPARATION - 0.001);
+      // ...and never THROUGH the rank: on its far side only past its end.
+      if (knight.x > 30.5 && knight.x < 31.1)
+        expect(Math.abs(knight.y - 30.5)).toBeGreaterThan(2.5);
+      if (knight.path === null) arrived = true;
+    });
+    expect(arrived).toBe(true);
+    expect(Math.floor(knight.x)).toBe(36);
+    // The rank did not move for him.
+    for (const [i, m] of line.entries()) {
+      expect(m.x).toBe(30.5);
+      expect(m.y).toBe(28.5 + i);
+    }
+  });
+
+  it('is squeezed through when it is your own', () => {
+    const world = bareWorld();
+    for (let y = 28; y <= 32; y++)
+      spawnUnit(world, UnitTypeId.knight, 0, 30.5, y + 0.5);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 24.5, 30.5);
+    knight.path = findPath(world.map, 24, 30, 36, 30);
+    knight.pathIdx = 0;
+    knight.task = {t: UnitTaskKind.move};
+    let crossedTheRank = false;
+    walk(world, 20 * 30, () => {
+      if (knight.x > 30.5 && Math.abs(knight.y - 30.5) < 1.5)
+        crossedTheRank = true;
+    });
+    expect(crossedTheRank).toBe(true);
+    expect(knight.path).toBeNull();
+    expect(Math.floor(knight.x)).toBe(36);
+  });
+
+  it('lets a lone enemy in the road be walked round, and the walk finish', () => {
+    // The full tick this time: the bandit stands and swings the moment the
+    // knight is in reach, which is exactly the standing enemy that holds.
+    // His first waypoint is the bandit's own tile, so without aiming past
+    // it he circled the man for as long as he had blood to.
+    const world = bareWorld();
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 30.5);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.moveUnits, unitIds: [knight.id], x: 42, y: 30}),
+    );
+    let ticks = 0;
+    while (knight.task.t === UnitTaskKind.move && ticks++ < 20 * 30) {
+      tickWorld(world, []);
+      if (bandit.path === null)
+        expect(dist(knight, bandit)).toBeGreaterThanOrEqual(SEPARATION - 1e-9);
+    }
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
+    expect(Math.floor(knight.x)).toBe(42);
+    expect(knight.hp).toBeGreaterThan(0);
+  });
+
+  it('is fought by the man it holds off, not pressed at', () => {
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 50, 50, {});
+    addStorehouse(world, 10, 10, {}, 1);
+    const line: Unit[] = [];
+    for (let y = 29; y <= 31; y++) {
+      const k = spawnUnit(world, UnitTypeId.knight, 1, 30.5, y + 0.5);
+      k.hp = k.maxHp = 1e6;
+      line.push(k);
+    }
+    const archer = spawnUnit(world, UnitTypeId.archer, 1, 33.5, 30.5);
+    archer.hp = archer.maxHp = 1e6;
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 27.5, 30.5);
+    knight.hp = knight.maxHp = 1e6;
+    // Sent at the archer behind the rank, by name.
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.focusTarget,
+        unitIds: [knight.id],
+        targetId: archer.id,
+      }),
+    );
+    expect(knight.targetId).toBe(archer.id);
+    run(world, 20 * 10);
+    // Held off the archer by the rank, he turned on the rank — and hit it.
+    expect(line.map(k => k.id)).toContain(knight.targetId);
+    expect(line.some(k => k.hp < 1e6)).toBe(true);
+    expect(archer.hp).toBe(1e6);
+    expect(dist(knight, archer)).toBeGreaterThan(1.3);
   });
 });

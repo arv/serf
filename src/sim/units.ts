@@ -74,6 +74,14 @@ export interface Unit {
    * spearman who runs down archers at knight pace isn't a spearman.
    */
   marchSpeed?: number;
+  /**
+   * Consecutive ticks a standing enemy has held this walker off (see
+   * separation.ts holdOff). A walker wedged against an enemy's rank for
+   * DETOUR_AFTER of them re-plans his route round it. Soldiers only, and
+   * only while pinned: cleared (to undefined, lazily — see clearMarchSpeed
+   * for why) the first tick nobody holds him.
+   */
+  heldTicks?: number;
   // Combat runtime (units with a combat def):
   cooldownLeft: number;
   targetId?: EntityId;

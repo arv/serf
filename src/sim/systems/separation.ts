@@ -1,6 +1,7 @@
 import {inBounds, tileIdx, tileX, tileY} from '../../shared/grid.ts';
 import {hash2} from '../../shared/math.ts';
 import {UNIT_DEFS} from '../defs/units.ts';
+import {findPath} from '../path.ts';
 import type {Unit} from '../units.ts';
 import type {World} from '../world.ts';
 
@@ -20,7 +21,15 @@ import type {World} from '../world.ts';
  * is all. Who moves follows the Warcraft rule too — a man standing his
  * ground is not budged by one walking into him; the walker is held back and
  * turned aside, so he goes round (see deflect). Two walkers, or two
- * standers, split the difference. Hard occupancy on a tile grid is the
+ * standers, split the difference.
+ *
+ * The one hard edge is the enemy's line. Against a standing ENEMY the hold
+ * is absolute: a walker is put back outside arm's length however far his
+ * stride carried him in (see holdOff), so a rank of knights standing their
+ * ground is a wall the spearmen behind it are actually behind. Within a
+ * side the push stays soft and capped — allies always squeeze past each
+ * other in the end, so an army can never wedge itself in its own doorway,
+ * which is the failure hard occupancy is famous for. Hard occupancy on a tile grid is the
  * classic way to deadlock a column in a doorway (the front man waits for
  * the man in front of him, who waits for the man in front of him), and it
  * needs the pathfinder to know where everyone is standing this tick.
@@ -63,6 +72,7 @@ export function separationSystem(world: World): void {
     pushY.fill(0, 0, n);
   }
   const size = world.map.size;
+  gridSize = size;
   for (let i = 0; i < n; i++) {
     const u = soldiers[i]!;
     headX[i] = 0;
@@ -115,6 +125,9 @@ export function separationSystem(world: World): void {
       // or two standers, split the difference.
       const aMoving = moving[i]!;
       const bMoving = moving[j]!;
+      // A walker against a standing enemy is holdOff's, below: no soft
+      // push at all, so the two cannot add up to a shove past the line.
+      if (aMoving !== bMoving && a.owner !== b.owner) continue;
       const wa = aMoving === bMoving ? 0.5 : aMoving ? 1 : 0;
       const wb = 1 - wa;
       if (wa > 0) {
@@ -130,10 +143,10 @@ export function separationSystem(world: World): void {
     }
   }
 
+  heldIds.clear();
   for (let i = 0; i < n; i++) {
     let px = pushX[i]!;
     let py = pushY[i]!;
-    if (px === 0 && py === 0) continue;
     // A man in a crowd is pushed by everyone around him. Uncapped, the
     // middle of a mob would be flung clear of it in a tick; capped, the
     // crowd squeezes outward at a walk, which is what a crowd does.
@@ -143,8 +156,249 @@ export function separationSystem(world: World): void {
       px *= s;
       py *= s;
     }
-    nudge(world, soldiers[i]!, px, py);
+    const u = soldiers[i]!;
+    if (moving[i]!) holdOff(soldiers, i, px, py);
+    else {
+      holdX = px;
+      holdY = py;
+    }
+    if (heldIds.has(u.id)) {
+      u.heldTicks = (u.heldTicks ?? 0) + 1;
+      if (u.heldTicks >= DETOUR_AFTER) {
+        detour(world, u, soldiers);
+        u.heldTicks = 0;
+      }
+    } else if (u.heldTicks !== undefined) u.heldTicks = undefined;
+    if (holdX === 0 && holdY === 0) continue;
+    nudge(world, u, holdX, holdY);
   }
+}
+
+/**
+ * Round the wall, not through it. A walker the enemy's rank has held for
+ * DETOUR_AFTER ticks running is not going to slide his way past — a rank
+ * standing a tile apart wedges him in a gap he cannot fit through, his
+ * stride and the hold cancelling exactly, for as long as the rank stands.
+ * That is the deadlock this whole design exists to avoid, so he re-plans:
+ * the same route to the same goal, with every standing enemy soldier's
+ * tile taken as ground he cannot walk, which is what Warcraft's pathfinder
+ * knows about everyone all the time. A rank a tile apart has no gap tile,
+ * so the route goes round its end; a goal under an enemy, or a walker
+ * boxed in, finds no route and keeps pressing — combat's fightTheWall has
+ * him fight the man in front of him meanwhile.
+ *
+ * The tiles are marked on the shared blocked grid for the one search and
+ * unmarked after, rather than teaching the pathfinder an occupancy layer:
+ * this runs once per pinned walker per half second, not per step.
+ */
+function detour(world: World, u: Unit, soldiers: readonly Unit[]): void {
+  const path = u.path;
+  if (path === null || u.pathIdx >= path.length) return;
+  const goal = path[path.length - 1]!;
+  const map = world.map;
+  const size = map.size;
+  const blocked = map.blocked;
+  const marked: number[] = [];
+  for (let j = 0; j < soldiers.length; j++) {
+    const s = soldiers[j]!;
+    if (moving[j]! || s.owner === u.owner) continue;
+    const tx = Math.floor(s.x);
+    const ty = Math.floor(s.y);
+    if (!inBounds(tx, ty, size)) continue;
+    const t = tileIdx(tx, ty, size);
+    if (!blocked[t]) {
+      blocked[t] = 1;
+      marked.push(t);
+    }
+  }
+  // Search from the nearest tile nobody stands on. A wedged man is often
+  // inside the wall's own tile column — a body of 0.6 reaches 0.1 past a
+  // tile edge from the far side of the tile it stands on, and the corner of
+  // a gap sits inside that — and a search that starts on a stander's tile
+  // is already through the wall as far as the grid can see: it planned
+  // straight on through the line, and he walked into it again.
+  let sx = Math.floor(u.x);
+  let sy = Math.floor(u.y);
+  if (blocked[tileIdx(sx, sy, size)]) {
+    let best = Infinity;
+    const cx = sx;
+    const cy = sy;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (!inBounds(nx, ny, size) || blocked[tileIdx(nx, ny, size)]) continue;
+        const ox = nx + 0.5 - u.x;
+        const oy = ny + 0.5 - u.y;
+        const d2 = ox * ox + oy * oy;
+        if (d2 < best) {
+          best = d2;
+          sx = nx;
+          sy = ny;
+        }
+      }
+    }
+    if (best === Infinity) {
+      for (const t of marked) blocked[t] = 0;
+      return; // boxed in on every side: keep pressing, and fighting
+    }
+  }
+  const p = blocked[goal]
+    ? null
+    : findPath(map, sx, sy, tileX(goal, size), tileY(goal, size));
+  for (const t of marked) blocked[t] = 0;
+  if (p && p.length > 0) {
+    u.path = p;
+    u.pathIdx = 0;
+  }
+}
+
+/**
+ * The enemy's line, held. Starting from where the soft pushes leave walker
+ * `i` (his position plus `px, py`), put him back outside SEPARATION of
+ * every standing enemy near him, and write the total move to holdX/holdY.
+ *
+ * Not a push but a projection, and not capped: a stride of 0.08 into the
+ * line is undone in full, every tick, so the line is a wall rather than
+ * something a man grinds through at the speed difference. Several passes,
+ * because being put outside one man can put you inside his neighbour — a
+ * rank standing a tile apart leaves gaps of 0.4 between bodies of 0.6, and
+ * a man in such a gap is inside both circles; the later passes settle him
+ * back out in front, to within a hair (alternating projections converge
+ * rather than land). The first pass also slides him along the line (the
+ * same turn-aside as deflect, by his own lean, the ids deciding a dead-on
+ * charge) so he works toward the end of it instead of standing pinned.
+ *
+ * Standers are read where they are now: the soft pass has not moved
+ * anyone yet, and a stander is at most MAX_PUSH from where he will be
+ * once it does, which the soft cap makes far too little to open a gap.
+ * The sweep runs both ways from `i` with a wide margin, since the sort
+ * is over pre-push x and the projection itself moves him.
+ *
+ * Every walker held is noted in heldIds for combat, which runs next:
+ * a man walking at something behind the wall fights the wall instead.
+ * The result is written to holdX/holdY (a pair of numbers per soldier
+ * per tick is an allocation).
+ */
+function holdOff(
+  soldiers: readonly Unit[],
+  i: number,
+  px: number,
+  py: number,
+): void {
+  const a = soldiers[i]!;
+  projX = a.x + px;
+  projY = a.y + py;
+  const n = soldiers.length;
+  const reach = SEPARATION * 2;
+  let held = false;
+  for (let pass = 0; pass < HOLD_PASSES; pass++) {
+    for (let j = i - 1; j >= 0 && a.x - soldiers[j]!.x < reach; j--)
+      if (project(soldiers, i, j, pass === 0)) held = true;
+    for (let j = i + 1; j < n && soldiers[j]!.x - a.x < reach; j++)
+      if (project(soldiers, i, j, pass === 0)) held = true;
+  }
+  if (held) heldIds.add(a.id);
+  holdX = projX - a.x;
+  holdY = projY - a.y;
+}
+
+/**
+ * One step of holdOff: if the running position projX/projY is inside
+ * SEPARATION of soldier `other` and he is a standing enemy of `self`, move
+ * it back out to the circle's edge. True when it was.
+ */
+function project(
+  units: readonly Unit[],
+  self: number,
+  other: number,
+  slide: boolean,
+): boolean {
+  const b = units[other]!;
+  if (moving[other]! || b.owner === units[self]!.owner) return false;
+  const dx = projX - b.x;
+  const dy = projY - b.y;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= SEPARATION_SQ) return false;
+  const selfId = units[self]!.id;
+  let nx: number;
+  let ny: number;
+  let d: number;
+  if (d2 === 0) {
+    const k = ((hash2(selfId, b.id) * STACK_DIRS.length) | 0) & ~1;
+    nx = STACK_DIRS[k]!;
+    ny = STACK_DIRS[k + 1]!;
+    d = 0;
+  } else {
+    d = Math.sqrt(d2);
+    nx = dx / d;
+    ny = dy / d;
+  }
+  projX = b.x + nx * SEPARATION;
+  projY = b.y + ny * SEPARATION;
+  if (slide) {
+    // A waypoint under the man holding him off can never be consumed —
+    // movement wants him within a stride of its center, and he is kept a
+    // body away from it — so he aims past it at the one beyond. A route
+    // whose END is under an enemy ends here: movement sees the cursor
+    // past the last waypoint and finishes the walk where he stands, which
+    // is beside the man he was sent at. Without this a knight ordered
+    // through a lone bandit circled him for as long as he had blood to.
+    const u = units[self]!;
+    if (u.path !== null && u.pathIdx < u.path.length) {
+      const wp = u.path[u.pathIdx]!;
+      const wx = tileX(wp, gridSize) + 0.5 - b.x;
+      const wy = tileY(wp, gridSize) + 0.5 - b.y;
+      if (wx * wx + wy * wy < SEPARATION_SQ) u.pathIdx++;
+    }
+    // Slide along the line by as much as he was put back, on the side he
+    // leans to — see deflect for why a walker needs somewhere to go.
+    const hx = headX[self]!;
+    const hy = headY[self]!;
+    if (hx * nx + hy * ny < 0) {
+      let tx = -ny;
+      let ty = nx;
+      const lean = tx * hx + ty * hy;
+      if (lean < 0 || (lean === 0 && hash2(selfId, b.id) < 0.5)) {
+        tx = -tx;
+        ty = -ty;
+      }
+      projX += tx * (SEPARATION - d);
+      projY += ty * (SEPARATION - d);
+    }
+  }
+  return true;
+}
+let holdX = 0;
+let holdY = 0;
+let projX = 0;
+let projY = 0;
+/** The map's grid side, for reading a waypoint's tile back to a center. */
+let gridSize = 0;
+
+/** How long a walker is held at an enemy's rank before he goes round it
+ * (see detour): half a second, long enough that a lone man in the road is
+ * simply slid past (that takes a second and never pins) and short enough
+ * that a wedged man reads as re-thinking rather than stuck. */
+const DETOUR_AFTER = 10;
+
+/** Projection rounds per held walker (see holdOff). The first pass's slides
+ * can carry a man in a gap a tenth of a tile into both neighbours at once,
+ * and each pass after settles him back out by about a fifth of what is left:
+ * eight leave him within a millionth of a tile of both edges, for the price
+ * of a few multiplies on the handful of men pinned at a wall. */
+const HOLD_PASSES = 8;
+
+/** Soldiers put back outside an enemy's arm's length this tick. */
+const heldIds = new Set<number>();
+
+/**
+ * Was this soldier held off by a standing enemy this tick? Read by combat,
+ * which runs right after separation: a man who cannot get past the wall
+ * should fight the wall.
+ */
+export function heldByEnemy(id: number): boolean {
+  return heldIds.has(id);
 }
 
 /**
