@@ -22,18 +22,18 @@ import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import {makeLights, makeRenderer, YAW, PITCH} from './scene';
 
 const params = new URLSearchParams(location.search);
-const t = Number(params.get('t') ?? '0');
 /** A numeric param, or `fallback` when absent or not a finite number —
  * a typo in a hand-typed URL should draw the default, not NaN. */
 const num = (name: string, fallback: number): number => {
   const v = Number(params.get(name) ?? NaN);
   return Number.isFinite(v) ? v : fallback;
 };
+const t = num('t', 0);
 
 await Promise.all([loadGlbAssets(), loadCharacterAssets()]);
 
-const W = Number(params.get('w') ?? '1200');
-const H = Number(params.get('h') ?? '620');
+const W = num('w', 1200);
+const H = num('h', 620);
 const canvas = document.createElement('canvas');
 document.body.appendChild(canvas);
 const renderer = makeRenderer(canvas);
@@ -136,9 +136,7 @@ if (strip) {
 
 // Framed on the two roofs rather than the towers: the stonework is not
 // what is under review, the men standing on it are.
-const HALF_H = Number(
-  params.get('zoom') ?? (params.get('strip') ? '0.82' : '1.5'),
-);
+const HALF_H = num('zoom', params.get('strip') ? 0.82 : 1.5);
 const HALF_W = (HALF_H * W) / H;
 const camera = new THREE.OrthographicCamera(
   -HALF_W,
@@ -148,9 +146,7 @@ const camera = new THREE.OrthographicCamera(
   0.1,
   100,
 );
-const FOCUS_Y = Number(
-  params.get('fy') ?? (params.get('strip') ? '0.62' : '3.15'),
-);
+const FOCUS_Y = num('fy', params.get('strip') ? 0.62 : 3.15);
 camera.position.set(
   Math.sin(YAW) * 12 * Math.cos(PITCH),
   FOCUS_Y + Math.sin(PITCH) * 12,
