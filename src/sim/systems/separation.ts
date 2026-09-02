@@ -280,8 +280,8 @@ function detour(world: World, u: Unit, soldiers: readonly Unit[]): void {
  * Standers are read where they are now: the soft pass has not moved
  * anyone yet, and a stander is at most MAX_PUSH from where he will be
  * once it does, which the soft cap makes far too little to open a gap.
- * The sweep runs both ways from `i` with a wide margin, since the sort
- * is over pre-push x and the projection itself moves him.
+ * The sweep runs both ways from `i`, bounded by where the projection has
+ * carried him so far rather than by where he started, with a body's margin.
  *
  * Every walker held is noted in heldIds for combat, which runs next:
  * a man walking at something behind the wall fights the wall instead.
@@ -301,9 +301,14 @@ function holdOff(
   const reach = SEPARATION * 2;
   let held = false;
   for (let pass = 0; pass < HOLD_PASSES; pass++) {
-    for (let j = i - 1; j >= 0 && a.x - soldiers[j]!.x < reach; j--)
+    // Bounded by where the projection has carried him SO FAR, not where he
+    // started: each pass can move him most of a body, and a sweep measured
+    // from his old spot could stop short of a man he has since been pushed
+    // up against. The array is sorted by x, so the distance grows
+    // monotonically in each direction and the break stays sound.
+    for (let j = i - 1; j >= 0 && projX - soldiers[j]!.x < reach; j--)
       if (project(soldiers, i, j, pass === 0)) held = true;
-    for (let j = i + 1; j < n && soldiers[j]!.x - a.x < reach; j++)
+    for (let j = i + 1; j < n && soldiers[j]!.x - projX < reach; j++)
       if (project(soldiers, i, j, pass === 0)) held = true;
   }
   if (held) heldIds.add(a.id);
