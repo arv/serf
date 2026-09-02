@@ -118,6 +118,82 @@ describe('logistics matcher', () => {
     expectClean(world);
   });
 
+  it('shares the hands: a silver stream at 2 leaves wood one hand in three', () => {
+    // The tiers are shares (HAUL_SHARE 4:2:1), not ranks: with tier 2 and
+    // tier 3 both backed up, three idle hands split two to silver and one
+    // to wood — the woodcutter is served less often, not never.
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const hut = addBuiltHut(world, 30, 30);
+    hut.stock[GoodId.wood] = 5;
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      30,
+      36,
+    );
+    staffBuilding(world, mine);
+    mine.stock[GoodId.silver] = 5;
+    addSerf(world, 34, 33);
+    addSerf(world, 35, 33);
+    addSerf(world, 36, 33);
+    run(world, 2);
+
+    const taken = [...world.jobs.values()].filter(j => j.serfId !== undefined);
+    expect(taken.map(j => j.good).sort((a, z) => a - z)).toEqual([
+      GoodId.wood,
+      GoodId.silver,
+      GoodId.silver,
+    ]);
+    expectClean(world);
+  });
+
+  it('two hands over shares 2:1 split one and one', () => {
+    // The target counts the hand about to be given, so the second hand
+    // goes to wood: a player's village with two free serfs still sees its
+    // planks move.
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const hut = addBuiltHut(world, 30, 30);
+    hut.stock[GoodId.wood] = 5;
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      30,
+      36,
+    );
+    staffBuilding(world, mine);
+    mine.stock[GoodId.silver] = 5;
+    addSerf(world, 34, 33);
+    addSerf(world, 35, 33);
+    run(world, 2);
+
+    const taken = [...world.jobs.values()].filter(j => j.serfId !== undefined);
+    expect(taken.map(j => j.good).sort((a, z) => a - z)).toEqual([
+      GoodId.wood,
+      GoodId.silver,
+    ]);
+    expectClean(world);
+  });
+
+  it('a tier with nothing to carry gives its share away', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const hut = addBuiltHut(world, 30, 30);
+    hut.stock[GoodId.wood] = 5;
+    addSerf(world, 34, 33);
+    addSerf(world, 35, 33);
+    addSerf(world, 36, 33);
+    run(world, 2);
+
+    const taken = [...world.jobs.values()].filter(j => j.serfId !== undefined);
+    expect(taken).toHaveLength(3);
+    expect(taken.every(j => j.good === GoodId.wood)).toBe(true);
+    expectClean(world);
+  });
+
   it('construction still outranks silver for the only serf', () => {
     const world = bareWorld();
     addStorehouse(world, 40, 40, {});

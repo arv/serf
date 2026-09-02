@@ -62,6 +62,43 @@ export const JOB_BLOCKED_BACKOFF = 40; // ticks before retrying an unreachable j
  */
 export type HaulPriority = 1 | 2 | 3;
 /**
+ * How the hands are shared between the tiers when more than one has work
+ * waiting: the dispatcher (systems/logistics.ts) keeps the number of serfs
+ * working each tier proportional to these, handing the next idle serf to
+ * whichever tier is furthest below its share. A tier with nothing to carry
+ * gives its share to the others, so a lone site's planks still get every
+ * hand in the village.
+ *
+ * Shares, not ranks, because a rank starves: the old board served tier 3
+ * only when 1 and 2 were both empty, and a mine at tier 2 never empties —
+ * one load every four seconds — so on a seat with two or three free hands
+ * the woodcutter's shelf sat full and reserved while every serf walked
+ * past it for silver (measured: a far mine and a woodcutter, four hands,
+ * five minutes — seven planks cut and two home under the rank; thirty-
+ * eight cut and thirty-three home under the shares). With 4:2:1 and every
+ * tier backed up, seven busy hands split 4/2/1 and the fourth already goes
+ * to tier 3; with only 2 and 3 backed up, two hands split 1/1 and three
+ * split 2/1. Lower priority means served less often, never not at all.
+ *
+ * Measured against the AI's own campaigns (pnpm balance, ranges 101 and
+ * 1000, 32 seeds each): 236/256 wins against 242/256 under the rank, with
+ * 6:2:1 at 238 and 6:3:1 at 240 — all inside what the aiLab README calls
+ * noise, and no variant separable from another. 6:3:1 and 8:4:1 give wood
+ * its first hand at the fourth, or never, which is the rank again at the
+ * scale a player's village runs at; 4:2:1 is the one that moves planks
+ * with two free hands.
+ *
+ * The matcher's own sort (which demand books scarce SUPPLY first) stays a
+ * strict rank on purpose: that decides where the last plank goes, and a
+ * site should always win it over the storehouse. This table decides only
+ * who carries.
+ */
+export const HAUL_SHARE: Readonly<Record<HaulPriority, number>> = {
+  1: 4,
+  2: 2,
+  3: 1,
+};
+/**
  * The tier each good rides home at when a producer evacuates it to the
  * storehouse.
  *
@@ -78,6 +115,11 @@ export type HaulPriority = 1 | 2 | 3;
  * on (docs/plan-ai-robustness.md, "What this does not fix"). At 2 it ranks
  * with the mill's wheat and the smith's iron, FIFO among them, and still
  * behind every site's materials.
+ *
+ * A tier is a share of the hands, not a claim on all of them (HAUL_SHARE):
+ * a mine at 2 never stops producing, and under the old strict rank that
+ * stream left wood at 3 with no hands at all. Now it leaves wood with one
+ * in three.
  *
  * Never 1: nothing a producer makes should outrank the walls going up.
  */

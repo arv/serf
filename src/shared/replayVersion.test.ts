@@ -180,8 +180,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // acquisition in a logged battle lands from different ground (see
 // replayVersion.ts). It lands on top of main's 40, the silver tier, which
 // is why this is 41: the two shipped in different PRs.
-const EXPECTED_VERSION = 41;
-const EXPECTED_HASH = 'a28ff456f91021706f2aaf813fdd68a2';
+// 42 for the haul tiers becoming shares of the hands (defs/balance.ts
+// HAUL_SHARE, read by dispatch in systems/logistics.ts): which serf takes
+// which errand is the sim, and lower priority now means less often rather
+// than never. In replayVersion.ts at length.
+const EXPECTED_VERSION = 42;
+const EXPECTED_HASH = '3a7772b82ddc25c8df38b17d3c98552d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

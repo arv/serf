@@ -20,6 +20,29 @@
  * directly.
  */
 /**
+ * 42: a haul tier is a share of the hands, not a claim on all of them.
+ *
+ * The dispatcher used to hand every idle serf the lowest-numbered open job
+ * on the board, so tier 3 — every producer's output going home — was
+ * served only while tiers 1 and 2 were both empty. That was fine while
+ * everything at 2 was a bounded pull that drained (an input cap of five,
+ * one tool, one cask). 40 put silver at 2, and a mine never drains: one
+ * load every four seconds, so on a seat with two or three free hands the
+ * woodcutter's shelf sat full and reserved while every serf walked past it
+ * for silver, and sites waited on planks that were ten tiles away.
+ *
+ * Now the hands are shared (defs/balance.ts HAUL_SHARE, 4:2:1): the next
+ * idle serf goes to whichever tier is furthest below its share of the
+ * serfs already carrying, oldest job first within the tier, and a tier
+ * with no work gives its share away. Lower priority means served less
+ * often, never not at all. The matcher's own strict rank — which demand
+ * books scarce supply first — is untouched; only who carries changed.
+ *
+ * Every dispatch decision is the sim, so a log recorded on 41 re-runs with
+ * different serfs on different errands from the first tick two tiers have
+ * work at once.
+ */
+/**
  * 41: soldiers take up room.
  *
  * Every soldier on the map — a player's, a rival's, a bandit's — now holds
@@ -506,4 +529,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 41;
+export const REPLAY_VERSION = 42;
