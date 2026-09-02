@@ -20,6 +20,36 @@
  * directly.
  */
 /**
+ * 40: silver goes home first.
+ *
+ * A producer's output rides to the storehouse as a priority-3 haul, the
+ * bottom of the board — and for nearly every good that is right, since a
+ * site pulls its planks from whichever shelf is nearest and the load only
+ * has to go home eventually. Silver is the one good that is spent from
+ * the STOREHOUSE alone: a hire, a tech and a re-tooled post are all
+ * debited there (tick.ts, systems/ai.ts), so a load of it left at the
+ * mine buys nothing, and on a busy board the load that would pay for the
+ * next hand was one priority-3 job among forty. It now rides at 2
+ * (defs/balance.ts EVAC_PRIORITY), level with the mill's wheat and the
+ * smith's iron and still behind every site's materials.
+ *
+ * That is the sim, not a brain: systems/logistics.ts sorts demands and
+ * open jobs by priority before age, so the serf who used to shoulder the
+ * oldest plank now shoulders the silver instead, and every haul behind
+ * him lands a beat later than it did. A log recorded on 39 re-runs with
+ * different goods on different backs from the first silver the mine
+ * turns out, which is a different game by the first hire.
+ *
+ * The faster purse found a hole in the bed count, and that is closed in
+ * the same bump: a recruit the barracks has enlisted is marked dead and
+ * lives on only as a started queue item, and populationOf (sim/population.ts)
+ * never counted him — so a hire could land in the window between his
+ * enlisting and his walking out a soldier, and the seat ended one head over
+ * its cap. Trainees now count, as the garrison already did. That moves the
+ * hire gate's answer on a tick where the old count was short, so the
+ * recruit who used to be let in at the door now waits there for a bed.
+ */
+/**
  * 39: a match can be set to a difficulty.
  *
  * Two halves, and only one of them is the reason for the bump. The
@@ -453,4 +483,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 39;
+export const REPLAY_VERSION = 40;

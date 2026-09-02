@@ -575,3 +575,10 @@ priority-3 job among forty-seven others. Making a hire-critical good jump
 the queue is a logistics change, not a brain change — it moves the sim, and
 therefore `REPLAY_VERSION`. Left alone deliberately; the brain-side fix is
 what the failing case argued for.
+
+**Correction (2026-09-02): done after all.** Silver now rides home at
+priority 2 — `EVAC_PRIORITY` in `sim/defs/balance.ts`, a per-good table the
+evacuation block in `sim/systems/logistics.ts` reads, with every other good
+still at 3 — level with the mill's wheat and still behind every site's
+materials. `REPLAY_VERSION` 40. The brain-side fix above stands; this is the
+logistics half it declined to reach for.

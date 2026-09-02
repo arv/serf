@@ -6,6 +6,8 @@ import {
   MATCHER_INTERVAL,
   ABBEY_ALE_CAP,
   BARRACKS_ALE_CAP,
+  EVAC_PRIORITY,
+  type HaulPriority,
 } from '../defs/balance.ts';
 import {
   INPUT_CAP,
@@ -137,7 +139,7 @@ interface Demand {
   building: Building;
   good: GoodId;
   want: number;
-  priority: 1 | 2 | 3;
+  priority: HaulPriority;
   since: number;
 }
 
@@ -306,8 +308,10 @@ function match(world: World): void {
       }
     }
 
-    // Producers evacuate their outputs to the storehouse (priority 3) —
-    // modeled as a demand *by the storehouse*, pinned to the supplier.
+    // Producers evacuate their outputs to the storehouse — modeled as a
+    // demand *by the storehouse*, pinned to the supplier. Priority 3 for
+    // all but silver, which rides at 2 (EVAC_PRIORITY): a hire is paid
+    // from the castle's shelf, not the mine's.
     if (!def.storage) {
       // Every good the building can ever emit — a smith switched off
       // bowmaking still ships its leftover bows. Plus any tool on the
@@ -334,7 +338,16 @@ function match(world: World): void {
         if (surplus > 0) {
           const storehouse = storehouseOf(b.owner);
           if (storehouse && storehouse.id !== b.id) {
-            demands.push(demandOf(world, storehouse, good, surplus, 3, b));
+            demands.push(
+              demandOf(
+                world,
+                storehouse,
+                good,
+                surplus,
+                EVAC_PRIORITY[good],
+                b,
+              ),
+            );
           }
         } else {
           clearDemandAge(b, good);
@@ -386,7 +399,7 @@ function demandOf(
   building: Building,
   good: GoodId,
   want: number,
-  priority: 1 | 2 | 3,
+  priority: HaulPriority,
   pinnedSource?: Building,
 ): DemandFull {
   // FIFO age: the *demanding pair* tracks when it first went unmet. For
@@ -450,7 +463,7 @@ function createJob(
   good: GoodId,
   from: EntityId,
   to: EntityId,
-  priority: 1 | 2 | 3,
+  priority: HaulPriority,
   repair?: true,
 ): void {
   const source = world.buildings.get(from)!;
