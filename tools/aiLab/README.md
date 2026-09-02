@@ -729,6 +729,61 @@ and therefore not a result. It stands as a guardrail (no regression) rather
 than as evidence, and the case for the change rests on the replay it was
 cut from. Full write-up in `docs/plan-ai-robustness.md`.
 
+**Update (2026-09-01): `resiteExtractor` lost both of its gates, and the
+row above no longer describes it.** A played replay (seed 63759505) has a
+seat work both its groves flat at t=14000 and never cut another log: the
+match ended at 18617, inside `AI_STALL.graceUntil`, so the watchdog the
+rule waited on had not so much as opened its window — and the rule's other
+condition, "the shelf already holds the half the refund will not cover", is
+a deadlock in the one case it most matters, since the reason the shelf is
+empty is the hut standing on bare ground. It now reads its own condition,
+which is a cleared radius, and the map says that is permanent
+(`depleteResourceTile` writes the tile to `None`; `regrow` only bumps tiles
+that are still wood). So the "2 firings, 0 rescues" row measured a rule
+that could barely fire, not a rule that does not work.
+
+The same replay is where the seats stopped freezing a scout mid-map: a
+search goal taken on a stale rival's behalf was retired the beat it was
+taken, so the guard that writes off a walk the sim keeps dropping ("ordered
+again while standing still") never had two identical orders to compare. In
+that replay **215 of the seats' 290 unit-move orders were no-ops at one
+motionless soldier**; after the fix, 2 of 41. The fingerprint says the same
+thing at sweep scale: `fled` per seat falls from 14.66 to 0.63, because a
+"flight" used to be re-issued at the same wounded man every beat.
+
+Guardrails, all three `pnpm balance` ranges (baseline vs both fixes):
+101 → 94/128 vs 93/128, 1000 → 110/128 vs 104/128, 2000 (64 seeds) →
+199/256 vs 208/256. Pooled 403/512 against 405/512 — flat, and the ranges
+disagree in sign, which is this page's own definition of noise. The
+mirrored sweep (`--engine none --seeds 1-40`) holds 0 undecided on both
+sides; the median match lengthens 17257 → 18569 ticks, which is what a seat
+that no longer parks a soldier or runs out of wood looks like from outside.
+
+**The build order's reserve, and the version of it that was measured and
+thrown away.** A seat that has just sold a worked-out woodcutter holds the
+scrap that was meant to raise its replacement — and every playbook prices
+its well at 4 wood against the cutter's 6, seventh on a list the cutter
+leads, so the build order's "first step that is affordable AND placeable"
+spent it one rung down. The fix holds the shelf for the first unmet
+*gatherer* the seat cannot yet pay for, when there is ground to put it on.
+
+The first draft held for the first unmet step of ANY kind, which is the
+tidier statement of "a priority list is a priority list" and is not what
+the plans were tuned as. Measured over the same three ranges it scores
+**405/512 against 405/512** — dead flat, +8 on one range and −8 on another
+— while visibly shrinking the villages it did not help: the abbot goes from
+20.1 heads to 17.3 and 8.5 soldiers to 7.4, because a seat saving for a
+twelve-stone guard tower stops laying the farms and wells below it. It also
+put `tiers.test.ts`'s hard-vs-normal non-inferiority at 6/13.
+
+Narrowed to gatherers it is nearly a no-op outside the case it was written
+for: 92/128, 107/128, 207/256 (pooled **406/512**), with steward, warlord
+and fletcher scoring bit-identically to the run before it on two of the
+three ranges — the reserve simply never binds for them there. 0 undecided
+and an unchanged median and longest match on the mirrored sweep. The
+producer half of the leapfrog is the bug; the rest of it is the game.
+
+
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
 
 The first sweeps the seating mirror made possible. Treat these as a

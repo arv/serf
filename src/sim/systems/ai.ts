@@ -56,6 +56,7 @@ import {
 import * as HeraldNote from '../heraldNoteEnum.ts';
 import {nearestResource, playMin, playMax, tileBlocks} from '../map.ts';
 import * as MatchState from '../matchStateEnum.ts';
+import {findPath} from '../path.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
 import {findSpot} from '../siting.ts';
@@ -196,23 +197,27 @@ export const AI_PACING = {
  * stalled when none of them has moved across the whole window. The rules
  * that answer are all in sim/economyRules.ts.
  *
- * One of them is gated on this reading: `resiteExtractor`, which sells a
- * hut out from under its gatherer and so had better be sure. The rest read
- * a condition instead, and the distinction is the point rather than an
- * erosion of it. `stalled` is an INFERENCE about a village — nothing has
- * moved in twelve minutes, so something must be wrong — and it is the right
- * gate for a rule that pays to guess. The recovery pair `freeCappedHauler`
- * and `resumeDrainedPost`, and the hold `handsBeforeSoldiers`, read the
- * dead end DIRECTLY: hands under the playbook's survivalFloor. That is not
- * a guess wanting corroboration, and waiting for the window to corroborate
- * it costs fourteen thousand ticks a raided seat usually does not have —
- * see those rules' comments and the 2026-08-23 correction in
- * docs/plan-ai-robustness.md. (The production-phase rules — tools, forges,
- * the barracks queue — are steering rather than rescue, and have never been
- * gated on anything.)
+ * Nothing is gated on this reading any more, and the distinction that
+ * decided it is worth keeping straight. `stalled` is an INFERENCE about a
+ * village — nothing has moved in twelve minutes, so something must be
+ * wrong — and it is the right gate for a rule that pays to GUESS. Every
+ * rule shipped so far reads its dead end directly instead: the recovery
+ * pair `freeCappedHauler` and `resumeDrainedPost` and the hold
+ * `handsBeforeSoldiers` read hands under the playbook's survivalFloor, and
+ * `resiteExtractor` — the last one that waited on the window — reads a
+ * gatherer's radius with nothing left standing in it. None of those is a
+ * guess wanting corroboration, and waiting for the window to corroborate
+ * one costs fourteen thousand ticks past a grace period of twenty, which a
+ * raided seat or a seat out of wood usually does not have. See those
+ * rules' comments, the 2026-08-23 correction in
+ * docs/plan-ai-robustness.md, and the 2026-09-01 one. (The
+ * production-phase rules — tools, forges, the barracks queue — are
+ * steering rather than rescue, and have never been gated on anything.)
  *
- * What every gate protects is the same guarantee: a seat that is going
- * somewhere, with its people, emits exactly the commands it always did.
+ * The watchdog itself stays: it is the reading a rule for a village that
+ * has run out of ideas WITHOUT running out of anything nameable would want,
+ * and `stallReport` is how the lab counts frozen matches instead of
+ * inferring them from `undecided`.
  *
  * Brain-local memory like `#intel` and `#vision`: never serialized, and the
  * determinism story is unchanged because the window is a pure function of
@@ -1098,19 +1103,66 @@ export class AiBrain {
     // an opening that lays a house before the woodcutter spends the whole
     // starting woodpile on beds it has nobody to fill, and never recovers.
     let placed = false;
+    /**
+     * What the plan is saving up for: the cost of the first unmet GATHERER
+     * the shelf cannot yet cover. Steps below it may spend what is over
+     * this, and nothing else.
+     *
+     * Skipping past an unaffordable step reads a priority list as a
+     * shopping list, and on the one class of step that makes the materials
+     * everything else is priced in, that is a trap rather than a
+     * convenience. Every playbook opens woodcutter (6 wood), quarry (6),
+     * and puts the well (4) seventh — so a seat holding four or five
+     * planks buys the well, and the next four go the same way. Harmless
+     * while the logs keep coming, and unrecoverable the moment they stop:
+     * a seat that has just sold a worked-out woodcutter (see
+     * `resiteExtractor`) holds exactly the scrap that was meant to raise
+     * its replacement, and spends it one step down on something that
+     * cannot cut a log. The producers are why the ordering invariant
+     * holds at all — wood and stone are the only goods any step is priced
+     * in, and the woodcutter and quarry that make them are the first two
+     * steps of all four plans, ahead of every consumer.
+     *
+     * Deliberately not every step. Held for the plan's whole list, this
+     * reserve is measurably a different game rather than a better one:
+     * over three `pnpm balance` ranges it scores 405/512 against the same
+     * 405/512, while a seat saving for a twelve-stone tower stops laying
+     * the roofs and farms below it (the abbot's village drops from 20.1
+     * heads to 17.3). The plans were tuned with the leapfrog in them, and
+     * only the producer half of it is a bug.
+     *
+     * Bounded to ONE step, and only one with ground under it, because the
+     * alternative failure is worse than the one it fixes: a village saving
+     * forever for something it can never place builds nothing at all. A
+     * step with no site (`spotFor` null) is not saved for, and whatever
+     * the seat cannot pay for after that is skipped exactly as before.
+     */
+    let held: GoodAmounts | undefined;
     for (const step of s.build) {
       if (step.after && !researched(step.after)) continue;
       if (step.needs && !has(step.needs)) continue;
       const desired =
         step.more && researched(step.more.after) ? step.more.count : step.count;
       if (countOf(step.type) >= desired) continue;
+      const def = BUILDING_DEFS[step.type];
       // Price before ground. Both tests are pure reads and the step that
       // wins is still the first one that is BOTH affordable and placeable,
       // so the beat plays out identically — but spotFor is a spiral search
       // over the play area (and, anchored, a resource or shore scan before
       // that), and a broke seat used to pay it for every unmet step on the
-      // list, every beat, only to throw the answer away.
-      if (!affordable(BUILDING_DEFS[step.type].cost, stock)) continue;
+      // list, every beat, only to throw the answer away. The reserve costs
+      // that search back at most once a beat: on the first gatherer the
+      // shelf cannot cover, to find out whether there is ground to save for.
+      if (!affordable(def.cost, stock, held)) {
+        if (
+          !held &&
+          gatherRecipeOf(def) &&
+          spotFor(world, step, baseX, baseY)
+        ) {
+          held = def.cost;
+        }
+        continue;
+      }
       const spot = spotFor(world, step, baseX, baseY);
       if (!spot) continue;
       commands.push({
@@ -1137,7 +1189,9 @@ export class AiBrain {
       plannedPopCapOf(world, this.playerId) -
         populationOf(world, this.playerId) <
         s.housingHeadroom &&
-      affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock)
+      // The reserve binds here too: an unplanned roof is the last thing
+      // that should jump the queue in front of the plan's own next step.
+      affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock, held)
     ) {
       const spot = findSpot(world, BuildingTypeId.house, baseX, baseY);
       if (spot) {
@@ -1157,6 +1211,11 @@ export class AiBrain {
     // when the bill is already on the shelf. A repair ordered against an
     // empty storehouse would pin the haulage pool to a wall while the
     // village waits for stone it hasn't quarried yet.
+    //
+    // The build order's reserve does NOT bind here, on that same
+    // half-price arithmetic: a hut already standing is cheaper to keep
+    // than the one being saved for is to raise, and the seat's own
+    // woodcutter is usually the thing on fire.
     let worst: Building | undefined;
     for (const b of mine) {
       if (
@@ -1451,7 +1510,7 @@ export class AiBrain {
     } else if (
       scout &&
       this.#warOn(WarBehaviorIdNs.scoutFlees) &&
-      scout.hp * 2 < UNIT_DEFS[scout.kind].hp
+      isSpent(scout)
     ) {
       // Half his blood is answer enough: file whatever the errand was for
       // and run — the same safe-latitude step the recall below takes,
@@ -1459,16 +1518,16 @@ export class AiBrain {
       // guards that did this. A dead scout feeds the tower that killed
       // him; one that runs gets to be a scout again. Either way the errand
       // cost blood with the read unfinished, and the backoff counts it.
+      //
+      // "Gets to be a scout again" means LATER, and the pick below is what
+      // enforces it: while he is still under half he is passed over, or the
+      // very beat that stood him down re-drafts him and the flight is a
+      // command that never happens.
       if (this.#scoutIntel >= 0) {
         this.#stampIntel(world, this.#scoutIntel);
         this.#burnScout(this.#scoutIntel);
       }
-      commands.push({
-        kind: CommandKind.moveUnits,
-        unitIds: [scout.id],
-        x: Math.floor(scout.x),
-        y: Math.max(0, Math.floor(scout.y) - GATE_NORTH),
-      });
+      commands.push(this.#stepNorth(world, scout, baseX, baseY));
       this.#clearScout();
       this.#scoutFled++;
     } else if (scout && target && this.#scoutIntel < 0 && staleRival < 0) {
@@ -1476,12 +1535,7 @@ export class AiBrain {
       // pathfound right past its guards (the same detour hazard the gate
       // legs exist for — see scoutLeg). Step due north first; the garrison
       // rally collects the scout from that safe latitude soon enough.
-      commands.push({
-        kind: CommandKind.moveUnits,
-        unitIds: [scout.id],
-        x: Math.floor(scout.x),
-        y: Math.max(0, Math.floor(scout.y) - GATE_NORTH),
-      });
+      commands.push(this.#stepNorth(world, scout, baseX, baseY));
       this.#clearScout();
     }
 
@@ -1670,7 +1724,18 @@ export class AiBrain {
         army.length > 0
       ) {
         if (this.#scoutId < 0) {
-          const idle = army.filter(u => u.task.t === UnitTaskKind.idle);
+          // A soldier under half his blood is passed over on a seat that
+          // flees its scouts: he is the man the flee branch just stood
+          // down (or one the war left in the same state), and re-drafting
+          // him puts the errand straight back on the unit that could not
+          // finish the last one. It also made the flight itself a fiction
+          // — flee, re-draft, flee, one of each per beat, and the soldier
+          // never moved. Seats without the behavior are untouched:
+          // they never stand a scout down for wounds in the first place.
+          const flees = this.#warOn(WarBehaviorIdNs.scoutFlees);
+          const idle = army.filter(
+            u => u.task.t === UnitTaskKind.idle && !(flees && isSpent(u)),
+          );
           const pick = idle.sort(
             (a, z) =>
               UNIT_DEFS[z.kind].speed - UNIT_DEFS[a.kind].speed || a.id - z.id,
@@ -1710,8 +1775,23 @@ export class AiBrain {
             }
           } else if (
             this.#scoutGoal >= 0 &&
-            (target || this.#vision.explored[this.#scoutGoal])
+            ((target && staleRival < 0) ||
+              this.#vision.explored[this.#scoutGoal])
           ) {
+            // A target retires a search only when the search had nothing
+            // else to answer. Two errands share this goal: pure discovery,
+            // which a found target genuinely ends, and the fallback below
+            // — the walk a STALE RIVAL gets when its castle has never been
+            // found, which is the only way that rival's clock is ever read.
+            // Retiring the second one on `target` alone made it a goal
+            // that could not survive the beat it was taken on: cleared
+            // here, re-picked twelve lines down, and so `fresh` every beat
+            // forever. That is what disarmed the stuck-walk guard below,
+            // whose whole trigger is being ordered to the same leg twice —
+            // and with it disarmed, a leg that lands on unwalkable ground
+            // (the sim drops an order it cannot path) was re-issued every
+            // beat at a scout who never took a step, for as long as the
+            // rival stayed stale.
             this.#clearScoutGoal();
           }
           // The next objective: discovery while no target is known, else
@@ -1954,6 +2034,46 @@ export class AiBrain {
         x.sites === first.sites &&
         x.stock === first.stock,
     );
+  }
+
+  /**
+   * The scout's way out: a step due north, or home when north is a wall.
+   *
+   * Both the flee and the recall want the same thing — off the watch point
+   * without pathing back past the guards that stand between it and the
+   * castle — and GATE_NORTH tiles due north is that step. But the point is
+   * arithmetic on the scout's own position, and arithmetic does not read
+   * terrain: north of a mountain range it lands inside the rock, or in a
+   * pocket the walk cannot reach, and `applyMoveUnits` drops an order it
+   * cannot path. A dropped order is not a slow retreat, it is no retreat:
+   * the scout stands exactly where he was, on the ground that was hurting
+   * him, until something else happens to name him.
+   *
+   * That is a whole replay's worth of a scout frozen mid-map, so the step
+   * is checked before it is ordered and falls back to the garrison rally —
+   * the tile the seat's own soldiers stand on, which the scout walked out
+   * from and can therefore walk back to. Costing one A* on the beat a
+   * scout stands down, which happens once per scout rather than per beat
+   * now that the pick passes over the wounded.
+   */
+  #stepNorth(
+    world: World,
+    scout: Unit,
+    baseX: number,
+    baseY: number,
+  ): SimCommand {
+    const x = Math.floor(scout.x);
+    const y = Math.max(0, Math.floor(scout.y) - GATE_NORTH);
+    const north =
+      !world.map.blocked[tileIdx(x, y, world.map.size)] &&
+      findPath(world.map, Math.floor(scout.x), Math.floor(scout.y), x, y) !==
+        null;
+    return {
+      kind: CommandKind.moveUnits,
+      unitIds: [scout.id],
+      x: north ? x : baseX,
+      y: north ? y : baseY + 4,
+    };
   }
 
   /** The scout stands down entirely. */
@@ -3011,9 +3131,21 @@ export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
   return Math.max(floor, armyAttackSize - impatience);
 }
 
-/** Is every line of this cost sitting in the storehouse? */
-function affordable(cost: GoodAmounts, stock: GoodAmounts): boolean {
-  return goodEntries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
+/**
+ * Is every line of this cost sitting in the storehouse — over and above
+ * anything a step ahead of this one in the plan is saving for?
+ *
+ * `held` is the build order's reserve (see the loop in `decide`). Absent, or
+ * empty, this is the plain "can the shelf pay for it" it has always been.
+ */
+function affordable(
+  cost: GoodAmounts,
+  stock: GoodAmounts,
+  held?: GoodAmounts,
+): boolean {
+  return goodEntries(cost).every(
+    ([good, n]) => (stock[good] ?? 0) - (held?.[good] ?? 0) >= n,
+  );
 }
 
 function ownedBuildings(world: World, owner: Owner): Building[] {
@@ -3389,6 +3521,16 @@ const GARRISON_POST = 6;
  * back down is cheap; being late back up is not.
  */
 export const LEVY_HOLD = 30 * 20;
+
+/**
+ * Under half his blood — the bar `scoutFlees` stands a scout down at, and
+ * the same bar the pick passes him over on afterwards. One predicate so
+ * the two can never drift apart: a threshold that only one of them read
+ * would put the errand straight back on the man who just ran from it.
+ */
+function isSpent(u: Unit): boolean {
+  return u.hp * 2 < UNIT_DEFS[u.kind].hp;
+}
 
 export function scoutLeg(
   goal: number,
