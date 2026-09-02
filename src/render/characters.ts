@@ -114,6 +114,8 @@ interface KKSpec {
    * except while performing this WORK.* kind. */
   rightWorkKind?: number;
   left?: string;
+  /** Euler fix-up for left-hand props, as rightRot is for the right. */
+  leftRot?: [number, number, number];
   /** Prop strapped to the chest (quivers). */
   back?: string;
   /** Multiplies the texture — bandits go grim. */
@@ -123,6 +125,9 @@ interface KKSpec {
   ranged?: boolean;
   attackClip?: string;
 }
+
+/** The bow prop's fix-up: a half turn about the grip (see the archer). */
+const BOW_ROT: [number, number, number] = [0, Math.PI, 0];
 
 const KK_SPECS = new Map<number, KKSpec>([
   [1, {file: 'Rogue', hide: ['Rogue_Cape']}],
@@ -162,8 +167,19 @@ const KK_SPECS = new Map<number, KKSpec>([
   // The bow rides the left hand: the pack's draw and release are authored
   // for it — the left arm holds the bow out, the right hand goes to the
   // string. In the right hand it swung to the cheek at full draw while
-  // the bow arm reached out empty.
-  [5, {file: 'Ranger', left: 'bow_withString', jog: true, ranged: true}],
+  // the bow arm reached out empty. Loaded as-is it faces the wrong way,
+  // string toward the target; a half turn about the grip puts the string
+  // on the archer's side, where the draw hand pulls it.
+  [
+    5,
+    {
+      file: 'Ranger',
+      left: 'bow_withString',
+      leftRot: BOW_ROT,
+      jog: true,
+      ranged: true,
+    },
+  ],
   [6, {file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true}],
   [
     7,
@@ -171,6 +187,7 @@ const KK_SPECS = new Map<number, KKSpec>([
       file: 'Rogue_Hooded',
       tint: 0x7c8290,
       left: 'bow_withString',
+      leftRot: BOW_ROT,
       back: 'quiver',
       jog: true,
       ranged: true,
@@ -1065,7 +1082,7 @@ function makeKayKitCharacter(
       anchor.add(builtWeapon);
     }
   }
-  slot('handslot.l', spec.left);
+  slot('handslot.l', spec.left, undefined, spec.leftRot);
   slot('chest', spec.back, [0, 0, -0.14]);
 
   const s = char.scale * (spec.scale ?? 1);
