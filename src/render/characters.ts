@@ -71,7 +71,9 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   [AnimKeyNs.walk]: 'Walking_A',
   [AnimKeyNs.jog]: 'Running_A',
   [AnimKeyNs.attack]: 'Melee_1H_Attack_Chop',
-  [AnimKeyNs.shoot]: 'Ranged_Bow_Draw',
+  // Draw and release, composited at load from the pack's two halves
+  // (see sequence in loadKayKitCharacters).
+  [AnimKeyNs.shoot]: 'Bow_Shoot',
   // The levy on a tower roof: an overhand lob, empty-handed. The pack's
   // one throw, and it reads as a stone going over the parapet where the
   // bow draw read as a man miming an archer he is not.
@@ -112,6 +114,8 @@ interface KKSpec {
    * except while performing this WORK.* kind. */
   rightWorkKind?: number;
   left?: string;
+  /** Euler fix-up for left-hand props, as rightRot is for the right. */
+  leftRot?: [number, number, number];
   /** Prop strapped to the chest (quivers). */
   back?: string;
   /** Multiplies the texture — bandits go grim. */
@@ -121,6 +125,9 @@ interface KKSpec {
   ranged?: boolean;
   attackClip?: string;
 }
+
+/** The bow prop's fix-up: a half turn about the grip (see the archer). */
+const BOW_ROT: [number, number, number] = [0, Math.PI, 0];
 
 const KK_SPECS = new Map<number, KKSpec>([
   [1, {file: 'Rogue', hide: ['Rogue_Cape']}],
@@ -157,14 +164,30 @@ const KK_SPECS = new Map<number, KKSpec>([
       attackClip: 'Melee_1H_Attack_Stab',
     },
   ],
-  [5, {file: 'Ranger', right: 'bow_withString', jog: true, ranged: true}],
+  // The bow rides the left hand: the pack's draw and release are authored
+  // for it — the left arm holds the bow out, the right hand goes to the
+  // string. In the right hand it swung to the cheek at full draw while
+  // the bow arm reached out empty. Loaded as-is it faces the wrong way,
+  // string toward the target; a half turn about the grip puts the string
+  // on the archer's side, where the draw hand pulls it.
+  [
+    5,
+    {
+      file: 'Ranger',
+      left: 'bow_withString',
+      leftRot: BOW_ROT,
+      jog: true,
+      ranged: true,
+    },
+  ],
   [6, {file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true}],
   [
     7,
     {
       file: 'Rogue_Hooded',
       tint: 0x7c8290,
-      right: 'bow_withString',
+      left: 'bow_withString',
+      leftRot: BOW_ROT,
       back: 'quiver',
       jog: true,
       ranged: true,
@@ -416,9 +439,90 @@ async function loadKayKitCharacters(): Promise<boolean> {
       clips.set(name, clip);
       return clip;
     };
+    /**
+     * Two clips played end to end as one loop, `first` then `second`,
+     * for a pack action authored in halves. The loop is exactly twice
+     * `first`'s length: `second` is kept for that length less `blend`
+     * (clamped to the half), and the last `blend` seconds ease every bone
+     * from where `second` was cut back to `first`'s opening pose — the
+     * crossfade the mixer
+     * would give two actions, baked in so one looping action carries the
+     * whole shot and its release lands at phase 0.5 by construction,
+     * not by measurement (LOOP_CUES, and the arrow's release watch in
+     * sceneSync and buildingSync, count on that). Tracks `second` has and
+     * `first` lacks are dropped: the one such track in the pack (the
+     * release's handslot.l scale) is a constant 1. A track `first` has
+     * and `second` lacks holds `first`'s last pose until the blend.
+     */
+    const sequence = (
+      firstName: string,
+      secondName: string,
+      name: string,
+      blend: number,
+    ): THREE.AnimationClip | null => {
+      const first = clips.get(firstName);
+      const second = clips.get(secondName);
+      if (!first || !second) return null;
+      const D = first.duration;
+      const total = 2 * D;
+      // The blend lives inside the second half; 0 makes the wrap a snap.
+      const fade = clamp(blend, 0, D);
+      const keep = D - fade;
+      const tracks = first.tracks.map(t => {
+        const size = t.getValueSize();
+        const times: number[] = Array.from(t.times);
+        const values: number[] = Array.from(t.values);
+        const tail = second.tracks.find(u => u.name === t.name);
+        if (tail) {
+          for (let k = 0; k < tail.times.length; k++) {
+            const time = tail.times[k]!;
+            if (time >= keep) break;
+            // The halves meet at D: `first` already keys its last pose
+            // there, so `second`'s opening key would double the time.
+            if (D + time <= times[times.length - 1]!) continue;
+            times.push(D + time);
+            for (let c = 0; c < size; c++)
+              values.push(tail.values[k * size + c]!);
+          }
+        }
+        // Hold the pose until the blend begins. A track `second` lacks,
+        // or one whose keys stop short of `keep`, would otherwise drift
+        // toward the opening pose from its last key onward — most of
+        // the second half rather than the last `fade` seconds of it.
+        const last = times[times.length - 1]!;
+        if (fade > 0 && total - fade > last) {
+          times.push(total - fade);
+          values.push(...values.slice(-size));
+        }
+        // Close the loop: ease back to the opening pose over `fade`.
+        times.push(total);
+        for (let c = 0; c < size; c++) values.push(t.values[c]!);
+        const Track = t.constructor as new (
+          name: string,
+          times: number[],
+          values: ArrayLike<number>,
+        ) => THREE.KeyframeTrack;
+        return new Track(t.name, times, values);
+      });
+      const clip = new THREE.AnimationClip(name, total, tracks);
+      clips.set(name, clip);
+      return clip;
+    };
     composite('Walking_A', 'Holding_B', 'Carry_Walk');
     composite('Running_A', 'Holding_B', 'Carry_Jog');
     composite('Idle_A', 'Holding_B', 'Carry_Idle');
+    // The pack splits a shot in two: Ranged_Bow_Draw reaches for the
+    // arrow, nocks it and pulls to full draw, then holds; Ranged_Bow_Release
+    // starts from that hold, snaps the string hand away and settles. The
+    // draw ends where the release begins; the release ends nowhere near
+    // the reach, which is what the blend is for. Looping the draw alone —
+    // what the archer did before — pulled the string back over and over
+    // and never let go:
+    // the hold snapped straight back to the reach at the wrap, and the
+    // twang and the arrow rode the pull-back, which is the one moment an
+    // archer is certainly not shooting. Play the two back to back as one
+    // loop, with the release landing exactly halfway (see sequence).
+    sequence('Ranged_Bow_Draw', 'Ranged_Bow_Release', 'Bow_Shoot', 0.25);
 
     // Everyone shares the Rig_Medium skeleton, so one character stands in
     // for all of them under the tape measure.
@@ -991,7 +1095,7 @@ function makeKayKitCharacter(
       anchor.add(builtWeapon);
     }
   }
-  slot('handslot.l', spec.left);
+  slot('handslot.l', spec.left, undefined, spec.leftRot);
   slot('chest', spec.back, [0, 0, -0.14]);
 
   const s = char.scale * (spec.scale ?? 1);
