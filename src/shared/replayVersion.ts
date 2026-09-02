@@ -20,6 +20,25 @@
  * directly.
  */
 /**
+ * 40: soldiers take up room.
+ *
+ * Every soldier on the map — a player's, a rival's, a bandit's — now holds
+ * every other soldier off at arm's length (systems/separation.ts, run
+ * between movement and combat every tick): two closer than SEPARATION are
+ * pushed apart, a man standing his ground is not budged by one walking
+ * into him, and the walker is turned aside so he goes round. Serfs and
+ * workers are exempt both ways, so no errand ever jams behind a crowd.
+ *
+ * This is a tick change through and through. A squad that converged on one
+ * enemy used to stop stacked on the first point of its route within reach;
+ * it fans out into a ring now, so every soldier stands somewhere else,
+ * strikes from somewhere else, and is acquired, chased and shot at from
+ * somewhere else — and a column marching down one road arrives spread
+ * along it rather than as the stack it left as. The same log re-run on
+ * this build fights every battle from different ground, which is exactly
+ * what version equality promises it will not do.
+ */
+/**
  * 39: a match can be set to a difficulty.
  *
  * Two halves, and only one of them is the reason for the bump. The
@@ -453,4 +472,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 39;
+export const REPLAY_VERSION = 40;

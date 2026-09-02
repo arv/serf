@@ -165,8 +165,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // ground, and holds its planks for the woodcutter rather than the well;
 // all three speak in commands the sim already took, and playback replays
 // the logged commands rather than re-deriving them.)
-const EXPECTED_VERSION = 39;
-const EXPECTED_HASH = 'b4f38ce69374d63c69fb43a8ea65978b';
+// 40 for soldiers taking up room (systems/separation.ts, a new tick
+// system between movement and combat): every soldier holds every other
+// soldier off, standers hold their ground and walkers go round, and serfs
+// walk through everyone. Positions are the surface — a squad on one enemy
+// stands in a ring now instead of a stack, so every strike, chase and
+// acquisition in a logged battle lands from different ground (see
+// replayVersion.ts).
+const EXPECTED_VERSION = 40;
+const EXPECTED_HASH = '4728b2cdf1578ac0bb4e4c68862fd3a5';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -43,6 +43,7 @@ import {
 import {movementSystem} from './systems/movement.ts';
 import {productionSystem, unbindWorker} from './systems/production.ts';
 import {researchSystem} from './systems/research.ts';
+import {separationSystem} from './systems/separation.ts';
 import {staffingSystem} from './systems/staffing.ts';
 import {trailsSystem} from './systems/trails.ts';
 import {
@@ -87,7 +88,7 @@ export interface PlayerCommand {
  * One fixed-timestep step. System order is deliberate and fixed; new systems
  * slot into this list as milestones land:
  * commands -> production -> logistics -> construction -> behaviors ->
- * movement -> trails -> removeDead.
+ * movement -> separation -> combat -> trails -> removeDead.
  */
 export function tickWorld(
   world: World,
@@ -122,6 +123,7 @@ export function tickWorld(
   hiringSystem(world);
   wanderSystem(world, rng);
   movementSystem(world);
+  separationSystem(world);
   combatSystem(world);
   banditsSystem(world, rng);
   trailsSystem(world);
