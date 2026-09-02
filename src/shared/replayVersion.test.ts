@@ -191,8 +191,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // in a rival's yard replays as it dug. economyRules.ts, siting.ts and
 // map.ts (an export and a shared scan, no draw moved) are on the surface
 // for the sim they are, so the hash moved anyway.
-const EXPECTED_VERSION = 42;
-const EXPECTED_HASH = '505fd019f5177de9c694985d377e431f';
+// 43 for the reserve iron seam (map.ts IRON_RESERVE_WORTH): every start
+// on every generated map now has a second iron seam out past its home
+// ring. Drawn last, so the valley lies as it did — but the ore is there,
+// and a replay's mines go looking for it (see replayVersion.ts). The seats
+// keeping to their own side of the valley, and off ground their
+// foundations were razed on, is brain and rule work playback never runs.
+const EXPECTED_VERSION = 43;
+const EXPECTED_HASH = '571202091e116d41ffec4fdf338dcaea';
 
 /**
  * Everything a replay's playback depends on, as raw source:
