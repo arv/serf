@@ -185,7 +185,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // which errand is the sim, and lower priority now means less often rather
 // than never. In replayVersion.ts at length.
 const EXPECTED_VERSION = 42;
-const EXPECTED_HASH = '0e1cdc6c3f81d97f542b9ebebf969f83';
+const EXPECTED_HASH = '3a7772b82ddc25c8df38b17d3c98552d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

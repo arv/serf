@@ -640,8 +640,10 @@ function dispatch(world: World): void {
     const hands = busy.get(owner) ?? [0, 0, 0];
     const next = [0, 0, 0];
     while (idle.length > 0) {
-      // The tier furthest below its share of the hands (HAUL_SHARE), the
-      // lower tier on a tie. Shares are taken over the tiers that still
+      // The tier furthest below its share of the hands (HAUL_SHARE); on a
+      // tie the more urgent one, tier 1 before 2 before 3, which is what
+      // the ascending scan with a strict `>` gives. Shares are taken over
+      // the tiers that still
       // have a job to give, and so are the hands already out for them: a
       // tier with nothing left is not in the sum, so its share falls to
       // whoever has work, and a lone site's six planks still take every
