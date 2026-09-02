@@ -7,6 +7,7 @@ import {
   ABBEY_ALE_CAP,
   BARRACKS_ALE_CAP,
   EVAC_PRIORITY,
+  HAUL_SHARE,
   type HaulPriority,
 } from '../defs/balance.ts';
 import {
@@ -610,66 +611,118 @@ function dispatch(world: World): void {
   if (idleByOwner.size === 0) return;
 
   // Sort only once we know somebody can actually claim a job — this runs
-  // every tick, and most ticks have no idle serfs.
-  open.sort(
-    (a, z) =>
-      a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
-  );
+  // every tick, and most ticks have no idle serfs. Oldest first; the tier is
+  // chosen below, per hand, and this is the order within it.
+  open.sort((a, z) => a.createdTick - z.createdTick || a.id - z.id);
 
+  // Per owner: the open jobs of each tier in that order, and how many hands
+  // each tier already has — every job a serf is walking for, pickup or
+  // dropoff, counts as one. Rehomed cargo (a priority-2 delivery with no
+  // pickup) counts like any other.
+  const queues = new Map<Owner, [HaulJob[], HaulJob[], HaulJob[]]>();
+  const busy = new Map<Owner, [number, number, number]>();
   for (const job of open) {
-    const idle = idleByOwner.get(job.owner);
-    if (!idle || idle.length === 0) continue;
-    const from = world.buildings.get(job.from);
-    if (!from) continue; // reconcile will clean it up
+    if (!idleByOwner.has(job.owner)) continue;
+    let q = queues.get(job.owner);
+    if (!q) queues.set(job.owner, (q = [[], [], []]));
+    q[job.priority - 1]!.push(job);
+  }
+  for (const job of world.jobs.values()) {
+    if (job.serfId === undefined || !idleByOwner.has(job.owner)) continue;
+    let b = busy.get(job.owner);
+    if (!b) busy.set(job.owner, (b = [0, 0, 0]));
+    b[job.priority - 1]!++;
+  }
 
-    // Nearest idle serf to the pickup.
-    const c = centerOf(from);
-    let bestIdx = -1;
-    let bestDist = Infinity;
-    for (let i = 0; i < idle.length; i++) {
-      const s = idle[i]!;
-      const dist = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestIdx = i;
+  for (const [owner, idle] of idleByOwner) {
+    const q = queues.get(owner);
+    if (!q) continue;
+    const hands = busy.get(owner) ?? [0, 0, 0];
+    const next = [0, 0, 0];
+    while (idle.length > 0) {
+      // The tier furthest below its share of the hands (HAUL_SHARE), the
+      // lower tier on a tie. Shares are taken over the tiers that still
+      // have a job to give, and so are the hands already out for them: a
+      // tier with nothing left is not in the sum, so its share falls to
+      // whoever has work, and a lone site's six planks still take every
+      // hand. The target counts the hand about to be given, so two hands
+      // over shares 2:1 split one and one rather than both to the two.
+      let shareSum = 0;
+      let handsOut = 0;
+      for (let t = 0; t < 3; t++) {
+        if (next[t]! >= q[t]!.length) continue;
+        shareSum += HAUL_SHARE[(t + 1) as HaulPriority];
+        handsOut += hands[t]!;
       }
-    }
-    const serf = idle[bestIdx]!;
-
-    const path = findPathToAdjacent(
-      world.map,
-      Math.floor(serf.x),
-      Math.floor(serf.y),
-      from.x,
-      from.y,
-      from.w,
-      from.h,
-    );
-    if (!path) {
-      job.blockedUntil = world.tick + JOB_BLOCKED_BACKOFF;
-      job.blockedCount = (job.blockedCount ?? 0) + 1;
-      if (job.blockedCount >= 4) {
-        // Persistently unreachable (a walled-in doorway, say): stop pinning
-        // the source's stock and suspend this demand so other consumers —
-        // like storehouse evacuation — can have the goods.
-        const dest = world.buildings.get(job.to);
-        if (dest) {
-          dest.demandBackoff ??= {};
-          dest.demandBackoff[job.good] = world.tick + 600;
+      if (shareSum === 0) break;
+      let tier = -1;
+      let bestDeficit = -Infinity;
+      for (let t = 0; t < 3; t++) {
+        if (next[t]! >= q[t]!.length) continue;
+        const target =
+          (HAUL_SHARE[(t + 1) as HaulPriority] / shareSum) * (handsOut + 1);
+        const deficit = target - hands[t]!;
+        if (deficit > bestDeficit) {
+          bestDeficit = deficit;
+          tier = t;
         }
-        abortJob(world, job, 'unreachable after repeated attempts');
       }
-      continue;
-    }
-    job.blockedCount = 0;
+      const job = q[tier]![next[tier]!]!;
+      next[tier]!++;
 
-    idle.splice(bestIdx, 1);
-    job.phase = HaulPhase.toPickup;
-    job.serfId = serf.id;
-    serf.jobId = job.id;
-    serf.path = path;
-    serf.pathIdx = 0;
-    serf.task = {t: UnitTaskKind.haul};
+      const from = world.buildings.get(job.from);
+      if (!from) continue; // reconcile will clean it up
+
+      // Nearest idle serf to the pickup.
+      const c = centerOf(from);
+      let bestIdx = -1;
+      let bestDist = Infinity;
+      for (let i = 0; i < idle.length; i++) {
+        const s = idle[i]!;
+        const dist = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      const serf = idle[bestIdx]!;
+
+      const path = findPathToAdjacent(
+        world.map,
+        Math.floor(serf.x),
+        Math.floor(serf.y),
+        from.x,
+        from.y,
+        from.w,
+        from.h,
+      );
+      if (!path) {
+        job.blockedUntil = world.tick + JOB_BLOCKED_BACKOFF;
+        job.blockedCount = (job.blockedCount ?? 0) + 1;
+        if (job.blockedCount >= 4) {
+          // Persistently unreachable (a walled-in doorway, say): stop pinning
+          // the source's stock and suspend this demand so other consumers —
+          // like storehouse evacuation — can have the goods.
+          const dest = world.buildings.get(job.to);
+          if (dest) {
+            dest.demandBackoff ??= {};
+            dest.demandBackoff[job.good] = world.tick + 600;
+          }
+          abortJob(world, job, 'unreachable after repeated attempts');
+        }
+        continue;
+      }
+      job.blockedCount = 0;
+
+      idle.splice(bestIdx, 1);
+      hands[tier]!++;
+      job.phase = HaulPhase.toPickup;
+      job.serfId = serf.id;
+      serf.jobId = job.id;
+      serf.path = path;
+      serf.pathIdx = 0;
+      serf.task = {t: UnitTaskKind.haul};
+    }
   }
 }
 

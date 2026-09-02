@@ -582,3 +582,14 @@ evacuation block in `sim/systems/logistics.ts` reads, with every other good
 still at 3 — level with the mill's wheat and still behind every site's
 materials. `REPLAY_VERSION` 40. The brain-side fix above stands; this is the
 logistics half it declined to reach for.
+
+**Correction (2026-09-02, later the same day): the rank starved wood.** A
+mine at tier 2 never drains, and the dispatcher served tier 3 only when 1 and
+2 were both empty — so on the human seat, with two or three free hands, the
+woodcutter's shelf sat full and reserved while every serf walked past it for
+silver. The tiers are now shares of the hands (`HAUL_SHARE` in
+`sim/defs/balance.ts`, 4:2:1, read by `dispatch` in
+`sim/systems/logistics.ts`): the next idle serf goes to the tier furthest
+below its share, and lower priority means served less often, never not at
+all. `REPLAY_VERSION` 42. The matcher's strict rank over scarce supply is
+untouched.
