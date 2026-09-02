@@ -87,8 +87,9 @@ export interface PlayerCommand {
 /**
  * One fixed-timestep step. System order is deliberate and fixed; new systems
  * slot into this list as milestones land:
- * commands -> production -> logistics -> construction -> behaviors ->
- * movement -> separation -> combat -> trails -> removeDead.
+ * commands -> research -> production -> logistics -> construction ->
+ * staffing -> training -> hiring -> wander -> movement -> separation ->
+ * combat -> bandits -> trails -> victory -> removeDead.
  */
 export function tickWorld(
   world: World,

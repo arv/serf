@@ -174,7 +174,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // acquisition in a logged battle lands from different ground (see
 // replayVersion.ts).
 const EXPECTED_VERSION = 40;
-const EXPECTED_HASH = '9bca89de4e0fcbe39972c8a762e9d005';
+const EXPECTED_HASH = '3447d9b095ff8501523dcd8a02030287';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -77,9 +77,10 @@ export interface Unit {
   /**
    * Consecutive ticks a standing enemy has held this walker off (see
    * separation.ts holdOff). A walker wedged against an enemy's rank for
-   * DETOUR_AFTER of them re-plans his route round it. Soldiers only, and
-   * only while pinned: cleared (to undefined, lazily — see clearMarchSpeed
-   * for why) the first tick nobody holds him.
+   * DETOUR_AFTER of them re-plans his route round it, and the count starts
+   * over for the new route — so it is absent both when nobody holds him
+   * and on the tick he detoured. Soldiers only, and never 0: absent (undefined,
+   * lazily — see clearMarchSpeed for why) is the only "no count" state.
    */
   heldTicks?: number;
   // Combat runtime (units with a combat def):

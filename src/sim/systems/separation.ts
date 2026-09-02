@@ -55,7 +55,16 @@ export function separationSystem(world: World): void {
     soldiers.push(u);
   }
   const n = soldiers.length;
-  if (n < 2) return;
+  // Last tick's holds are over whatever happens below: combat reads
+  // heldIds after this, and a stale entry would have a man fight a wall
+  // that is no longer there. The one soldier left on a map has nobody to
+  // be held by, so his count ends too.
+  heldIds.clear();
+  if (n < 2) {
+    if (n === 1 && soldiers[0]!.heldTicks !== undefined)
+      soldiers[0]!.heldTicks = undefined;
+    return;
+  }
   // Sort-and-sweep along x: a pair further apart in x alone than
   // SEPARATION cannot be within it, so the inner loop stops at the first
   // such neighbor. Ties broken by id so the order is a function of the
@@ -143,7 +152,6 @@ export function separationSystem(world: World): void {
     }
   }
 
-  heldIds.clear();
   for (let i = 0; i < n; i++) {
     let px = pushX[i]!;
     let py = pushY[i]!;
@@ -166,7 +174,7 @@ export function separationSystem(world: World): void {
       u.heldTicks = (u.heldTicks ?? 0) + 1;
       if (u.heldTicks >= DETOUR_AFTER) {
         detour(world, u, soldiers);
-        u.heldTicks = 0;
+        u.heldTicks = undefined; // the count starts over on the new route
       }
     } else if (u.heldTicks !== undefined) u.heldTicks = undefined;
     if (holdX === 0 && holdY === 0) continue;

@@ -8,7 +8,11 @@ import {BANDIT} from './entities.ts';
 import {hashWorld} from './hash.ts';
 import {findPath} from './path.ts';
 import {movementSystem} from './systems/movement.ts';
-import {SEPARATION, separationSystem} from './systems/separation.ts';
+import {
+  SEPARATION,
+  heldByEnemy,
+  separationSystem,
+} from './systems/separation.ts';
 import {addStorehouse, bareWorld, cmds} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import type {Unit} from './units.ts';
@@ -274,6 +278,27 @@ describe('a standing enemy line', () => {
     expect(knight.task.t).toBe(UnitTaskKind.idle);
     expect(Math.floor(knight.x)).toBe(42);
     expect(knight.hp).toBeGreaterThan(0);
+  });
+
+  it('releases its hold the tick it is gone, even with one soldier left', () => {
+    // The hold is per tick: combat reads it right after separation, so a
+    // tick in which separation had nothing to do (one soldier on the map)
+    // must still say "held by nobody", or the survivor would keep fighting
+    // a wall that is no longer there and carry his pin count forever.
+    const world = bareWorld();
+    const sentry = spawnUnit(world, UnitTypeId.marauder, BANDIT, 30.5, 30.5);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.0, 30.5);
+    knight.path = findPath(world.map, 30, 30, 36, 30);
+    knight.pathIdx = 0;
+    knight.task = {t: UnitTaskKind.move};
+    walk(world, 3, () => {});
+    expect(heldByEnemy(knight.id)).toBe(true);
+    expect(knight.heldTicks).toBe(3);
+
+    sentry.dead = true;
+    walk(world, 1, () => {});
+    expect(heldByEnemy(knight.id)).toBe(false);
+    expect(knight.heldTicks).toBeUndefined();
   });
 
   it('is fought by the man it holds off, not pressed at', () => {
