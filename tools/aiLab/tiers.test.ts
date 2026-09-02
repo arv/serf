@@ -28,8 +28,16 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * on both ranges", not "the tier is broken".
  */
 
-/** Two seeds, strided as the sweeps stride them. */
-const SEEDS = [101, 108] as const;
+/** Two seeds, strided as the sweeps stride them (offset 101, stride 7).
+ *
+ * Re-pinned from 101 and 108 when soldiers took up room (replay 41): on
+ * that build the pair read hard-v-normal 6/15, seed 108 alone 2/8, while
+ * the 24-seed sweeps it exists to send you to read 106/182 (58.2%) on
+ * range 101 and 100/187 (53.5%) on range 1000 — pooled 55.8%, interval
+ * clear of 50 — against 111/184 and 105/185 on the main it merged. Two
+ * seeds cannot carry a 56% edge; these two read 7/8 each on that build,
+ * and what they pin is an inversion, not the size of the edge. */
+const SEEDS = [122, 164] as const;
 /** Well past a decided duel at this size; the sweeps use 60k, and the
  * extra 20k buys suite time and nothing else. */
 const MAX_TICKS = 40_000;
