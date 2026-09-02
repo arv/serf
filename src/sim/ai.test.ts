@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import type {Enum} from '../shared/enum.ts';
 import {tileIdx} from '../shared/grid.ts';
 import {AiSeats} from './aiSeats.ts';
+import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import {checkInvariants} from './debug/invariants.ts';
@@ -23,7 +24,13 @@ import {BANDIT, type Building} from './entities.ts';
 import {countResourceNear} from './map.ts';
 import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
-import {AI_PACING, AI_STALL, AiBrain, LEVY_HOLD} from './systems/ai.ts';
+import {
+  AI_PACING,
+  AI_SITING,
+  AI_STALL,
+  AiBrain,
+  LEVY_HOLD,
+} from './systems/ai.ts';
 import {
   addBuiltHut,
   addResourceTile,
@@ -39,6 +46,7 @@ import {
   createWorld,
   type World,
   type WorldConfig,
+  destroyBuilding,
   placeBuiltBuilding,
   placeSite,
   spawnUnit,
@@ -634,6 +642,122 @@ describe('the stall watchdog', () => {
     // and the seat still lays it. This is the guard that keeps the reserve
     // from being a deadlock.
     expect(plank(4, false)).toMatchObject([well]);
+  });
+
+  it("sites a gatherer on its own side of the valley, never in a rival's yard", () => {
+    // The played case (seed 55973911): a warlord whose home iron was dug
+    // out found the next nearest iron on the map — the human's home seam,
+    // five tiles from the human's guard tower — and laid a mine on it
+    // every beat for two thousand ticks. The soldiers standing beside it
+    // razed forty-six foundations, and the wood, stone, tools and hands
+    // sent after each one were lost on the road. Nearest is not
+    // reachable when the ground between is somebody else's yard.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 10, 50, {}, 1); // the rival, in the south-west
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 20, [GoodId.stone]: 20});
+    // The only trees on the map stand at the rival's door.
+    for (let x = 8; x < 14; x++) addResourceTile(world, x, 46);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    const placed = (): SimCommand[] => {
+      world.tick += AI_PACING.decisionInterval;
+      return brain
+        .decide(world)
+        .filter(c => c.kind === CommandKind.placeBuilding);
+    };
+    // The plan's first step is the woodcutter, and there is wood on the
+    // shelf for it: it is skipped for the grove's owner alone, and the
+    // plan moves on to a step with ground of its own.
+    expect(placed()).not.toContainEqual(
+      expect.objectContaining({building: BuildingTypeId.woodcutter}),
+    );
+    // A dead rival's yard is open ground.
+    world.players[1]!.alive = false;
+    const cutter = placed().find(
+      c =>
+        c.kind === CommandKind.placeBuilding &&
+        c.building === BuildingTypeId.woodcutter,
+    ) as {x: number; y: number} | undefined;
+    expect(cutter).toBeDefined();
+    expect(Math.abs(cutter!.y - 46)).toBeLessThanOrEqual(6);
+  });
+
+  it("will not sell a worked-out extractor when the only live ground is a rival's", () => {
+    // The sale is only worth making if the build order can re-site the
+    // hut, and it reads the same line: a grove at a living rival's door
+    // is not somewhere to go.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 10, 50, {}, 1);
+    addStorehouse(world, 30, 30, {});
+    const dead = addBuiltHut(world, 40, 40); // no resource tile in reach
+    for (let x = 8; x < 14; x++) addResourceTile(world, x, 46);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    const sale = {kind: CommandKind.sellBuilding, buildingId: dead.id};
+    world.tick += AI_PACING.decisionInterval;
+    expect(brain.decide(world)).not.toContainEqual(sale);
+    world.players[1]!.alive = false;
+    world.tick += AI_PACING.decisionInterval;
+    expect(brain.decide(world)).toContainEqual(sale);
+  });
+
+  it('does not lay a foundation again on ground where the last one was razed', () => {
+    // The other half of the played case: a foundation stands at a fifth
+    // of its hp with nothing delivered, so soldiers already on the ground
+    // raze it inside a beat — and the build order, which rebuilds losses,
+    // laid the next one on the same tile the next beat, forty-six times.
+    // Every one sent haulers down the road with wood that was destroyed
+    // when the site died under them.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 10, 50, {}, 1); // a rival, so the match keeps playing
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 40, [GoodId.stone]: 40});
+    for (let x = 12; x < 18; x++) addResourceTile(world, x, 12); // the grove
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    const beat = (): SimCommand[] => {
+      world.tick += AI_PACING.decisionInterval;
+      const commands = brain.decide(world);
+      tickWorld(
+        world,
+        commands.map(cmd => ({playerId: 0, cmd})),
+      );
+      return commands.filter(c => c.kind === CommandKind.placeBuilding);
+    };
+    const cutters = (placed: SimCommand[]): SimCommand[] =>
+      placed.filter(
+        c =>
+          c.kind === CommandKind.placeBuilding &&
+          c.building === BuildingTypeId.woodcutter,
+      );
+    // The plan's first step goes up at the grove, and the seat reads its
+    // own foundation as the step met.
+    expect(cutters(beat()).length).toBe(1);
+    expect(cutters(beat())).toEqual([]);
+    const site = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.woodcutter,
+    )!;
+    expect(site.state).toBe(BuildingState.site);
+    // Razed before a plank arrived.
+    destroyBuilding(world, site);
+    // The next beat learns of it and lays nothing there — the plan moves on
+    // to a step with ground of its own, at the castle, rather than
+    // stalling.
+    const next = beat();
+    expect(cutters(next)).toEqual([]);
+    expect(next.length).toBe(1);
+    for (let i = 0; i < 3; i++) expect(cutters(beat())).toEqual([]);
+    // And once the mark has aged out, the grove is worth a hut again.
+    world.tick += AI_SITING.razedFor;
+    expect(cutters(beat()).length).toBe(1);
   });
 
   it('will not sell a worked-out extractor with nowhere live to move to', () => {
@@ -1458,9 +1582,12 @@ describe('the seat that sees its seam running out', () => {
    */
   function minedOut(
     leftInReach: number,
-    opts: {reserve?: boolean; successor?: boolean} = {},
+    opts: {reserve?: boolean; successor?: boolean; rival?: boolean} = {},
   ): {world: World; brain: AiBrain; mine: Building} {
-    const world = bareWorld();
+    const world = bareWorld(1, opts.rival ? 2 : 1);
+    // A living rival whose castle stands over the reserve, so the seam is
+    // its yard rather than this seat's (siting.ts rivalGround).
+    if (opts.rival) addStorehouse(world, 30, 60, {}, 1);
     // Exactly one mine's worth of materials: enough for the successor,
     // not enough for the abbey the plan wants next.
     addStorehouse(world, 30, 30, {[GoodId.wood]: 8, [GoodId.stone]: 4});
@@ -1538,6 +1665,20 @@ describe('the seat that sees its seam running out', () => {
     // beside the one that is already empty.
     const {world, brain} = minedOut(10, {reserve: false});
     expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+
+  it("leaves a seam in a living rival's yard alone, and digs it once the rival is gone", () => {
+    // The only second seam on the map lies at a rival's door. A mine laid
+    // there is a foundation for the rival's soldiers to raze and a road
+    // for its haulers to die on (the seed-55973911 replay: forty-six of
+    // them), so the seat holds its tired mine instead — until the rival's
+    // castle falls, when the seam is nobody's and the successor goes up.
+    const {world, brain} = minedOut(10, {rival: true});
+    expect(mineSites(beat(brain, world))).toEqual([]);
+    world.players[1]!.alive = false;
+    const sites = mineSites(beat(brain, world));
+    expect(sites.length).toBe(1);
+    expect(Math.abs(sites[0]!.y - 55)).toBeLessThanOrEqual(5);
   });
 
   it('lays one successor, not one a beat while it goes up', () => {

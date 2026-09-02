@@ -184,8 +184,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // HAUL_SHARE, read by dispatch in systems/logistics.ts): which serf takes
 // which errand is the sim, and lower priority now means less often rather
 // than never. In replayVersion.ts at length.
+// Still 42 after the seats learned whose ground a seam is (sim/siting.ts
+// rivalGround, nearestClaimableResource) and to keep off ground their own
+// foundations were just razed on (systems/ai.ts AI_SITING): brain and
+// rule work, which playback never runs — a seat that now refuses to dig
+// in a rival's yard replays as it dug. economyRules.ts, siting.ts and
+// map.ts (an export and a shared scan, no draw moved) are on the surface
+// for the sim they are, so the hash moved anyway.
 const EXPECTED_VERSION = 42;
-const EXPECTED_HASH = '3a7772b82ddc25c8df38b17d3c98552d';
+const EXPECTED_HASH = '505fd019f5177de9c694985d377e431f';
 
 /**
  * Everything a replay's playback depends on, as raw source:

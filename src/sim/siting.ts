@@ -1,6 +1,14 @@
 import type {Enum} from '../shared/enum.ts';
 import {BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeIdNs from './defs/buildingTypeIdEnum.ts';
+import type {Owner} from './entities.ts';
+import {
+  anchorOf,
+  nearestResourceOutside,
+  nearestResourceWhere,
+  type TileResourceKind,
+} from './map.ts';
+import * as TileResource from './tileResourceEnum.ts';
 import {canPlace, type World} from './world.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
@@ -46,4 +54,86 @@ export function findSpot(
     }
   }
   return null;
+}
+
+/**
+ * Whose ground a tile is: the seats' castles split the valley between
+ * them, and a tile that stands nearer a living rival's castle than this
+ * seat's own is the rival's yard. Exact ties are nobody's, so ground half
+ * way between two castles is open to both.
+ *
+ * The same line worldgen draws when it deals the ore (map.ts `isOwnGround`:
+ * every home seam lies on the ground nearest its own start, and a reserve
+ * seam a clear margin further from every rival), so a seat that keeps to
+ * it is keeping to what the map dealt it, not measuring anything new. A
+ * dead rival's yard is open: its castle is rubble and nothing defends the
+ * seam it was dealt.
+ *
+ * The distance is the map's own — from the starts' anchors, squared and
+ * whole so two hosts never disagree over a rounding.
+ */
+export function rivalGround(
+  world: World,
+  owner: Owner,
+): (x: number, y: number) => boolean {
+  const home = world.starts[owner];
+  if (!home) return () => false;
+  const mine = anchorOf(home);
+  const rivals: {x: number; y: number}[] = [];
+  for (const p of world.players) {
+    if (p.id === owner || !p.alive) continue;
+    const start = world.starts[p.id];
+    if (start) rivals.push(anchorOf(start));
+  }
+  if (rivals.length === 0) return () => false;
+  const d2 = (a: {x: number; y: number}, x: number, y: number): number =>
+    (x - a.x) * (x - a.x) + (y - a.y) * (y - a.y);
+  return (x, y) => {
+    const own = d2(mine, x, y);
+    return rivals.some(r => d2(r, x, y) < own);
+  };
+}
+
+/**
+ * The nearest live tile of a resource this seat may dig: `nearestResource`
+ * held to the seat's own side of the valley (`rivalGround`), and outside
+ * any ground its own gatherers already work (`worked`, as
+ * `nearestResourceOutside` reads it).
+ *
+ * The line exists because of what a seat did without it. A warlord whose
+ * home iron was dug out found the next nearest iron on the map — the
+ * human's home seam, forty-six tiles from its own castle and five from
+ * the human's guard tower — and laid a mine on it every beat for two
+ * thousand ticks, forty-six foundations razed by the soldiers standing
+ * beside them, and the wood, stone, tools and hands sent after each one
+ * lost on the road. Nearest is not reachable when the ground between is
+ * somebody else's yard.
+ *
+ * Gold is the one metal it does not hold back, because worldgen does not
+ * either: the gold sits in the middle of the map, contested by design and
+ * dealt to nobody, and on a three-seat valley the middle is nearer one
+ * castle than another however it is drawn.
+ */
+export function nearestClaimableResource(
+  world: World,
+  owner: Owner,
+  code: TileResourceKind,
+  cx: number,
+  cy: number,
+  worked: readonly {x: number; y: number; radius: number}[] = [],
+): number {
+  if (code === TileResource.GoldDep)
+    return nearestResourceOutside(world.map, code, cx, cy, worked);
+  const theirs = rivalGround(world, owner);
+  return nearestResourceWhere(
+    world.map,
+    code,
+    cx,
+    cy,
+    (x, y) =>
+      !theirs(x, y) &&
+      !worked.some(
+        w => Math.abs(x - w.x) <= w.radius && Math.abs(y - w.y) <= w.radius,
+      ),
+  );
 }

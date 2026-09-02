@@ -54,12 +54,12 @@ import {
   type Owner,
 } from '../entities.ts';
 import * as HeraldNote from '../heraldNoteEnum.ts';
-import {nearestResource, playMin, playMax, tileBlocks} from '../map.ts';
+import {playMin, playMax, tileBlocks, type TileResourceKind} from '../map.ts';
 import * as MatchState from '../matchStateEnum.ts';
 import {findPath} from '../path.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
-import {findSpot} from '../siting.ts';
+import {findSpot, nearestClaimableResource} from '../siting.ts';
 import * as Terrain from '../terrainEnum.ts';
 import * as TileResource from '../tileResourceEnum.ts';
 import type {Unit} from '../units.ts';
@@ -633,7 +633,37 @@ export const AI_WAR = {
   heraldMin: 6,
 } as const;
 
-const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, number>> = {
+/**
+ * Where a seat lays its foundations, and where it has learned not to.
+ *
+ * A foundation is the one building the enemy can raze for free: it stands
+ * at a fifth of its hp with nothing delivered, so soldiers already on the
+ * ground take it down inside a beat, and the build order — which reads
+ * standing counts and rebuilds losses — laid the next one on the same
+ * tile the next beat. The seed-55973911 replay has forty-six of them on one
+ * seam in two thousand ticks, and the same seat lost eighteen gold-mine
+ * foundations to a rival's knights standing over the gold; not one plank
+ * reached any of them, but every one sent a hauler down the road with
+ * wood in his arms that was destroyed when the site died under him.
+ *
+ * So a razed foundation marks its ground, and the plan keeps off the mark
+ * for a while. Outposts only — the seams and the shore — because the
+ * castle yard is the ground the seat defends and rebuilds under fire on
+ * purpose.
+ */
+export const AI_SITING = {
+  /** How long a razed foundation keeps its ground off the plan. The grudge
+   * window (AI_WAR.grudgeFor): long enough for the force that razed it to
+   * have marched on, short enough that a seam nobody is standing over is
+   * back on the list within the match. */
+  razedFor: 6_000,
+  /** Manhattan reach of a mark: past a soldier's acquire radius, so the
+   * next site is not laid one tile outside the last one's ashes, in the
+   * same men's reach. A mine's whole seam sits inside it. */
+  razedRadius: 8,
+} as const;
+
+const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, TileResourceKind>> = {
   [BuildAnchor.wood]: TileResource.Wood,
   [BuildAnchor.rock]: TileResource.Rock,
   [BuildAnchor.iron]: TileResource.IronDep,
@@ -745,6 +775,13 @@ export class AiBrain {
   #lastSortieTick = 0;
   /** Tick of the last outpost dispatch (AI_WAR.outpostCooldown). */
   #lastOutpostTick = 0;
+  /** This seat's foundations as of the last beat, by id: what a beat
+   * compares the world against to learn that one was razed (AI_SITING). */
+  #foundations = new Map<EntityId, {x: number; y: number}>();
+  /** Ground a foundation of this seat's was razed on, and until when the
+   * plan keeps off it. Brain-local like everything else here: a reloaded
+   * save lays one more foundation there and learns again. */
+  #razed: {x: number; y: number; until: number}[] = [];
   /** Tick the standing herald went out, -1 when none is pending — the
    * march it announced holds until AI_WAR.heraldLead has passed. */
   #heraldTick = -1;
@@ -1007,6 +1044,36 @@ export class AiBrain {
   }
 
   /**
+   * Learn from the foundations that did not survive since the last beat:
+   * a site of this seat's that is gone without ever having been built was
+   * razed (nothing else removes a site — the seat sells only built
+   * extractors), and its ground is marked for AI_SITING.razedFor. Then
+   * take stock of the foundations standing now, for the next beat to read.
+   */
+  #noteRazed(world: World, mine: Building[]): void {
+    const now = world.tick;
+    for (const [id, at] of this.#foundations) {
+      const b = world.buildings.get(id);
+      if (b && !b.dead) continue; // still standing, built or not
+      this.#razed.push({x: at.x, y: at.y, until: now + AI_SITING.razedFor});
+    }
+    this.#foundations.clear();
+    for (const b of mine) {
+      if (b.state === BuildingState.site)
+        this.#foundations.set(b.id, {x: b.x, y: b.y});
+    }
+    if (this.#razed.length > 0)
+      this.#razed = this.#razed.filter(r => r.until > now);
+  }
+
+  /** Is this tile inside the mark of a razed foundation (AI_SITING)? */
+  #razedNear(x: number, y: number): boolean {
+    return this.#razed.some(
+      r => Math.abs(r.x - x) + Math.abs(r.y - y) <= AI_SITING.razedRadius,
+    );
+  }
+
+  /**
    * Is `tick` one of this seat's decision beats? (Seats stagger so two
    * brains never fire on the same tick — an invariant that survives a
    * stretched interval and is why a tier may only ever stretch it; see
@@ -1036,6 +1103,7 @@ export class AiBrain {
     if (!sh) return commands; // one tick from elimination; nothing to do
     const baseX = sh.x + 1;
     const baseY = sh.y + 1;
+    this.#noteRazed(world, mine);
 
     // --- The stance, then the strategy it colors -----------------------------
     // Four layers, later over earlier. The printed playbook is the seat's
@@ -1138,6 +1206,7 @@ export class AiBrain {
      * the seat cannot pay for after that is skipped exactly as before.
      */
     let held: GoodAmounts | undefined;
+    const razedNear = (x: number, y: number): boolean => this.#razedNear(x, y);
     for (const step of s.build) {
       if (step.after && !researched(step.after)) continue;
       if (step.needs && !has(step.needs)) continue;
@@ -1157,13 +1226,13 @@ export class AiBrain {
         if (
           !held &&
           gatherRecipeOf(def) &&
-          spotFor(world, step, baseX, baseY)
+          spotFor(world, this.playerId, step, baseX, baseY, razedNear)
         ) {
           held = def.cost;
         }
         continue;
       }
-      const spot = spotFor(world, step, baseX, baseY);
+      const spot = spotFor(world, this.playerId, step, baseX, baseY, razedNear);
       if (!spot) continue;
       commands.push({
         kind: CommandKind.placeBuilding,
@@ -1322,6 +1391,7 @@ export class AiBrain {
       strategy: s,
       researched,
       counter: this.#counterPlan(world),
+      razedNear,
     };
     if (this.#rules.size > 0) {
       const recovery = runEconomyRules(
@@ -3161,41 +3231,57 @@ function sortedById(buildings: Building[]): Building[] {
   return [...buildings].sort((a, z) => a.id - z.id);
 }
 
-/** Where a build step wants to stand: at the base, or at its seam. */
+/**
+ * Where a build step wants to stand: at the base, or at its seam — the
+ * nearest seam on the seat's own side of the valley (siting.ts
+ * `nearestClaimableResource`), never a living rival's — and, away from
+ * the base, never on ground a foundation of this seat's was just razed on
+ * (`razedNear`, AI_SITING). Null is "not this beat", and the build order
+ * moves on down the list.
+ */
 function spotFor(
   world: World,
+  owner: Owner,
   step: BuildStep,
   baseX: number,
   baseY: number,
+  razedNear: (x: number, y: number) => boolean,
 ): {x: number; y: number} | null {
   if (step.anchor === BuildAnchor.base)
     return findSpot(world, step.type, baseX, baseY, step.radius);
+  const size = world.map.size;
+  const outpost = (
+    spot: {x: number; y: number} | null,
+  ): {x: number; y: number} | null =>
+    spot && razedNear(spot.x, spot.y) ? null : spot;
   // The shore is terrain, not a resource seam, so it gets its own search.
   // A map with no water near home simply never places the step, and the
   // brain moves on down the list — which is the right answer, not a stall.
   if (step.anchor === BuildAnchor.water) {
     const shore = nearestWater(world, baseX, baseY);
     if (shore < 0) return null;
-    const size = world.map.size;
-    return findSpot(
-      world,
-      step.type,
-      tileX(shore, size),
-      tileY(shore, size),
-      step.radius,
+    return outpost(
+      findSpot(
+        world,
+        step.type,
+        tileX(shore, size),
+        tileY(shore, size),
+        step.radius,
+      ),
     );
   }
   const code = ANCHOR_RESOURCE[step.anchor];
   if (code === undefined) return null; // the keep anchor sites off the castle, not a seam
-  const tile = nearestResource(world.map, code, baseX, baseY);
+  const tile = nearestClaimableResource(world, owner, code, baseX, baseY);
   if (tile < 0) return null;
-  const size = world.map.size;
-  return findSpot(
-    world,
-    step.type,
-    tileX(tile, size),
-    tileY(tile, size),
-    step.radius,
+  return outpost(
+    findSpot(
+      world,
+      step.type,
+      tileX(tile, size),
+      tileY(tile, size),
+      step.radius,
+    ),
   );
 }
 

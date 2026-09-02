@@ -270,7 +270,7 @@ export interface StartSpot {
  * bands that use it — anything measured against what the player can *see*
  * wants `castleCenter` instead.
  */
-function anchorOf(s: StartSpot): {x: number; y: number} {
+export function anchorOf(s: StartSpot): {x: number; y: number} {
   return {x: s.x + 2, y: s.y + 2};
 }
 
@@ -1671,6 +1671,31 @@ export function nearestResourceOutside(
   cy: number,
   worked: readonly {x: number; y: number; radius: number}[],
 ): number {
+  return nearestResourceWhere(
+    map,
+    code,
+    cx,
+    cy,
+    (x, y) =>
+      !worked.some(
+        w => Math.abs(x - w.x) <= w.radius && Math.abs(y - w.y) <= w.radius,
+      ),
+  );
+}
+
+/**
+ * The scan under both of the above: the nearest live tile of a resource
+ * (manhattan, ties to the lower index) among those `ok` admits. The
+ * predicate is asked only of tiles that hold the resource, so a caller
+ * may make it as dear as it likes.
+ */
+export function nearestResourceWhere(
+  map: GameMap,
+  code: number,
+  cx: number,
+  cy: number,
+  ok: (x: number, y: number) => boolean,
+): number {
   const size = map.size;
   const lo = playMin(map);
   const hi = playMax(map);
@@ -1682,13 +1707,7 @@ export function nearestResourceOutside(
       if (map.resource[i] !== code || map.resourceAmt[i]! <= 0) continue;
       const d = Math.abs(x - cx) + Math.abs(y - cy);
       if (d >= bestDist) continue;
-      if (
-        worked.some(
-          w => Math.abs(x - w.x) <= w.radius && Math.abs(y - w.y) <= w.radius,
-        )
-      ) {
-        continue;
-      }
+      if (!ok(x, y)) continue;
       bestDist = d;
       best = i;
     }
