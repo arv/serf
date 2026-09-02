@@ -330,7 +330,11 @@ if (mode === 'curve') {
   strike('Rig_Medium_CombatMelee.glb', 'Melee_1H_Attack_Chop');
   strike('Rig_Medium_CombatMelee.glb', 'Melee_1H_Attack_Stab');
   strike('Rig_Medium_CombatMelee.glb', 'Melee_2H_Attack_Chop');
-  strike('Rig_Medium_CombatRanged.glb', 'Ranged_Bow_Draw', 'hand.r');
+  // The archer's Bow_Shoot is composited in characters.ts: Ranged_Bow_Draw
+  // then Ranged_Bow_Release, the release half opening at phase 0.5 of the
+  // loop. What is measured here is where inside that half the string hand
+  // lets go — its swing window should start at 0.00.
+  strike('Rig_Medium_CombatRanged.glb', 'Ranged_Bow_Release', 'hand.r');
   console.log('\n== death');
   death('Rig_Medium_General.glb', 'Death_A');
 }

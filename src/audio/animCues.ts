@@ -100,8 +100,11 @@ export const LOOP_CUES: Partial<
       Melee_2H_Attack_Chop: 0.45,
     },
   },
-  // Ranged_Bow_Draw: the string hand snaps away at 0.50 and the pose
-  // freezes by 0.58 — the twang belongs to the release, not the hold.
+  // Bow_Shoot is Ranged_Bow_Draw then Ranged_Bow_Release, composited at
+  // load to exactly twice the draw's length (characters.ts), so the
+  // release opens at 0.50 by construction: the string hand snaps away in
+  // the first 0.07s of the release half (measured on Ranged_Bow_Release
+  // at 0.00..0.05). The twang belongs to that instant, not the draw.
   [AnimKey.shoot]: {cue: 'bowRelease', impactPhase01: 0.5, perCycle: 1},
   // Melee_2H_Attack_Slice as the mowing stroke: the hands wind up until
   // 0.30 and sweep 0.31..0.40 (speed peaks at 0.35) — a motion sound, so
