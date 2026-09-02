@@ -58,6 +58,25 @@ describe('the population cap', () => {
     expect(populationOf(world, 0)).toBe(3);
   });
 
+  it('counts a recruit the barracks is drilling, not one it is waiting for', () => {
+    // Enlisting marks the serf dead and leaves a started queue item behind;
+    // he is still one of yours, and still in his bed. An unstarted order is
+    // just an order.
+    const {world} = village(0);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      30,
+      30,
+    );
+    barracks.trainQueue = [
+      {unit: UnitTypeId.knight, ticksLeft: 100, started: true},
+      {unit: UnitTypeId.knight, ticksLeft: 0, started: false},
+    ];
+    expect(populationOf(world, 0)).toBe(1);
+  });
+
   it('leaves the dead and other seats out of the count', () => {
     const {world} = village(0);
     spawnUnit(world, UnitTypeId.serf, 0, 5, 5);

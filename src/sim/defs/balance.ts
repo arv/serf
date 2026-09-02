@@ -7,6 +7,7 @@ import * as GoodId from './goodIdEnum.ts';
 import type {GoodAmounts} from './goods.ts';
 import * as UnitClass from './unitClassEnum.ts';
 
+type GoodId = Enum<typeof GoodId>;
 type UnitClass = Enum<typeof UnitClass>;
 
 export const TICKS_PER_SECOND = 20;
@@ -52,6 +53,55 @@ export const START_STOCK: GoodAmounts = {
 // Logistics
 export const MATCHER_INTERVAL = 5; // ticks between matcher/reconcile passes
 export const JOB_BLOCKED_BACKOFF = 40; // ticks before retrying an unreachable job
+/**
+ * The haul board's three tiers, and what each one is for: 1 is a site's
+ * materials and an ordered repair's, 2 is a post's inputs and its tool (and
+ * the barracks' bread and weapons), 3 is a producer's output going home.
+ * Both sorts in systems/logistics.ts — the matcher's over demands and the
+ * dispatcher's over open jobs — key on this before anything else.
+ */
+export type HaulPriority = 1 | 2 | 3;
+/**
+ * The tier each good rides home at when a producer evacuates it to the
+ * storehouse.
+ *
+ * Everything is 3, because for nearly every good the shelf it was made on
+ * is as good as the castle's: a site pulls its planks from whichever
+ * building has them nearest, and a mill's wheat is matched from the farm
+ * directly. The load only has to go home eventually.
+ *
+ * Silver is the exception. A hire, a tech and a re-tooled post are all
+ * debited from the STOREHOUSE's shelf (tick.ts, systems/ai.ts), so a load
+ * of it sitting at the mine buys nothing at all — and on a busy board the
+ * one that pays for the next hand was a priority-3 job among forty others,
+ * behind every stone being carted home from a quarry nobody was waiting
+ * on (docs/plan-ai-robustness.md, "What this does not fix"). At 2 it ranks
+ * with the mill's wheat and the smith's iron, FIFO among them, and still
+ * behind every site's materials.
+ *
+ * Never 1: nothing a producer makes should outrank the walls going up.
+ */
+export const EVAC_PRIORITY: Readonly<Record<GoodId, HaulPriority>> = {
+  [GoodId.water]: 3,
+  [GoodId.wheat]: 3,
+  [GoodId.wood]: 3,
+  [GoodId.stone]: 3,
+  [GoodId.iron]: 3,
+  [GoodId.silver]: 2,
+  [GoodId.gold]: 3,
+  [GoodId.sword]: 3,
+  [GoodId.spear]: 3,
+  [GoodId.bow]: 3,
+  [GoodId.ale]: 3,
+  [GoodId.flour]: 3,
+  [GoodId.food]: 3,
+  [GoodId.axe]: 3,
+  [GoodId.pickaxe]: 3,
+  [GoodId.scythe]: 3,
+  [GoodId.hammer]: 3,
+  [GoodId.cauldron]: 3,
+  [GoodId.rod]: 3,
+};
 
 // Trails
 export const TRAILS_INTERVAL = 20; // ticks between trail passes

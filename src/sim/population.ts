@@ -24,17 +24,27 @@ import type {World} from './world.ts';
  */
 
 /** Living people this seat owns: serfs, resident workers and soldiers —
- * including the ones a tower has swallowed. A garrisoned archer is not a
- * unit on the map any more (staffing.ts consumes him the way the barracks
- * consumes a recruit), so he has to be counted from the building or manning
- * a tower would quietly free the bed he sleeps in. */
+ * including the ones a tower has swallowed and the ones the barracks is
+ * still drilling. A garrisoned archer is not a unit on the map any more
+ * (staffing.ts consumes him the way the barracks consumes a recruit), so
+ * he has to be counted from the building or manning a tower would quietly
+ * free the bed he sleeps in. The recruit is the same case one door over:
+ * enlisting marks the serf dead and the started queue item is all that is
+ * left of him until the soldier walks out, and a count that forgot him
+ * let a hire land in that window — so the soldier then stepped out one
+ * head over the cap. Only a STARTED item holds a man; an unstarted one is
+ * still waiting for him at the door. */
 export function populationOf(world: World, owner: Owner): number {
   let n = 0;
   for (const u of world.units.values()) {
     if (!u.dead && u.owner === owner) n++;
   }
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.owner === owner) n += b.garrison ?? 0;
+    if (b.dead || b.owner !== owner) continue;
+    n += b.garrison ?? 0;
+    if (b.trainQueue) {
+      for (const item of b.trainQueue) if (item.started) n++;
+    }
   }
   return n;
 }

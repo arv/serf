@@ -82,6 +82,65 @@ describe('logistics matcher', () => {
     expectClean(world);
   });
 
+  it('silver jumps the evacuation queue, older planks or not', () => {
+    // A hire is paid from the castle's shelf, not the mine's, so silver
+    // going home rides at 2 (EVAC_PRIORITY) while every other output rides
+    // at 3 — and the dispatcher sorts on that before age, so the newer
+    // silver job beats the older wood job for the only pair of hands.
+    // Both posts staffed, so neither orders its tool (a priority-2 haul
+    // of its own) and the only jobs on the board are the two evacuations.
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const hut = addBuiltHut(world, 30, 30);
+    hut.stock[GoodId.wood] = 2;
+    run(world, 6); // the wood job is on the board first
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      30,
+      36,
+    );
+    staffBuilding(world, mine);
+    mine.stock[GoodId.silver] = 1;
+    run(world, 6); // now the silver job, six ticks younger
+    addSerf(world, 34, 34);
+    run(world, 2);
+
+    const assigned = [...world.jobs.values()].find(j => j.serfId !== undefined);
+    expect(assigned).toBeDefined();
+    expect(assigned!.good).toBe(GoodId.silver);
+    expect(assigned!.priority).toBe(2);
+    expect(assigned!.from).toBe(mine.id);
+    const wood = [...world.jobs.values()].find(j => j.good === GoodId.wood);
+    expect(wood!.priority).toBe(3);
+    expect(wood!.createdTick).toBeLessThan(assigned!.createdTick);
+    expectClean(world);
+  });
+
+  it('construction still outranks silver for the only serf', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      30,
+      30,
+    );
+    staffBuilding(world, mine);
+    mine.stock[GoodId.silver] = 1;
+    const site = addSite(world, 34, 30);
+    addSerf(world, 32, 33);
+    run(world, 2);
+
+    const assigned = [...world.jobs.values()].find(j => j.serfId !== undefined);
+    expect(assigned).toBeDefined();
+    expect(assigned!.priority).toBe(1);
+    expect(assigned!.to).toBe(site.id);
+    expectClean(world);
+  });
+
   it('FIFO: the older demand wins scarce supply', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});

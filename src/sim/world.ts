@@ -9,7 +9,12 @@ import {
 } from '../shared/grid.ts';
 import {Rng} from '../shared/rng.ts';
 import {dealStrategies, type AiStrategyId} from './defs/aiStrategies.ts';
-import {START_SERFS, START_STOCK, firstRaidTickFor} from './defs/balance.ts';
+import {
+  START_SERFS,
+  START_STOCK,
+  firstRaidTickFor,
+  type HaulPriority,
+} from './defs/balance.ts';
 import {
   TOOL_OF,
   buildingDef,
@@ -77,7 +82,7 @@ export interface HaulJob {
   to: EntityId;
   /** Faction the haul belongs to — jobs never cross owners (invariant). */
   owner: Owner;
-  priority: 1 | 2 | 3;
+  priority: HaulPriority;
   createdTick: number;
   phase: HaulPhase;
   serfId?: EntityId;

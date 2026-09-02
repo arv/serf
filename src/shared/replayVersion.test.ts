@@ -165,8 +165,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // ground, and holds its planks for the woodcutter rather than the well;
 // all three speak in commands the sim already took, and playback replays
 // the logged commands rather than re-deriving them.)
-const EXPECTED_VERSION = 39;
-const EXPECTED_HASH = 'b4f38ce69374d63c69fb43a8ea65978b';
+// 40 for silver's evacuation tier (defs/balance.ts EVAC_PRIORITY, read
+// by systems/logistics.ts): the haul board is the sim, and a serf who
+// used to shoulder the oldest plank now shoulders the silver instead —
+// and for the bed count learning to see a recruit inside the barracks
+// (sim/population.ts), which moves the hire gate. In replayVersion.ts
+// at length.
+const EXPECTED_VERSION = 40;
+const EXPECTED_HASH = 'e6b84a966fbdf442865ed847bbf90fa4';
 
 /**
  * Everything a replay's playback depends on, as raw source:
