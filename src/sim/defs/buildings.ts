@@ -1,5 +1,5 @@
 import type {Enum} from '../../shared/enum.ts';
-import {REPAIR_COST_SHARE} from './balance.ts';
+import {REPAIR_COST_SHARE, type HaulPriority} from './balance.ts';
 import * as BuildingTypeIdNs from './buildingTypeIdEnum.ts';
 
 export type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
@@ -112,7 +112,7 @@ export interface BuildingDef {
    */
   nearWater?: {radius: number};
   /** Site demand priority (construction defaults to 1; road paving uses 3). */
-  sitePriority?: 1 | 2 | 3;
+  sitePriority?: HaulPriority;
   /** Footprint does not block movement (road sites). */
   noBlock?: boolean;
   /** On completion: pave the tile to a stone road and remove the building. */

@@ -165,16 +165,23 @@ import {REPLAY_VERSION} from './replayVersion';
 // ground, and holds its planks for the woodcutter rather than the well;
 // all three speak in commands the sim already took, and playback replays
 // the logged commands rather than re-deriving them.)
-// 40 for soldiers taking up room (systems/separation.ts, a new tick
+// 40 for silver's evacuation tier (defs/balance.ts EVAC_PRIORITY, read
+// by systems/logistics.ts): the haul board is the sim, and a serf who
+// used to shoulder the oldest plank now shoulders the silver instead —
+// and for the bed count learning to see a recruit inside the barracks
+// (sim/population.ts), which moves the hire gate. In replayVersion.ts
+// at length.
+// 41 for soldiers taking up room (systems/separation.ts, a new tick
 // system between movement and combat): every soldier holds every other
 // soldier off, standers hold their ground and walkers go round, an enemy
 // rank standing its ground is a wall the men held at it fight, and serfs
 // walk through everyone. Positions are the surface — a squad on one enemy
 // stands in a ring now instead of a stack, so every strike, chase and
 // acquisition in a logged battle lands from different ground (see
-// replayVersion.ts).
-const EXPECTED_VERSION = 40;
-const EXPECTED_HASH = '3447d9b095ff8501523dcd8a02030287';
+// replayVersion.ts). It lands on top of main's 40, the silver tier, which
+// is why this is 41: the two shipped in different PRs.
+const EXPECTED_VERSION = 41;
+const EXPECTED_HASH = 'baabccd2de6fc93a38d994163b887dce';
 
 /**
  * Everything a replay's playback depends on, as raw source:
