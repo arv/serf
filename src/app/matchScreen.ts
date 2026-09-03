@@ -859,21 +859,28 @@ export async function runMatch(
     // fog (the unit and building syncs, the footprints, the chart), so
     // this one write turns the whole view at once.
     //
-    // The building pass is the exception that has to be told: it re-reads
-    // its fog rule only when a roster lands, and in a quiet minute of
-    // playback none does — the new seat's own storehouse would stay
-    // hidden, exactly as the rival's storehouse it was a moment ago. The
-    // unit and print passes run every frame and need no telling.
-    if (fog.owner !== viewerId()) {
-      fog.setOwner(viewerId());
-      buildingSync.update(roster);
-    }
     // Death lifts the fog: an eliminated seat is a spectator, and the
     // server has already stopped filtering what it sends us. The viewed
     // seat's death, since it is the view being drawn: watching the
     // Warlord's last stand in a replay, the valley opens when he falls.
     const fallen = playersMeta()[viewerId()]?.alive === false;
-    fog.setEnabled(fogEnabled() && !fallen);
+    const fogOn = fogEnabled() && !fallen;
+    // The building pass is the exception that has to be told: it re-reads
+    // its fog rule only when a roster lands, and the worker ships one only
+    // when the roster CHANGES (simWorker's structural gate) — never at all
+    // while playback is paused. Both of these change what the fog answers,
+    // so both drive a pass:
+    //
+    //   the seat — the new seat's own storehouse would stay hidden,
+    //   exactly as the rival's storehouse it was a moment ago;
+    //   the lifting — F over a paused replay would light the ground and
+    //   leave the rival's hut in it, which is not "reveal the valley".
+    //
+    // The unit and print passes run every frame and need no telling.
+    const turned = fog.owner !== viewerId() || fog.enabled !== fogOn;
+    fog.setOwner(viewerId());
+    fog.setEnabled(fogOn);
+    if (turned) buildingSync.update(roster);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,

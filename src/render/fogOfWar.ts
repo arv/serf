@@ -202,6 +202,13 @@ export class FogOfWar implements FogQuery {
     return this.#owner;
   }
 
+  /** Whether the fog is hiding anything — see setEnabled. Read by the one
+   * caller that has to re-drive a pass when the answer changes (the
+   * building sync, which is driven rather than polling). */
+  get enabled(): boolean {
+    return this.#enabled;
+  }
+
   /**
    * Draw the map through another seat's eyes: its sight lights the ground,
    * and the ground it remembers is the ground that stays drawn. Only a

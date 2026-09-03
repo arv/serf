@@ -718,6 +718,30 @@ describe('the seat the fog is drawn through', () => {
     litAt: () => 0,
   });
 
+  /** A fog switched off: it hides nothing, and says so by answering every
+   * query true (see FogOfWar.setEnabled). */
+  const liftedFor = (owner: number): FogQuery => ({
+    owner,
+    visibleAt: () => true,
+    exploredAt: () => true,
+    litAt: () => 1,
+  });
+
+  it('shows a hidden building again when the fog is lifted', () => {
+    const {sync, scene} = makeSync();
+    sync.setFog(blindFor(0));
+    sync.update([snap({owner: 1})]);
+    const root = scene.children[0]!;
+    expect(root.visible).toBe(false);
+
+    // "Reveal the valley" (or a seat's death) lifts the fog under a
+    // standing roster — nothing else is going to come along and say so,
+    // and the worker ships no roster at all while playback is paused.
+    sync.setFog(liftedFor(0));
+    sync.update([snap({owner: 1})]);
+    expect(root.visible).toBe(true);
+  });
+
   it('draws the seat it is turned to its own buildings, roster or no roster', () => {
     const {sync, scene} = makeSync();
     sync.setFog(blindFor(0));
