@@ -188,6 +188,7 @@ export function Hud(props: {
   onSaveReplay: () => void;
   onAdmin: (action: AdminAction) => void;
   onFocus: (x: number, y: number) => void;
+  onFocusSeat: (seat: number) => void;
   onSelectArmy: () => void;
   onDeselect: () => void;
   onPickUnit: (id: number, additive: boolean) => void;
@@ -521,12 +522,21 @@ export function Hud(props: {
    * on screen, and for saying which seat it is at all. It lets the
    * selection go first: a card drawn for one seat over a strip counting
    * another's would be two ledgers open at once.
+   *
+   * And it takes the camera with it, because the fog turns too: the seat
+   * whose people are nowhere on screen has, as a rule, never seen the
+   * ground the camera is over, so staying put would answer the click with
+   * an unbroken dark. Picking someone's man on the map is the case that
+   * does NOT move — there the camera is already looking at what was
+   * picked, and the point is to see that spot through his eyes.
    */
   const cycleSeat = (): void => {
     const seats = playersMeta().length;
     if (seats === 0) return;
     props.onDeselect();
-    viewSeat((viewerId() + 1) % seats);
+    const next = (viewerId() + 1) % seats;
+    viewSeat(next);
+    props.onFocusSeat(next);
   };
   /** The chip's face. The recorded seat is "You" rather than "Player 1":
    * the recording is of your match, and a rival's name is what the other
@@ -1779,7 +1789,7 @@ export function Hud(props: {
                     {...tooltip(() => (
                       <TextTip
                         title="Watching as"
-                        body="Whose village the goods strip, the wants, the tech tree and the warnings are about. Click a seat's people or buildings to turn the HUD to them, or click here for the next seat along."
+                        body="Whose village the goods strip, the wants, the tech tree and the warnings are about — and whose fog the valley is drawn through, so you see the match as that seat saw it. Click a seat's people or buildings to turn the HUD to them, or click here for the next seat along and its keep."
                       />
                     ))}
                     onClick={cycleSeat}

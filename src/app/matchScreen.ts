@@ -383,17 +383,12 @@ export async function runMatch(
     init.reader,
     mirror.map,
     heights,
-    config.myPlayerId,
     serfSole(),
     net !== undefined,
   );
   renderer.scene.add(footprints.mesh);
 
-  const buildingSync = new BuildingSync(
-    renderer.scene,
-    heights,
-    config.myPlayerId,
-  );
+  const buildingSync = new BuildingSync(renderer.scene, heights);
   // Terrain feed for the pier measurement: on a corner-only shore the
   // fishery's deck swings 45 degrees toward the wet diagonal.
   buildingSync.setWater(
@@ -406,12 +401,7 @@ export async function runMatch(
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);
   buildingSync.update(init.buildings);
 
-  const sync = new SceneSync(
-    renderer.scene,
-    init.reader,
-    heights,
-    config.myPlayerId,
-  );
+  const sync = new SceneSync(renderer.scene, init.reader, heights);
   sync.onCue = (cue, x, z, delaySec) => playAt(cue, x, z, 1, delaySec);
   // Arrows fly render -> render: the sync says when a bow looses and at
   // what, the arrows layer owns the flight. Same injection shape as the
@@ -439,7 +429,16 @@ export async function runMatch(
     sync.setFields(buildingSync.farmFields());
   };
   feedWells();
-  const fog = new FogOfWar(config.myPlayerId, init.map);
+  // A replay keeps every seat's memory, not just the recorded seat's: the
+  // HUD there can turn to any of them (ui/store.ts viewerId), and a seat
+  // whose scouting was never followed would light up as if it had been
+  // born the moment it was looked at. A match keeps one — nothing there
+  // moves the view off this client's own seat.
+  const fog = new FogOfWar(
+    config.myPlayerId,
+    init.map,
+    replay ? config.players.map((_, i) => i) : undefined,
+  );
   // Ahead of everything else at teardown: the materials it patched are
   // cached for the whole document, so they outlive this match and meet the
   // next one.
@@ -776,6 +775,17 @@ export async function runMatch(
     },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),
+    // A seat's keep is where its storehouse stands, exactly as the match
+    // opened on this client's own. A seat with nothing left standing
+    // leaves the camera where it is — there is nowhere to go, and a
+    // razed seat's fog is lifted anyway (see the loop's `fallen`).
+    focusSeat: seat => {
+      const keep =
+        roster.find(
+          b => b.type === BuildingTypeId.storehouse && b.owner === seat,
+        ) ?? roster.find(b => b.owner === seat);
+      if (keep) renderer.rig.glideTo(keep.x + keep.w / 2, keep.y + keep.h / 2);
+    },
     // The minimap's world: live handles, assembled here because this is
     // where the mirror, the fog, the unit reader and the rig all meet.
     // The component polls them on its own clock — nothing here has to
@@ -793,7 +803,6 @@ export async function runMatch(
       orderArmed: () => controls.orderArmed(),
       order: (x, z, secondary, px, py, queue) =>
         controls.orderAtMapPoint(x, z, secondary, px, py, queue),
-      myPlayerId: config.myPlayerId,
     },
   });
   teardown.push(unmountHud);
@@ -844,10 +853,34 @@ export async function runMatch(
     }
     // Fog first: the entity syncs below ask it what may be drawn, so it
     // has to reflect this frame's positions, not the last one's.
+    // The map is drawn through the VIEWED seat — this client's own in a
+    // match, and in a replay whichever seat the pointer or the seat chip
+    // last turned to. Everything that hides things reads the seat off the
+    // fog (the unit and building syncs, the footprints, the chart), so
+    // this one write turns the whole view at once.
+    //
     // Death lifts the fog: an eliminated seat is a spectator, and the
-    // server has already stopped filtering what it sends us.
-    const fallen = playersMeta()[myPlayerId()]?.alive === false;
-    fog.setEnabled(fogEnabled() && !fallen);
+    // server has already stopped filtering what it sends us. The viewed
+    // seat's death, since it is the view being drawn: watching the
+    // Warlord's last stand in a replay, the valley opens when he falls.
+    const fallen = playersMeta()[viewerId()]?.alive === false;
+    const fogOn = fogEnabled() && !fallen;
+    // The building pass is the exception that has to be told: it re-reads
+    // its fog rule only when a roster lands, and the worker ships one only
+    // when the roster CHANGES (simWorker's structural gate) — never at all
+    // while playback is paused. Both of these change what the fog answers,
+    // so both drive a pass:
+    //
+    //   the seat — the new seat's own storehouse would stay hidden,
+    //   exactly as the rival's storehouse it was a moment ago;
+    //   the lifting — F over a paused replay would light the ground and
+    //   leave the rival's hut in it, which is not "reveal the valley".
+    //
+    // The unit and print passes run every frame and need no telling.
+    const turned = fog.owner !== viewerId() || fog.enabled !== fogOn;
+    fog.setOwner(viewerId());
+    fog.setEnabled(fogOn);
+    if (turned) buildingSync.update(roster);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,

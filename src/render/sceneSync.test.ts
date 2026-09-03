@@ -35,7 +35,7 @@ function rig(units: UnitSnapshot[]): SceneSync {
   const reader = new SabReader(sab);
   writer.publish(units);
   reader.poll(0);
-  return new SceneSync(new THREE.Scene(), reader, flat, 0);
+  return new SceneSync(new THREE.Scene(), reader, flat);
 }
 
 describe('nearestEnemyInto', () => {

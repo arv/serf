@@ -1424,6 +1424,7 @@ describe('watching a replay', () => {
     const mill = theirs(9, THEM);
     h.addBuilding(mill);
     h.controls.setFog({
+      owner: ME,
       visibleAt: () => false,
       exploredAt: () => false,
       litAt: () => 0,
@@ -1435,6 +1436,7 @@ describe('watching a replay', () => {
 
     // F lifts the fog in a replay, and then the same click lands.
     h.controls.setFog({
+      owner: ME,
       visibleAt: () => true,
       exploredAt: () => true,
       litAt: () => 1,
