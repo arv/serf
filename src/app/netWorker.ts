@@ -266,8 +266,11 @@ function sendCommands(commands: SimCommand[]): void {
   if (socket?.readyState !== WebSocket.OPEN) return;
   // Start moving before the server has heard the order — the dead window
   // between click and answer is the whole of what a player feels as lag.
+  // Not for a queued order: the men it names are mostly still walking the
+  // one before it, and a guess that turns them toward the new tile now is
+  // a twitch the server's answer then has to undo.
   for (const cmd of commands) {
-    if (cmd.kind === CommandKind.moveUnits) {
+    if (cmd.kind === CommandKind.moveUnits && !cmd.queue) {
       lastUnitsIndex ??= new Map(lastUnitRows.map(u => [u.id, u]));
       predictor?.order(cmd.unitIds, cmd.x, cmd.y, lastUnitsIndex);
     }

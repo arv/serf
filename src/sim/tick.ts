@@ -10,6 +10,7 @@ import {
   FORGE_QUEUE_CAP,
   HIRE_QUEUE_CAP,
   HIRE_SERF_COST,
+  WAYPOINT_QUEUE_CAP,
 } from './defs/balance.ts';
 import {AUTO_RECIPE, buildingDef} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
@@ -24,7 +25,7 @@ import {
   UNIT_TYPES,
   effectiveSpeed,
 } from './defs/units.ts';
-import {BANDIT, type Owner} from './entities.ts';
+import {BANDIT, type Building, type Owner} from './entities.ts';
 import * as GameEventKind from './gameEventKindEnum.ts';
 import {findPath, nearestWalkable} from './path.ts';
 import {hasRoomToHire} from './population.ts';
@@ -57,7 +58,12 @@ import {
 import {victorySystem} from './systems/victory.ts';
 import {wanderSystem} from './systems/wander.ts';
 import {canResearch, getModifier, isBuildingUnlocked} from './techHelpers.ts';
-import {clearMarchSpeed, type Unit} from './units.ts';
+import {
+  clearMarchSpeed,
+  clearOrders,
+  type Unit,
+  type Waypoint,
+} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   canPlace,
@@ -89,7 +95,7 @@ export interface PlayerCommand {
  * slot into this list as milestones land:
  * commands -> research -> production -> logistics -> construction ->
  * staffing -> training -> hiring -> wander -> movement -> separation ->
- * combat -> bandits -> trails -> victory -> removeDead.
+ * combat -> waypoints -> bandits -> trails -> victory -> removeDead.
  */
 export function tickWorld(
   world: World,
@@ -126,6 +132,7 @@ export function tickWorld(
   movementSystem(world);
   separationSystem(world);
   combatSystem(world);
+  waypointSystem(world);
   banditsSystem(world, rng);
   trailsSystem(world);
   victorySystem(world);
@@ -174,7 +181,11 @@ export function applyCommand(
       // the order — and with it the squad pace, which was for a march
       // that is now over. The target goes too: a chaser told to hold
       // must not go on chasing, and combat's hold branch re-acquires
-      // anything actually within reach on the very next tick.
+      // anything actually within reach on the very next tick. The route
+      // queued behind the walk goes with it: "stop here" is not "stop
+      // here, then carry on", and a hold never ends on its own for the
+      // next leg to follow — it would only lie in wait for the fresh
+      // order that drops it anyway.
       for (const id of cmd.unitIds) {
         const unit = world.units.get(id);
         if (!unit || unit.dead || unit.owner !== playerId) continue;
@@ -182,6 +193,7 @@ export function applyCommand(
         unit.task = {t: UnitTaskKind.hold};
         unit.path = null;
         clearMarchSpeed(unit);
+        clearOrders(unit);
         unit.targetId = undefined;
         unit.targetIsBuilding = undefined;
       }
@@ -552,6 +564,221 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
 }
 
 /**
+ * The move command. A fresh order (no `queue`) is the one the click has
+ * always given: it replaces whatever each unit was doing, and with it any
+ * waypoints still lined up behind that. A queued order (Shift-click) waits
+ * its turn instead — appended to Unit.orders on every unit already walking
+ * an order (queueLeg), and given at once to the rest, who have nothing to
+ * wait behind.
+ *
+ * "Walking an order" is a move, an attack-move or an assault. A serf's
+ * stroll is a move too, so a waypoint shift-clicked onto a strolling serf
+ * waits the few tiles for his stroll to end; the alternative — marking
+ * which moves the player gave — buys nothing a player would notice. A serf
+ * on an errand (hauling, staffing) is not under an order at all, and takes
+ * the click now the way the unshifted click would: the errand is dropped.
+ *
+ * Handing the idle half of a squad its leg now and the walking half theirs
+ * later means the two halves arrive apart — which is what the player asked
+ * for by mixing them under one Shift-click, and what every RTS does.
+ */
+function applyMoveUnits(
+  world: World,
+  playerId: Owner,
+  cmd: {
+    unitIds: number[];
+    x: number;
+    y: number;
+    attack?: true | 'half';
+    queue?: true;
+  },
+): void {
+  const now: number[] = [];
+  const later: Unit[] = [];
+  for (const id of cmd.unitIds) {
+    const unit = world.units.get(id);
+    if (!unit || unit.dead || unit.owner !== playerId) continue;
+    if (cmd.queue && underOrders(unit)) {
+      later.push(unit);
+      continue;
+    }
+    // A fresh order — or a queued one on a unit with nothing to queue it
+    // behind, which is the same thing — starts a new route from here.
+    clearOrders(unit);
+    now.push(id);
+  }
+  if (later.length > 0)
+    queueLeg(world, playerId, later, cmd.x, cmd.y, cmd.attack);
+  if (now.length > 0) orderMove(world, playerId, now, cmd.x, cmd.y, cmd.attack);
+}
+
+/** Is the unit walking an order a waypoint can wait behind? */
+function underOrders(unit: Unit): boolean {
+  const t = unit.task.t;
+  return (
+    t === UnitTaskKind.move ||
+    t === UnitTaskKind.attackMove ||
+    t === UnitTaskKind.raid
+  );
+}
+
+/**
+ * Line one leg up behind whatever these units are walking.
+ *
+ * The squad's spread, battle order and marching pace are dealt HERE, when
+ * the leg is queued, rather than when it comes due — because it comes due
+ * one man at a time. A squad never finishes a leg on the same tick: its
+ * members were dealt different tiles and walk at different speeds, so each
+ * would be dispatched alone onto the tile nearest the click and the whole
+ * squad would pile onto that one tile, leg after leg (serfs are not even
+ * pushed apart). Dealt now, every man carries his own tile of the spread
+ * and the pace his squad marches at, and takes them the moment his turn
+ * comes — the formation slots an RTS assigns as the route is drawn.
+ *
+ * The formation faces the way the squad will actually be travelling: from
+ * where each man will be standing when this leg begins (expectedAt) —
+ * the end of his current order, or of the last leg already queued — not
+ * from where he stands now, which for the third click of a route is the
+ * wrong end of the valley.
+ *
+ * A leg clicked onto an enemy building is the assault it would have been
+ * had it been clicked then: it takes the click itself, unspread, and
+ * orderMove decides what it means when it comes due — the assault if the
+ * camp still stands, the walk there if not.
+ *
+ * A leg with nowhere to walk (a click into the margin) is dropped, which
+ * is what the fresh order does with such a click. A full queue drops the
+ * leg too, rather than the queue's head, so what the player has already
+ * lined up stays exactly as given.
+ */
+function queueLeg(
+  world: World,
+  playerId: Owner,
+  named: Unit[],
+  x: number,
+  y: number,
+  attack: true | 'half' | undefined,
+): void {
+  // Only the men who can still take a leg are the squad this leg is dealt
+  // to: a full queue counted in the spread would hold a tile — the front
+  // one, under the formation — for a man who never walks there.
+  const units = named.filter(
+    u => u.orders === undefined || u.orders.length < WAYPOINT_QUEUE_CAP,
+  );
+  if (units.length === 0) return;
+  const size = world.map.size;
+  let goals: number[] | null = null;
+  let pace = Infinity;
+  const serfMod = getModifier(world, playerId, ModifierKey.serfSpeed);
+  if (!hostileBuildingAt(world, playerId, x, y)) {
+    goals = collectSpreadTargets(world, x, y, units.length);
+    if (goals.length === 0) return;
+    orderFormation(units, goals, size, u => expectedAt(world, u));
+    pace = squadPace(units, serfMod);
+  }
+  let t = 0;
+  for (const unit of units) {
+    const slot = t++;
+    const wp: Waypoint = {x, y};
+    if (goals) {
+      const goal = goals[Math.min(slot, goals.length - 1)]!;
+      wp.x = tileX(goal, size);
+      wp.y = tileY(goal, size);
+    }
+    if (attack) wp.attack = attack;
+    // Only where it binds, the same rule the fresh order keeps.
+    if (pace < effectiveSpeed(unit.kind, serfMod)) wp.pace = pace;
+    if (unit.orders === undefined) unit.orders = [wp];
+    else unit.orders.push(wp);
+  }
+}
+
+/** The enemy building standing on this tile, if any — what a click there
+ * means an assault on. Out of bounds is no building. */
+function hostileBuildingAt(
+  world: World,
+  playerId: Owner,
+  x: number,
+  y: number,
+): Building | undefined {
+  const size = world.map.size;
+  if (!inBounds(x, y, size)) return undefined;
+  const bId = world.map.buildingAt[tileIdx(x, y, size)]!;
+  const target = bId >= 0 ? world.buildings.get(bId) : undefined;
+  return target && !target.dead && target.owner !== playerId
+    ? target
+    : undefined;
+}
+
+/**
+ * Where a unit will be standing when its queued route next gains a leg:
+ * the last leg already queued, else the end of the order it is walking —
+ * or, for an order with no end to name, where it stands now.
+ */
+function expectedAt(world: World, u: Unit): {x: number; y: number} {
+  const last = u.orders?.at(-1);
+  if (last) return {x: last.x + 0.5, y: last.y + 0.5};
+  const size = world.map.size;
+  switch (u.task.t) {
+    case UnitTaskKind.attackMove:
+      return {x: u.task.destX + 0.5, y: u.task.destY + 0.5};
+    case UnitTaskKind.raid: {
+      const b = world.buildings.get(u.task.buildingId);
+      if (b) return {x: b.x + b.w / 2, y: b.y + b.h / 2};
+      break;
+    }
+    default:
+      if (u.path) {
+        const goal = u.path[u.path.length - 1]!;
+        return {x: tileX(goal, size) + 0.5, y: tileY(goal, size) + 0.5};
+      }
+  }
+  return {x: u.x, y: u.y};
+}
+
+/**
+ * A squad marches at its slowest member's speed, so the column holds the
+ * battle order it was dealt instead of the fast arms outrunning the
+ * shield line. Solo orders walk at their own speed (Infinity: no cap).
+ * Effective speeds, the same ones movement's budget walks by: measured off
+ * the raw defs, a booted serf (Cobbled Boots outpaces a knight) marched
+ * unmarked and dragged the squad down to a stride he doesn't walk at.
+ */
+function squadPace(movers: readonly Unit[], serfMod: number): number {
+  let pace = Infinity;
+  if (movers.length > 1) {
+    for (const u of movers)
+      pace = Math.min(pace, effectiveSpeed(u.kind, serfMod));
+  }
+  return pace;
+}
+
+/**
+ * Hand every unit whose current order has just ended the next leg of its
+ * route (Unit.orders). After combat, because that is the last system that
+ * ends an order — a plain move goes idle in movement, an attack-move and an
+ * assault in combat — so a unit steps onto its next leg the same tick the
+ * last one finished, and never stands idle across a tick boundary where
+ * wander or the job board could claim him first.
+ *
+ * Each man takes his leg alone, on the tile and at the pace his squad was
+ * dealt when the leg was queued (queueLeg). A leg that cannot be walked —
+ * the goal sealed off since, a civilian's turn at an assault — leaves him
+ * idle, and the loop moves him straight on to the next, for the reason
+ * above.
+ */
+function waypointSystem(world: World): void {
+  for (const unit of world.units.values()) {
+    if (unit.dead || unit.orders === undefined) continue;
+    while (unit.orders !== undefined && unit.task.t === UnitTaskKind.idle) {
+      const wp = unit.orders.shift()!;
+      if (unit.orders.length === 0) clearOrders(unit);
+      orderMove(world, unit.owner, [unit.id], wp.x, wp.y, wp.attack, wp.pace);
+    }
+  }
+}
+
+/**
  * Group moves fan out over the walkable tiles nearest the target (spiral
  * order) so squads don't stack on one tile; a mixed squad claims those
  * tiles in battle order — knights up front, archers at the back
@@ -561,29 +788,36 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
  * three kinds — an attack-move fights whatever it meets on the way, a plain
  * move ignores enemies until it arrives, and the 'half' order walks the
  * front half of the route as a plain move before turning attack-move.
+ *
+ * Leaves Unit.orders alone: the command entry above decides what a fresh
+ * order does to the queue, and the waypoint step comes here for each leg
+ * of a route that must survive it — with `pace` set to the squad's pace
+ * that leg was dealt (squadPace), since the man arrives alone.
  */
-function applyMoveUnits(
+function orderMove(
   world: World,
   playerId: Owner,
-  cmd: {unitIds: number[]; x: number; y: number; attack?: true | 'half'},
+  unitIds: readonly number[],
+  x: number,
+  y: number,
+  attack: true | 'half' | undefined,
+  pace?: number,
 ): void {
+  const cmd = {unitIds, x, y, attack};
   const size = world.map.size;
-  if (inBounds(cmd.x, cmd.y, size)) {
-    const bId = world.map.buildingAt[tileIdx(cmd.x, cmd.y, size)]!;
-    const target = bId >= 0 ? world.buildings.get(bId) : undefined;
-    if (target && !target.dead && target.owner !== playerId) {
-      for (const id of cmd.unitIds) {
-        const unit = world.units.get(id);
-        if (!unit || unit.dead || unit.owner !== playerId) continue;
-        if (!UNIT_DEFS[unit.kind].combat) continue; // civilians don't storm camps
-        unit.task = {t: UnitTaskKind.raid, buildingId: target.id};
-        unit.targetId = target.id;
-        unit.targetIsBuilding = true;
-        unit.path = null;
-        clearMarchSpeed(unit); // an assault runs at true speeds
-      }
-      return;
+  const target = hostileBuildingAt(world, playerId, cmd.x, cmd.y);
+  if (target) {
+    for (const id of cmd.unitIds) {
+      const unit = world.units.get(id);
+      if (!unit || unit.dead || unit.owner !== playerId) continue;
+      if (!UNIT_DEFS[unit.kind].combat) continue; // civilians don't storm camps
+      unit.task = {t: UnitTaskKind.raid, buildingId: target.id};
+      unit.targetId = target.id;
+      unit.targetIsBuilding = true;
+      unit.path = null;
+      clearMarchSpeed(unit); // an assault runs at true speeds
     }
+    return;
   }
   const movers: Unit[] = [];
   for (const id of cmd.unitIds) {
@@ -594,18 +828,8 @@ function applyMoveUnits(
   const targets = collectSpreadTargets(world, cmd.x, cmd.y, movers.length);
   if (targets.length === 0) return;
   orderFormation(movers, targets, size);
-  // A squad marches at its slowest member's speed, so the column holds the
-  // battle order it was dealt instead of the fast arms outrunning the
-  // shield line. Solo orders walk at their own speed. Effective speeds, the
-  // same ones movement's budget walks by: measured off the raw defs, a
-  // booted serf (Cobbled Boots outpaces a knight) marched unmarked and
-  // dragged the squad down to a stride he doesn't walk at.
-  let pace = Infinity;
   const serfMod = getModifier(world, playerId, ModifierKey.serfSpeed);
-  if (movers.length > 1) {
-    for (const u of movers)
-      pace = Math.min(pace, effectiveSpeed(u.kind, serfMod));
-  }
+  pace ??= squadPace(movers, serfMod);
   let t = 0;
   for (const unit of movers) {
     const goal = targets[Math.min(t++, targets.length - 1)]!;
@@ -677,8 +901,16 @@ function applyMoveUnits(
  * ranks lean on Array#sort's guaranteed stability, so equals keep the
  * command's id order. A uniform squad is left exactly as it came —
  * order, tiles and all.
+ *
+ * `at` is where each man is taken to be standing — where he is, for an
+ * order given now; where he will be, for a leg queued behind others.
  */
-function orderFormation(movers: Unit[], targets: number[], size: number): void {
+function orderFormation(
+  movers: Unit[],
+  targets: number[],
+  size: number,
+  at: (u: Unit) => {x: number; y: number} = u => u,
+): void {
   const rank = (u: Unit) => {
     const combat = UNIT_DEFS[u.kind].combat;
     return combat ? FORMATION_RANK[combat.class] : CIVILIAN_FORMATION_RANK;
@@ -688,8 +920,9 @@ function orderFormation(movers: Unit[], targets: number[], size: number): void {
   let cx = 0;
   let cy = 0;
   for (const u of movers) {
-    cx += u.x;
-    cy += u.y;
+    const p = at(u);
+    cx += p.x;
+    cy += p.y;
   }
   cx /= movers.length;
   cy /= movers.length;

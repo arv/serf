@@ -20,6 +20,18 @@
  * directly.
  */
 /**
+ * 45: the Shift-click route.
+ *
+ * A move order carries a `queue` flag now (commands.ts), and a unit carries
+ * the legs lined up behind the one it is walking (Unit.orders): Shift-click
+ * queues a waypoint instead of replacing the order, and the tick's waypoint
+ * step (tick.ts waypointSystem, after combat) hands each man his next leg
+ * the moment the last one ends. A new field on the wire is pure format —
+ * no older log holds one, and a log without one plays back exactly, since
+ * the new step touches only units with a queue. On top of 44, which is
+ * why this is 45: the two shipped in different PRs.
+ */
+/**
  * 44: soldiers can hold ground.
  *
  * An eighteenth command kind (`holdGround`, commands.ts) and the stance it
@@ -560,4 +572,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 44;
+export const REPLAY_VERSION = 45;

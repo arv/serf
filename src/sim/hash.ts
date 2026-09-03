@@ -86,6 +86,17 @@ export function hashWorld(world: World): number {
     // least 1, and the field is dropped rather than zeroed when the hold
     // ends or a detour restarts it (see Unit.heldTicks).
     mixU32(u.heldTicks ?? 0);
+    // The route still to come. Two units can stand on the same tile under
+    // the same order and walk off in different directions when it ends.
+    mixU32(u.orders?.length ?? 0);
+    if (u.orders) {
+      for (const wp of u.orders) {
+        mixU32(wp.x);
+        mixU32(wp.y);
+        mix(wp.attack === true ? 2 : wp.attack === 'half' ? 1 : 0);
+        mixF64(wp.pace ?? 0); // 0 is a safe "own speed" sentinel, as above
+      }
+    }
     mix(u.task.t); // task tag
     if (u.task.t === UnitTaskKind.attackMove) {
       // The stored destination steers behavior for many ticks — a clone or

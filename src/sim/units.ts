@@ -7,6 +7,22 @@ import * as UnitTaskKindNs from './unitTaskKindEnum.ts';
 export type UnitTaskKind = Enum<typeof UnitTaskKindNs>;
 
 /**
+ * One leg of a queued route, as dealt to ONE unit: the tile he takes in his
+ * squad's spread there (or the click itself, when it named an enemy
+ * building — the assault takes the click), which of the three ground
+ * orders it was (absent is the plain move, the command's own spelling),
+ * and the pace his squad marches that leg at, where it binds (see
+ * Unit.marchSpeed). Dealt when the leg is queued — tick.ts queueLeg says
+ * why — and spent the moment it comes due.
+ */
+export interface Waypoint {
+  x: number;
+  y: number;
+  attack?: true | 'half';
+  pace?: number;
+}
+
+/**
  * Task state machines are small discriminated unions; systems switch on
  * `task.t`. Movement is expressed as a path of tile indices plus a cursor.
  */
@@ -82,6 +98,21 @@ export interface Unit {
    */
   marchSpeed?: number;
   /**
+   * The orders behind the one being walked — Shift-clicked waypoints, in
+   * the order they were given, the way every RTS since Warcraft II has
+   * queued a route. The current leg is NOT in here: it lives in the task
+   * and the path like any other order, so nothing that reads a walking
+   * unit has to know the queue exists. When that leg ends (the walk
+   * arrives, the assault razes its camp, a goal turns out to be sealed
+   * off) the tick's waypoint step hands the unit the head of this list as
+   * a fresh order (tick.ts waypointSystem). A fresh unqueued order drops
+   * the whole list.
+   *
+   * Absent rather than empty when there is nothing queued, lazily — see
+   * clearMarchSpeed for why a bare `= undefined` write is avoided.
+   */
+  orders?: Waypoint[];
+  /**
    * Consecutive ticks a standing enemy has held this walker off (see
    * separation.ts holdOff). A walker wedged against an enemy's rank for
    * DETOUR_AFTER of them re-plans his route round it, and the count starts
@@ -117,6 +148,11 @@ export interface Unit {
  */
 export function clearMarchSpeed(unit: Unit): void {
   if (unit.marchSpeed !== undefined) unit.marchSpeed = undefined;
+}
+
+/** Drop every queued waypoint. Same lazy-field discipline as clearMarchSpeed. */
+export function clearOrders(unit: Unit): void {
+  if (unit.orders !== undefined) unit.orders = undefined;
 }
 
 export function makeUnit(

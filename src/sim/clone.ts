@@ -20,7 +20,11 @@ export function cloneWorld(world: World): World {
   const goods = (g: GoodAmounts): GoodAmounts => ({...g});
   const units = new Map<number, Unit>();
   for (const [id, u] of world.units) {
-    units.set(id, {...u, path: u.path ? [...u.path] : null, task: {...u.task}});
+    const copy = {...u, path: u.path ? [...u.path] : null, task: {...u.task}};
+    // Conditionally, so a unit with nothing queued keeps the field absent
+    // the way the save format reads it back (JSON drops an undefined).
+    if (u.orders) copy.orders = u.orders.map(wp => ({...wp}));
+    units.set(id, copy);
   }
   const buildings = new Map<number, Building>();
   for (const [id, b] of world.buildings) {

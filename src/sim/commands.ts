@@ -32,12 +32,17 @@ export type SimCommand =
   // whatever it meets, and `'half'` walks the front half of the route as a
   // plain move before going live (the mobile tap default: one gesture must
   // both send an army out to fight and let it flee without reengaging).
+  // `queue` is the Shift-click: rather than replacing what a unit is doing,
+  // the order waits its turn behind it (Unit.orders) — a unit standing idle
+  // simply takes it now. Absent, the order is the fresh one it has always
+  // been, and it drops whatever was queued.
   | {
       kind: CommandKindNs.moveUnits;
       unitIds: EntityId[];
       x: number;
       y: number;
       attack?: true | 'half';
+      queue?: true;
     }
   /**
    * Put a squad on one target — focus fire, and the only way a caller can
@@ -273,6 +278,10 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         // the safe reading of a garbled flag is the order that starts no
         // fights.
         ...(c.attack === true || c.attack === 'half' ? {attack: c.attack} : {}),
+        // Anything but a literal true is the fresh order: a garbled flag
+        // replaces rather than appends, which is what an unflagged click
+        // has always done.
+        ...(c.queue === true ? {queue: true as const} : {}),
       };
     }
     case CommandKindNs.placeBuilding:

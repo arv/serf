@@ -204,6 +204,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | **Shift+1**…**Shift+0** | Add the selection to that group (never overwrites one) |
 | **1**…**0** | Call the group back — units selected, or a building's panel opened; twice in a beat also jumps the camera to it |
 | Right click | Move order / attack enemy building |
+| **Shift** + right click | Queue the order behind the ones already given — the squad walks the waypoints in turn (also with **A**/**M** armed, and on the minimap) |
 | Click building | Building panel (barracks: train units) |
 | Click a face on the selection card | Take that one on his own (shift = leave him behind) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target, on the map or on the minimap |

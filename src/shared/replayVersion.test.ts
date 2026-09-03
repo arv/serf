@@ -214,8 +214,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // is a branch no older log can reach. On top of main's 43, the reserve
 // iron seam, which is why this is 44 and not 43. In replayVersion.ts at
 // length.
-const EXPECTED_VERSION = 44;
-const EXPECTED_HASH = 'cc2333e6a3979c7e49fdd28002a46a6e';
+// 45 for the Shift-click route: a `queue` flag on the move command and a
+// per-unit waypoint list behind it (Unit.orders, tick.ts waypointSystem).
+// A new field on the wire is pure format — no older log holds one, and a
+// log without one plays back exactly (see replayVersion.ts). On top of
+// main's 44, which is why this is 45.
+const EXPECTED_VERSION = 45;
+const EXPECTED_HASH = '15fe614d561a66ed0ad9e1ff62ef0f52';
 
 /**
  * Everything a replay's playback depends on, as raw source:
