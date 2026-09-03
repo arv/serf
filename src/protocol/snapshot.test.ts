@@ -1,9 +1,11 @@
 import {describe, expect, it} from 'vitest';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {findResourceNear} from '../sim/map.ts';
+import {populationOf} from '../sim/population.ts';
 import {
   addBuiltHut,
   addResourceTile,
@@ -11,9 +13,9 @@ import {
   bareWorld,
 } from '../sim/testUtils.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
-import {spawnUnit, type World} from '../sim/world.ts';
+import {placeBuiltBuilding, spawnUnit, type World} from '../sim/world.ts';
 import type {UnitSnapshot} from './sabLayout.ts';
-import {snapBuilding, unitSnapshots} from './snapshot.ts';
+import {snapBuilding, snapPlayers, unitSnapshots} from './snapshot.ts';
 
 /**
  * The reach readout: what a gatherer's card says is left in the ground
@@ -173,5 +175,45 @@ describe('unitSnapshots: health', () => {
     expect(snapOf(world, serf.id).maxHp).toBe(UNIT_DEFS[UnitTypeId.serf].hp);
     serf.hp -= 1;
     expect(snapOf(world, serf.id).hpPct).toBeLessThan(255);
+  });
+});
+
+/**
+ * The HUD's head count has to be the sim's head count. The hire gate reads
+ * populationOf; if the readout says fewer, the player sees 18/20 and a
+ * castle that will not take their silver.
+ */
+describe('snapPlayers: pop', () => {
+  it('counts a manned tower and a recruit under drill, like the hire gate', () => {
+    const world = bareWorld();
+    addStorehouse(world, 10, 10, {});
+    for (let i = 0; i < 3; i++)
+      spawnUnit(world, UnitTypeId.serf, 0, 20 + i, 20);
+    // Two archers up the tower — consumed as units, held by the building.
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      30,
+      30,
+    );
+    tower.garrison = 2;
+    tower.garrisonKind = UnitTypeId.archer;
+    tower.garrisonHp = [10, 10];
+    // One recruit the barracks has started on, one order still waiting.
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      40,
+      40,
+    );
+    barracks.trainQueue = [
+      {unit: UnitTypeId.knight, ticksLeft: 100, started: true},
+      {unit: UnitTypeId.knight, ticksLeft: 0, started: false},
+    ];
+    const [me] = snapPlayers(world);
+    expect(me!.pop).toBe(3 + 2 + 1);
+    expect(me!.pop).toBe(populationOf(world, 0));
   });
 });
