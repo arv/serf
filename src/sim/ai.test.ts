@@ -13,6 +13,7 @@ import {
 } from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import {HIRE_SERF_COST} from './defs/balance.ts';
+import * as BuildAnchor from './defs/buildAnchorEnum.ts';
 import {BUILDING_DEFS, OUTPUT_CAP} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
@@ -24,6 +25,7 @@ import {BANDIT, type Building} from './entities.ts';
 import {countResourceNear} from './map.ts';
 import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
+import {findSpot} from './siting.ts';
 import {
   AI_PACING,
   AI_SITING,
@@ -1726,6 +1728,95 @@ describe('the seat that sees its seam running out', () => {
     )!;
     store.stock = {...store.stock, [GoodId.stone]: 0};
     expect(mineSites(beat(brain, world))).toEqual([]);
+  });
+});
+
+/**
+ * Which side of the village a tower goes up on. The complaint (a played
+ * four-seat game, seed 96655595): the seat in the middle of the valley put
+ * both its towers eight tiles due NORTH of its castle, with one rival to
+ * the south and two to the east — the spiral hands back the first legal
+ * tile it reads, and it reads each ring from the north-west corner, so the
+ * side was whichever one happened to have a gap in it.
+ */
+describe('the tower that faces the war', () => {
+  /**
+   * A village with exactly one thing left to build: a tower, on a shelf
+   * holding exactly one tower's worth of stone and wood. The printed
+   * playbook is overridden down to that one step, so nothing else can win
+   * the beat and the site under test is the only one ordered.
+   */
+  function watchtower(rival?: {x: number; y: number}): {
+    world: World;
+    brain: AiBrain;
+  } {
+    const world = bareWorld(1, rival ? 2 : 1);
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 6, [GoodId.stone]: 12});
+    if (rival) addStorehouse(world, rival.x, rival.y, {}, 1);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    brain.setOverride({
+      build: [
+        {
+          type: BuildingTypeId.guardTower,
+          count: 1,
+          anchor: BuildAnchor.base,
+        },
+      ],
+    });
+    return {world, brain};
+  }
+
+  function beat(brain: AiBrain, world: World): SimCommand[] {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  }
+
+  /** The tower this beat ordered, as its footprint's middle. */
+  function towerAt(commands: SimCommand[]): {x: number; y: number} {
+    const site = commands.find(
+      c =>
+        c.kind === CommandKind.placeBuilding &&
+        c.building === BuildingTypeId.guardTower,
+    );
+    expect(site).toBeDefined();
+    const {x, y} = site as {x: number; y: number};
+    return {x: x + 1, y: y + 1};
+  }
+
+  it("stands between the castle and the rival's corner", () => {
+    // Nobody has scouted anything here: the dealt plateaus are public
+    // (siting.ts nearestRivalStart, the same table the build order reads
+    // to decide whose ground a seam is), so a blind seat still knows
+    // which way the neighbours live.
+    const east = watchtower({x: 60, y: 30});
+    expect(towerAt(beat(east.brain, east.world)).x).toBeGreaterThan(31);
+    const north = watchtower({x: 30, y: 5});
+    expect(towerAt(beat(north.brain, north.world)).y).toBeLessThan(31);
+  });
+
+  it('faces a camp it has found over a corner it has only been dealt', () => {
+    // The rival's plateau lies east and unvisited; the camp stands west
+    // with a man of ours beside it. Raids come out of both, and the one
+    // this seat has actually laid eyes on is the one it can measure.
+    const {world, brain} = watchtower({x: 60, y: 30});
+    placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 8, 30);
+    spawnUnit(world, UnitTypeId.serf, 0, 12.5, 31.5);
+    expect(towerAt(beat(brain, world)).x).toBeLessThan(31);
+  });
+
+  it('sites by nearness alone in a valley with nothing in it', () => {
+    // No rival, no camp, nothing found: the old answer, unchanged — a
+    // seat with no side to face does not invent one.
+    const {world, brain} = watchtower();
+    const plain = findSpot(world, BuildingTypeId.guardTower, 31, 31)!;
+    expect(towerAt(beat(brain, world))).toEqual({
+      x: plain.x + 1,
+      y: plain.y + 1,
+    });
   });
 });
 

@@ -65,7 +65,11 @@ import * as MatchState from '../matchStateEnum.ts';
 import {findPath, nearestWalkable, tileStepCost} from '../path.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
-import {findSpot, nearestClaimableResource} from '../siting.ts';
+import {
+  findSpot,
+  nearestClaimableResource,
+  nearestRivalStart,
+} from '../siting.ts';
 import * as Terrain from '../terrainEnum.ts';
 import * as TileResource from '../tileResourceEnum.ts';
 import type {Unit} from '../units.ts';
@@ -1291,6 +1295,46 @@ export class AiBrain {
      */
     let held: GoodAmounts | undefined;
     const razedNear = (x: number, y: number): boolean => this.#razedNear(x, y);
+    /**
+     * Where the war is, for the one kind of step that is built to look at
+     * it (`spotFor`): the nearest hostile stronghold this seat has actually
+     * found — a rival castle or a bandit camp, the same set and the same
+     * fog rule the army marches on, and the two addresses every attack this
+     * village ever sees comes from.
+     *
+     * Never the seat's own march target: that one obeys the playbook's
+     * taste for rivals over camps, and a wall does not get to be picky
+     * about who is coming.
+     *
+     * A seat whose scout is still out has found nothing yet, and the towers
+     * gate on archery rather than on the search, so this cannot simply wait
+     * for one: it falls back to the nearest living rival's dealt corner
+     * (siting.ts `nearestRivalStart`), which is what the build order
+     * already reads to decide whose ground a seam is on — public plateaus,
+     * not an address anybody scouted. On a valley with no rivals at all
+     * (the campaign) there is nothing left to answer, and the site is
+     * picked by nearness alone, exactly as it always was.
+     *
+     * Asked at most once a beat, and only on a beat that is actually
+     * placing a tower.
+     */
+    let threat: {x: number; y: number} | null | undefined;
+    const facing = (): {x: number; y: number} | null => {
+      if (threat === undefined) {
+        const t = pickAttackTarget(
+          world,
+          this.#vision,
+          this.playerId,
+          baseX,
+          baseY,
+          false,
+        );
+        threat = t
+          ? {x: t.x + t.w / 2, y: t.y + t.h / 2}
+          : nearestRivalStart(world, this.playerId, baseX, baseY);
+      }
+      return threat;
+    };
     for (const step of s.build) {
       if (step.after && !researched(step.after)) continue;
       if (step.needs && !has(step.needs)) continue;
@@ -1310,13 +1354,21 @@ export class AiBrain {
         if (
           !held &&
           gatherRecipeOf(def) &&
-          spotFor(world, this.playerId, step, baseX, baseY, razedNear)
+          spotFor(world, this.playerId, step, baseX, baseY, razedNear, facing)
         ) {
           held = def.cost;
         }
         continue;
       }
-      const spot = spotFor(world, this.playerId, step, baseX, baseY, razedNear);
+      const spot = spotFor(
+        world,
+        this.playerId,
+        step,
+        baseX,
+        baseY,
+        razedNear,
+        facing,
+      );
       if (!spot) continue;
       commands.push({
         kind: CommandKind.placeBuilding,
@@ -3644,6 +3696,13 @@ function sortedById(buildings: Building[]): Building[] {
  * the base, never on ground a foundation of this seat's was just razed on
  * (`razedNear`, AI_SITING). Null is "not this beat", and the build order
  * moves on down the list.
+ *
+ * A building that FIGHTS is sited facing the war as well (`facing`, and
+ * siting.ts `findSpot`): a tower is the only thing in the deck whose whole
+ * job is which side of the village it stands on, and a garrison is what
+ * tells the two apart — the granary does not care where the bandits live.
+ * `facing` is asked only for those, because the answer costs a sweep of
+ * the map's buildings.
  */
 function spotFor(
   world: World,
@@ -3652,9 +3711,11 @@ function spotFor(
   baseX: number,
   baseY: number,
   razedNear: (x: number, y: number) => boolean,
+  facing: () => {x: number; y: number} | null,
 ): {x: number; y: number} | null {
+  const toward = BUILDING_DEFS[step.type].garrison ? facing() : null;
   if (step.anchor === BuildAnchor.base)
-    return findSpot(world, step.type, baseX, baseY, step.radius);
+    return findSpot(world, step.type, baseX, baseY, step.radius, toward);
   const size = world.map.size;
   const outpost = (
     spot: {x: number; y: number} | null,
@@ -3673,6 +3734,7 @@ function spotFor(
         tileX(shore, size),
         tileY(shore, size),
         step.radius,
+        toward,
       ),
     );
   }
@@ -3687,6 +3749,7 @@ function spotFor(
       tileX(tile, size),
       tileY(tile, size),
       step.radius,
+      toward,
     ),
   );
 }
