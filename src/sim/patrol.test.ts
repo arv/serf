@@ -306,13 +306,16 @@ describe('the patrol', () => {
     addStorehouse(world, 50, 50, {});
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 10.5, 10.5);
     patrol(world, [knight.id], 20, 10);
+    // The plain leg sits on the fourth corner of the square: no leg of
+    // the beat passes over it on the way somewhere else, so a visit
+    // logged there is the leg to it and nothing else.
     tickWorld(
       world,
       cmds({
         kind: CommandKind.moveUnits,
         unitIds: [knight.id],
-        x: 15,
-        y: 15,
+        x: 10,
+        y: 20,
         queue: true,
       }),
     );
@@ -324,14 +327,14 @@ describe('the patrol', () => {
       beat(20, 20),
       home(10, 10),
       beat(20, 10),
-      {x: 15, y: 15},
+      {x: 10, y: 20},
     ]);
     expect(knight.orders!.filter(wp => wp.home)).toHaveLength(1);
     const spots = [
       {x: 10, y: 10},
       {x: 20, y: 10},
       {x: 20, y: 20},
-      {x: 15, y: 15},
+      {x: 10, y: 20},
     ];
     expect(visits(world, knight, spots, 20 * 120).slice(0, 8)).toEqual([
       '10,10',
@@ -339,7 +342,7 @@ describe('the patrol', () => {
       '20,20',
       '10,10',
       '20,10',
-      '15,15',
+      '10,20',
       '20,20',
       '10,10',
     ]);
