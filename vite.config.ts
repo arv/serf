@@ -2,6 +2,8 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import solid from 'vite-plugin-solid';
 import {defineConfig} from 'vitest/config';
+import {channelFor, identityFor} from './build/appIdentity';
+import {appIdentityPlugin} from './build/appIdentityPlugin';
 import {serviceWorkerPlugin} from './build/swPlugin';
 
 const {version} = JSON.parse(
@@ -25,6 +27,32 @@ function gitCommit(): string {
     return 'unknown';
   }
 }
+
+// The branch decides more than a footer: it is what makes a build the
+// stable one or the staging one (build/appIdentity.ts), so it takes the
+// same route as the commit — the host's word first (Railway names the
+// branch it deploys; Actions names a pull request's head, else the ref),
+// then the checkout. A detached HEAD has no branch name — `rev-parse`
+// answers 'HEAD' — and reads as unknown like a missing checkout does.
+function gitBranch(): string {
+  const fromEnv =
+    process.env.RAILWAY_GIT_BRANCH ||
+    process.env.GITHUB_HEAD_REF ||
+    process.env.GITHUB_REF_NAME;
+  if (fromEnv) return fromEnv;
+  try {
+    const name = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return name === 'HEAD' || name === '' ? 'unknown' : name;
+  } catch {
+    return 'unknown';
+  }
+}
+
+const branch = gitBranch();
+const identity = identityFor(channelFor(branch));
 
 // SharedArrayBuffer requires cross-origin isolation. Production hosting must
 // send these same two headers.
@@ -73,7 +101,7 @@ function vendorChunk(id: string): string | undefined {
 const port = process.env.PORT ? Number(process.env.PORT) : undefined;
 
 export default defineConfig({
-  plugins: [solid(), serviceWorkerPlugin()],
+  plugins: [solid(), appIdentityPlugin(identity), serviceWorkerPlugin()],
   // JSON modules ship as JSON.parse('...') rather than object literals:
   // the campaign's mission maps are ~250 KB each, and JSON.parse beats the
   // JS parser at that size, in the shipped chunks and in vitest's module
@@ -84,6 +112,8 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __GIT_COMMIT__: JSON.stringify(gitCommit()),
+    __GIT_BRANCH__: JSON.stringify(branch),
+    __BUILD_CHANNEL__: JSON.stringify(identity.channel),
   },
   build: {
     rollupOptions: {
