@@ -7,7 +7,7 @@ import type {BuildingTypeId} from '../sim/defs/buildings';
 import {Hud} from './Hud';
 import type {MinimapSource} from './Minimap';
 import {applySpeed} from './speedControl';
-import {pushToast, type OrderMode} from './store';
+import {pushToast, replayMode, type OrderMode} from './store';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
  * has no shift/drag), and the save assembled where world and fog meet. */
@@ -54,6 +54,23 @@ export interface HudActions {
  */
 export function mountHud(host: SimHost, actions: HudActions): () => void {
   const root = document.getElementById('ui')!;
+  /**
+   * An order off a card: the click's sound, then the command — or, while a
+   * recording plays, neither. The cards already keep a replay's clicks
+   * from landing (every order row is inert, and selectionOrders.lint.test
+   * holds them to it; the tech tree declines its own), so this is the
+   * second line: a click that somehow arrived would still make no sound
+   * and post nothing. The worker drops a replay's commands regardless —
+   * what this guards is the interface claiming an order was taken.
+   */
+  const order = (
+    sound: 'uiClick' | 'uiCoin',
+    commands: Parameters<SimHost['sendCommands']>[0],
+  ): void => {
+    if (replayMode()) return;
+    play(sound);
+    host.sendCommands(commands);
+  };
   return render(
     () => (
       <Hud
@@ -82,72 +99,61 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           actions.place(type);
         }}
         onArmOrder={mode => {
+          // The gate order() keeps, for the same reason: a recording arms
+          // nothing, and a lit Rally button over it would say otherwise.
+          if (replayMode()) return;
           play('uiClick');
           actions.armOrder(mode);
         }}
-        onClearRally={buildingId => {
-          play('uiClick');
-          // No coordinates is the take-the-flag-down spelling; planting one
-          // needs a map click and goes through Controls instead.
-          host.sendCommands([{kind: CommandKind.setRallyPoint, buildingId}]);
-        }}
-        onHire={() => {
-          play('uiCoin');
-          host.sendCommands([{kind: CommandKind.hireSerf}]);
-        }}
-        onCancelHire={index => {
-          // The coin sound both ways: the silver comes back.
-          play('uiCoin');
-          host.sendCommands([{kind: CommandKind.cancelHire, index}]);
-        }}
-        onSell={buildingId => {
-          play('uiCoin');
-          host.sendCommands([{kind: CommandKind.sellBuilding, buildingId}]);
-        }}
-        onRepair={(buildingId, repair) => {
-          play('uiClick');
-          host.sendCommands([
+        // No coordinates is the take-the-flag-down spelling; planting one
+        // needs a map click and goes through Controls instead.
+        onClearRally={buildingId =>
+          order('uiClick', [{kind: CommandKind.setRallyPoint, buildingId}])
+        }
+        onHire={() => order('uiCoin', [{kind: CommandKind.hireSerf}])}
+        // The coin sound both ways: the silver comes back.
+        onCancelHire={index =>
+          order('uiCoin', [{kind: CommandKind.cancelHire, index}])
+        }
+        onSell={buildingId =>
+          order('uiCoin', [{kind: CommandKind.sellBuilding, buildingId}])
+        }
+        onRepair={(buildingId, repair) =>
+          order('uiClick', [
             {kind: CommandKind.setBuildingRepair, buildingId, repair},
-          ]);
-        }}
-        onTogglePause={(buildingId, paused) => {
-          play('uiClick');
-          host.sendCommands([
+          ])
+        }
+        onTogglePause={(buildingId, paused) =>
+          order('uiClick', [
             {kind: CommandKind.setBuildingPaused, buildingId, paused},
-          ]);
-        }}
-        onSetRecipe={(buildingId, index) => {
-          play('uiClick');
-          host.sendCommands([
+          ])
+        }
+        onSetRecipe={(buildingId, index) =>
+          order('uiClick', [
             {kind: CommandKind.setBuildingRecipe, buildingId, index},
-          ]);
-        }}
-        onEnqueueForge={(buildingId, recipeIndex) => {
-          play('uiClick');
-          host.sendCommands([
+          ])
+        }
+        onEnqueueForge={(buildingId, recipeIndex) =>
+          order('uiClick', [
             {kind: CommandKind.enqueueForge, buildingId, recipeIndex},
-          ]);
-        }}
-        onCancelForge={(buildingId, index, recipeIndex) => {
-          play('uiClick');
-          host.sendCommands([
+          ])
+        }
+        onCancelForge={(buildingId, index, recipeIndex) =>
+          order('uiClick', [
             {kind: CommandKind.cancelForge, buildingId, index, recipeIndex},
-          ]);
-        }}
-        onResearch={tech => {
-          play('uiClick');
-          host.sendCommands([{kind: CommandKind.research, tech}]);
-        }}
-        onTrain={(buildingId, unit) => {
-          play('uiClick');
-          host.sendCommands([{kind: CommandKind.trainUnit, buildingId, unit}]);
-        }}
-        onCancelTrain={(buildingId, index, unit) => {
-          play('uiClick');
-          host.sendCommands([
+          ])
+        }
+        onResearch={tech =>
+          order('uiClick', [{kind: CommandKind.research, tech}])
+        }
+        onTrain={(buildingId, unit) =>
+          order('uiClick', [{kind: CommandKind.trainUnit, buildingId, unit}])
+        }
+        onCancelTrain={(buildingId, index, unit) =>
+          order('uiClick', [
             {kind: CommandKind.cancelTraining, buildingId, index, unit},
-          ]);
-        }}
+          ])
+        }
         onSave={() => {
           play('uiClick');
           // A file per save, named by the clock, exactly like a replay:
