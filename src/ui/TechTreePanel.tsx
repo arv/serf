@@ -10,8 +10,16 @@ import {
 } from '../sim/defs/techs';
 import {COMPACT, SHORT} from './breakpoints';
 import {GoodIcon} from './icons';
-import {buildingName, techDesc, techName} from './names';
-import {setTechPanelOpen, stock, techs} from './store';
+import {buildingName, seatName, techDesc, techName} from './names';
+import {
+  myPlayerId,
+  playersMeta,
+  replayMode,
+  setTechPanelOpen,
+  stock,
+  techs,
+  viewerId,
+} from './store';
 import * as TechNodeStateNs from './techNodeStateEnum.ts';
 import {TechTip, tooltip} from './tooltip';
 export type TechNodeState = Enum<typeof TechNodeStateNs>;
@@ -56,7 +64,7 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
           paints over it, and a real element because a shadow spread is not
           hit-testable — see the media query below. */}
       <div class="tech-scrim" />
-      <div class="tech-panel panel">
+      <div class="tech-panel panel" classList={{watching: replayMode()}}>
         <style>{`
         .tech-scrim { display: none; }
         /* A header row over a row of branches, rather than one row of
@@ -122,6 +130,15 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
         }
         .tech-node.unaffordable { opacity: 0.7; }
         .tech-node.locked { opacity: 0.4; }
+        /* A replay's tree is read, not clicked. An affordable node keeps
+           its face — it says what the seat could take up next, which is
+           the point of opening a rival's — but not the pointer cursor or
+           the hover glow, which promise a click the recording cannot
+           honor (the handler below declines it). */
+        .tech-panel.watching .tech-node.available { cursor: default; }
+        .tech-panel.watching .tech-node.available:hover {
+          background: rgba(0, 0, 0, 0.18); box-shadow: none;
+        }
         /* Research progress fills the node itself, the way the Hire button
            fills — a sliver of bar tacked on the bottom is easy to miss. */
         .tech-node { position: relative; overflow: hidden; }
@@ -223,9 +240,26 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
               and read "Build a Abbey". "The" agrees with anything the
               defs care to call it. */}
           <div class="tech-note">
-            <Show when={!techs().hasAbbey}>
-              The {buildingName(BuildingTypeId.abbey)} opens this tree — build
-              one to begin.
+            {/* Whose tree this is, in a replay — the HUD's seat chip says
+                so too, but a sheet this size covers it. "Build one to
+                begin" is advice, and there is nobody here to take it:
+                a seat without an Abbey is simply reported as such. */}
+            <Show
+              when={replayMode()}
+              fallback={
+                <Show when={!techs().hasAbbey}>
+                  The {buildingName(BuildingTypeId.abbey)} opens this tree —
+                  build one to begin.
+                </Show>
+              }
+            >
+              {viewerId() === myPlayerId()
+                ? 'Your studies'
+                : `${seatName(viewerId(), playersMeta())}'s studies`}
+              {techs().hasAbbey
+                ? ''
+                : ` — no ${buildingName(BuildingTypeId.abbey)} standing yet`}
+              . A recording takes no orders.
             </Show>
           </div>
           <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
@@ -245,6 +279,10 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
                       classList={{'tech-node': true, [state(id)]: true}}
                       {...tooltip(() => <TechTip tech={id} />)}
                       onClick={() => {
+                        // A recording takes no orders — the worker would
+                        // drop it at the door, and the click must not
+                        // claim otherwise on the way there.
+                        if (replayMode()) return;
                         if (
                           state(id) === TechNodeStateNs.available &&
                           techs().hasAbbey

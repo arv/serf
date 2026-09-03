@@ -46,7 +46,7 @@ import {
 import {Minimap, type MinimapSource} from './Minimap';
 import * as MinimapMode from './minimapModeEnum.ts';
 import {MissionPanel, continueTarget} from './MissionPanel';
-import {buildingName, techName} from './names';
+import {buildingName, seatName, techName} from './names';
 import {SelectionPanel} from './SelectionPanel';
 import {Key} from './shortcut';
 import {REPLAY_GEAR, SPEED_GEARS} from './speedControl';
@@ -91,6 +91,8 @@ import {
   techs,
   toasts,
   toggleMuted,
+  viewSeat,
+  viewerId,
   volume,
   type OrderMode,
 } from './store';
@@ -512,6 +514,25 @@ export function Hud(props: {
     if (buildChord()) setBuildOpen(true);
   });
   const soloMode = (): boolean => playersMeta().length <= 1;
+  /**
+   * The seat chip's click: the next seat along, wrapping. Picking a seat's
+   * people or buildings on the map is the ordinary way to turn the HUD
+   * (Controls does it); the chip is for the seat whose people are nowhere
+   * on screen, and for saying which seat it is at all. It lets the
+   * selection go first: a card drawn for one seat over a strip counting
+   * another's would be two ledgers open at once.
+   */
+  const cycleSeat = (): void => {
+    const seats = playersMeta().length;
+    if (seats === 0) return;
+    props.onDeselect();
+    viewSeat((viewerId() + 1) % seats);
+  };
+  /** The chip's face. The recorded seat is "You" rather than "Player 1":
+   * the recording is of your match, and a rival's name is what the other
+   * seats have that this one does not need. */
+  const seatLabel = (): string =>
+    viewerId() === myPlayerId() ? 'You' : seatName(viewerId(), playersMeta());
   /** The speed strip: replays add one gear past the live game's fastest. */
   const speeds = (): typeof SPEEDS =>
     replayMode() ? [...SPEEDS, REPLAY_SPEED] : SPEEDS;
@@ -896,6 +917,11 @@ export function Hud(props: {
         #ui .hud-speed button.icon { width: 30px; height: 26px; padding: 0; display: grid; place-items: center; }
         #ui .hud-speed button.active { background: #e5c469; color: #0e100f; border: none; }
         #ui .hud-speed .div { width: 1px; height: 16px; margin: 0 2px; background: rgba(255, 255, 255, 0.12); }
+        /* The replay's seat chip: a name, weighted like a heading so it
+           reads as "who" rather than as one more gear. It sits among the
+           informational chips at the cluster's left, so a longer name
+           grows into open sky and moves no button. */
+        #ui .hud-speed button.seat-chip { font-weight: 600; }
 
         /* Hung from the top of the rail region rather than a measured
            52px below the top of the screen: the chrome it drops out of
@@ -1744,6 +1770,22 @@ export function Hud(props: {
                   >
                     Replay
                   </span>
+                  {/* Whose village the HUD is about — the strip, the wants,
+                      the tree, the warnings. Follows the pointer (pick a
+                      rival's hut and it is his) and clicks through the
+                      seats by hand. See viewerId in the store. */}
+                  <button
+                    class="seat-chip"
+                    {...tooltip(() => (
+                      <TextTip
+                        title="Watching as"
+                        body="Whose village the goods strip, the wants, the tech tree and the warnings are about. Click a seat's people or buildings to turn the HUD to them, or click here for the next seat along."
+                      />
+                    ))}
+                    onClick={cycleSeat}
+                  >
+                    {seatLabel()}
+                  </button>
                   {/* The recording is a finished match, so lifting the fog is
                 spectating rather than cheating — the live game keeps this
                 behind the admin panel. Render-only: playback is unchanged. */}
