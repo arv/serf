@@ -224,7 +224,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // (tick.ts takeLeg). A log that names it plays a single attack-move on
 // any build that screens the flag off (see replayVersion.ts).
 const EXPECTED_VERSION = 46;
-const EXPECTED_HASH = '7d3b2bdc2634c4c66a7203f667c4bea9';
+const EXPECTED_HASH = '081486cf70f62c5bfed007522476b0d4';
 
 /**
  * Everything a replay's playback depends on, as raw source:

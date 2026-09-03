@@ -301,6 +301,51 @@ describe('the patrol', () => {
     expect(knight.orders!.every(wp => wp.patrol)).toBe(true);
   });
 
+  it('adds a spot to the beat even while a plain waypoint sits behind it', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 10.5, 10.5);
+    patrol(world, [knight.id], 20, 10);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [knight.id],
+        x: 15,
+        y: 15,
+        queue: true,
+      }),
+    );
+    // The plain leg is at the tail now. A Shift-P here is still one more
+    // spot on the beat, slotted before home — not a second beat with a
+    // second home started behind the plain leg.
+    patrol(world, [knight.id], 20, 20, true);
+    expect(knight.orders).toEqual([
+      beat(20, 20),
+      home(10, 10),
+      beat(20, 10),
+      {x: 15, y: 15},
+    ]);
+    expect(knight.orders!.filter(wp => wp.home)).toHaveLength(1);
+    const spots = [
+      {x: 10, y: 10},
+      {x: 20, y: 10},
+      {x: 20, y: 20},
+      {x: 15, y: 15},
+    ];
+    expect(visits(world, knight, spots, 20 * 120).slice(0, 8)).toEqual([
+      '10,10',
+      '20,10',
+      '20,20',
+      '10,10',
+      '20,10',
+      '15,15',
+      '20,20',
+      '10,10',
+    ]);
+    expect(knight.orders).toHaveLength(3);
+  });
+
   it('is a walk for a civilian — there is nothing to fight with', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});

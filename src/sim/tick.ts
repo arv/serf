@@ -644,8 +644,8 @@ function applyMoveUnits(
  * home, there, home. The home leg walks at the squad's pace too: a march
  * back is still a march.
  *
- * Shift-P (`queue`) on a squad already walking a beat adds the click as
- * one more spot on it (the tail leg is a beat leg, so the route already
+ * Shift-P (`queue`) on a squad already walking a beat — any beat leg in
+ * its route — adds the click as one more spot on it (the route already
  * has its home). The spot goes in just before the home leg: the legs
  * rotate as they are taken, so home is the one fixed point in the route,
  * and "before home" is the end of the beat as the player drew it — the
@@ -675,7 +675,11 @@ function orderPatrol(
   const grown = new Map<Unit, number>();
   for (const unit of units) {
     if (queue && underOrders(unit)) {
-      if (unit.orders?.at(-1)?.patrol) {
+      // Any beat leg in the route means a beat is being walked, whatever
+      // sits at the tail — a plain waypoint queued behind the beat is at
+      // the tail until it is spent, and a Shift-P in that window still
+      // means "one more spot", never a second beat with a second home.
+      if (unit.orders?.some(wp => wp.patrol)) {
         grown.set(unit, unit.orders.length);
         dealt.push(unit);
         continue;
