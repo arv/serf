@@ -9,7 +9,12 @@ import {
   TRAIN_KEYS,
 } from '../../../ui/commands';
 import {buildingName, unitName} from '../../../ui/names';
-import {ADMIN_DOCS, COMMAND_DOCS} from '../commandsDoc';
+import {
+  ADMIN_ACTION_NAMES,
+  ADMIN_DOCS,
+  COMMAND_DOCS,
+  COMMAND_KIND_NAMES,
+} from '../commandsDoc';
 import {DocLink, Section} from '../components';
 import {Prose} from '../prose';
 import {buildingHref, unitHref} from '../routes';
@@ -44,7 +49,8 @@ export function CommandsPage(): JSX.Element {
                 {([kind, doc]) => (
                   <tr>
                     <td>
-                      <code>{kind}</code>
+                      <code>{COMMAND_KIND_NAMES.get(Number(kind))}</code>
+                      <div class="row-note">kind {kind}</div>
                     </td>
                     <td>
                       <Prose text={doc.summary} />
@@ -71,7 +77,8 @@ export function CommandsPage(): JSX.Element {
                 {([action, desc]) => (
                   <tr>
                     <td>
-                      <code>{action}</code>
+                      <code>{ADMIN_ACTION_NAMES.get(Number(action))}</code>
+                      <div class="row-note">action {action}</div>
                     </td>
                     <td>
                       <Prose text={desc} />
