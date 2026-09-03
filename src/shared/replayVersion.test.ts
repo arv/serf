@@ -184,8 +184,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // HAUL_SHARE, read by dispatch in systems/logistics.ts): which serf takes
 // which errand is the sim, and lower priority now means less often rather
 // than never. In replayVersion.ts at length.
-const EXPECTED_VERSION = 42;
-const EXPECTED_HASH = '3a7772b82ddc25c8df38b17d3c98552d';
+// 43 for the Shift-click route: a `queue` flag on the move command and a
+// per-unit waypoint list behind it (Unit.orders, tick.ts waypointSystem).
+// A new field on the wire is pure format — no older log holds one, and a
+// log without one plays back exactly (see replayVersion.ts).
+const EXPECTED_VERSION = 43;
+const EXPECTED_HASH = 'cab0511fbd75e1187a8959d863b3c06e';
 
 /**
  * Everything a replay's playback depends on, as raw source:

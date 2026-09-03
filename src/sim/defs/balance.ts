@@ -262,5 +262,14 @@ export const TRAIN_QUEUE_CAP = 5;
 /** Forge orders (Smith queue) waiting at once — trainQueue's twin. */
 export const FORGE_QUEUE_CAP = 5;
 
+/**
+ * Waypoints one unit may hold behind the order it is walking (Unit.orders).
+ * Generous: a patrol drawn around a whole valley is a dozen clicks, and
+ * the cap exists so a hostile frame cannot pile a million legs onto one
+ * man — a queued leg costs nothing until it is walked, so the number is a
+ * ceiling on memory, not on play.
+ */
+export const WAYPOINT_QUEUE_CAP = 32;
+
 // Lost resident workers respawn after a mourning period.
 export const WORKER_RESPAWN_TICKS = 15 * TICKS_PER_SECOND;

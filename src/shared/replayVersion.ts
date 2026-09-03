@@ -20,6 +20,17 @@
  * directly.
  */
 /**
+ * 43: the Shift-click route.
+ *
+ * A move order carries a `queue` flag now (commands.ts), and a unit carries
+ * the legs lined up behind the one it is walking (Unit.orders): Shift-click
+ * queues a waypoint instead of replacing the order, and the tick's waypoint
+ * step (tick.ts waypointSystem, after combat) hands each man his next leg
+ * the moment the last one ends. A new field on the wire is pure format —
+ * no older log holds one, and a log without one plays back exactly, since
+ * the new step touches only units with a queue.
+ */
+/**
  * 42: a haul tier is a share of the hands, not a claim on all of them.
  *
  * The dispatcher used to hand every idle serf the lowest-numbered open job
@@ -529,4 +540,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 42;
+export const REPLAY_VERSION = 43;

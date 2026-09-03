@@ -1845,3 +1845,120 @@ describe('minimap orders', () => {
     expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.moveUnits});
   });
 });
+
+describe('queued orders', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+    vi.unstubAllGlobals();
+  });
+
+  /** A selected knight: the one kind every order below can be given to. */
+  function warband(): ReturnType<typeof harness> {
+    const h = harness();
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    expect([...selection()]).toEqual([1]);
+    return h;
+  }
+
+  /** The right button with Shift held — the waypoint click. */
+  const shiftOrder = (
+    h: ReturnType<typeof harness>,
+    p: {x: number; y: number},
+  ): void => {
+    h.canvas.fire('pointerdown', {...rightPtr(p.x, p.y), shiftKey: true});
+  };
+
+  it('queues a shift-right-click behind the standing order', () => {
+    const h = warband();
+    controls = h.controls;
+    h.order(h.at(30.7, 0, 42.2));
+    // The plain click says nothing about queueing — the sim reads absent
+    // as the fresh order it has always been.
+    expect(h.commands.at(-1)).not.toHaveProperty('queue');
+
+    shiftOrder(h, h.at(12.5, 0, 51.5));
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 12,
+      y: 51,
+      queue: true,
+    });
+  });
+
+  it('queues an attack-move onto an enemy rather than pinning him now', () => {
+    const h = warband();
+    controls = h.controls;
+    h.addUnit(9, 20, 24, ME + 1, UnitTypeId.knight);
+
+    shiftOrder(h, h.screenOf(9));
+
+    // One order, not the move-then-focus pair: a target pinned now would
+    // pull the squad off the leg it is still walking.
+    expect(h.commands).toHaveLength(1);
+    expect(h.commands[0]).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 20,
+      y: 24,
+      attack: true,
+      queue: true,
+    });
+  });
+
+  it('queues an armed A when the click that spends it holds Shift', () => {
+    const h = warband();
+    controls = h.controls;
+    h.type('A');
+    expect(h.controls.orderArmed()).toBe(true);
+
+    const p = h.at(30.7, 0, 42.2);
+    h.canvas.fire('pointerdown', ptr(p.x, p.y, true));
+
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      x: 30,
+      y: 42,
+      attack: true,
+      queue: true,
+    });
+    // Still one-shot: the next click selects, Shift or no Shift.
+    expect(orderMode()).toBeNull();
+  });
+
+  it('queues from the chart too', () => {
+    const h = warband();
+    controls = h.controls;
+
+    h.controls.orderAtMapPoint(30.7, 42.2, true, 120, 640, true);
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 30,
+      y: 42,
+      queue: true,
+    });
+  });
+});

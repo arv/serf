@@ -749,8 +749,8 @@ export async function runMatch(
       // Orders given on the chart, which are the map's own orders aimed
       // at a tile rather than down the camera.
       orderArmed: () => controls.orderArmed(),
-      order: (x, z, secondary, px, py) =>
-        controls.orderAtMapPoint(x, z, secondary, px, py),
+      order: (x, z, secondary, px, py, queue) =>
+        controls.orderAtMapPoint(x, z, secondary, px, py, queue),
       myPlayerId: config.myPlayerId,
     },
   });

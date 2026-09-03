@@ -420,7 +420,8 @@ export class Controls {
    *
    * `px`/`py` are the click itself, in client pixels: the confirming pulse
    * blooms over the chart, where the player is looking, rather than over a
-   * patch of ground that may be nowhere on screen.
+   * patch of ground that may be nowhere on screen. `queue` is Shift held:
+   * the order lines up behind the squad's standing ones (see #sendMove).
    */
   orderAtMapPoint(
     x: number,
@@ -428,6 +429,7 @@ export class Controls {
     secondary: boolean,
     px: number,
     py: number,
+    queue = false,
   ): void {
     const {x: tx, y: ty} = this.#playTile(x, z);
     const order = this.#liveOrder();
@@ -439,12 +441,12 @@ export class Controls {
       // With nobody selected but a barracks open, the right-click plants
       // the flag — the same rule the map's own right-click follows.
       if (this.#selection.size === 0) this.#issueRallyAt(tx, ty, px, py);
-      else this.#issueMoveAt(tx, ty, false, px, py);
+      else this.#issueMoveAt(tx, ty, false, px, py, queue);
       return;
     }
     if (!order) return;
     if (order === OrderMode.rally) this.#issueRallyAt(tx, ty, px, py);
-    else this.#issueMoveAt(tx, ty, order === OrderMode.attack, px, py);
+    else this.#issueMoveAt(tx, ty, order === OrderMode.attack, px, py, queue);
     this.armOrder(null);
   }
 
@@ -972,12 +974,17 @@ export class Controls {
         if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
         // A-click on something hostile means THAT one, not the ground it
         // stands on. Anywhere else the armed order is the attack-move it
-        // has always been.
+        // has always been. Shift queues either behind the standing orders.
         else if (
           order !== OrderMode.attack ||
-          !this.#issueFocus(e.clientX, e.clientY)
+          !this.#issueFocus(e.clientX, e.clientY, e.shiftKey)
         )
-          this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
+          this.#issueMove(
+            e.clientX,
+            e.clientY,
+            order === OrderMode.attack,
+            e.shiftKey,
+          );
         this.armOrder(null);
       } else if (e.button === 2) {
         this.armOrder(null);
@@ -1028,10 +1035,12 @@ export class Controls {
       // With nobody selected but a barracks open, the right-click is the
       // rally flag's shortcut — the gesture every RTS spends it on. With a
       // squad standing it stays the plain move it has always been.
+      // Shift on either half is the waypoint: the order waits its turn
+      // behind the ones the squad already has (see #sendMove).
       if (this.#selection.size === 0 && this.#rallyTarget()) {
         this.#issueRally(e.clientX, e.clientY);
-      } else if (!this.#issueFocus(e.clientX, e.clientY)) {
-        this.#issueMove(e.clientX, e.clientY, false);
+      } else if (!this.#issueFocus(e.clientX, e.clientY, e.shiftKey)) {
+        this.#issueMove(e.clientX, e.clientY, false, e.shiftKey);
       }
     }
   };
@@ -2007,6 +2016,9 @@ export class Controls {
    * plain move, and A or M arms the explicit attack-move or move for the
    * next click.
    *
+   * `queue` lines the order up behind the squad's standing ones instead of
+   * replacing them (see #sendMove).
+   *
    * Returns the ordered tile, so the touch double-tap can re-aim its
    * escalation at exactly what the first tap ordered; null if the point
    * missed the ground — or if there was no order to give.
@@ -2015,10 +2027,11 @@ export class Controls {
     px: number,
     py: number,
     attack: boolean | 'half',
+    queue = false,
   ): {x: number; y: number} | null {
     const target = this.#orderTarget(px, py);
     if (!target) return null;
-    return this.#issueMoveAt(target.x, target.y, attack, px, py)
+    return this.#issueMoveAt(target.x, target.y, attack, px, py, queue)
       ? target
       : null;
   }
@@ -2038,6 +2051,7 @@ export class Controls {
     attack: boolean | 'half',
     px: number,
     py: number,
+    queue = false,
   ): boolean {
     // Playback has always dropped orders at the worker's door, which was
     // enough while the only squad a replay could select was the watching
@@ -2047,7 +2061,7 @@ export class Controls {
     // the interface lying about who is in charge of what.
     if (replayMode()) return false;
     if (this.#selection.size === 0) return false;
-    this.#sendMove(x, y, attack);
+    this.#sendMove(x, y, attack, queue);
     this.#orderPulse(px, py, attack);
     return true;
   }
@@ -2145,8 +2159,17 @@ export class Controls {
    * the order went out, so both callers fall through to the plain order
    * they had before when the cursor is over open ground, one of your own,
    * or something you have not scouted.
+   *
+   * With Shift held (`queue`) only the attack-move goes out, queued: the
+   * focus order takes effect the moment it lands, and a target pinned now
+   * for a leg that starts later is the wrong fight for the men still
+   * walking the first one. A queued attack-move onto his tile is what an
+   * RTS gives a shift-click on an enemy anyway — the squad engages him
+   * when it gets there, and the sim picks the target the way it always
+   * does. A queued click on a building still becomes the assault on it:
+   * the sim reads the building under the tile when the leg comes due.
    */
-  #issueFocus(px: number, py: number): boolean {
+  #issueFocus(px: number, py: number, queue = false): boolean {
     // The same guard the move order keeps: a click in a finished match
     // must not pretend to command anybody.
     if (replayMode()) return false;
@@ -2185,29 +2208,54 @@ export class Controls {
 
     const ground = this.#orderTarget(px, py);
     if (!ground) return false;
-    this.#host.sendCommands([
-      {
-        kind: CommandKind.moveUnits,
-        unitIds: fighters,
-        x: ground.x,
-        y: ground.y,
-        attack: true,
-      },
-      // After the move, never before: applyMoveUnits sets the task, and
-      // the sim skips a focus order for anything on a plain move.
-      {
-        kind: CommandKind.focusTarget,
-        unitIds: fighters,
-        targetId,
-        ...(building ? {building: true as const} : {}),
-      },
-    ]);
+    this.#host.sendCommands(
+      queue
+        ? [
+            {
+              kind: CommandKind.moveUnits,
+              unitIds: fighters,
+              x: ground.x,
+              y: ground.y,
+              attack: true,
+              queue: true,
+            },
+          ]
+        : [
+            {
+              kind: CommandKind.moveUnits,
+              unitIds: fighters,
+              x: ground.x,
+              y: ground.y,
+              attack: true,
+            },
+            // After the move, never before: applyMoveUnits sets the task,
+            // and the sim skips a focus order for anything on a plain move.
+            {
+              kind: CommandKind.focusTarget,
+              unitIds: fighters,
+              targetId,
+              ...(building ? {building: true as const} : {}),
+            },
+          ],
+    );
     this.#orderPulse(px, py, true);
     return true;
   }
 
-  /** The wire half of a move order, aimed at a tile directly. */
-  #sendMove(x: number, y: number, attack: boolean | 'half'): void {
+  /**
+   * The wire half of a move order, aimed at a tile directly. `queue` is the
+   * Shift-click every RTS since Warcraft II has spelled a route with: the
+   * order waits behind the ones the squad is already walking rather than
+   * replacing them, so a string of shift-clicks is walked point by point.
+   * An unshifted click drops the string. The sim owns the queue (Unit.orders):
+   * this side only says which kind of click it was.
+   */
+  #sendMove(
+    x: number,
+    y: number,
+    attack: boolean | 'half',
+    queue = false,
+  ): void {
     if (this.#selection.size === 0) return;
     this.#host.sendCommands([
       {
@@ -2216,6 +2264,7 @@ export class Controls {
         x,
         y,
         ...(attack ? {attack} : {}),
+        ...(queue ? {queue: true as const} : {}),
       },
     ]);
   }

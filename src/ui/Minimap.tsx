@@ -43,9 +43,17 @@ export interface MinimapSource {
    * Give that order at a chart point (Controls.orderAtMapPoint).
    * `secondary` is the right button, which is the plain move whether or
    * not anything was armed; `px`/`py` are the click in client pixels, so
-   * the confirming pulse blooms on the chart the player is looking at.
+   * the confirming pulse blooms on the chart the player is looking at;
+   * `queue` is Shift held, the waypoint that waits behind standing orders.
    */
-  order(x: number, z: number, secondary: boolean, px: number, py: number): void;
+  order(
+    x: number,
+    z: number,
+    secondary: boolean,
+    px: number,
+    py: number,
+    queue: boolean,
+  ): void;
   myPlayerId: number;
 }
 
@@ -305,7 +313,7 @@ export function Minimap(props: {
    */
   const giveOrder = (e: PointerEvent, secondary: boolean): void => {
     const p = toWorld(e);
-    src.order(p.x, p.z, secondary, e.clientX, e.clientY);
+    src.order(p.x, p.z, secondary, e.clientX, e.clientY, e.shiftKey);
     if (props.mode === MinimapModeNs.jump) props.onNavigate?.();
   };
 
