@@ -229,8 +229,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // different tiles on every generated seed and the rejected centers re-roll
 // what is drawn after them, so a replay recorded before this re-runs in a
 // different valley (see replayVersion.ts).
+// Still 47 after seamFor's comment learned to say that a later pass stops
+// at the first center that clears the bar (map.ts, words only): same
+// statements, same draws, same valley. The hash is over raw bytes, which
+// is why it moved anyway.
 const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = 'ccbf897f6525edf21244156bbc992a73';
+const EXPECTED_HASH = '559596d4eabf45e9892296accadc942b';
 
 /**
  * Everything a replay's playback depends on, as raw source:

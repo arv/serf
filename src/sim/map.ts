@@ -1138,10 +1138,14 @@ export function generateMap(
       // Three passes, in the order a seat would want them. The first asks
       // every tier for a center that puts a WHOLE seam in a CLEARING
       // (SEAM_CLEARING_SHARE) and takes the first one it finds — the common
-      // case, usually a draw or two deep. The second drops the clearing and
-      // keeps the whole seam, laying it at the LEAST wooded center the tier
-      // saw rather than the first. The third drops the count too, because
-      // some metal in the band still beats none.
+      // case, usually a draw or two deep, and over 400 seeds at two, three
+      // and four seats it is the only pass that ever places one. The second
+      // drops the clearing as a REQUIREMENT and keeps the whole seam,
+      // laying it at the least wooded center the tier saw — or at the first
+      // center that clears the bar after all, if the fresh draws turn one
+      // up, since a clearing is the whole of what the first pass asks for
+      // and there is nothing better to hold out for. The third drops the
+      // count too, because some metal in the band still beats none.
       //
       // Both halves of the failure are in that order. Three rich tiles
       // wedged between the trees are worth what six in the open are worth
@@ -1174,7 +1178,9 @@ export function generateMap(
             const share = ringOpenShare(room);
             if (clearing && share < SEAM_CLEARING_SHARE) continue;
             if (!best || share > best.share) best = {x, y, share};
-            // Nothing a longer search could improve on.
+            // A center at the bar is exactly what the first pass goes
+            // looking for, so no later pass keeps searching past one: the
+            // promise is the bar, not the maximum.
             if (share >= SEAM_CLEARING_SHARE) break;
           }
           if (best && placeSeam(res, budget, best.x, best.y, minTiles) > 0)
