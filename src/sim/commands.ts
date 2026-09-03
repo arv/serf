@@ -283,8 +283,12 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         y: c.y,
         // Anything but the two literal fight values means a plain move —
         // the safe reading of a garbled flag is the order that starts no
-        // fights.
-        ...(c.attack === true || c.attack === 'half' ? {attack: c.attack} : {}),
+        // fights. A patrol carries no attack flag at all: it is the live
+        // order already, and a command's meaning must not hang on two
+        // flags agreeing.
+        ...((c.attack === true || c.attack === 'half') && c.patrol !== true
+          ? {attack: c.attack}
+          : {}),
         // Anything but a literal true is the fresh order: a garbled flag
         // replaces rather than appends, which is what an unflagged click
         // has always done.

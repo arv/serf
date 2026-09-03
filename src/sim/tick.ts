@@ -601,6 +601,10 @@ function applyMoveUnits(
   const now: number[] = [];
   const later: Unit[] = [];
   const beat: Unit[] = [];
+  // A patrol says nothing with its attack flag (the wire screens it off;
+  // an in-process caller may still set both): the civilians it walks take
+  // the plain walk, never a leg marked as a fight they cannot have.
+  const attack = cmd.patrol ? undefined : cmd.attack;
   for (const id of cmd.unitIds) {
     const unit = world.units.get(id);
     if (!unit || unit.dead || unit.owner !== playerId) continue;
@@ -617,9 +621,8 @@ function applyMoveUnits(
     clearOrders(unit);
     now.push(id);
   }
-  if (later.length > 0)
-    queueLeg(world, playerId, later, cmd.x, cmd.y, cmd.attack);
-  if (now.length > 0) orderMove(world, playerId, now, cmd.x, cmd.y, cmd.attack);
+  if (later.length > 0) queueLeg(world, playerId, later, cmd.x, cmd.y, attack);
+  if (now.length > 0) orderMove(world, playerId, now, cmd.x, cmd.y, attack);
   if (beat.length > 0)
     orderPatrol(world, playerId, beat, cmd.x, cmd.y, cmd.queue === true);
 }

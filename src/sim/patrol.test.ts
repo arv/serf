@@ -308,6 +308,22 @@ describe('the patrol', () => {
     patrol(world, [serf.id], 20, 10);
     expect(serf.task.t).toBe(UnitTaskKind.move);
     expect(serf.orders).toBeUndefined();
+    // Even from a caller that sets both flags (the wire screens attack
+    // off a patrol; an in-process caller may not): the leg he queues is
+    // the plain walk, not one marked as a fight he cannot have.
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: 30,
+        y: 10,
+        attack: true,
+        patrol: true,
+        queue: true,
+      }),
+    );
+    expect(serf.orders).toEqual([{x: 30, y: 10}]);
   });
 
   it('is no beat at all when the far end has nowhere to walk', () => {

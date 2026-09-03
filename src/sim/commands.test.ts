@@ -178,6 +178,24 @@ describe('command screening', () => {
       x: 1,
       y: 1,
     });
+    // A patrol carries no attack flag: it is the live order already, and
+    // a well-formed one never says both.
+    expect(
+      sanitizeCommand({
+        kind: CommandKind.moveUnits,
+        unitIds: [1],
+        x: 1,
+        y: 1,
+        attack: 'half',
+        patrol: true,
+      }),
+    ).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 1,
+      y: 1,
+      patrol: true,
+    });
     // And a garbled patrol flag is no patrol: only the literal true walks
     // a beat, so a truthy string cannot leave a squad marching forever.
     expect(
