@@ -143,6 +143,9 @@ export const MENU_STYLE = `
   color: #f4f1e6; text-shadow: 0 1px 0 rgba(0,0,0,0.45), 0 2px 30px rgba(0,0,0,0.6); }
 #menu .tagline { margin: 2px 0 0; font-size: clamp(12.5px, 3.6vw, 14.5px); color: #a9a698; letter-spacing: 0.01em; text-align: center; text-wrap: pretty; }
 #menu .title { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+/* The staging build's tag, the same amber as the band on its icon. */
+#menu .channel { font-size: 11px; font-weight: 600; letter-spacing: 0.3em; text-indent: 0.3em;
+  text-transform: uppercase; color: #2a2205; background: #e0a92e; border-radius: 999px; padding: 3px 12px 3px 10px; }
 
 #menu .card { width: 100%; max-width: 486px; display: flex; flex-direction: column;
   background: rgba(14,16,15,0.74); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);

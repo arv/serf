@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Source of the staging icons beside this file: the stable icon with an
+  amber STAGING band along the bottom, so the two installs tell apart on a
+  home screen at a glance — a label nobody can read at 48px still reads as
+  "the one with the stripe". The band sits under the castle's base, inside
+  the circle a maskable icon is cropped to, so the mask takes only its
+  corners.
+
+  Rendered with headless Chromium, once per size, from this directory:
+
+    for s in 512 192 180; do
+      chromium --headless --hide-scrollbars --window-size=$s,$s \
+        --screenshot=out-$s.png icon.html
+    done
+
+  512 and 192 are icon-512.png and icon-192.png; 180 is apple-touch-icon.png.
+  Everything is sized in vw so one document renders at any edge.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: 'Space Grotesk';
+        font-weight: 400 600;
+        src: url('../../../public/fonts/space-grotesk-latin.woff2')
+          format('woff2');
+      }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      .icon {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background: url('../stable/icon-512.png') center / 100% 100% no-repeat;
+      }
+      .band {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 17%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e0a92e;
+        box-shadow: 0 -1.2vw 0 rgba(20, 30, 20, 0.35);
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 600;
+        font-size: 9.5vw;
+        letter-spacing: 0.16em;
+        text-indent: 0.16em;
+        color: #2a2205;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="icon"><div class="band">STAGING</div></div>
+  </body>
+</html>
