@@ -284,24 +284,24 @@ export interface CharacterVisual {
 
 /**
  * The pack bow is one mesh — limbs and string in a single primitive —
- * and its string is a thin box with every vertex at the two tips, joined
- * by quads the whole length: nothing along it to bend. So the string is
- * found by where it is (the thin straight run tip to tip along the
- * chord, at the bow's own measured x, within a hundredth of the plane),
- * folded into the tips where it vanishes, and drawn again as two
- * segments of our own, tip to nock and nock to tip, that a draw can
- * fold at the hand. Measured on bow_withString.gltf
- * (tools/modelLab/animImpacts.mjs has the parser). Geometry space: the
- * bow lies along z, curves in x, the string is the chord at
- * BOW_STRING_X and the draw pulls it toward -x.
+ * so the string is found by where it is: the thin straight run between
+ * the nocks along the chord, at the bow's own measured x, within a
+ * hundredth of the plane (the nock caps at the limb tips sit a little
+ * further out and are not it). Its triangles are cut out of the index
+ * and the string is drawn again as two segments of our own, nock to
+ * draw hand and draw hand to nock, that a draw can fold. Measured on
+ * bow_withString.gltf (tools/modelLab/animImpacts.mjs has the parser).
+ * Geometry space: the bow lies along z, curves in x, the string is the
+ * chord at BOW_STRING_X and the draw pulls it toward -x.
  */
-const BOW_STRING_X = -0.355;
-const BOW_STRING_CATCH = 0.02;
-const BOW_STRING_HALF_Y = 0.011;
+const BOW_STRING_X = -0.325;
+const BOW_STRING_CATCH = 0.015;
+const BOW_STRING_HALF_Y = 0.012;
 /** The pack string's thickness, so ours is the string it replaces. */
-const BOW_STRING_RADIUS = 0.012;
-/** Half the string's span: where it meets the limb tips. */
-const BOW_TIP_Z = 0.992;
+const BOW_STRING_RADIUS = 0.01;
+/** Half the string's span: where it meets the nocks at the limb tips
+ * (the limbs themselves run on to 0.99). */
+const BOW_TIP_Z = 0.85;
 /** The draw hand counts as on the string inside this box around it:
  * the middle half of its length, and nearer its plane than the reach
  * (which passes over the top tip and dips under the bow on the way to
@@ -358,12 +358,51 @@ function laySegment(seg: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3): void {
 }
 
 /**
+ * The pack bow without its string: the prop's geometry with every
+ * triangle whose three corners lie on the string dropped from the index.
+ * Built once per source geometry and shared — nothing about it is per
+ * archer, and every bow on the field is the same mesh.
+ */
+const stringlessBows = new WeakMap<
+  THREE.BufferGeometry,
+  THREE.BufferGeometry
+>();
+
+function stringlessBow(
+  source: THREE.BufferGeometry,
+): THREE.BufferGeometry | undefined {
+  const cached = stringlessBows.get(source);
+  if (cached) return cached;
+  const position = source.getAttribute('position');
+  const index = source.getIndex();
+  if (!(position instanceof THREE.BufferAttribute) || !index) return undefined;
+  const onString = (i: number): boolean =>
+    Math.abs(position.getX(i) - BOW_STRING_X) < BOW_STRING_CATCH &&
+    Math.abs(position.getY(i)) < BOW_STRING_HALF_Y &&
+    Math.abs(position.getZ(i)) < BOW_TIP_Z + 0.01;
+  const kept: number[] = [];
+  let cut = 0;
+  for (let t = 0; t < index.count; t += 3) {
+    const a = index.getX(t);
+    const b = index.getX(t + 1);
+    const c = index.getX(t + 2);
+    if (onString(a) && onString(b) && onString(c)) cut++;
+    else kept.push(a, b, c);
+  }
+  if (cut === 0) return undefined;
+  const geometry = source.clone();
+  geometry.setIndex(kept);
+  stringlessBows.set(source, geometry);
+  return geometry;
+}
+
+/**
  * Rig a bow instance (one archer's clone of the pack prop): the mesh
- * gets its own copy of the geometry so folding its string away touches
- * no other bow, the two-segment string goes on in its place, and a
- * nocked arrow is parented at the string's middle, hidden until a draw.
- * `scale` is the rig's world scale, so the arrow on the string is the
- * size of the one that flies (arrowModel.ts, authored in world units).
+ * swaps to the shared stringless geometry, the two-segment string goes
+ * on in the pack string's place, and a nocked arrow is parented at the
+ * string's middle, hidden until a draw. `scale` is the rig's world
+ * scale, so the arrow on the string is the size of the one that flies
+ * (arrowModel.ts, authored in world units).
  */
 function rigBow(
   inst: THREE.Object3D,
@@ -375,26 +414,9 @@ function rigBow(
     if (!mesh && o instanceof THREE.Mesh) mesh = o;
   });
   if (!mesh || !hand) return undefined;
-  const geometry = mesh.geometry.clone();
+  const geometry = stringlessBow(mesh.geometry);
+  if (!geometry) return undefined;
   mesh.geometry = geometry;
-  // The drawn string and the arrow reach past the bow's own bounds.
-  mesh.frustumCulled = false;
-  const position = geometry.getAttribute('position');
-  if (!(position instanceof THREE.BufferAttribute)) return undefined;
-  // Fold the pack string into the tips: each of its vertices goes to the
-  // tip on its own side, and the quads between collapse to nothing.
-  let folded = 0;
-  for (let i = 0; i < position.count; i++) {
-    if (
-      position.getX(i) < BOW_STRING_X + BOW_STRING_CATCH &&
-      Math.abs(position.getY(i)) < BOW_STRING_HALF_Y
-    ) {
-      position.setZ(i, position.getZ(i) < 0 ? -BOW_TIP_Z : BOW_TIP_Z);
-      folded++;
-    }
-  }
-  if (folded === 0) return undefined;
-  position.needsUpdate = true;
   const upper = bowStringSegment();
   const lower = bowStringSegment();
   laySegment(upper, BOW_TOP, BOW_REST);
