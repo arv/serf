@@ -62,15 +62,17 @@ export function findSpot(
  * seat's own is the rival's yard. Exact ties are nobody's, so ground half
  * way between two castles is open to both.
  *
- * The same line worldgen draws when it deals the ore (map.ts `isOwnGround`:
+ * The same partition worldgen deals the ore by (map.ts `isOwnGround`:
  * every home seam lies on the ground nearest its own start, and a reserve
  * seam a clear margin further from every rival), so a seat that keeps to
  * it is keeping to what the map dealt it, not measuring anything new. A
  * dead rival's yard is open: its castle is rubble and nothing defends the
  * seam it was dealt.
  *
- * The distance is the map's own — from the starts' anchors, squared and
- * whole so two hosts never disagree over a rounding.
+ * Measured from the same anchors worldgen measures from, but as squared
+ * whole distances rather than worldgen's `Math.hypot` and epsilon: the
+ * nearer castle is the same either way, and whole numbers leave two hosts
+ * nothing to round differently.
  */
 export function rivalGround(
   world: World,

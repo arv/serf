@@ -313,7 +313,10 @@ describe('the flanking march', () => {
    * — and a hut of ours beside each, so the seat has laid eyes on both. */
   const CASTLE = {x: 40, y: 12};
   const TOWER = {x: 28, y: 11, w: 2, h: 2};
-  const REACH = 5 + 2; // an archer's range from the wall
+  // An archer's range from the wall, plus the margin the planner keeps
+  // past it: a waypoint has to clear the reach the brain plans against,
+  // not merely the tower's own.
+  const REACH = 5 + 2 + AI_WAR.flankMargin;
   function towered(
     tier: DifficultyId.normal | DifficultyId.hard,
     tower = true,
