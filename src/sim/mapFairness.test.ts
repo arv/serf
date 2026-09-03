@@ -45,7 +45,8 @@ const SEEDS = [4, 2, 11, 19];
  * was written for. 96655595's four-seat deal gave one seat a silver
  * birthright of three tiles inside a grove while two rivals opened on six
  * in open grass — the case that must never come back, and the one seed
- * here that fails the audit if placeSeam stops felling timber.
+ * here that fails the audit against the draw that dealt it: the first
+ * center in the band that was grass and this seat's, thicket or not.
  *
  * Its own list rather than a fifth entry in SEEDS, because a seed carries
  * a whole valley with it: this one's solo gold sits 21.5 tiles out and
@@ -215,9 +216,10 @@ describe('map fairness', () => {
 
   for (const players of [2, 3, 4]) {
     it(`${players} players: every home seam reads as a seam`, () => {
-      // Equal worth is not equal ground. Before seams felled the timber
-      // they landed in, a seat whose birthright fell in a grove got its
-      // full 180 silver packed into three tiles at twice the metal apiece
+      // Equal worth is not equal ground. Before seamFor went looking for a
+      // whole seam in ground it could be seen in, a seat whose birthright
+      // fell in a grove got its full 180 silver packed into the three tiles
+      // it could find there, at twice the metal apiece
       // — fair by the worth audit above, and from the castle
       // indistinguishable from an empty wood. The seat that drew that in a
       // four-seat valley (seed 96655595) built its first silver mine at
