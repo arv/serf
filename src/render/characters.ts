@@ -376,9 +376,11 @@ function stringlessBow(
 ): THREE.BufferGeometry | undefined {
   const cached = stringlessBows.get(source);
   if (cached) return cached;
+  // Either attribute flavour reads the same way; only the index is a
+  // must, since the cut is made on it.
   const position = source.getAttribute('position');
   const index = source.getIndex();
-  if (!(position instanceof THREE.BufferAttribute) || !index) return undefined;
+  if (!position || !index) return undefined;
   const onString = (i: number): boolean =>
     Math.abs(position.getX(i) - BOW_STRING_X) < BOW_STRING_CATCH &&
     Math.abs(position.getY(i)) < BOW_STRING_HALF_Y &&
