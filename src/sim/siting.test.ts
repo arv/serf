@@ -1,9 +1,108 @@
 import {describe, expect, it} from 'vitest';
-import {tileX, tileY} from '../shared/grid.ts';
-import {nearestClaimableResource, rivalGround} from './siting.ts';
+import {tileIdx, tileX, tileY} from '../shared/grid.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import {
+  findSpot,
+  nearestClaimableResource,
+  nearestRivalStart,
+  rivalGround,
+} from './siting.ts';
+import * as Terrain from './terrainEnum.ts';
 import {addResourceTile, addStorehouse, bareWorld} from './testUtils.ts';
 import * as TileResource from './tileResourceEnum.ts';
 import type {World} from './world.ts';
+
+/**
+ * Where a building that FIGHTS goes: the spiral's own reading of "nearest"
+ * says nothing about which side of the village a wall stands on, and a
+ * seat whose towers went up behind its castle was the complaint that put
+ * `toward` in `findSpot`.
+ */
+describe('siting a tower against a threat', () => {
+  /** A castle at 30,30 — its anchor, and the point every site below is
+   * measured from, is its middle at 31,31. The one-tile gap the spiral
+   * keeps puts the innermost legal ring at three. */
+  function village(): World {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    return world;
+  }
+
+  const tower = (
+    world: World,
+    toward?: {x: number; y: number} | null,
+  ): {x: number; y: number} | null =>
+    findSpot(world, BuildingTypeId.guardTower, 31, 31, 14, toward);
+
+  it('stands on the side the threat is on', () => {
+    const world = village();
+    // Due east: the nearest legal 2x2 to a threat out that way, three
+    // tiles out and level with the castle's middle.
+    expect(tower(world, {x: 61, y: 31})).toEqual({x: 34, y: 30});
+    // The other three quarters, from the same castle: the site follows
+    // the threat rather than any compass point. Read as sides rather than
+    // exact tiles, because the gap rule is not symmetric — a 2x2 sits one
+    // column nearer on the east and south than on the west and north.
+    expect(tower(world, {x: 1, y: 31})!.x).toBeLessThan(31);
+    expect(tower(world, {x: 31, y: 61})!.y).toBeGreaterThan(31);
+    expect(tower(world, {x: 31, y: 1})!.y).toBeLessThan(31);
+  });
+
+  it('keeps to the innermost ring that has ground facing the threat', () => {
+    const world = village();
+    const spot = tower(world, {x: 61, y: 31})!;
+    // Three out, the nearest a 2x2 can stand with its gap kept — the
+    // facing rule picks a SIDE, it does not march the tower out of the
+    // village to meet the enemy.
+    expect(Math.max(Math.abs(spot.x - 31), Math.abs(spot.y - 31))).toBe(3);
+  });
+
+  it('takes the nearest ground it can get when nothing faces the threat', () => {
+    const world = village();
+    // Everything east of the castle is water: every site left standing is
+    // further from the threat than the castle itself, which is the case
+    // the facing rule has no answer for.
+    for (let y = 0; y < world.map.size; y++) {
+      for (let x = 32; x < world.map.size; x++) {
+        world.map.terrain[tileIdx(x, y, world.map.size)] = Terrain.Water;
+      }
+    }
+    expect(tower(world, {x: 61, y: 31})).toEqual(tower(world));
+  });
+
+  it('is the plain spiral with no threat to face', () => {
+    // The old answer, and still the answer for a granary: null and
+    // undefined both mean "site this by nearness alone".
+    const world = village();
+    expect(tower(world, null)).toEqual(tower(world));
+    expect(tower(world)).not.toBeNull();
+  });
+});
+
+/**
+ * Which corner a seat looks at before it has found anybody — the fallback
+ * under the same rule (`nearestRivalStart`).
+ */
+describe('the nearest rival corner', () => {
+  it('reads the dealt starts, nearest first, and forgets the dead', () => {
+    const world = bareWorld(1, 3);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 80, 30, {}, 1);
+    addStorehouse(world, 50, 30, {}, 2);
+    // Anchors, not origins: the castle's middle, as rivalGround reads it.
+    expect(nearestRivalStart(world, 0, 31, 31)).toEqual({x: 52, y: 32});
+    world.players[2]!.alive = false;
+    expect(nearestRivalStart(world, 0, 31, 31)).toEqual({x: 82, y: 32});
+    world.players[1]!.alive = false;
+    expect(nearestRivalStart(world, 0, 31, 31)).toBeNull();
+  });
+
+  it('has no answer in a valley with nobody else in it', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    expect(nearestRivalStart(world, 0, 31, 31)).toBeNull();
+  });
+});
 
 /**
  * Whose ground a seam is, as the seats read it. The build order, the

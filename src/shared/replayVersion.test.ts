@@ -223,8 +223,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // waypoint, which comes round again once taken instead of being spent
 // (tick.ts takeLeg). A log that names it plays a single attack-move on
 // any build that screens the flag off (see replayVersion.ts).
+// Still 46 after the towers learned which way to look (sim/siting.ts
+// findSpot `toward`, `nearestRivalStart`; systems/ai.ts `facing`): a seat
+// sites a building that fights on the side of its castle the nearest
+// stronghold it has found is on. Brain and siting work, which playback
+// never runs — a log's towers were placed by command and re-run where
+// they were placed. siting.ts is on the surface for the sim it is, so the
+// hash moved anyway.
 const EXPECTED_VERSION = 46;
-const EXPECTED_HASH = '081486cf70f62c5bfed007522476b0d4';
+const EXPECTED_HASH = '1e14f7fbe013c96ffab3e506593e7ce1';
 
 /**
  * Everything a replay's playback depends on, as raw source:
