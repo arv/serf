@@ -343,6 +343,42 @@ export const RESERVE_SEAM_BAND = {min: 21, max: 27, wide: 30} as const;
 export const RESERVE_SEAM_KEEPOUT = 21;
 
 /**
+ * Tiles a metal seam covers, and how far it may spread looking for them.
+ * The reach stays inside a mine's own gather radius, so a seam that had to
+ * widen is still one mine's worth of ground rather than two.
+ *
+ * Module scope and exported because the tile count is a promise now rather
+ * than whatever the ground allowed — seamFor draws again rather than settle
+ * for a stub, and prefers ground with room to lay a whole one (see
+ * SEAM_CLEARING_SHARE). The fairness audit reads it to check the promise
+ * was kept.
+ */
+export const SEAM_TILES = 6;
+export const SEAM_REACH = 3;
+
+/**
+ * How much of what rings a seam has to be something other than standing
+ * timber for worldgen to call the spot a clearing and lay a birthright in
+ * it (ringOpenShare measures it off the tiles the seam would take).
+ *
+ * A seam only ever lies on bare ground, so a thicket is where seams come up
+ * short AND where the ones that fit go unseen: the valley that started this
+ * wedged one seat's whole silver birthright into three tiles inside a grove
+ * while two rivals opened on six lying in open grass. One preference
+ * answers both — a seam is drawn where there is room for a whole one and
+ * something to see it against, and only settles for the thicket when the
+ * band offers nothing else (seamFor's tiers).
+ *
+ * A half, rather than a share tuned to a seed: it is the line between "ore
+ * in a wood" and "ore with a wood behind it". Every home seam over 400
+ * seeds at two, three and four seats clears it — the band always held a
+ * clearing that could take a whole seam — so the audit in
+ * mapFairness.test.ts holds the outcome to a third, the looser bar the
+ * later passes could still honestly promise on a seed where it does not.
+ */
+export const SEAM_CLEARING_SHARE = 0.5;
+
+/**
  * What a silver seam is worth, home and reserve.
  *
  * The home figure is the tech tree (79) plus hands at four apiece with
@@ -698,53 +734,19 @@ export function generateMap(
     return placed;
   };
 
-  /** Tiles a metal seam aims to cover, and how far it may spread looking
-   * for them. The reach stays inside a mine's own gather radius, so a seam
-   * that had to widen is still one mine's worth of ground rather than two. */
-  const SEAM_TILES = 6;
-  const SEAM_REACH = 3;
-
   /**
-   * A metal seam of fixed total worth, however the ground lets it lie.
-   *
-   * `placeCluster` writes a flat amount per tile, which prices a seam by
-   * whatever the terrain happened to allow: a blob that lands on open grass
-   * is six tiles and six times the metal, while one that lands against a
-   * grove or a lake is a single tile. Across the four starts of a generated
-   * valley that ran to a tenfold spread — 20 silver against 200 — and the
-   * seat dealt the thin end mined its whole birthright out inside twenty
-   * minutes and went prospecting across the map. That is not a difficulty
-   * setting, it is the seed deciding the match.
-   *
-   * So a seam is priced rather than measured. It takes the nearest open
-   * tiles it can find, widening until it has SEAM_TILES of them or runs out
-   * of room, and splits `budget` evenly over whatever landed: ground with
-   * space for two tiles gets two rich ones. Every faction mines the same
-   * amount of metal out of its own valley, which is what "ore is a
-   * birthright" was always meant to say.
-   *
-   * Nearest-first and index-ordered, drawing nothing from the Rng — where a
-   * seam sits is still a roll (see seamFor), but how it lies once the center
-   * is chosen is the terrain's business alone.
-   *
-   * The budget is checked rather than merely documented, because both ends
-   * of its range fail silently. `resourceAmt` is a byte, so a budget past
-   * 255 wraps on a seam that lands on one tile — 300 becoming 44 — and a
-   * map that reads as fair while one faction mines a seventh of what its
-   * rivals do is the exact failure this function exists to remove. A budget
-   * thinner than the tiles it is split over rounds some of them to nothing,
-   * and a resource tile holding nothing is a seam a miner walks to and
-   * cannot work (mapFile refuses one outright: 'resource with no amount').
-   *
-   * Returns how many tiles were written, so a caller that must place a seam
-   * knows to try another center.
+   * The tiles a seam drawn at this center would take — placeSeam's own
+   * scan, without the writing, so a caller can weigh two centers against
+   * each other before it commits to one (seamFor lays its seam at the
+   * least-wooded center that can still hold a whole one).
    */
-  const placeSeam = (
-    res: TileResourceKind,
-    budget: number,
-    cx: number,
-    cy: number,
-  ): number => {
+  const seamRoom = (budget: number, cx: number, cy: number): number[] => {
+    // The budget check lives HERE, not in placeSeam, because this is the
+    // door every caller comes through first: seamFor weighs candidate
+    // centers by what they would hold, so a budget of NaN or zero would
+    // make every center in the band look roomless and the seam would go
+    // quietly unplaced — the silent failure the check exists to prevent,
+    // wearing a different coat.
     if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
       throw new Error(
         `seam budget must be a whole number of 1..255 (got ${budget})`,
@@ -774,18 +776,124 @@ export function generateMap(
     // Never more tiles than the budget can put metal in: a seam priced
     // below SEAM_TILES buys fewer, richer tiles rather than padding itself
     // out with empty ones. At the budgets in use this takes all six.
-    const take = open.slice(0, Math.min(SEAM_TILES, budget));
-    if (take.length === 0) return 0;
+    return open.slice(0, Math.min(SEAM_TILES, budget)).map(o => o.i);
+  };
+
+  /**
+   * A metal seam of fixed total worth, however the ground lets it lie.
+   *
+   * `placeCluster` writes a flat amount per tile, which prices a seam by
+   * whatever the terrain happened to allow: a blob that lands on open grass
+   * is six tiles and six times the metal, while one that lands against a
+   * grove or a lake is a single tile. Across the four starts of a generated
+   * valley that ran to a tenfold spread — 20 silver against 200 — and the
+   * seat dealt the thin end mined its whole birthright out inside twenty
+   * minutes and went prospecting across the map. That is not a difficulty
+   * setting, it is the seed deciding the match.
+   *
+   * So a seam is priced rather than measured. It takes the nearest open
+   * tiles it can find, widening until it has SEAM_TILES of them or runs out
+   * of room, and splits `budget` evenly over whatever landed: ground with
+   * space for two tiles gets two rich ones. Every faction mines the same
+   * amount of metal out of its own valley, which is what "ore is a
+   * birthright" was always meant to say.
+   *
+   * Equal worth was only half of it, though, because a seam is also a thing
+   * a player has to FIND. Three rich tiles wedged between the trees carry
+   * the same birthright as six in open grass and read, from the castle, as
+   * an empty wood — the complaint this answers is a four-seat valley where
+   * two seats opened on a six-tile silver blob in the open and a third had
+   * three tiles in a grove with twenty of their twenty-four neighbours in
+   * timber. Same wealth, and only one of the three had to go prospecting
+   * for its own opening.
+   *
+   * `minTiles` is that half of the promise, and it belongs to the caller:
+   * a center in a thicket or against the water is a center that writes a
+   * stub, and a caller with somewhere else to draw would rather draw there
+   * than deal one. Zero comes back and it draws again (see seamFor, which
+   * insists on a whole seam through every tier — from ground it prefers to
+   * be a clearing, SEAM_CLEARING_SHARE — before it will take what it can
+   * get).
+   *
+   * Nearest-first and index-ordered, drawing nothing from the Rng — where a
+   * seam sits is still a roll (see seamFor), but how it lies once the center
+   * is chosen is the terrain's business alone.
+   *
+   * The budget is checked rather than merely documented — in seamRoom, the
+   * scan both this and the center-weighing come through, so no caller can
+   * reach the ground with an unscreened one — because both ends of its
+   * range fail silently. `resourceAmt` is a byte, so a budget past
+   * 255 wraps on a seam that lands on one tile — 300 becoming 44 — and a
+   * map that reads as fair while one faction mines a seventh of what its
+   * rivals do is the exact failure this function exists to remove. A budget
+   * thinner than the tiles it is split over rounds some of them to nothing,
+   * and a resource tile holding nothing is a seam a miner walks to and
+   * cannot work (mapFile refuses one outright: 'resource with no amount').
+   *
+   * Returns how many tiles were written, so a caller that must place a seam
+   * knows to try another center.
+   */
+  const placeSeam = (
+    res: TileResourceKind,
+    budget: number,
+    cx: number,
+    cy: number,
+    minTiles = 1,
+  ): number => {
+    // Budget screened by seamRoom, on the first line below.
+    const take = seamRoom(budget, cx, cy);
+    if (take.length < Math.max(1, minTiles)) return 0;
     // The even split, with the remainder going to the tiles nearest the
     // middle. Whole tiles of the budget land and none of it is lost, so two
     // seams priced the same are worth exactly the same.
     const per = Math.floor(budget / take.length);
     let over = budget - per * take.length;
-    for (const {i} of take) {
+    for (const i of take) {
       map.resource[i] = res;
       map.resourceAmt[i] = per + (over-- > 0 ? 1 : 0);
     }
     return take.length;
+  };
+
+  /**
+   * How much of what would RING these seam tiles is not standing timber —
+   * the clearing test seamFor prefers its centers by (SEAM_CLEARING_SHARE).
+   *
+   * Measured off the tiles the seam would actually take (seamRoom) rather
+   * than a disc around the center, because those are two different
+   * questions and only one of them is the player's: a center with open
+   * ground on one side scores well as a disc while the six tiles it deals
+   * lie in the trees on the other. Scoring the ring is also what lets the
+   * audit in mapFairness.test.ts measure the promise instead of a proxy
+   * for it.
+   *
+   * Everything but wood counts as open — a bank, a hillside or a lake
+   * behind a seam leaves it perfectly visible, a grove does not — and the
+   * map is read as it stands, so a seam drawn after a neighbour's already
+   * sees that neighbour. No tiles at all is no seam, and scores 0.
+   */
+  const ringOpenShare = (take: readonly number[]): number => {
+    if (take.length === 0) return 0;
+    const own = new Set(take);
+    let open = 0;
+    let total = 0;
+    for (const i of take) {
+      const x = i % size;
+      const y = (i / size) | 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (!inBounds(nx, ny, size)) continue;
+          const ni = tileIdx(nx, ny, size);
+          if (own.has(ni)) continue;
+          total++;
+          if (map.resource[ni] !== TileResourceNs.Wood) open++;
+        }
+      }
+    }
+    return total > 0 ? open / total : 0;
   };
 
   const randomSpot = (minEdge: number, draw: Rng = rng): [number, number] => {
@@ -940,25 +1048,31 @@ export function generateMap(
       (x, y) => from(x, y) <= band.wide && nearestTo(x, y),
       (x, y) => from(x, y) <= band.wide, // shared ground beats no reserve
     ];
-    for (const pred of tiers) {
-      const open: [number, number][] = [];
-      for (let y = p0; y < p0 + play; y++) {
-        for (let x = p0; x < p0 + play; x++) {
-          if (from(x, y) < band.min) continue;
-          if (playEdgeDist(map, x, y) < 3) continue;
-          if (startDist(x, y) < RESERVE_SEAM_KEEPOUT) continue;
-          if (map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass) continue;
-          if (!pred(x, y)) continue;
-          open.push([x, y]);
+    // A whole seam through every tier first, then a stub — the same two
+    // passes the birthright makes, and for the same reason: a reserve is
+    // ground a seat has to spot from across the valley before it can be
+    // worth a mine and a road.
+    for (const minTiles of [SEAM_TILES, 1]) {
+      for (const pred of tiers) {
+        const open: [number, number][] = [];
+        for (let y = p0; y < p0 + play; y++) {
+          for (let x = p0; x < p0 + play; x++) {
+            if (from(x, y) < band.min) continue;
+            if (playEdgeDist(map, x, y) < 3) continue;
+            if (startDist(x, y) < RESERVE_SEAM_KEEPOUT) continue;
+            if (map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass) continue;
+            if (!pred(x, y)) continue;
+            open.push([x, y]);
+          }
         }
-      }
-      // A center inside a grove or against the water writes nothing, so
-      // a miss draws again from what is left rather than giving up.
-      for (let tries = 0; tries < 40 && open.length > 0; tries++) {
-        const k = draw.int(open.length);
-        const [x, y] = open[k]!;
-        open.splice(k, 1);
-        if (placeSeam(res, budget, x, y) > 0) return;
+        // A center inside a grove or against the water writes nothing, so
+        // a miss draws again from what is left rather than giving up.
+        for (let tries = 0; tries < 40 && open.length > 0; tries++) {
+          const k = draw.int(open.length);
+          const [x, y] = open[k]!;
+          open.splice(k, 1);
+          if (placeSeam(res, budget, x, y, minTiles) > 0) return;
+        }
       }
     }
   };
@@ -973,20 +1087,27 @@ export function generateMap(
       const dc = centerDist(x0, y0);
       return dc >= RESERVE_SEAM_BAND.min && dc <= RESERVE_SEAM_BAND.max;
     };
-    for (let tries = 0; tries < 40; tries++) {
-      const [x, y] = spotPref(
-        4,
-        RESERVE_SEAM_KEEPOUT,
-        [
-          (x0, y0) => onOuterRing(x0, y0) && heightAt(x0, y0) > 1.0,
-          onOuterRing,
-          // Pathological seed: the whole band is lake or hillside. Anything
-          // past the keep-out beats a valley with one seam in it.
-          (x0, y0) => centerDist(x0, y0) <= RESERVE_SEAM_BAND.wide,
-        ],
-        draw,
-      );
-      if (placeSeam(res, budget, x, y) > 0) break;
+    // Whole seam first here too (see seamFor): a lone player has no rival
+    // to be treated unfairly against, but a stub in a grove is just as hard
+    // to find on a solo map as on a shared one.
+    for (const minTiles of [SEAM_TILES, 1]) {
+      let placed = false;
+      for (let tries = 0; tries < 40 && !placed; tries++) {
+        const [x, y] = spotPref(
+          4,
+          RESERVE_SEAM_KEEPOUT,
+          [
+            (x0, y0) => onOuterRing(x0, y0) && heightAt(x0, y0) > 1.0,
+            onOuterRing,
+            // Pathological seed: the whole band is lake or hillside.
+            // Anything past the keep-out beats a valley with one seam in it.
+            (x0, y0) => centerDist(x0, y0) <= RESERVE_SEAM_BAND.wide,
+          ],
+          draw,
+        );
+        if (placeSeam(res, budget, x, y, minTiles) > 0) placed = true;
+      }
+      if (placed) break;
     }
   };
   if (starts.length > 1) {
@@ -1015,19 +1136,64 @@ export function generateMap(
         (x, y) => isOwnGround(start, x, y),
         () => true, // pathological seed: any grass in the band beats no seam
       ];
-      for (const [ti, pred] of tiers.entries()) {
-        // Last tier looks wider.
-        const {min, max, wide} = HOME_SEAM_BAND;
-        const reach = ti === tiers.length - 1 ? wide : max;
-        for (let tries = 0; tries < 60; tries++) {
-          const ang = rng.range(0, Math.PI * 2);
-          const d = rng.range(min, reach);
-          const x = Math.round(a.x + Math.cos(ang) * d);
-          const y = Math.round(a.y + Math.sin(ang) * d);
-          if (playEdgeDist(map, x, y) < 3) continue;
-          if (map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass) continue;
-          if (!pred(x, y)) continue;
-          if (placeSeam(res, budget, x, y) > 0) return;
+      // The draws of a tier are a search now, not a race. What the race
+      // used to do was take the first center in the band that was grass and
+      // this seat's, thicket or not, while the open ground it could have
+      // had sat a few draws further down the same list: that is how a
+      // four-seat valley opened one seat on three tiles of silver in a
+      // grove (twenty of their twenty-four neighbours in timber) and two
+      // rivals on six in open grass.
+      //
+      // Three passes, in the order a seat would want them. The first asks
+      // every tier for a center that puts a WHOLE seam in a CLEARING
+      // (SEAM_CLEARING_SHARE) and takes the first one it finds — the common
+      // case, usually a draw or two deep, and over 400 seeds at two, three
+      // and four seats it is the only pass that ever places one. The second
+      // drops the clearing as a REQUIREMENT and keeps the whole seam,
+      // laying it at the least wooded center the tier saw — or at the first
+      // center that clears the bar after all, if the fresh draws turn one
+      // up, since a clearing is the whole of what the first pass asks for
+      // and there is nothing better to hold out for. The third drops the
+      // count too, because some metal in the band still beats none.
+      //
+      // Both halves of the failure are in that order. Three rich tiles
+      // wedged between the trees are worth what six in the open are worth
+      // and read as an empty wood, so a center that cannot hold a whole
+      // seam is refused while the band still offers one that can; and of
+      // the centers that can, the one with something to see the ore
+      // against wins. On the seeds that never need the later passes they
+      // never run and never draw.
+      const passes = [
+        {minTiles: SEAM_TILES, clearing: true},
+        {minTiles: SEAM_TILES, clearing: false},
+        {minTiles: 1, clearing: false},
+      ];
+      for (const {minTiles, clearing} of passes) {
+        for (const [ti, pred] of tiers.entries()) {
+          // Last tier looks wider.
+          const {min, max, wide} = HOME_SEAM_BAND;
+          const reach = ti === tiers.length - 1 ? wide : max;
+          let best: {x: number; y: number; share: number} | null = null;
+          for (let tries = 0; tries < 60; tries++) {
+            const ang = rng.range(0, Math.PI * 2);
+            const d = rng.range(min, reach);
+            const x = Math.round(a.x + Math.cos(ang) * d);
+            const y = Math.round(a.y + Math.sin(ang) * d);
+            if (playEdgeDist(map, x, y) < 3) continue;
+            if (map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass) continue;
+            if (!pred(x, y)) continue;
+            const room = seamRoom(budget, x, y);
+            if (room.length < minTiles) continue;
+            const share = ringOpenShare(room);
+            if (clearing && share < SEAM_CLEARING_SHARE) continue;
+            if (!best || share > best.share) best = {x, y, share};
+            // A center at the bar is exactly what the first pass goes
+            // looking for, so no later pass keeps searching past one: the
+            // promise is the bar, not the maximum.
+            if (share >= SEAM_CLEARING_SHARE) break;
+          }
+          if (best && placeSeam(res, budget, best.x, best.y, minTiles) > 0)
+            return;
         }
       }
     };

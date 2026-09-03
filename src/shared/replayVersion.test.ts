@@ -230,8 +230,25 @@ import {REPLAY_VERSION} from './replayVersion';
 // never runs — a log's towers were placed by command and re-run where
 // they were placed. siting.ts is on the surface for the sim it is, so the
 // hash moved anyway.
-const EXPECTED_VERSION = 46;
-const EXPECTED_HASH = '1e14f7fbe013c96ffab3e506593e7ce1';
+// 47 for seams a player can find (map.ts): a home seam is drawn from a
+// center with a clearing around it, and no seam settles for a stub while
+// the band still holds a center that can take a whole one. Ore lies on
+// different tiles on every generated seed and the rejected centers re-roll
+// what is drawn after them, so a replay recorded before this re-runs in a
+// different valley (see replayVersion.ts).
+// Still 47 after seamFor's comment learned to say that a later pass stops
+// at the first center that clears the bar (map.ts, words only): same
+// statements, same draws, same valley. The hash is over raw bytes, which
+// is why it moved anyway.
+// Still 47 after the seam budget's check moved to seamRoom (map.ts): the
+// same throw on the same inputs, one function earlier, where the center
+// weighing also passes through it. No draw and no tile moved; the hash is
+// over raw bytes.
+// Still 47 after placeSeam's narrative moved back above placeSeam, where
+// extracting seamRoom had left it stranded a function early (map.ts,
+// comment placement only). Same statements, same draws, same valleys.
+const EXPECTED_VERSION = 47;
+const EXPECTED_HASH = '42f3fa4e84931e97ad21ad8fd36587c6';
 
 /**
  * Everything a replay's playback depends on, as raw source:
