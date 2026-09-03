@@ -1661,6 +1661,33 @@ export function SelectionPanel(props: {
                   <Key label="Move" k="M" />
                 </button>
               </TipWrap>
+              {/* Patrol: a mode like Attack and Move, and soldiers only
+                  like Hold — a serf handed a patrol takes the plain walk,
+                  so a band of them is offered nothing rather than a
+                  button that promises a beat nobody walks. */}
+              <Show when={fighters().length > 0}>
+                <TipWrap
+                  tip={() => (
+                    <TextTip
+                      title="Patrol"
+                      body="Then click a spot: they walk there and back, and there again, fighting whatever they meet on the way, until you give another order. Shift-click adds a spot to the beat."
+                    />
+                  )}
+                >
+                  <button
+                    classList={{active: orderMode() === OrderMode.patrol}}
+                    onClick={() =>
+                      props.onArmOrder(
+                        orderMode() === OrderMode.patrol
+                          ? null
+                          : OrderMode.patrol,
+                      )
+                    }
+                  >
+                    <Key label="Patrol" k="P" />
+                  </button>
+                </TipWrap>
+              </Show>
               {/* Hold ground. Not a mode like its two neighbours — there
                   is no spot to click, so the press IS the order — and
                   lit not because it is armed but because the sim says the
@@ -1709,11 +1736,13 @@ export function SelectionPanel(props: {
                 ? 'click where to attack-move'
                 : orderMode() === OrderMode.move
                   ? 'click where to walk'
-                  : fighters().length > 0 && fighters().every(u => u.holding)
-                    ? 'holding ground — any order releases them'
-                    : matchMedia('(pointer: coarse)').matches
-                      ? 'tap the ground to send them'
-                      : 'right-click to send them'}
+                  : orderMode() === OrderMode.patrol
+                    ? 'click the far end of the beat'
+                    : fighters().length > 0 && fighters().every(u => u.holding)
+                      ? 'holding ground — any order releases them'
+                      : matchMedia('(pointer: coarse)').matches
+                        ? 'tap the ground to send them'
+                        : 'right-click to send them'}
           </div>
         </div>
       </Show>

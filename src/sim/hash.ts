@@ -95,6 +95,11 @@ export function hashWorld(world: World): number {
         mixU32(wp.y);
         mix(wp.attack === true ? 2 : wp.attack === 'half' ? 1 : 0);
         mixF64(wp.pace ?? 0); // 0 is a safe "own speed" sentinel, as above
+        // A beat's leg comes round again; a plain one is spent. Home is
+        // where the next spot slots in, so two beats with the same legs
+        // can still grow differently.
+        mix(wp.patrol ? 1 : 0);
+        mix(wp.home ? 1 : 0);
       }
     }
     mix(u.task.t); // task tag

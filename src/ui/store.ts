@@ -197,7 +197,7 @@ export const [buildAim, setBuildAim] = createSignal<BuildingTypeId | null>(
 export const [buildChord, setBuildChord] = createSignal(false);
 
 /**
- * An order armed and waiting for its target: A or M pressed (or the
+ * An order armed and waiting for its target: A, M or P pressed (or the
  * selection card's buttons tapped) with people selected, and the next click
  * on the map says where. `'attack'` is the attack-move that engages what it
  * meets, `'move'` the plain walk that ignores it. `'rally'` is the odd one

@@ -14,12 +14,25 @@ export type UnitTaskKind = Enum<typeof UnitTaskKindNs>;
  * and the pace his squad marches that leg at, where it binds (see
  * Unit.marchSpeed). Dealt when the leg is queued — tick.ts queueLeg says
  * why — and spent the moment it comes due.
+ *
+ * `patrol` marks a leg of a beat: taken, it goes back to the end of the
+ * route instead of being spent, so a route whose legs all carry it is
+ * walked round and round until a fresh order drops it (tick.ts takeLeg).
+ * A patrol is two such legs at least — the ordered spot and the spot the
+ * unit set out from, which is the beat's `home` — and Shift-P adds
+ * another, slotted in just before home so the beat runs the spots in the
+ * order they were given and comes home last (tick.ts orderPatrol; the
+ * legs rotate as they are taken, so home is the one fixed point to slot
+ * against). A plain leg queued behind a beat is walked once, on the round
+ * it comes up in, and the beat goes on without it.
  */
 export interface Waypoint {
   x: number;
   y: number;
   attack?: true | 'half';
   pace?: number;
+  patrol?: true;
+  home?: true;
 }
 
 /**
