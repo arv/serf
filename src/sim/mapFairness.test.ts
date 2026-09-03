@@ -10,6 +10,8 @@ import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import {
   CASTLE_OPENING_SIGHT,
   HOME_SEAM_BAND,
+  IRON_HOME_WORTH,
+  IRON_RESERVE_WORTH,
   RESERVE_SEAM_BAND,
   SILVER_HOME_WORTH,
   SILVER_RESERVE_WORTH,
@@ -268,12 +270,15 @@ describe('map fairness', () => {
     }
   });
 
-  it('every start, solo included, has a second silver seam further out', () => {
-    // The complaint this covers: the silver runs out. One seam is a
+  it('every start, solo included, has a second silver and iron seam further out', () => {
+    // The complaint this covers: the metal runs out. One seam is a
     // finite number of loads and a match that outlives it is a match
-    // nobody can hire, research or re-tool in — so every start is dealt a
-    // reserve as well, out past its home ring where reaching it costs a
-    // mine and a long haul rather than a build order.
+    // nobody can hire, research or re-tool in — and, once the iron went
+    // the same way (seed 55973911: six loads left on a three-seat board
+    // by tick 36_000), a match with no swords and no tools either — so
+    // every start is dealt a reserve of each, out past its home ring
+    // where reaching it costs a mine and a long haul rather than a build
+    // order.
     //
     // Measured as worth beyond the home ring, not as a count of seams: a
     // reserve that landed as two tiles of thirty is the same reserve.
@@ -281,29 +286,29 @@ describe('map fairness', () => {
     // was drawn at (map.ts SEAM_REACH), which the outer bound has to
     // allow for.
     const SEAM_SPREAD = 3;
+    const metals = [
+      [TileResource.SilverDep, SILVER_RESERVE_WORTH, 'silver'],
+      [TileResource.IronDep, IRON_RESERVE_WORTH, 'iron'],
+    ] as const;
     for (const players of [1, 2, 3, 4]) {
       for (const seed of SEEDS) {
         const world = makeWorld(seed, players);
         for (const h of anchors(world)) {
           const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}`;
-          const home = amountNear(
-            world,
-            TileResource.SilverDep,
-            h.x,
-            h.y,
-            HOME_SEAM_BAND.wide,
-          );
-          const reachable = amountNear(
-            world,
-            TileResource.SilverDep,
-            h.x,
-            h.y,
-            RESERVE_SEAM_BAND.wide + SEAM_SPREAD,
-          );
-          expect(
-            reachable - home,
-            `${label}: reserve silver past the home ring`,
-          ).toBeGreaterThanOrEqual(SILVER_RESERVE_WORTH);
+          for (const [code, worth, name] of metals) {
+            const home = amountNear(world, code, h.x, h.y, HOME_SEAM_BAND.wide);
+            const reachable = amountNear(
+              world,
+              code,
+              h.x,
+              h.y,
+              RESERVE_SEAM_BAND.wide + SEAM_SPREAD,
+            );
+            expect(
+              reachable - home,
+              `${label}: reserve ${name} past the home ring`,
+            ).toBeGreaterThanOrEqual(worth);
+          }
         }
       }
     }
@@ -315,16 +320,26 @@ describe('map fairness', () => {
       // valley that dealt one seat two reserves and its neighbour a share
       // of someone else's. Every gram of silver on the board is accounted
       // for by the seats, at the same price each.
+      const metals = [
+        [
+          TileResource.SilverDep,
+          SILVER_HOME_WORTH + SILVER_RESERVE_WORTH,
+          'silver',
+        ],
+        [TileResource.IronDep, IRON_HOME_WORTH + IRON_RESERVE_WORTH, 'iron'],
+      ] as const;
       for (const seed of SEEDS) {
         const world = makeWorld(seed, players);
-        let total = 0;
-        for (let i = 0; i < tileCount(world.map.size); i++) {
-          if (world.map.resource[i] === TileResource.SilverDep)
-            total += world.map.resourceAmt[i]!;
+        for (const [code, perSeat, name] of metals) {
+          let total = 0;
+          for (let i = 0; i < tileCount(world.map.size); i++) {
+            if (world.map.resource[i] === code)
+              total += world.map.resourceAmt[i]!;
+          }
+          expect(total, `seed ${seed}, ${players}p: ${name} on the board`).toBe(
+            players * perSeat,
+          );
         }
-        expect(total, `seed ${seed}, ${players}p: silver on the board`).toBe(
-          players * (SILVER_HOME_WORTH + SILVER_RESERVE_WORTH),
-        );
       }
     });
   }

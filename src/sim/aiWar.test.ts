@@ -1,15 +1,19 @@
 import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import {AI_INTEL, AI_WAR, AiBrain} from './systems/ai.ts';
+import {findPathToAdjacent, tileStepCost} from './path.ts';
+import {AI_INTEL, AI_WAR, AiBrain, cheapestRoad} from './systems/ai.ts';
 import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
 import type {Unit} from './units.ts';
 import * as WarBehaviorId from './warBehaviorIdEnum.ts';
 import type {World} from './world.ts';
-import {spawnUnit} from './world.ts';
+import {placeBuiltBuilding, spawnUnit} from './world.ts';
 
 /**
  * The war behaviors (warBehaviorIdEnum, AI_WAR): the reactive verbs that
@@ -224,6 +228,244 @@ describe('the losing march', () => {
     const {world, brain} = routedMarch(AiStrategyId.warlord);
     brain.decide(world);
     expect(brain.warReport().marchRetreats).toBe(0);
+  });
+});
+
+describe('the wiped march', () => {
+  /** The rival castle's tile, as the all-in march orders it. */
+  const CASTLE = {x: BASE + 9, y: BASE + 1};
+  const marchesOn = (commands: SimCommand[]): Move | undefined =>
+    moves(commands).find(m => m.x === CASTLE.x && m.y === CASTLE.y);
+
+  /** March `n` knights at a found castle and lose every one of them. */
+  function wipedMarch(
+    tier: DifficultyId.easy | DifficultyId.normal | DifficultyId.hard,
+    n: number,
+  ): {world: World; brain: AiBrain} {
+    const world = village();
+    addStorehouse(world, BASE + 8, BASE, {}, 1);
+    const army = knights(world, n);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.warlord],
+      world.map.size,
+      tier,
+    );
+    brain.setWarBehaviors([WarBehaviorId.wipedMarch]);
+    world.tick = 1500; // past dwell and every cooldown: the march fires
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(n);
+    for (const u of army) u.dead = true;
+    world.tick += 40;
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+    return {world, brain};
+  }
+
+  it('the same number does not march twice, and one more does', () => {
+    // The played case (seed 55973911): three knights at a tower and an
+    // army, every cooldown, for twenty thousand ticks. What died is the
+    // lesson — the next march on that castle wants more than that.
+    const {world, brain} = wipedMarch(DifficultyId.hard, 6);
+    expect(brain.warReport().wipes).toBe(1);
+    knights(world, 6);
+    world.tick += 2000; // past the attack cooldown, short of impatience
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+    knights(world, 1, 0, BASE + 1);
+    world.tick += 40;
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(7);
+  });
+
+  it('outranks the growth-stall clamp that was feeding the men', () => {
+    // An army that cannot grow past what already died is not "as big as
+    // it is getting", it is known to be too small: the clamp that drops
+    // the bar to whatever stands does not get to march it.
+    const {world, brain} = wipedMarch(DifficultyId.hard, 6);
+    knights(world, 3);
+    world.tick += 6000; // past growthStallAfter, short of staleAfter
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+  });
+
+  it('is a lesson about one castle, not about marching', () => {
+    const {world, brain} = wipedMarch(DifficultyId.hard, 6);
+    // The castle that wiped the march falls to someone else: nothing to
+    // remember, and the next target is marched on at the bar.
+    const castle = [...world.buildings.values()].find(b => b.owner === 1)!;
+    castle.dead = true;
+    addStorehouse(world, BASE, BASE + 8, {}, 2);
+    knights(world, 6);
+    world.tick += 2000;
+    const next = moves(brain.decide(world)).find(
+      m => m.x === BASE + 1 && m.y === BASE + 9,
+    );
+    expect(next?.unitIds.length).toBe(6);
+  });
+
+  it('on normal the lesson is learned too; on easy it is not', () => {
+    expect(wipedMarch(DifficultyId.normal, 6).brain.warReport().wipes).toBe(1);
+    // Easy musters three higher, so it takes more men to get a march out.
+    const {world, brain} = wipedMarch(DifficultyId.easy, 10);
+    expect(brain.warReport().wipes).toBe(0);
+    knights(world, 10);
+    world.tick += 2000;
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(10);
+  });
+});
+
+describe('the flanking march', () => {
+  /** A castle thirty tiles east, with a tower on the straight road to it
+   * — and a hut of ours beside each, so the seat has laid eyes on both. */
+  const CASTLE = {x: 40, y: 12};
+  const TOWER = {x: 28, y: 11, w: 2, h: 2};
+  // An archer's range from the wall, plus the margin the planner keeps
+  // past it: a waypoint has to clear the reach the brain plans against,
+  // not merely the tower's own.
+  const REACH = 5 + 2 + AI_WAR.flankMargin;
+  function towered(
+    tier: DifficultyId.normal | DifficultyId.hard,
+    tower = true,
+  ): {world: World; brain: AiBrain; army: Unit[]} {
+    const world = village();
+    addStorehouse(world, CASTLE.x, CASTLE.y, {}, 1);
+    if (tower) {
+      const t = placeBuiltBuilding(
+        world,
+        BuildingTypeId.guardTower,
+        1,
+        TOWER.x,
+        TOWER.y,
+      );
+      t.garrison = 2;
+      t.garrisonKind = UnitTypeId.archer;
+    }
+    addBuiltHut(world, 31, 15, false);
+    addBuiltHut(world, 38, 16, false);
+    const army = knights(world, 8, 0, BASE - 2);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.warlord],
+      world.map.size,
+      tier,
+    );
+    brain.setWarBehaviors([WarBehaviorId.flankMarch]);
+    world.tick = 1500;
+    return {world, brain, army};
+  }
+  const towerDist = (x: number, y: number): number => {
+    const px = Math.max(TOWER.x, Math.min(x + 0.5, TOWER.x + TOWER.w));
+    const py = Math.max(TOWER.y, Math.min(y + 0.5, TOWER.y + TOWER.h));
+    return Math.hypot(x + 0.5 - px, y + 0.5 - py);
+  };
+  const isCastle = (m: Move): boolean =>
+    m.x === CASTLE.x + 1 && m.y === CASTLE.y + 1;
+
+  it('walks round a known tower in legs, and only then at the castle', () => {
+    const {world, brain, army} = towered(DifficultyId.hard);
+    const legs: Move[] = [];
+    for (let i = 0; i < 12; i++) {
+      const order = moves(brain.decide(world)).find(
+        m => m.unitIds.length === 8,
+      );
+      expect(order, `leg ${i}`).toBeDefined();
+      legs.push(order!);
+      if (isCastle(order!)) break;
+      // The army walks the leg (teleported: the sim is not under test).
+      for (const u of army) {
+        u.x = order!.x + 0.5;
+        u.y = order!.y + 0.5;
+        u.task = {t: 1, until: world.tick};
+      }
+      world.tick += 40;
+    }
+    expect(legs.length).toBeGreaterThan(1);
+    expect(isCastle(legs[legs.length - 1]!)).toBe(true);
+    // Every waypoint stands outside the tower's arrows.
+    for (const leg of legs.slice(0, -1))
+      expect(towerDist(leg.x, leg.y)).toBeGreaterThan(REACH);
+    expect(brain.warReport().flanked).toBe(1);
+  });
+
+  it("plans in the sim's own metric: with no tower, the sim's road exactly", () => {
+    // The planner's "is the shortest road under a tower" is only worth
+    // asking of the road the army will actually walk — eight neighbours,
+    // no corner cut past a blocked tile, √2 diagonals, the road under
+    // each step — so with no danger it has to cost what path.ts's own
+    // answer costs, obstacles and all.
+    const world = village();
+    const size = world.map.size;
+    for (let y = 4; y < 20; y++) world.map.blocked[tileIdx(24, y, size)] = 1;
+    for (let x = 12; x < 30; x++) world.map.pathLevel[tileIdx(x, 14, size)] = 2;
+    const door = {x: 40, y: 12, w: 3, h: 3};
+    const road = cheapestRoad(world.map, tileIdx(8, 8, size), door, null);
+    const sim = findPathToAdjacent(world.map, 8, 8, 40, 12, 3, 3);
+    expect(road).not.toBeNull();
+    expect(sim).not.toBeNull();
+    const costOf = (steps: number[], from: number): number => {
+      let total = 0;
+      let prev = from;
+      for (const i of steps) {
+        const dx = Math.abs((i % size) - (prev % size));
+        const dy = Math.abs(Math.floor(i / size) - Math.floor(prev / size));
+        total += (dx && dy ? Math.SQRT2 : 1) * tileStepCost(world.map, i);
+        prev = i;
+      }
+      return total;
+    };
+    // The planner's road starts with its start tile; the sim's leaves it out.
+    expect(costOf(road!.slice(1), road![0]!)).toBeCloseTo(
+      costOf(sim!, tileIdx(8, 8, size)),
+      9,
+    );
+  });
+
+  it('marches straight when no tower stands on the road', () => {
+    const {world, brain} = towered(DifficultyId.hard, false);
+    const order = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(order && isCastle(order)).toBe(true);
+    expect(brain.warReport().flanked).toBe(0);
+  });
+
+  it('marches straight when the only road runs under the tower', () => {
+    // A corridor one tile wide, the whole of it in the tower's reach: the
+    // road with the arrows priced in is the same road, so there is nothing
+    // to go round and no flank to count.
+    const {world, brain} = (() => {
+      const w = village();
+      addStorehouse(w, CASTLE.x, CASTLE.y, {}, 1);
+      const size = w.map.size;
+      for (let y = 0; y < size; y++) {
+        if (y === 15) continue;
+        for (let x = 18; x < 39; x++) w.map.blocked[tileIdx(x, y, size)] = 1;
+      }
+      const t = placeBuiltBuilding(
+        w,
+        BuildingTypeId.guardTower,
+        1,
+        TOWER.x,
+        TOWER.y,
+      );
+      t.garrison = 2;
+      t.garrisonKind = UnitTypeId.archer;
+      addBuiltHut(w, 31, 17, false);
+      addBuiltHut(w, 38, 17, false);
+      knights(w, 8, 0, BASE - 2);
+      const b = new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.warlord],
+        w.map.size,
+        DifficultyId.hard,
+      );
+      b.setWarBehaviors([WarBehaviorId.flankMarch]);
+      w.tick = 1500;
+      return {world: w, brain: b};
+    })();
+    const order = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(order && isCastle(order)).toBe(true);
+    expect(brain.warReport().flanked).toBe(0);
+  });
+
+  it("is hard's alone", () => {
+    const {world, brain} = towered(DifficultyId.normal);
+    const order = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(order && isCastle(order)).toBe(true);
   });
 });
 

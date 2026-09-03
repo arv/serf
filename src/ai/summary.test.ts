@@ -66,8 +66,10 @@ describe('summarizeForSeat', () => {
     );
 
     // Own counts agree with a straight scan — a seat always knows itself.
+    // Less the salvage: a pile of dropped goods is not a roof, and the
+    // summary leaves it out on purpose.
     const myBuildings = [...world.buildings.values()].filter(
-      b => !b.dead && b.owner === 0,
+      b => !b.dead && b.owner === 0 && b.type !== BuildingTypeId.salvage,
     );
     const counted = Object.values(summary.me.buildings).reduce(
       (a, n) => a + n,
