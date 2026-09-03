@@ -36,6 +36,9 @@ describe('build identity', () => {
         ? versionAndCommit
         : `${versionAndCommit} (${GIT_BRANCH})`,
     );
-    expect(BUILD_LABEL).not.toContain('unknown');
+    // The sentinels, not the word: a branch may legitimately be called
+    // fix/unknown-crash, and the label should print it.
+    expect(BUILD_LABEL).not.toContain('+unknown');
+    expect(BUILD_LABEL).not.toContain('(unknown)');
   });
 });
