@@ -610,6 +610,8 @@ describe('the fingerprints', () => {
     scoutFled: 0,
     heralds: 0,
     stanceSwitches: 0,
+    wipes: 0,
+    flanked: 0,
     ...over,
   });
 

@@ -237,7 +237,8 @@ export class DamageAlerts {
     blob.style.opacity = String(alpha * (0.7 + 0.3 * Math.sin(now / 140)));
   }
 
-  /** Match over: drop everything, hide every pooled visual. */
+  /** Nothing left to defend — the match is over, or the local seat has
+   * fallen and spectates: drop everything, hide every pooled visual. */
   clear(): void {
     this.#hotspots.length = 0;
     for (const blob of this.#blobs) blob.style.display = 'none';

@@ -208,6 +208,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Click building | Building panel (barracks: train units) |
 | Click a face on the selection card | Take that one on his own (shift = leave him behind) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target, on the map or on the minimap |
+| **H** (units selected) | Hold ground — the soldiers stop where they stand and fight only what comes within reach; no chasing, no giving ground. Sent on the spot, no click to wait for; any other order releases them |
 | Minimap: drag | Steer the camera; right click it, or click it with **A**/**M** armed, to send the selection there |
 | **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |
 | **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Guard **T**ower |
@@ -346,8 +347,8 @@ buttons are gone rather than greyed: they were never on the table.
 
 The letters on a selected building's panel are contextual, as in both those
 games, so they may reuse a global letter: the barracks' **A**rcher is the
-attack-move's A, which is only safe because a building selection and a unit
-selection cannot both stand. The gates are shared between the button and the
+attack-move's A and the castle's **H**ire is hold ground's H, which is only
+safe because a building selection and a unit selection cannot both stand. The gates are shared between the button and the
 key (`ui/commands.ts`, `ui/buildMenu.ts`), so a shortcut can never fire where
 its button is greyed out — and every refusal names which gate it hit.
 
@@ -373,6 +374,18 @@ hand-written JS file in the tree); `build/swPlugin.ts` fills in its precache
 manifest from the finished build, and registration lives in
 `src/app/serviceWorker.ts` — dev unregisters instead, so `pnpm dev` is never
 served yesterday's bundle.
+
+Two deploys run side by side: **stable**, built from the `stable` branch, and
+**staging**, built from `main`. A build learns which it is from the branch it
+was built on (`vite.config.ts` asks the host, then git), and only a build of
+`stable` is the stable one — main, feature branches and branchless checkouts
+are all staging. `build/appIdentity.ts` turns that into a name, and
+`build/appIdentityPlugin.ts` writes it into the document title, the web app
+manifest and the icons (`build/identity/<channel>/`, where the staging set is
+the stable castle over an amber STAGING band), so the two installs sit on a
+home screen under different names and different icons. The start menu wears
+a STAGING tag on that build, and its footer names the branch and commit on
+both.
 
 The **AI opponents** are the Age of Empires shape: a playbook of strategic
 numbers per personality, a stance engine that switches its war knobs as

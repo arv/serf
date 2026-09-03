@@ -596,6 +596,18 @@ export class SceneSync {
     return this.#reader.latest.aux[li * AUX_STRIDE + 9]!;
   }
 
+  /**
+   * Holding ground (UnitTaskKind.hold), as the sim last published it. The
+   * card lights its Hold button off this; false for a man who is not, for
+   * one mid-swing (he publishes `fight` while an enemy is in reach, stance
+   * or no stance), and for an id not in the latest publish.
+   */
+  isHolding(id: number): boolean {
+    const li = this.#reader.latest.index.get(id);
+    if (li === undefined) return false;
+    return this.#reader.latest.aux[li * AUX_STRIDE + 4] === ACTION.hold;
+  }
+
   /** A corpse: still published, for the length of the death animation. */
   isDead(id: number): boolean {
     const li = this.#reader.latest.index.get(id);

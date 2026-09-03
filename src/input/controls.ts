@@ -22,6 +22,7 @@ import {canPlace} from '../sim/world';
 import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
 import {
   HIRE_KEY,
+  HOLD_KEY,
   RALLY_KEY,
   RESEARCH_KEY,
   canHire,
@@ -602,6 +603,13 @@ export class Controls {
       if (replayMode()) return;
       setBuildChord(true);
       play('uiClick');
+    } else if (letter === HOLD_KEY) {
+      // Sent, not armed: the order has no target to wait for. Nothing to
+      // hold with — no soldier in hand, or a replay — is nothing at all,
+      // exactly as A over an empty selection is (a refusal sound for a
+      // key that means nothing here would be the keyboard scolding a
+      // player who merely has no army yet).
+      this.holdGround();
     } else if (letter === 'A' || letter === 'M') {
       if (this.#selection.size > 0 && !replayMode()) {
         this.armOrder(letter === 'A' ? OrderMode.attack : OrderMode.move);
@@ -2355,6 +2363,55 @@ export class Controls {
     if (additive && sel.has(id)) sel.delete(id);
     else sel.add(id);
     this.#setSel(sel);
+  }
+
+  /**
+   * Hold ground: the selected soldiers stop where they stand and fight
+   * only what comes within reach (sim: UnitTaskKind.hold). The H key and
+   * the card's Hold button both land here.
+   *
+   * An order, not a mode — it goes out on the spot — which is why it is
+   * the one squad command with no click behind it and no target to pick.
+   * The soldiers are picked out of the selection here rather than left to
+   * the sim, so an order the sim would answer with nothing (a band of
+   * serfs) is not confirmed as if it had been taken: the sim re-checks
+   * every man anyway, but the pulse and the tick say "order taken", and
+   * that has to be true. Sending it disarms an A or M that was waiting
+   * for a click: the squad they were armed for has just been given its
+   * order.
+   *
+   * The confirming ring blooms over the squad itself, since there is no
+   * click to bloom at — its screen centroid, which for a spread band is
+   * somewhere among them. Returns whether the order went out.
+   */
+  holdGround(): boolean {
+    if (replayMode()) return false;
+    const fighters = [...this.#selection].filter(id => {
+      const kind = this.#sync.kindOf(id);
+      return kind !== null && MILITARY_CODES.has(kind);
+    });
+    if (fighters.length === 0) return false;
+    this.#host.sendCommands([
+      {kind: CommandKind.holdGround, unitIds: fighters},
+    ]);
+    this.armOrder(null);
+    this.#lastMoveTap = null;
+    const at = this.#scratchScreen;
+    let px = 0;
+    let py = 0;
+    let n = 0;
+    const now = performance.now();
+    for (const id of fighters) {
+      if (!this.#unitScreenPosInto(id, now, at)) continue;
+      px += at.x;
+      py += at.y;
+      n++;
+    }
+    // Solid gold, the rally flag's ring: a thing planted rather than a
+    // place walked to.
+    if (n > 0) this.#pulse(px / n, py / n, 'solid #e5c469');
+    else play('uiOrder');
+    return true;
   }
 
   /** Select every soldier you own — the phone answer to band-dragging an army. */

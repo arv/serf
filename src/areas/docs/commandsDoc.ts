@@ -18,6 +18,19 @@ export interface CommandDoc {
   payload: string;
 }
 
+/**
+ * The member name behind a JS enum value, for the wiki to print next to the
+ * number. The namespace import is the only place the names survive to
+ * runtime; the sim itself never pays for them, and this module is docs
+ * only, so the materialised namespace object costs nothing that matters.
+ */
+function enumNames(ns: Record<string, number>): ReadonlyMap<number, string> {
+  return new Map(Object.entries(ns).map(([name, value]) => [value, name]));
+}
+
+export const COMMAND_KIND_NAMES = enumNames(CommandKind);
+export const ADMIN_ACTION_NAMES = enumNames(AdminAction);
+
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:
@@ -95,6 +108,11 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     summary:
       'A taunt with an address: announce a coming march (or vengeance) to one rival. The AI seats send these before a full assault; the note is a number the screen turns into words, never free text.',
     payload: 'target, note (marchComing · retribution · finalAssault), count?',
+  },
+  [CommandKind.holdGround]: {
+    summary:
+      'Hold ground — Warcraft’s Hold Position, on H. The soldiers named stop where they stand and fight only what comes within weapon reach: no chasing, no kiting, no walking to a wall, and a target that steps out of reach is let go rather than followed. Any other order releases them. Civilians in the list are skipped.',
+    payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
   },
   [CommandKind.focusTarget]: {
     summary:

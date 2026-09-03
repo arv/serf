@@ -17,13 +17,8 @@ import type {TechId} from './defs/techs.ts';
 import {WEAPON_OF, type UnitTypeId} from './defs/units.ts';
 import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
 import type {Building, EntityId, Owner} from './entities.ts';
-import {
-  countResourceNear,
-  findResourcesNear,
-  nearestResource,
-  nearestResourceOutside,
-} from './map.ts';
-import {findSpot} from './siting.ts';
+import {countResourceNear, findResourcesNear} from './map.ts';
+import {findSpot, nearestClaimableResource} from './siting.ts';
 import {isUnitUnlocked} from './techHelpers.ts';
 import type {World} from './world.ts';
 
@@ -130,6 +125,13 @@ export interface RuleContext {
    * the brain's intel bookkeeping.
    */
   counter: {unit: UnitTypeId; recipe: number} | null;
+  /**
+   * Is this tile inside the mark of a foundation of the seat's that was
+   * razed lately (systems/ai.ts AI_SITING)? A rule that lays a foundation
+   * away from the castle reads it the way the build order does: the
+   * ground is somebody's to stand on, and not this seat's for a while.
+   */
+  razedNear: (x: number, y: number) => boolean;
 }
 
 export interface RuleFiring {
@@ -164,9 +166,10 @@ export interface EconomyRule {
  * the materials as salvage for the haulers to cart home (plus whatever was
  * piled in the yard), and the build order maintains standing counts, so the
  * next beat places the replacement — against a live deposit, because
- * `spotFor` anchors on `nearestResource`, which only counts tiles with
- * amount left. Every playbook opens on its woodcutter, so the step the sale
- * re-opens is the first one the build order reaches.
+ * `spotFor` anchors on `nearestClaimableResource`, which only counts tiles
+ * with amount left, and only on this seat's own side of the valley. Every
+ * playbook opens on its woodcutter, so the step the sale re-opens is the
+ * first one the build order reaches.
  *
  * One condition, and it is the only one that can make things worse: there
  * has to be somewhere live to re-site onto. Everything else is upside — a
@@ -219,7 +222,11 @@ const resiteExtractor: EconomyRule = {
           .length > 0
       )
         continue;
-      if (nearestResource(ctx.world.map, code, b.x, b.y) < 0) continue; // nowhere to go
+      // Nowhere to go — on this seat's own side of the valley. A live seam
+      // in a rival's yard is not somewhere the build order will re-site
+      // to (it reads the same line), so it is not a reason to sell.
+      if (nearestClaimableResource(ctx.world, ctx.owner, code, b.x, b.y) < 0)
+        continue;
       return {
         commands: [{kind: CommandKind.sellBuilding, buildingId: b.id}],
         claims: [b.id],
@@ -339,14 +346,15 @@ const openReserveMine: EconomyRule = {
         o => BUILDING_DEFS[o.type as BuildingTypeId].storage,
       );
       const from = home ?? b;
-      const tile = nearestResourceOutside(
-        map,
+      const tile = nearestClaimableResource(
+        ctx.world,
+        ctx.owner,
         recipe.resource,
         from.x,
         from.y,
         worked,
       );
-      if (tile < 0) continue; // the map has no more of this metal anywhere
+      if (tile < 0) continue; // no more of this metal on the seat's own ground
       const size = map.size;
       // Inside the new mine's own reach of the seam, which is the radius
       // the playbooks anchor a mine at too.
@@ -357,7 +365,7 @@ const openReserveMine: EconomyRule = {
         tileY(tile, size),
         recipe.radius,
       );
-      if (!spot) continue;
+      if (!spot || ctx.razedNear(spot.x, spot.y)) continue;
       return {
         commands: [
           {

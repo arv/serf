@@ -184,12 +184,43 @@ import {REPLAY_VERSION} from './replayVersion';
 // HAUL_SHARE, read by dispatch in systems/logistics.ts): which serf takes
 // which errand is the sim, and lower priority now means less often rather
 // than never. In replayVersion.ts at length.
-// 43 for the Shift-click route: a `queue` flag on the move command and a
+// Still 42 after the seats learned whose ground a seam is (sim/siting.ts
+// rivalGround, nearestClaimableResource) and to keep off ground their own
+// foundations were just razed on (systems/ai.ts AI_SITING): brain and
+// rule work, which playback never runs — a seat that now refuses to dig
+// in a rival's yard replays as it dug. economyRules.ts, siting.ts and
+// map.ts (an export and a shared scan, no draw moved) are on the surface
+// for the sim they are, so the hash moved anyway.
+// 43 for the reserve iron seam (map.ts IRON_RESERVE_WORTH): every start
+// on every generated map now has a second iron seam out past its home
+// ring. Drawn last, so the valley lies as it did — but the ore is there,
+// and a replay's mines go looking for it (see replayVersion.ts). The seats
+// keeping to their own side of the valley, and off ground their
+// foundations were razed on, is brain and rule work playback never runs.
+// Still 43 after the wiped march (systems/ai.ts `wipedMarch`,
+// Difficulty.remembersWipes): a seat that lost every man of a march
+// wants more than that many before it marches on the same castle again.
+// Brain and tier-table work, which playback never runs — the logged
+// marches re-run as they were marched. Both files are under src/sim, so
+// the hash moved anyway.
+// Still 43 after the flanking march (systems/ai.ts `flankMarch`,
+// Difficulty.flanksTowers): a hard seat plans its own road round the
+// towers it knows of and walks it in legs. Brain and tier-table work,
+// playback never runs a brain — the legs it logged re-run as legs.
+// 44 for holding ground: an eighteenth command kind (`holdGround`) that an
+// older sanitizeCommand would screen out of a log recorded here, so the
+// squad it stopped keeps marching there — the focusTarget reasoning under
+// 39. The stance itself (UnitTaskKind.hold, systems/combat.ts holdGround)
+// is a branch no older log can reach. On top of main's 43, the reserve
+// iron seam, which is why this is 44 and not 43. In replayVersion.ts at
+// length.
+// 45 for the Shift-click route: a `queue` flag on the move command and a
 // per-unit waypoint list behind it (Unit.orders, tick.ts waypointSystem).
 // A new field on the wire is pure format — no older log holds one, and a
-// log without one plays back exactly (see replayVersion.ts).
-const EXPECTED_VERSION = 43;
-const EXPECTED_HASH = 'cab0511fbd75e1187a8959d863b3c06e';
+// log without one plays back exactly (see replayVersion.ts). On top of
+// main's 44, which is why this is 45.
+const EXPECTED_VERSION = 45;
+const EXPECTED_HASH = 'fe9e25e201c39537aa2c675e492239a9';
 
 /**
  * Everything a replay's playback depends on, as raw source:

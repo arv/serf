@@ -21,3 +21,5 @@ export const staff = 8 as const;
 export type staff = typeof staff;
 export const raid = 9 as const;
 export type raid = typeof raid;
+export const hold = 10 as const;
+export type hold = typeof hold;

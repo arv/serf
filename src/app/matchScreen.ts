@@ -588,7 +588,6 @@ export async function runMatch(
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
-    if (msg.outcome.state === MatchState.over) damageAlerts.clear();
     setAdminState(msg.admin);
     // The worker, not the URL, says which mission this is: a loaded save
     // reboots on ?seed=…, but the world remembers. Synced both ways — a
@@ -608,10 +607,30 @@ export async function runMatch(
     } else if (briefingOpen()) {
       setBriefingOpen(false);
     }
+    // A finished match or a fallen seat leaves a spectator, and a spectator
+    // is not under attack: the rivals go on razing whatever still stands,
+    // and every swing would otherwise keep toasting "your village is under
+    // attack!" long after the village stopped being anyone's — and the
+    // bandits' next raid, which picks any standing player building, would
+    // still sound the horn for it. Decided for
+    // the whole frame before any event is read: the roster (applied above)
+    // carries the death, and the elimination event says the same without
+    // leaning on the roster having shipped alongside — so the strikes that
+    // felled the storehouse, delivered ahead of the elimination they
+    // caused, go quiet with the rest.
+    const spectating =
+      msg.outcome.state === MatchState.over ||
+      playersMeta()[myPlayerId()]?.alive === false ||
+      msg.events.some(
+        e =>
+          e.kind === GameEventKind.playerEliminated &&
+          e.player === myPlayerId(),
+      );
     for (const event of msg.events) {
       if (
         event.kind === GameEventKind.raidIncoming &&
-        event.player === myPlayerId()
+        event.player === myPlayerId() &&
+        !spectating
       ) {
         // Non-positional on purpose: a warning must be heard wherever the
         // camera happens to be looking.
@@ -619,7 +638,8 @@ export async function runMatch(
         pushToast(event.text);
       } else if (
         event.kind === GameEventKind.heraldIncoming &&
-        event.player === myPlayerId()
+        event.player === myPlayerId() &&
+        !spectating
       ) {
         // A rival lord announces the assault before it moves — the words
         // are composed here from the structured note, so the log stays
@@ -651,6 +671,9 @@ export async function runMatch(
         // player-owned damage alone (combat.ts filters at the source), so
         // it is an alarm bell, not the battle's soundtrack. Unit combat
         // sounds come from the animation layer, which sees every side.
+        // A spectator hears neither: the bell is an alarm, and there is no
+        // one left to answer it.
+        if (spectating) continue;
         if (event.building) playAt('buildingHit', event.x, event.y);
         damageAlerts.report(event);
       } else if (
@@ -668,6 +691,9 @@ export async function runMatch(
         play(event.winner === myPlayerId() ? 'victory' : 'defeat');
       }
     }
+    // After the loop, not before it: strikes in the frame that ended the
+    // match (or the seat) would otherwise reopen what was just dropped.
+    if (spectating) damageAlerts.clear();
     // Keep the selected building's panel fresh (or clear it if destroyed).
     const sel = selectedBuilding();
     if (sel && msg.buildings) {
@@ -718,6 +744,7 @@ export async function runMatch(
     pickUnit: (id, additive) => controls.pickUnit(id, additive),
     place: type => controls.setPlacement(type),
     armOrder: mode => controls.armOrder(mode),
+    holdGround: () => void controls.holdGround(),
     save: saveGame,
     saveReplay: async () => {
       // Empty means there is nothing to save: the server declines while

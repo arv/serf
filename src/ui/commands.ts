@@ -130,6 +130,18 @@ export function canRally(b: BuildingSnap): boolean {
 }
 
 /**
+ * Hold ground, for the squad that is selected: they stop where they stand
+ * and fight only what comes within reach. The H both Warcraft III and
+ * StarCraft put Hold Position on, and the castle's Hire is the same H —
+ * contextual, like the barracks' Archer over the attack-move's A, and
+ * safe for the same reason: a building selection is never a unit
+ * selection. Unlike A and M this is not a mode. There is no click to
+ * wait for — the order is the ground under their feet — so the key
+ * sends it on the spot.
+ */
+export const HOLD_KEY = 'H';
+
+/**
  * Open the tech tree. The one command here that is not contextual: the
  * tree is a sheet to read, not an order to give, and a player who wants to
  * check what Masonry costs should not first have to find their abbey. It

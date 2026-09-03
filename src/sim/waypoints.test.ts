@@ -133,6 +133,34 @@ describe('queued waypoints', () => {
     expect(tileOf(world, knight.id)).toEqual({x: 10, y: 15});
   });
 
+  it('is dropped by a hold, which never ends on its own', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 10.5, 10.5);
+    tickWorld(
+      world,
+      cmds(
+        {kind: CommandKind.moveUnits, unitIds: [knight.id], x: 20, y: 10},
+        {
+          kind: CommandKind.moveUnits,
+          unitIds: [knight.id],
+          x: 20,
+          y: 20,
+          queue: true,
+        },
+      ),
+    );
+    run(world, 5);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.holdGround, unitIds: [knight.id]}),
+    );
+    expect(knight.task.t).toBe(UnitTaskKind.hold);
+    expect(knight.orders).toBeUndefined();
+    run(world, 20 * 10);
+    expect(knight.task.t).toBe(UnitTaskKind.hold);
+  });
+
   it('keeps the kind of order each leg was given', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
