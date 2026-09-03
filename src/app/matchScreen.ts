@@ -664,8 +664,11 @@ export async function runMatch(
         // player-owned damage alone (combat.ts filters at the source), so
         // it is an alarm bell, not the battle's soundtrack. Unit combat
         // sounds come from the animation layer, which sees every side.
+        // A lost seat hears neither: the bell is an alarm, and there is no
+        // one left to answer it.
+        if (lost) continue;
         if (event.building) playAt('buildingHit', event.x, event.y);
-        if (!lost) damageAlerts.report(event);
+        damageAlerts.report(event);
       } else if (
         event.kind === GameEventKind.objectiveComplete &&
         event.player === myPlayerId()
