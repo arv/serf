@@ -190,9 +190,9 @@ export function snapPlayers(world: World): PlayerSnap[] {
   // Heads: the units are one pass below, but two kinds of people are not
   // units any more and can only be counted from the building that holds
   // them — a tower's garrison and a recruit the barracks has started on.
-  // The sim's hire gate (populationOf) counts both, and a readout that did
-  // not showed 18/20 over a castle that refused every hire, because the
-  // two archers up the tower were the two missing heads.
+  // The sim's hire gate (populationOf) counts both. A readout that left
+  // them out showed 18/20 over a castle that refused every hire, because
+  // the two archers up the tower were the two missing heads.
   const heads = new Map<Owner, number>();
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
