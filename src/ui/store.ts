@@ -1,4 +1,4 @@
-import {createSignal} from 'solid-js';
+import {batch, createSignal} from 'solid-js';
 
 // Module-level signals cannot survive a hot swap: components keep reading
 // the old module's signals while new code writes the new ones, and buttons
@@ -227,24 +227,35 @@ export const [techs, setTechs] = createSignal<TechSnap>({
  * One seat's block, spread into the readouts the HUD is built from. Called
  * for every roster that carries the viewed seat, and again by viewSeat()
  * when the seat changes under a roster that has not.
+ *
+ * Batched: the callers are the worker's structural handler and the input
+ * layer, neither inside Solid's own event batching, so each setter would
+ * otherwise run its own update pass — four passes for one block, and a
+ * card computed between two of them reading this seat's stock against the
+ * last seat's techs.
  */
 export function applySeat(p: PlayerSnap): void {
-  setStock(p.stock);
-  setToolWants(p.toolWants);
-  setTechs(p.techs);
-  setPopulation({pop: p.pop, cap: p.popCap});
+  batch(() => {
+    setStock(p.stock);
+    setToolWants(p.toolWants);
+    setTechs(p.techs);
+    setPopulation({pop: p.pop, cap: p.popCap});
+  });
 }
 
 /**
  * Show the HUD through this seat's eyes — see viewerId. A no-op for the
  * seat already viewed, so the selection can say it every publish without
- * the readouts churning.
+ * the readouts churning. One batch with the readouts, so nothing ever
+ * reads the new seat's id over the old seat's numbers.
  */
 export function viewSeat(id: number): void {
   if (id === viewerId()) return;
-  setViewerIdSignal(id);
-  const seat = playersMeta()[id];
-  if (seat) applySeat(seat);
+  batch(() => {
+    setViewerIdSignal(id);
+    const seat = playersMeta()[id];
+    if (seat) applySeat(seat);
+  });
 }
 
 /** At most one HUD popup at a time — opening any closes the others. */
