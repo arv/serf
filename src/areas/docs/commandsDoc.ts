@@ -18,6 +18,19 @@ export interface CommandDoc {
   payload: string;
 }
 
+/**
+ * The member name behind a JS enum value, for the wiki to print next to the
+ * number. The namespace import is the only place the names survive to
+ * runtime; the sim itself never pays for them, and this module is docs
+ * only, so the materialised namespace object costs nothing that matters.
+ */
+function enumNames(ns: Record<string, number>): ReadonlyMap<number, string> {
+  return new Map(Object.entries(ns).map(([name, value]) => [value, name]));
+}
+
+export const COMMAND_KIND_NAMES = enumNames(CommandKind);
+export const ADMIN_ACTION_NAMES = enumNames(AdminAction);
+
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:

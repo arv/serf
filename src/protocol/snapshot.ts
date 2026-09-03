@@ -187,8 +187,20 @@ export function snapPlayers(world: World): PlayerSnap[] {
     if (!w) toolWants.set(owner, (w = {}));
     w[tool] = (w[tool] ?? 0) + 1;
   };
+  // Heads: the units are one pass below, but two kinds of people are not
+  // units any more and can only be counted from the building that holds
+  // them — a tower's garrison and a recruit the barracks has started on.
+  // The sim's hire gate (populationOf) counts both. A readout that left
+  // them out showed 18/20 over a castle that refused every hire, because
+  // the two archers up the tower were the two missing heads.
+  const heads = new Map<Owner, number>();
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
+    let held = b.garrison ?? 0;
+    if (b.trainQueue) {
+      for (const item of b.trainQueue) if (item.started) held++;
+    }
+    if (held) heads.set(b.owner, (heads.get(b.owner) ?? 0) + held);
     if (b.state === BuildingState.site) {
       // A site still owed its borrowed hammer counts as a hammer want.
       if (
@@ -218,9 +230,8 @@ export function snapPlayers(world: World): PlayerSnap[] {
       if (!worker || worker.dead) wantTool(b.owner, tool);
     }
   }
-  // ...and one over the units for heads. Bandits own no seat, so their
-  // raiders never land in the map.
-  const heads = new Map<Owner, number>();
+  // ...and one over the units for the rest of the heads. Bandits own no
+  // seat, so their raiders never land in the map.
   for (const u of world.units.values()) {
     if (!u.dead) heads.set(u.owner, (heads.get(u.owner) ?? 0) + 1);
   }

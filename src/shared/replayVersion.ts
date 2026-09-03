@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 43: soldiers can hold ground.
+ * 44: soldiers can hold ground.
  *
  * An eighteenth command kind (`holdGround`, commands.ts) and the stance it
  * puts a soldier in (UnitTaskKind.hold, served by systems/combat.ts
@@ -33,9 +33,24 @@
  * log, so a recording with a hold in it re-runs there with the squad
  * still marching — and every strike from the tick they were told to stop
  * lands from different ground. A log recorded before this plays back
- * unchanged: nothing an older log can say takes a different branch.
+ * unchanged: nothing an older log can say takes a different branch. It
+ * sits on top of main's own 43 (the reserve iron seam), which is why this
+ * is 44 and not 43: the two shipped in different PRs.
  */
 /**
+ * 43: a reserve iron seam in every valley.
+ *
+ * Worldgen deals every start a second iron seam out past its home ring,
+ * the way it has dealt a second silver seam since 36 (IRON_RESERVE_WORTH,
+ * map.ts). Drawn last of all and from a stream of its own, so a seed's
+ * valley lies exactly as it did with the iron added to it and the match
+ * on it rolls the same dice — but the tiles are there now, mines stand on
+ * them and ore comes out of them, so a replay recorded before this build
+ * re-runs into a different world from the first beat that goes looking
+ * for iron. (The seats keeping
+ * to their own side of the valley and off ground their foundations were
+ * razed on is brain work, which playback never runs.)
+ *
  * 42: a haul tier is a share of the hands, not a claim on all of them.
  *
  * The dispatcher used to hand every idle serf the lowest-numbered open job
@@ -545,4 +560,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 43;
+export const REPLAY_VERSION = 44;

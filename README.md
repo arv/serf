@@ -374,6 +374,18 @@ manifest from the finished build, and registration lives in
 `src/app/serviceWorker.ts` — dev unregisters instead, so `pnpm dev` is never
 served yesterday's bundle.
 
+Two deploys run side by side: **stable**, built from the `stable` branch, and
+**staging**, built from `main`. A build learns which it is from the branch it
+was built on (`vite.config.ts` asks the host, then git), and only a build of
+`stable` is the stable one — main, feature branches and branchless checkouts
+are all staging. `build/appIdentity.ts` turns that into a name, and
+`build/appIdentityPlugin.ts` writes it into the document title, the web app
+manifest and the icons (`build/identity/<channel>/`, where the staging set is
+the stable castle over an amber STAGING band), so the two installs sit on a
+home screen under different names and different icons. The start menu wears
+a STAGING tag on that build, and its footer names the branch and commit on
+both.
+
 The **AI opponents** are the Age of Empires shape: a playbook of strategic
 numbers per personality, a stance engine that switches its war knobs as
 the match turns (`src/sim/defs/aiPostures.ts`, `AiStrategy.stances`), and
