@@ -223,8 +223,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // waypoint, which comes round again once taken instead of being spent
 // (tick.ts takeLeg). A log that names it plays a single attack-move on
 // any build that screens the flag off (see replayVersion.ts).
-const EXPECTED_VERSION = 46;
-const EXPECTED_HASH = '081486cf70f62c5bfed007522476b0d4';
+// 47 for seams a player can find (map.ts): a home seam is drawn from a
+// center with a clearing around it, and no seam settles for a stub while
+// the band still holds a center that can take a whole one. Ore lies on
+// different tiles on every generated seed and the rejected centers re-roll
+// what is drawn after them, so a replay recorded before this re-runs in a
+// different valley (see replayVersion.ts).
+const EXPECTED_VERSION = 47;
+const EXPECTED_HASH = 'ccbf897f6525edf21244156bbc992a73';
 
 /**
  * Everything a replay's playback depends on, as raw source:

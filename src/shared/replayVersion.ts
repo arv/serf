@@ -20,6 +20,26 @@
  * directly.
  */
 /**
+ * 47: a seam you can find.
+ *
+ * A home seam is drawn from a center with a clearing around it now
+ * (map.ts seamFor, SEAM_CLEARING_SHARE), and no seam settles for a stub
+ * while there is still a center in the band that can hold a whole one
+ * (placeSeam's `minTiles`). Both answer a fairness bug the worth audit
+ * could not see: a birthright that fitted three tiles between the trees
+ * carried the same 180 silver at twice the metal per tile and read, from
+ * the castle, as an empty wood — one seat prospecting for its own opening
+ * while its rivals had mines up in the first seconds.
+ *
+ * The bump is the ground. Ore lies on different tiles on every generated
+ * seed, and the extra draws a rejected center costs re-roll everything
+ * drawn after it — so a replay recorded before this re-runs in a different
+ * valley from its first order. Nothing about the format moved, and no tick
+ * system did either; the world under them did, which is the half of this
+ * version's promise that worldgen has always carried (see 36 and 43, the
+ * reserve seams).
+ */
+/**
  * 46: the patrol.
  *
  * A move order carries a `patrol` flag (commands.ts), and a waypoint can
@@ -587,4 +607,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 46;
+export const REPLAY_VERSION = 47;

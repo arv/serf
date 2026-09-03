@@ -13,6 +13,8 @@ import {
   IRON_HOME_WORTH,
   IRON_RESERVE_WORTH,
   RESERVE_SEAM_BAND,
+  SEAM_REACH,
+  SEAM_TILES,
   SILVER_HOME_WORTH,
   SILVER_RESERVE_WORTH,
   WATER_ACCESS_RADIUS,
@@ -38,6 +40,19 @@ import {createWorld, type World} from './world.ts';
 // their share of the scenery ring. The default valley has its own
 // standing coverage in winnable.test.ts and holds no chair here).
 const SEEDS = [4, 2, 11, 19];
+/**
+ * The seam audit's own list: the shared seeds plus the valley that audit
+ * was written for. 96655595's four-seat deal gave one seat a silver
+ * birthright of three tiles inside a grove while two rivals opened on six
+ * in open grass — the case that must never come back, and the one seed
+ * here that fails the audit if placeSeam stops felling timber.
+ *
+ * Its own list rather than a fifth entry in SEEDS, because a seed carries
+ * a whole valley with it: this one's solo gold sits 21.5 tiles out and
+ * trips the mid-ring bound the solo test above pins, which says nothing
+ * about seams.
+ */
+const SEAM_SEEDS = [...SEEDS, 96655595];
 // Grid center == play center: the scenery margin is symmetric.
 const MID = gridFor(DEFAULT_MAP_SIZE) / 2;
 
@@ -194,6 +209,104 @@ describe('map fairness', () => {
           Math.abs(camp!.y + 1 - MID),
         );
         expect(cd, `seed ${seed}: camp central`).toBeLessThanOrEqual(12);
+      }
+    });
+  }
+
+  for (const players of [2, 3, 4]) {
+    it(`${players} players: every home seam reads as a seam`, () => {
+      // Equal worth is not equal ground. Before seams felled the timber
+      // they landed in, a seat whose birthright fell in a grove got its
+      // full 180 silver packed into three tiles at twice the metal apiece
+      // — fair by the worth audit above, and from the castle
+      // indistinguishable from an empty wood. The seat that drew that in a
+      // four-seat valley (seed 96655595) built its first silver mine at
+      // 3:34 on a reserve seam twenty-four tiles out, while two rivals
+      // opened on six tiles of ore lying in open grass and had mines up
+      // inside five seconds. Nothing in the old audit could see it.
+      //
+      // Two promises, and one mechanism keeps both: seamFor refuses a
+      // center that cannot hold a whole seam while the band still offers
+      // one that can, and prefers the centers whose seam would be RINGED by
+      // something other than timber (SEAM_CLEARING_SHARE, measured off the
+      // tiles the seam would take — the same quantity this test measures
+      // after the fact, so the audit checks the promise rather than a proxy
+      // for it).
+      //
+      // A third, where worldgen's own preference asks for a half: the
+      // fallback tiers exist for a band with no clearing in it, and this is
+      // the bar they could still meet. The margin is real — every home seam
+      // over 400 seeds at two, three and four seats came in at 50% or
+      // better, and half of them are ringed entirely by open ground.
+      //
+      const RING_OPEN_MIN = 1 / 3;
+      for (const seed of SEAM_SEEDS) {
+        const world = makeWorld(seed, players);
+        const size = world.map.size;
+        for (const code of [
+          TileResource.IronDep,
+          TileResource.SilverDep,
+        ] as const) {
+          const all = tilesOf(world, code);
+          for (const h of anchors(world)) {
+            const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}: ${code}`;
+            // The home seam is the blob nearest the castle: its closest
+            // tile, plus everything of that metal within a seam's own
+            // span (SEAM_REACH off a center, so 2x that end to end).
+            // Grown from the tile rather than sliced out of the band,
+            // because the last-resort tier may center a seam at the band's
+            // wide edge and a fixed radius would then cut it in half and
+            // report a promise broken that was kept.
+            const inBand = all.filter(
+              ([x, y]) =>
+                Math.hypot(x + 0.5 - h.x, y + 0.5 - h.y) <=
+                HOME_SEAM_BAND.wide + SEAM_REACH,
+            );
+            expect(
+              inBand.length,
+              `${label}: seam in the home band`,
+            ).toBeGreaterThan(0);
+            const [nx, ny] = inBand.reduce((best, t) =>
+              Math.hypot(t[0] + 0.5 - h.x, t[1] + 0.5 - h.y) <
+              Math.hypot(best[0] + 0.5 - h.x, best[1] + 0.5 - h.y)
+                ? t
+                : best,
+            );
+            const seam = all.filter(
+              ([x, y]) => Math.hypot(x - nx, y - ny) <= SEAM_REACH * 2,
+            );
+            expect(seam.length, `${label}: seam tiles`).toBe(SEAM_TILES);
+
+            const own = new Set(seam.map(([x, y]) => y * size + x));
+            let ring = 0;
+            let open = 0;
+            for (const [x, y] of seam) {
+              for (const [nx, ny] of [
+                [x - 1, y - 1],
+                [x, y - 1],
+                [x + 1, y - 1],
+                [x - 1, y],
+                [x + 1, y],
+                [x - 1, y + 1],
+                [x, y + 1],
+                [x + 1, y + 1],
+              ] as const) {
+                if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+                if (own.has(ny * size + nx)) continue;
+                ring++;
+                // Standing timber is the only thing that hides ore: water,
+                // rock and hillside behind a seam leave it in plain view.
+                if (world.map.resource[ny * size + nx] !== TileResource.Wood)
+                  open++;
+              }
+            }
+            expect(ring, `${label}: seam has a ring`).toBeGreaterThan(0);
+            expect(
+              open / ring,
+              `${label}: open ring (${open}/${ring})`,
+            ).toBeGreaterThanOrEqual(RING_OPEN_MIN);
+          }
+        }
       }
     });
   }
