@@ -98,7 +98,9 @@ export const [myPlayerId, setMyPlayerId] = createSignal(0);
 /**
  * The seat the HUD is displayed through: whose stock the goods strip
  * counts, whose studies the tech tree shows, whose gates a raid warning is
- * about, whose techs lock the buttons on a barracks card.
+ * about, whose techs lock the buttons on a barracks card — and whose fog
+ * the valley is drawn through, so the view shows what that seat could see
+ * and hides what it could not.
  *
  * A live match never asks — it is myPlayerId, and nothing moves it. A
  * replay lets the pointer reach every seat, and this follows it: selecting
@@ -112,8 +114,8 @@ export const [myPlayerId, setMyPlayerId] = createSignal(0);
  *
  * Distinct from myPlayerId on purpose. Which seat is *yours* still decides
  * things a replay must not re-decide by pointing: the name printed beside
- * a rival's building, the fog the map is drawn through, the outcome card
- * — and, in a live match, every order.
+ * a rival's building, the outcome card, what the profile records — and, in
+ * a live match, every order.
  *
  * Written through viewSeat(), never the raw setter: the worker ships a
  * seat's block only when it changes, so a HUD that had switched seats

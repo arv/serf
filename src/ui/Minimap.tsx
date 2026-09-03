@@ -22,6 +22,9 @@ export type MinimapMode = Enum<typeof MinimapModeNs>;
 export interface MinimapSource {
   /** The mirror's map — live arrays, mutated in place as deltas land. */
   map: MapSnapshot;
+  /** What the chart shades by — and, in its `owner`, the seat the chart is
+   * drawn for: whose banner reads white, and whose dots need lighting
+   * before they may be painted at all. A replay moves that seat. */
   fog: FogQuery;
   buildings(): Iterable<BuildingSnap>;
   /** The newest published unit slot (the SAB reader's `latest`). */
@@ -54,7 +57,6 @@ export interface MinimapSource {
     py: number,
     queue: boolean,
   ): void;
-  myPlayerId: number;
 }
 
 const css = (color: number): string =>
@@ -174,7 +176,7 @@ export function Minimap(props: {
     ctx.lineWidth = 1;
     for (const b of src.buildings()) {
       if (!fog.exploredAt(b.x + b.w / 2, b.y + b.h / 2)) continue;
-      ctx.fillStyle = css(ownerTint(b.owner, src.myPlayerId));
+      ctx.fillStyle = css(ownerTint(b.owner, fog.owner));
       const bw = Math.max(b.w * s, 3);
       const bh = Math.max(b.h * s, 3);
       const bx = (b.x - p0) * s;
@@ -193,8 +195,8 @@ export function Minimap(props: {
       const owner = u.aux[a + 1]!;
       const x = u.xs[i]!;
       const z = u.ys[i]!;
-      if (owner !== src.myPlayerId && !fog.visibleAt(x, z)) continue;
-      ctx.fillStyle = css(ownerTint(owner, src.myPlayerId));
+      if (owner !== fog.owner && !fog.visibleAt(x, z)) continue;
+      ctx.fillStyle = css(ownerTint(owner, fog.owner));
       ctx.fillRect((x - p0) * s - dot / 2, (z - p0) * s - dot / 2, dot, dot);
     }
 

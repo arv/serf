@@ -9,6 +9,7 @@ import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import type {GoodAmounts} from '../sim/defs/goods';
 import {WATER_LEVEL} from '../sim/map';
+import type {FogQuery} from './fogOfWar';
 import {HeightField} from './heightField';
 import {SITE_FRAME_H} from './models';
 
@@ -123,7 +124,6 @@ function makeSync(): {
       new Float32Array(tileCount(DEFAULT_MAP_SIZE)),
       DEFAULT_MAP_SIZE,
     ),
-    0,
   );
   return {sync, scene};
 }
@@ -561,7 +561,6 @@ describe('the measurements the pointer picks against', () => {
     const sync = new BuildingSync(
       scene,
       new HeightField(ground, DEFAULT_MAP_SIZE),
-      0,
     );
     sync.update([snap({state: BuildingState.built})]);
     expect(sync.heightOf(7)).toBeCloseTo(MODEL_TOP);
@@ -706,5 +705,37 @@ describe('the stock piles at a building door', () => {
     sync.update([castle({[GoodId.wood]: 3})]);
     // Lane 0, jitter aside.
     expect(Math.abs(stackXs(scene)[0]!)).toBeLessThan(0.05);
+  });
+});
+
+describe('the seat the fog is drawn through', () => {
+  /** A fog that lights nothing and remembers nothing: everything but the
+   * drawn seat's own is in the dark. */
+  const blindFor = (owner: number): FogQuery => ({
+    owner,
+    visibleAt: () => false,
+    exploredAt: () => false,
+    litAt: () => 0,
+  });
+
+  it('draws the seat it is turned to its own buildings, roster or no roster', () => {
+    const {sync, scene} = makeSync();
+    sync.setFog(blindFor(0));
+    sync.update([snap({owner: 1})]);
+    const root = scene.children[0]!;
+    // A rival's hut on ground the drawn seat has never seen.
+    expect(root.visible).toBe(false);
+
+    // A replay turns to that rival (ui/store.ts viewerId). His own hut is
+    // his to see — and the roster has not changed, so this pass is the
+    // only thing that will ever say so.
+    sync.setFog(blindFor(1));
+    sync.update([snap({owner: 1})]);
+    expect(root.visible).toBe(true);
+
+    // ...and turning away hides it again.
+    sync.setFog(blindFor(0));
+    sync.update([snap({owner: 1})]);
+    expect(root.visible).toBe(false);
   });
 });

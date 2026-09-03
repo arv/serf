@@ -30,6 +30,14 @@ const SEEN = 0.35;
 /** What the entity syncs and effect layers need to know — they take this,
  * not the whole fog. */
 export interface FogQuery {
+  /**
+   * The seat the fog is drawn through — whose sight lights the map. The
+   * layers that exempt their own side from hiding (units, buildings,
+   * footprints, the chart's dots) read it here rather than each
+   * remembering a seat of its own, so a replay turning to another seat
+   * turns all of them together and none can be left facing the old one.
+   */
+  readonly owner: number;
   /** Is this world position lit right now? */
   visibleAt(x: number, z: number): boolean;
   /** Has the player ever seen it? */
@@ -103,6 +111,19 @@ export class FogOfWar implements FogQuery {
   #enabled = true;
   /** Seat whose eyes we see through: its units and buildings light the map. */
   #owner: number;
+  /**
+   * Ever-seen ground per seat — `#explored` is this map's entry for the
+   * seat currently drawn. A live match keeps exactly one; a replay keeps
+   * one per seat, because the HUD there can turn to any of them and a
+   * seat's memory is only truthful if it has been kept since playback
+   * began. Named at construction: a seat added later (setOwner to one
+   * nobody asked for) starts remembering from that moment, which is the
+   * honest answer when nothing was watching before.
+   */
+  #memory = new Map<number, Float32Array>();
+  /** Every seat whose sight is computed each update — the drawn one, plus
+   * the ones whose memory is being kept alongside it. */
+  #seats: number[];
   /** Fog source per tile: identity inside the play square; a margin tile
    * points at the nearest play tile, whose fate it shares (see ctor). */
   #mirror!: Int32Array;
@@ -123,9 +144,10 @@ export class FogOfWar implements FogQuery {
     }
   }
 
-  constructor(owner: number, area: PlayArea) {
+  constructor(owner: number, area: PlayArea, seats: readonly number[] = []) {
     const size = area.size;
     this.#owner = owner;
+    this.#seats = [...new Set([owner, ...seats])];
     this.#size = size;
     const tiles = tileCount(size);
     // The scenery ring has no sight of its own — nothing gameplay ever
@@ -146,7 +168,9 @@ export class FogOfWar implements FogQuery {
     }
     this.#vis = new Float32Array(tiles);
     this.#target = new Float32Array(tiles);
-    this.#explored = new Float32Array(tiles);
+    for (const seat of this.#seats)
+      this.#memory.set(seat, new Float32Array(tiles));
+    this.#explored = this.#memory.get(owner)!;
     this.#visSoft = new Float32Array(tiles);
     this.#expSoft = new Float32Array(tiles);
     this.#scratch = new Float32Array(tiles);
@@ -171,6 +195,42 @@ export class FogOfWar implements FogQuery {
       uFogSize: {value: size},
       uUnknown: {value: unknown},
     };
+  }
+
+  /** The seat the map is drawn through — see FogQuery.owner. */
+  get owner(): number {
+    return this.#owner;
+  }
+
+  /**
+   * Draw the map through another seat's eyes: its sight lights the ground,
+   * and the ground it remembers is the ground that stays drawn. Only a
+   * replay ever asks — a live client sees through its own seat and nothing
+   * moves it (ui/store.ts viewerId) — and only for a seat named at
+   * construction does the new view carry a memory of everything that seat
+   * scouted; see #memory.
+   *
+   * The current mask is dropped rather than eased across: the two seats'
+   * frontiers have nothing to do with each other, and fading one into the
+   * other would light ground the new seat has never stood near. The next
+   * update snaps to its sight instead (an unbounded step is a full reveal
+   * — see the rates in update).
+   */
+  setOwner(owner: number): void {
+    if (owner === this.#owner) return;
+    this.#owner = owner;
+    let mem = this.#memory.get(owner);
+    if (!mem) {
+      mem = new Float32Array(tileCount(this.#size));
+      this.#memory.set(owner, mem);
+      this.#seats.push(owner);
+    }
+    this.#explored = mem;
+    // Nothing is lit until the next update says so: for the frame between,
+    // the honest answer to "can this seat see it" is no, not the last
+    // seat's yes.
+    this.#vis.fill(0);
+    this.#accum = Infinity;
   }
 
   /**
@@ -294,36 +354,55 @@ export class FogOfWar implements FogQuery {
     const step = this.#accum;
     this.#accum = 0;
 
-    this.#target.fill(0);
-    const {latest} = reader;
-    for (let i = 0; i < latest.count; i++) {
-      const a = i * AUX_STRIDE;
-      if (latest.aux[a + 1] !== this.#owner) continue;
-      if (latest.aux[a + 4] === ACTION.dead) continue;
-      this.#stamp(
-        latest.xs[i]!,
-        latest.ys[i]!,
-        SIGHT_BY_KIND_CODE.get(latest.aux[a]!) ?? 0,
-      );
-    }
-    for (const b of buildings) {
-      if (b.owner !== this.#owner) continue;
-      this.#stamp(
-        b.x + b.w / 2,
-        b.y + b.h / 2,
-        buildingSight(b.type, b.w, b.h),
-      );
-    }
-
     const tiles = tileCount(this.#size);
     const up = 1 - Math.exp(-step * REVEAL_RATE);
     const down = 1 - Math.exp(-step * CONCEAL_RATE);
-    for (let i = 0; i < tiles; i++) {
-      const t = this.#target[this.#mirror[i]!]!;
-      const v = this.#vis[i]!;
-      const next = v + (t - v) * (t > v ? up : down);
-      this.#vis[i] = next;
-      if (next > this.#explored[i]!) this.#explored[i] = next;
+    const {latest} = reader;
+    // One pass per seat being kept. In a match that is a single seat and
+    // this is the loop it always was; in a replay it is every seat, so a
+    // view that turns to the Warlord finds his valley remembered exactly
+    // as far as he had scouted it rather than freshly born.
+    for (const seat of this.#seats) {
+      this.#target.fill(0);
+      for (let i = 0; i < latest.count; i++) {
+        const a = i * AUX_STRIDE;
+        if (latest.aux[a + 1] !== seat) continue;
+        if (latest.aux[a + 4] === ACTION.dead) continue;
+        this.#stamp(
+          latest.xs[i]!,
+          latest.ys[i]!,
+          SIGHT_BY_KIND_CODE.get(latest.aux[a]!) ?? 0,
+        );
+      }
+      for (const b of buildings) {
+        if (b.owner !== seat) continue;
+        this.#stamp(
+          b.x + b.w / 2,
+          b.y + b.h / 2,
+          buildingSight(b.type, b.w, b.h),
+        );
+      }
+
+      if (seat !== this.#owner) {
+        // A seat nobody is looking at needs no mask and no easing — the
+        // fade is a display effect, and there is no display. Its memory
+        // takes the sight straight, which is the same fact the eased mask
+        // would have recorded a fraction of a second later.
+        const mem = this.#memory.get(seat)!;
+        for (let i = 0; i < tiles; i++) {
+          const t = this.#target[this.#mirror[i]!]!;
+          if (t > mem[i]!) mem[i] = t;
+        }
+        continue;
+      }
+
+      for (let i = 0; i < tiles; i++) {
+        const t = this.#target[this.#mirror[i]!]!;
+        const v = this.#vis[i]!;
+        const next = v + (t - v) * (t > v ? up : down);
+        this.#vis[i] = next;
+        if (next > this.#explored[i]!) this.#explored[i] = next;
+      }
     }
 
     // Two blur passes before upload. One texel per tile means bilinear

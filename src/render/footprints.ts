@@ -177,8 +177,6 @@ export class Footprints {
   #reader: SabReader;
   #map: MapView;
   #heights: HeightField;
-  /** Seat viewing the scene — other owners' prints obey the fog. */
-  #owner: number;
   #fog: FogQuery | null = null;
   #planner = new FootprintPlanner();
   #birth: THREE.InstancedBufferAttribute;
@@ -212,14 +210,12 @@ export class Footprints {
     reader: SabReader,
     map: MapView,
     heights: HeightField,
-    owner: number,
     sole: Sole | null = null,
     realtime = false,
   ) {
     this.#reader = reader;
     this.#map = map;
     this.#heights = heights;
-    this.#owner = owner;
     this.#footOffset = sole?.offset ?? FOOT_OFFSET;
     this.#realtime = realtime;
 
@@ -332,7 +328,10 @@ export class Footprints {
       const id = latest.ids[i]!;
       const x = latest.xs[i]!;
       const y = latest.ys[i]!;
-      const foreign = latest.aux[a + 1] !== this.#owner;
+      // Someone else's, judged against the seat the fog is drawn through
+      // — which a replay can turn to any of them.
+      const foreign =
+        this.#fog !== null && latest.aux[a + 1] !== this.#fog.owner;
       if (stale || (foreign && this.#fog && !this.#fog.visibleAt(x, y))) {
         this.#planner.shadow(id, x, y);
         continue;

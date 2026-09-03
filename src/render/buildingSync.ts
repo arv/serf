@@ -384,8 +384,6 @@ const BAR_CAPACITY_MIN = 32;
 export class BuildingSync {
   #scene: THREE.Scene;
   #heights: HeightField;
-  /** Seat viewing the scene — everyone else is an enemy to the fog. */
-  #owner: number;
   #visuals = new Map<number, BuildingVisual>();
   /** Every damage bar, batched — see #rebuildHpBars. Created on first use
    * and regrown as the settlement takes more hits at once. */
@@ -484,10 +482,9 @@ export class BuildingSync {
     return this.#ceiling;
   }
 
-  constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
+  constructor(scene: THREE.Scene, heights: HeightField) {
     this.#scene = scene;
     this.#heights = heights;
-    this.#owner = owner;
   }
 
   update(buildings: BuildingSnap[]): void {
@@ -532,8 +529,16 @@ export class BuildingSync {
       // Enemy buildings are remembered: once you have seen a camp it stays
       // on the map even when the light moves off it, because it is not
       // going anywhere. (Units get the opposite rule — see sceneSync.)
-      if (this.#fog && b.owner !== this.#owner) {
-        v.root.visible = this.#fog.exploredAt(b.x + b.w / 2, b.y + b.h / 2);
+      // The exempt side is the fog's, not one remembered here: a replay
+      // turning to another seat turns this rule with it. Written every
+      // pass, own side included, rather than only where the fog hides:
+      // the seat can change under a standing roster, and a hut left
+      // hidden while it was a rival's would otherwise stay hidden now
+      // that it is the viewed seat's own.
+      if (this.#fog) {
+        v.root.visible =
+          b.owner === this.#fog.owner ||
+          this.#fog.exploredAt(b.x + b.w / 2, b.y + b.h / 2);
       }
 
       v.staffed = b.staffing === StaffingState.staffed;

@@ -42,6 +42,14 @@ export interface HudActions {
   /** Pan the camera to a tile — clickable toasts' "take me there". Sim
    * tile coords; the rig call maps tile y onto world z. */
   focus(x: number, y: number): void;
+  /**
+   * Take the camera to a seat's keep — the seat chip's other half. Turning
+   * the HUD to a seat turns the fog with it, and the valley under the
+   * camera is ground the new seat may never have set foot in: without the
+   * jump, cycling to a rival is a black screen. The app owns it because
+   * the building roster and the camera rig are both its.
+   */
+  focusSeat(seat: number): void;
   /** The minimap's live handles — mirror, fog, units, camera — bundled
    * where they all exist. Not an action, but it travels the same road:
    * this is the one door the app hands things to the HUD through. */
@@ -205,6 +213,10 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           actions.focus(x, y);
         }}
+        // Silent, and deliberately: the chip that calls this drops the
+        // selection first, and that already sounds the click. Two on one
+        // press would make the seat chip the loudest button on the bar.
+        onFocusSeat={seat => actions.focusSeat(seat)}
         minimap={actions.minimap}
       />
     ),

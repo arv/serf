@@ -318,9 +318,6 @@ export class SceneSync {
   /** Ids currently hidden by fog — picking and selection skip them. */
   #hidden = new Set<number>();
 
-  /** Seat viewing the scene — everyone else is an enemy to the fog. */
-  #owner: number;
-
   #nearestWell(x: number, y: number): Well | null {
     let well: Well | null = null;
     let best = 2.25; // the worker stands adjacent: within 1.5 tiles
@@ -488,16 +485,10 @@ export class SceneSync {
     }
   }
 
-  constructor(
-    scene: THREE.Scene,
-    reader: SabReader,
-    heights: HeightField,
-    owner = 0,
-  ) {
+  constructor(scene: THREE.Scene, reader: SabReader, heights: HeightField) {
     this.#scene = scene;
     this.#reader = reader;
     this.#heights = heights;
-    this.#owner = owner;
     // Same draw state the per-unit meshes carried: over everything, never
     // depth-tested, never fogged.
     this.#hpBars.renderOrder = 10;
@@ -735,7 +726,9 @@ export class SceneSync {
       // Enemies vanish in unlit ground. Only current visibility counts —
       // a raider you saw a minute ago is long gone, so unlike a building
       // there is nothing sensible to remember.
-      if (this.#fog && latest.aux[a + 1] !== this.#owner) {
+      // Whose side is exempt is the fog's own question — it is the seat
+      // the map is drawn through, and in a replay that seat moves.
+      if (this.#fog && latest.aux[a + 1] !== this.#fog.owner) {
         const lit = this.#fog.visibleAt(latest.xs[i]!, latest.ys[i]!);
         visual.group.visible = lit;
         if (!lit) {
