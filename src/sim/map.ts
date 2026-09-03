@@ -735,6 +735,51 @@ export function generateMap(
   };
 
   /**
+   * The tiles a seam drawn at this center would take — placeSeam's own
+   * scan, without the writing, so a caller can weigh two centers against
+   * each other before it commits to one (seamFor lays its seam at the
+   * least-wooded center that can still hold a whole one).
+   */
+  const seamRoom = (budget: number, cx: number, cy: number): number[] => {
+    // The budget check lives HERE, not in placeSeam, because this is the
+    // door every caller comes through first: seamFor weighs candidate
+    // centers by what they would hold, so a budget of NaN or zero would
+    // make every center in the band look roomless and the seam would go
+    // quietly unplaced — the silent failure the check exists to prevent,
+    // wearing a different coat.
+    if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
+      throw new Error(
+        `seam budget must be a whole number of 1..255 (got ${budget})`,
+      );
+    }
+    const open: {i: number; d2: number}[] = [];
+    for (let dy = -SEAM_REACH; dy <= SEAM_REACH; dy++) {
+      for (let dx = -SEAM_REACH; dx <= SEAM_REACH; dx++) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 > SEAM_REACH * SEAM_REACH) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (!inPlayArea(map, x, y)) continue;
+        const i = tileIdx(x, y, size);
+        if (
+          map.terrain[i] !== TerrainNs.Grass ||
+          map.resource[i] !== TileResourceNs.None
+        )
+          continue;
+        open.push({i, d2});
+      }
+    }
+    // Nearest first, ties by index: a seam short of room grows as a blob
+    // around its center instead of reaching for whichever corner the scan
+    // happened to walk first.
+    open.sort((a, b) => a.d2 - b.d2 || a.i - b.i);
+    // Never more tiles than the budget can put metal in: a seam priced
+    // below SEAM_TILES buys fewer, richer tiles rather than padding itself
+    // out with empty ones. At the budgets in use this takes all six.
+    return open.slice(0, Math.min(SEAM_TILES, budget)).map(o => o.i);
+  };
+
+  /**
    * A metal seam of fixed total worth, however the ground lets it lie.
    *
    * `placeCluster` writes a flat amount per tile, which prices a seam by
@@ -788,51 +833,6 @@ export function generateMap(
    * Returns how many tiles were written, so a caller that must place a seam
    * knows to try another center.
    */
-  /**
-   * The tiles a seam drawn at this center would take — placeSeam's own
-   * scan, without the writing, so a caller can weigh two centers against
-   * each other before it commits to one (seamFor lays its seam at the
-   * least-wooded center that can still hold a whole one).
-   */
-  const seamRoom = (budget: number, cx: number, cy: number): number[] => {
-    // The budget check lives HERE, not in placeSeam, because this is the
-    // door every caller comes through first: seamFor weighs candidate
-    // centers by what they would hold, so a budget of NaN or zero would
-    // make every center in the band look roomless and the seam would go
-    // quietly unplaced — the silent failure the check exists to prevent,
-    // wearing a different coat.
-    if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
-      throw new Error(
-        `seam budget must be a whole number of 1..255 (got ${budget})`,
-      );
-    }
-    const open: {i: number; d2: number}[] = [];
-    for (let dy = -SEAM_REACH; dy <= SEAM_REACH; dy++) {
-      for (let dx = -SEAM_REACH; dx <= SEAM_REACH; dx++) {
-        const d2 = dx * dx + dy * dy;
-        if (d2 > SEAM_REACH * SEAM_REACH) continue;
-        const x = cx + dx;
-        const y = cy + dy;
-        if (!inPlayArea(map, x, y)) continue;
-        const i = tileIdx(x, y, size);
-        if (
-          map.terrain[i] !== TerrainNs.Grass ||
-          map.resource[i] !== TileResourceNs.None
-        )
-          continue;
-        open.push({i, d2});
-      }
-    }
-    // Nearest first, ties by index: a seam short of room grows as a blob
-    // around its center instead of reaching for whichever corner the scan
-    // happened to walk first.
-    open.sort((a, b) => a.d2 - b.d2 || a.i - b.i);
-    // Never more tiles than the budget can put metal in: a seam priced
-    // below SEAM_TILES buys fewer, richer tiles rather than padding itself
-    // out with empty ones. At the budgets in use this takes all six.
-    return open.slice(0, Math.min(SEAM_TILES, budget)).map(o => o.i);
-  };
-
   const placeSeam = (
     res: TileResourceKind,
     budget: number,

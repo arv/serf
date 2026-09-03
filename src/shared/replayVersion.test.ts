@@ -244,8 +244,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // same throw on the same inputs, one function earlier, where the center
 // weighing also passes through it. No draw and no tile moved; the hash is
 // over raw bytes.
+// Still 47 after placeSeam's narrative moved back above placeSeam, where
+// extracting seamRoom had left it stranded a function early (map.ts,
+// comment placement only). Same statements, same draws, same valleys.
 const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = '0c04f3bf57d9bb254d093df36145fa2f';
+const EXPECTED_HASH = '42f3fa4e84931e97ad21ad8fd36587c6';
 
 /**
  * Everything a replay's playback depends on, as raw source:
