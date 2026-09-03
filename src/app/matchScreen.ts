@@ -610,7 +610,9 @@ export async function runMatch(
     // A finished match or a fallen seat leaves a spectator, and a spectator
     // is not under attack: the rivals go on razing whatever still stands,
     // and every swing would otherwise keep toasting "your village is under
-    // attack!" long after the village stopped being anyone's. Decided for
+    // attack!" long after the village stopped being anyone's — and the
+    // bandits' next raid, which picks any standing player building, would
+    // still sound the horn for it. Decided for
     // the whole frame before any event is read: the roster (applied above)
     // carries the death, and the elimination event says the same without
     // leaning on the roster having shipped alongside — so the strikes that
@@ -627,7 +629,8 @@ export async function runMatch(
     for (const event of msg.events) {
       if (
         event.kind === GameEventKind.raidIncoming &&
-        event.player === myPlayerId()
+        event.player === myPlayerId() &&
+        !spectating
       ) {
         // Non-positional on purpose: a warning must be heard wherever the
         // camera happens to be looking.
@@ -635,7 +638,8 @@ export async function runMatch(
         pushToast(event.text);
       } else if (
         event.kind === GameEventKind.heraldIncoming &&
-        event.player === myPlayerId()
+        event.player === myPlayerId() &&
+        !spectating
       ) {
         // A rival lord announces the assault before it moves — the words
         // are composed here from the structured note, so the log stays
