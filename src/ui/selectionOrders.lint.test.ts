@@ -13,8 +13,17 @@ import {describe, expect, it} from 'vitest';
  * no building id at all and would spend YOUR silver from a rival's card.
  *
  * So it is checked rather than remembered. The rule: every props.on*
- * handler in SelectionPanel sits inside a guard that is either `mine()`
- * (a building of yours) or `!replayMode()` (a squad you can still order).
+ * handler in SelectionPanel sits either inside a `<Show>` guarded on
+ * `!replayMode()` (a squad you can still order — the buttons are gone in
+ * a replay) or inside a row marked `inert={replayMode()}`. The second is
+ * how a replay gets to SHOW the Warlord's drill queue and which of his
+ * Train buttons his techs have unlocked, which is most of what a recording
+ * is opened for: the row is drawn for the viewed seat (see `viewed()` on
+ * the building card), and inert takes every button in it out of the
+ * pointer's and the keyboard's reach while the recording plays. A handler
+ * under such a row cannot be fired at all, which is a stronger guard than
+ * never rendering it. Live, a building card is only ever your own — the
+ * pointer reaches nobody else's — so the rows need no further gate.
  *
  * Two are exempt, and for one reason between them: they change who is
  * *selected* rather than telling anyone to do anything. `onDeselect` lets
@@ -36,7 +45,9 @@ const SOURCES = import.meta.glob('./SelectionPanel.tsx', {
 });
 
 /** A guard that answers "may this client give this order at all?" */
-const GUARDS = /\bmine\(\)|\bhasOrders\(\)|!replayMode\(\)/;
+const GUARDS = /!replayMode\(\)/;
+/** A row drawn for a replay to read, with nothing in it left to press. */
+const INERT = 'inert={replayMode()}';
 /** Choosing who is in hand is not an order — see the note above. */
 const EXEMPT = new Set(['onDeselect', 'onPickUnit']);
 
@@ -95,7 +106,8 @@ describe('selection card order lint', () => {
         const oi = indentOf(outer);
         if (oi >= indent) continue;
         indent = oi;
-        if (outer.includes('<Show')) guarded = GUARDS.test(outer);
+        if (outer.includes(INERT)) guarded = true;
+        else if (outer.includes('<Show')) guarded = GUARDS.test(outer);
       }
       if (!guarded) offenders.push(`${i + 1}: ${line.trim()}`);
     }

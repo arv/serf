@@ -17,6 +17,7 @@ import {buildingDef} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
+import {isPlayerOwner} from '../sim/entities';
 import {playMax, playMin} from '../sim/map';
 import {canPlace} from '../sim/world';
 import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
@@ -71,6 +72,7 @@ import {
   techPanelOpen,
   techs,
   toggleMuted,
+  viewSeat,
 } from '../ui/store';
 import * as ControlGroupKind from './controlGroupKindEnum.ts';
 import {groupEmpty, keyDigit, matchingGroup, type ControlGroup} from './groups';
@@ -906,8 +908,13 @@ export class Controls {
     // empty-selection case is the disarm further down.
     if (sel.size > 0 && orderMode() === OrderMode.rally) this.armOrder(null);
     this.#selection = sel;
+    const owner = this.#soleOwner(sel);
+    // Before the selection is published: the card that draws for these
+    // ids reads the stores and techs, and those must already be the
+    // right seat's on the frame it first paints.
+    this.#viewOwner(owner);
     setSelection(new Set(sel));
-    setSelectionOwner(this.#soleOwner(sel));
+    setSelectionOwner(owner);
     // Straight away rather than at the next prune(), and past the publish
     // gate: a click that picks up a knight has to draw his card on the
     // frame it happened, and the card is nothing but the roster.
@@ -1993,8 +2000,28 @@ export class Controls {
    * swaps a fresh snapshot of the same building in.
    */
   #setBuilding(snap: BuildingSnap | null): void {
+    // Same order as #setSel, for the same reason: the card is drawn
+    // against the viewed seat's stock and techs.
+    if (snap) this.#viewOwner(snap.owner);
     setSelectedBuilding(snap);
     this.#publishGroup();
+  }
+
+  /**
+   * Turn the HUD to face the seat whose people or building was just
+   * picked — a replay's rule, and only a replay's (see viewerId in the
+   * store). Live, the pointer reaches nobody else's, so there is nothing
+   * to turn to; and a live HUD that could be turned by pointing would be
+   * one that read a rival's stores off a mis-click.
+   *
+   * Nobody's, or a mixed set's, leaves it where it was: a click on the
+   * ground clears the rings, not the strip. Bandits own no seat and have
+   * no stores to show, so their camp is looked at from wherever the HUD
+   * already stands.
+   */
+  #viewOwner(owner: number | null): void {
+    if (!replayMode() || owner === null || !isPlayerOwner(owner)) return;
+    viewSeat(owner);
   }
 
   /**

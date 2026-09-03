@@ -340,8 +340,20 @@ once — a band drag, a double-click's widening — commits to one banner (the
 seat filling the rectangle, or the clicked unit's), because "27 units
 selected" across both sides of a melee is not a fact about anything. The
 cards name whose people and whose walls these are, the rings under a rival's
-squad fly that seat's color rather than your vermillion, and the order
+squad fly that seat's color rather than your vermillion, and a squad's order
 buttons are gone rather than greyed: they were never on the table.
+
+The HUD turns with the pointer. Pick a seat's people or one of their
+buildings and the goods strip, the population, the wants chip, the research
+chip and the warnings are all that seat's: the Warlord's barracks card shows
+his drill queue with the Train buttons locked or greyed against *his* techs
+and *his* stores, his Smith shows its order book, and Research… on his Abbey
+opens *his* tree. A chip in the speed cluster names the seat being watched
+and clicks through to the next one. Every order row on a card is drawn
+inert — the queue and the locks are what the card is opened to read, but
+nothing in it takes a click, and the card says so. Which seat is *yours*
+still decides what it always did: the name printed beside a rival's hut, the
+fog the map is drawn through (F lifts it), and the outcome.
 
 The letters on a selected building's panel are contextual, as in both those
 games, so they may reuse a global letter: the barracks' **A**rcher is the

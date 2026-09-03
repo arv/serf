@@ -58,10 +58,9 @@ import {
   setSimTick,
   setPlayersMeta,
   setSelectedBuilding,
-  setPopulation,
-  setStock,
-  setToolWants,
-  setTechs,
+  applySeat,
+  viewSeat,
+  viewerId,
   setReplayMode,
   setReplayOver,
   speed,
@@ -154,6 +153,9 @@ export async function runMatch(
   // finishes installing must not swap the shell out from under it.
   holdServiceWorkerUpdates();
   setMyPlayerId(config.myPlayerId);
+  // ...and to begin with the HUD looks through that seat. A replay lets
+  // the selection move it (ui/store.ts viewerId); a match never does.
+  viewSeat(config.myPlayerId);
   setNetMode(net !== undefined);
   // Fog ON, whatever ?nofog said: the menu can walk into a networked
   // match in place, where the module-load flags and the last
@@ -574,15 +576,12 @@ export async function runMatch(
     // Rosters are optional: a frame that carries only map news leaves the
     // HUD's signals (and their subscribers) untouched.
     setSimTick(msg.tick);
-    const mine = msg.players?.[myPlayerId()];
-    if (mine) {
-      setStock(mine.stock);
-      setToolWants(mine.toolWants);
-      setTechs(mine.techs);
-      setPopulation({pop: mine.pop, cap: mine.popCap});
-    }
     if (msg.players) {
       setPlayersMeta(msg.players);
+      // The readouts are the VIEWED seat's, which is this client's own in
+      // a match and whichever seat the pointer last picked in a replay.
+      const seat = msg.players[viewerId()];
+      if (seat) applySeat(seat);
       opponentsNow = msg.players.filter(p => p.kind === PlayerKind.ai).length;
     }
     if (msg.jobs) setDebugJobs(msg.jobs);
@@ -608,10 +607,16 @@ export async function runMatch(
     } else if (briefingOpen()) {
       setBriefingOpen(false);
     }
+    // Addressed events reach the screen for the viewed seat, not the
+    // played one: the two are the same seat in a match, and in a replay
+    // the horn, the herald and the damage haze belong to whoever the HUD
+    // is showing through — a raid on the Warlord is his news while you
+    // are watching his village, and yours is not. The mission latch below
+    // stays on myPlayerId: what the profile records is what YOU did.
     for (const event of msg.events) {
       if (
         event.kind === GameEventKind.raidIncoming &&
-        event.player === myPlayerId()
+        event.player === viewerId()
       ) {
         // Non-positional on purpose: a warning must be heard wherever the
         // camera happens to be looking.
@@ -619,7 +624,7 @@ export async function runMatch(
         pushToast(event.text);
       } else if (
         event.kind === GameEventKind.heraldIncoming &&
-        event.player === myPlayerId()
+        event.player === viewerId()
       ) {
         // A rival lord announces the assault before it moves — the words
         // are composed here from the structured note, so the log stays
@@ -638,13 +643,13 @@ export async function runMatch(
         pushToast(`A herald of ${name}: “${words}”`);
       } else if (
         event.kind === GameEventKind.playerEliminated &&
-        event.player !== myPlayerId()
+        event.player !== viewerId()
       ) {
         play('distantBell');
         pushToast('A rival banner has fallen!');
       } else if (
         event.kind === GameEventKind.damage &&
-        event.player === myPlayerId()
+        event.player === viewerId()
       ) {
         // The solo worker delivers every seat's events; filter like raids.
         // Only struck *buildings* sound from here — this event exists for
@@ -655,7 +660,7 @@ export async function runMatch(
         damageAlerts.report(event);
       } else if (
         event.kind === GameEventKind.objectiveComplete &&
-        event.player === myPlayerId()
+        event.player === viewerId()
       ) {
         play('objectiveDone');
         const label = msg.mission
@@ -665,7 +670,7 @@ export async function runMatch(
           label ? `Objective complete: ${label}` : 'Objective complete',
         );
       } else if (event.kind === GameEventKind.gameOver) {
-        play(event.winner === myPlayerId() ? 'victory' : 'defeat');
+        play(event.winner === viewerId() ? 'victory' : 'defeat');
       }
     }
     // Keep the selected building's panel fresh (or clear it if destroyed).

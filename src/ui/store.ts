@@ -95,6 +95,33 @@ export const [selectionOwner, setSelectionOwner] = createSignal<number | null>(
  * perspective. */
 export const [myPlayerId, setMyPlayerId] = createSignal(0);
 
+/**
+ * The seat the HUD is displayed through: whose stock the goods strip
+ * counts, whose studies the tech tree shows, whose gates a raid warning is
+ * about, whose techs lock the buttons on a barracks card.
+ *
+ * A live match never asks — it is myPlayerId, and nothing moves it. A
+ * replay lets the pointer reach every seat, and this follows it: selecting
+ * the Warlord's barracks turns the whole HUD into the Warlord's, which is
+ * how the queue on that barracks, the locks on its Train buttons and the
+ * wants chip over the map all come to be read against his stores rather
+ * than yours. It stays where it was put when the selection is let go, so a
+ * click on the ground to clear the rings does not flip the strip back and
+ * forth. Controls writes it (see #viewOwner there); the HUD's seat chip
+ * cycles it by hand.
+ *
+ * Distinct from myPlayerId on purpose. Which seat is *yours* still decides
+ * things a replay must not re-decide by pointing: the name printed beside
+ * a rival's building, the fog the map is drawn through, the outcome card
+ * — and, in a live match, every order.
+ *
+ * Written through viewSeat(), never the raw setter: the worker ships a
+ * seat's block only when it changes, so a HUD that had switched seats
+ * would otherwise show the old seat's numbers until the new seat's next
+ * event. viewSeat re-derives them from the roster already in hand.
+ */
+export const [viewerId, setViewerIdSignal] = createSignal(0);
+
 /** All seats' faction blocks (for elimination toasts, future score UI). */
 export const [playersMeta, setPlayersMeta] = createSignal<PlayerSnap[]>([]);
 
@@ -196,6 +223,30 @@ export const [techs, setTechs] = createSignal<TechSnap>({
   pavingUnlocked: false,
   hasAbbey: false,
 });
+/**
+ * One seat's block, spread into the readouts the HUD is built from. Called
+ * for every roster that carries the viewed seat, and again by viewSeat()
+ * when the seat changes under a roster that has not.
+ */
+export function applySeat(p: PlayerSnap): void {
+  setStock(p.stock);
+  setToolWants(p.toolWants);
+  setTechs(p.techs);
+  setPopulation({pop: p.pop, cap: p.popCap});
+}
+
+/**
+ * Show the HUD through this seat's eyes — see viewerId. A no-op for the
+ * seat already viewed, so the selection can say it every publish without
+ * the readouts churning.
+ */
+export function viewSeat(id: number): void {
+  if (id === viewerId()) return;
+  setViewerIdSignal(id);
+  const seat = playersMeta()[id];
+  if (seat) applySeat(seat);
+}
+
 /** At most one HUD popup at a time — opening any closes the others. */
 export const [openPanel, setOpenPanel] = createSignal<HudPanel | null>(null);
 export const techPanelOpen = (): boolean => openPanel() === HudPanelNs.tech;
@@ -429,6 +480,7 @@ export function resetMatchState(): void {
   setSelectionGroup(null);
   setSelectionOwner(null);
   setMyPlayerId(0);
+  setViewerIdSignal(0);
   setPlayersMeta([]);
   setNetMode(false);
   setReplayMode(false);
