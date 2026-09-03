@@ -654,11 +654,18 @@ function underOrders(unit: Unit): boolean {
 function queueLeg(
   world: World,
   playerId: Owner,
-  units: Unit[],
+  named: Unit[],
   x: number,
   y: number,
   attack: true | 'half' | undefined,
 ): void {
+  // Only the men who can still take a leg are the squad this leg is dealt
+  // to: a full queue counted in the spread would hold a tile — the front
+  // one, under the formation — for a man who never walks there.
+  const units = named.filter(
+    u => u.orders === undefined || u.orders.length < WAYPOINT_QUEUE_CAP,
+  );
+  if (units.length === 0) return;
   const size = world.map.size;
   let goals: number[] | null = null;
   let pace = Infinity;
@@ -672,8 +679,6 @@ function queueLeg(
   let t = 0;
   for (const unit of units) {
     const slot = t++;
-    if (unit.orders !== undefined && unit.orders.length >= WAYPOINT_QUEUE_CAP)
-      continue;
     const wp: Waypoint = {x, y};
     if (goals) {
       const goal = goals[Math.min(slot, goals.length - 1)]!;

@@ -252,6 +252,38 @@ describe('queued waypoints', () => {
     });
   });
 
+  it('deals the spread only to the men with room left for the leg', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    const full = spawnUnit(world, UnitTypeId.knight, 0, 10.5, 10.5);
+    const free = spawnUnit(world, UnitTypeId.knight, 0, 10.5, 11.5);
+    const orders: SimCommand[] = [
+      {kind: CommandKind.moveUnits, unitIds: [full.id, free.id], x: 14, y: 11},
+    ];
+    // Fill the first man's queue on his own, then click once for both.
+    for (let i = 0; i < WAYPOINT_QUEUE_CAP; i++) {
+      orders.push({
+        kind: CommandKind.moveUnits,
+        unitIds: [full.id],
+        x: 20 + i,
+        y: 40,
+        queue: true,
+      });
+    }
+    orders.push({
+      kind: CommandKind.moveUnits,
+      unitIds: [full.id, free.id],
+      x: 30,
+      y: 30,
+      queue: true,
+    });
+    tickWorld(world, cmds(...orders));
+    expect(full.orders).toHaveLength(WAYPOINT_QUEUE_CAP);
+    // The one man who takes the leg is a squad of one: he gets the tile
+    // clicked, not the second tile of a spread dealt for two.
+    expect(free.orders).toEqual([{x: 30, y: 30}]);
+  });
+
   it('sends a squad that came due together as one group', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});

@@ -220,7 +220,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // log without one plays back exactly (see replayVersion.ts). On top of
 // main's 44, which is why this is 45.
 const EXPECTED_VERSION = 45;
-const EXPECTED_HASH = 'fe9e25e201c39537aa2c675e492239a9';
+const EXPECTED_HASH = '15fe614d561a66ed0ad9e1ff62ef0f52';
 
 /**
  * Everything a replay's playback depends on, as raw source:
