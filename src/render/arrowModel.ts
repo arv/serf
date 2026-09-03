@@ -25,6 +25,35 @@ const fletchMaterial = new THREE.MeshLambertMaterial({
 export const ARROW_LENGTH = 0.52;
 
 /**
+ * The pack arrow (KayKit Adventurers, arrow.gltf), once characters.ts
+ * has loaded it — wrapped into the frame the procedural build below is
+ * authored in (tip at the origin, shaft down -Y, ARROW_LENGTH long in
+ * world units) so both owners take it unchanged, and the procedural
+ * build stays as the not-yet-loaded fallback, like every other pack
+ * prop. Measured on the file: the tip is a single vertex at y -0.383,
+ * the fletching ends at +0.366, so it is authored tip-down and turned
+ * over here.
+ */
+const PACK_TIP_Y = -0.383;
+const PACK_TAIL_Y = 0.366;
+let packTemplate: THREE.Group | null = null;
+
+export function setPackArrow(scene: THREE.Object3D): void {
+  const inner = new THREE.Group();
+  const inst = scene.clone();
+  // A half turn about z sends the tip to +y; then the tip slides onto
+  // the origin and the whole arrow scales to ARROW_LENGTH. On an inner
+  // group, so an owner scaling the clone (the nock counters the rig's
+  // scale) composes with it instead of replacing it.
+  inst.rotation.z = Math.PI;
+  inst.position.y = PACK_TIP_Y;
+  inner.add(inst);
+  inner.scale.setScalar(ARROW_LENGTH / (PACK_TAIL_Y - PACK_TIP_Y));
+  packTemplate = new THREE.Group();
+  packTemplate.add(inner);
+}
+
+/**
  * The arrow model, built once and cloned per pool entry so every clone
  * shares geometry and materials (the spearProp economy). Authored tip at
  * the origin, shaft hanging down -Y: the flight math tracks the tip, and
@@ -36,6 +65,7 @@ export const ARROW_LENGTH = 0.52;
 let arrowTemplate: THREE.Group | null = null;
 
 export function makeArrow(): THREE.Group {
+  if (packTemplate) return packTemplate.clone();
   if (arrowTemplate) return arrowTemplate.clone();
   const g = new THREE.Group();
   const shaft = new THREE.Mesh(

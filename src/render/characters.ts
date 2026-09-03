@@ -5,7 +5,7 @@ import type {Enum} from '../shared/enum.ts';
 import {clamp} from '../shared/math';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as AnimKeyNs from './animKeyEnum.ts';
-import {ARROW_LENGTH, makeArrow} from './arrowModel';
+import {ARROW_LENGTH, makeArrow, setPackArrow} from './arrowModel';
 import {loadGltfRetry} from './assets';
 import {factionTint} from './factionPalette';
 import {lathe} from './models';
@@ -47,6 +47,9 @@ const KK_PROP_FILES = [
   'axe_1handed',
   'axe_2handed',
   'bow_withString',
+  // The arrow on the string and in the air (arrowModel.ts takes it over
+  // from the procedural build once loaded).
+  'arrow',
   'dagger',
   'quiver',
   // From RPG Tools Bits (CC0) rather than the character packs — the one
@@ -744,6 +747,8 @@ async function loadKayKitCharacters(): Promise<boolean> {
     };
 
     kkAssets = {chars, clips, props, gaitSpeeds};
+    const arrow = props.get('arrow');
+    if (arrow) setPackArrow(arrow);
     return true;
   }
 }
