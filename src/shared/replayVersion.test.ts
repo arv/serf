@@ -208,7 +208,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // towers it knows of and walks it in legs. Brain and tier-table work,
 // playback never runs a brain — the legs it logged re-run as legs.
 const EXPECTED_VERSION = 43;
-const EXPECTED_HASH = 'cbcac716eafe4df81fc1d5be79a9d6fa';
+const EXPECTED_HASH = 'cd36e0dc1981ee4e1f98c6aeeba3aca7';
 
 /**
  * Everything a replay's playback depends on, as raw source:

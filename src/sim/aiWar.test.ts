@@ -423,6 +423,45 @@ describe('the flanking march', () => {
     expect(brain.warReport().flanked).toBe(0);
   });
 
+  it('marches straight when the only road runs under the tower', () => {
+    // A corridor one tile wide, the whole of it in the tower's reach: the
+    // road with the arrows priced in is the same road, so there is nothing
+    // to go round and no flank to count.
+    const {world, brain} = (() => {
+      const w = village();
+      addStorehouse(w, CASTLE.x, CASTLE.y, {}, 1);
+      const size = w.map.size;
+      for (let y = 0; y < size; y++) {
+        if (y === 15) continue;
+        for (let x = 18; x < 39; x++) w.map.blocked[tileIdx(x, y, size)] = 1;
+      }
+      const t = placeBuiltBuilding(
+        w,
+        BuildingTypeId.guardTower,
+        1,
+        TOWER.x,
+        TOWER.y,
+      );
+      t.garrison = 2;
+      t.garrisonKind = UnitTypeId.archer;
+      addBuiltHut(w, 31, 17, false);
+      addBuiltHut(w, 38, 17, false);
+      knights(w, 8, 0, BASE - 2);
+      const b = new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.warlord],
+        w.map.size,
+        DifficultyId.hard,
+      );
+      b.setWarBehaviors([WarBehaviorId.flankMarch]);
+      w.tick = 1500;
+      return {world: w, brain: b};
+    })();
+    const order = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(order && isCastle(order)).toBe(true);
+    expect(brain.warReport().flanked).toBe(0);
+  });
+
   it("is hard's alone", () => {
     const {world, brain} = towered(DifficultyId.normal);
     const order = moves(brain.decide(world)).find(m => m.unitIds.length === 8);

@@ -3086,6 +3086,12 @@ export class AiBrain {
     if (!direct.some(i => danger[i] === 1)) return -1; // nothing to go round
     const road = cheapestRoad(world.map, start, target, danger);
     if (!road) return -1;
+    // The same road with the arrows priced in is a road with nothing to go
+    // round — the danger is unavoidable, or the detour not worth its
+    // length — and a march that walks it in legs is straight with extra
+    // orders, counted as a flank it never made.
+    if (road.length === direct.length && road.every((i, k) => i === direct[k]))
+      return -1;
     if (road.length <= AI_WAR.flankLeg * 2) return -1;
     return road[AI_WAR.flankLeg]!;
   }
