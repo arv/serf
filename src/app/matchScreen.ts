@@ -610,20 +610,22 @@ export async function runMatch(
     // A finished match or a fallen seat leaves a spectator, and a spectator
     // is not under attack: the rivals go on razing whatever still stands,
     // and every swing would otherwise keep toasting "your village is under
-    // attack!" long after the village stopped being anyone's. The roster
-    // (applied above) carries the death when the frame has one; the
-    // elimination event covers the same frame's later strikes when it does
-    // not.
-    let spectating =
+    // attack!" long after the village stopped being anyone's. Decided for
+    // the whole frame before any event is read: the roster (applied above)
+    // carries the death, and the elimination event says the same without
+    // leaning on the roster having shipped alongside — so the strikes that
+    // felled the storehouse, delivered ahead of the elimination they
+    // caused, go quiet with the rest.
+    const spectating =
       msg.outcome.state === MatchState.over ||
-      playersMeta()[myPlayerId()]?.alive === false;
+      playersMeta()[myPlayerId()]?.alive === false ||
+      msg.events.some(
+        e =>
+          e.kind === GameEventKind.playerEliminated &&
+          e.player === myPlayerId(),
+      );
     for (const event of msg.events) {
       if (
-        event.kind === GameEventKind.playerEliminated &&
-        event.player === myPlayerId()
-      ) {
-        spectating = true;
-      } else if (
         event.kind === GameEventKind.raidIncoming &&
         event.player === myPlayerId()
       ) {
