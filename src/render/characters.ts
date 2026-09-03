@@ -5,6 +5,7 @@ import type {Enum} from '../shared/enum.ts';
 import {clamp} from '../shared/math';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as AnimKeyNs from './animKeyEnum.ts';
+import {ARROW_LENGTH, makeArrow} from './arrowModel';
 import {loadGltfRetry} from './assets';
 import {factionTint} from './factionPalette';
 import {lathe} from './models';
@@ -275,6 +276,166 @@ export interface CharacterVisual {
   defaultTool?: THREE.Object3D;
   /** WORK.* currently equipped via setWorkTool (0 = the default prop). */
   toolKind: number;
+  /** The archer's bow, string and nocked arrow (see BowRig). */
+  bow?: BowRig;
+}
+
+// --- The bow: a string that follows the draw hand, an arrow on it -------
+
+/**
+ * The pack bow is one mesh — limbs and string in a single primitive —
+ * so the string is found by where it is, not what it is called: the
+ * thin straight run tip to tip along the chord, at the bow's own
+ * measured x, within a hundredth of the plane. Measured on
+ * bow_withString.gltf (tools/modelLab/animImpacts.mjs has the parser).
+ * Geometry space: the bow lies along z, curves in x, the string is the
+ * chord at BOW_STRING_X and the draw pulls it toward -x.
+ */
+const BOW_STRING_X = -0.355;
+const BOW_STRING_CATCH = 0.02;
+const BOW_STRING_HALF_Y = 0.011;
+/** Half the string's span: where it meets the limb tips. */
+const BOW_TIP_Z = 0.992;
+/** The draw hand counts as on the string inside this box around it:
+ * the middle half of its length, and nearer its plane than the reach
+ * (which passes over the top tip and dips under the bow on the way to
+ * the quiver) ever comes. Measured in bow space against the draw and
+ * release clips: on the string the hand's y sits at 0.19..0.23, z at
+ * -0.20..-0.04; reaching, it crosses at y 0.50 and z 0.84..1.0. */
+const BOW_HOLD_Z = 0.5;
+const BOW_HOLD_Y = 0.35;
+
+export interface BowRig {
+  mesh: THREE.Mesh;
+  position: THREE.BufferAttribute;
+  /** Vertex indices on the string. */
+  string: number[];
+  /** Their rest positions, xyz per index. */
+  rest: Float32Array;
+  /** The draw hand. */
+  hand: THREE.Object3D;
+  /** Holder at the nock: the arrow hangs off it, tip toward the limbs. */
+  nock: THREE.Group;
+  /** Whether the string currently sits somewhere other than at rest. */
+  drawn: boolean;
+}
+
+const BOW_P = new THREE.Vector3();
+
+/**
+ * Rig a bow instance (one archer's clone of the pack prop): the mesh
+ * gets its own copy of the geometry so its string can move without
+ * moving every other bow's, the string vertices are tagged, and a nocked
+ * arrow is parented at the string's middle, hidden until a draw. `scale`
+ * is the rig's world scale, so the arrow on the string is the size of
+ * the one that flies (arrowModel.ts, authored in world units).
+ */
+function rigBow(
+  inst: THREE.Object3D,
+  hand: THREE.Object3D | undefined,
+  scale: number,
+): BowRig | undefined {
+  let mesh: THREE.Mesh | undefined;
+  inst.traverse(o => {
+    if (!mesh && o instanceof THREE.Mesh) mesh = o;
+  });
+  if (!mesh || !hand) return undefined;
+  const geometry = mesh.geometry.clone();
+  mesh.geometry = geometry;
+  // The drawn string and the arrow reach past the bow's own bounds.
+  mesh.frustumCulled = false;
+  const position = geometry.getAttribute('position');
+  if (!(position instanceof THREE.BufferAttribute)) return undefined;
+  const string: number[] = [];
+  for (let i = 0; i < position.count; i++) {
+    if (
+      position.getX(i) < BOW_STRING_X + BOW_STRING_CATCH &&
+      Math.abs(position.getY(i)) < BOW_STRING_HALF_Y
+    )
+      string.push(i);
+  }
+  if (string.length === 0) return undefined;
+  const rest = new Float32Array(string.length * 3);
+  string.forEach((i, k) => {
+    rest[k * 3] = position.getX(i);
+    rest[k * 3 + 1] = position.getY(i);
+    rest[k * 3 + 2] = position.getZ(i);
+  });
+  const nock = new THREE.Group();
+  nock.position.x = BOW_STRING_X;
+  nock.visible = false;
+  const arrow = makeArrow();
+  // Authored tip at the origin, shaft down -Y, in world units: turn +Y
+  // onto +x (toward the limbs), counter the rig's scale, and slide it
+  // forward so the tail end sits on the nock.
+  arrow.rotation.z = -Math.PI / 2;
+  arrow.scale.setScalar(1 / scale);
+  arrow.position.x = ARROW_LENGTH / scale;
+  nock.add(arrow);
+  mesh.add(nock);
+  return {mesh, position, string, rest, hand, nock, drawn: false};
+}
+
+/**
+ * Bend the string to the draw hand and show the arrow on it, or let both
+ * rest. Once a frame after the mixer has posed the rig, for any archer
+ * on screen — the field (sceneSync), the tower roof (buildingSync) and
+ * the lab page all call it. The hand holds the string while the shoot
+ * clip is in its draw half and the hand is in the hold box (BOW_HOLD_*):
+ * the release half opens exactly at the clip's midpoint (the Bow_Shoot
+ * composite), where the hand snaps away and the flight arrow spawns, so
+ * the string lets go on the same frame. The nock keeps the string in the
+ * bow's plane and never ahead of rest: the hand sits a little in front
+ * of the string while nocking, and a string pushed forward reads as
+ * broken.
+ */
+export function updateBow(visual: CharacterVisual): void {
+  const bow = visual.bow;
+  if (!bow) return;
+  let holding = false;
+  if (visual.current === AnimKeyNs.shoot) {
+    const action = visual.actions.get(AnimKeyNs.shoot);
+    if (action && action.time < action.getClip().duration / 2) {
+      bow.hand.getWorldPosition(BOW_P);
+      bow.mesh.updateWorldMatrix(true, false);
+      bow.mesh.worldToLocal(BOW_P);
+      holding =
+        Math.abs(BOW_P.z) < BOW_HOLD_Z && Math.abs(BOW_P.y) < BOW_HOLD_Y;
+    }
+  }
+  if (!holding) {
+    if (!bow.drawn) return;
+    bow.string.forEach((i, k) => {
+      bow.position.setXYZ(
+        i,
+        bow.rest[k * 3]!,
+        bow.rest[k * 3 + 1]!,
+        bow.rest[k * 3 + 2]!,
+      );
+    });
+    bow.position.needsUpdate = true;
+    bow.nock.visible = false;
+    bow.drawn = false;
+    return;
+  }
+  const nx = Math.min(BOW_P.x, BOW_STRING_X);
+  const nz = clamp(BOW_P.z, -BOW_TIP_Z * 0.9, BOW_TIP_Z * 0.9);
+  bow.string.forEach((i, k) => {
+    const x0 = bow.rest[k * 3]!;
+    const y0 = bow.rest[k * 3 + 1]!;
+    const z0 = bow.rest[k * 3 + 2]!;
+    // Two straight runs, tip to nock and nock to tip: how far along its
+    // run this vertex sits, 0 at the tip and 1 at the nock.
+    const f =
+      z0 >= nz
+        ? (BOW_TIP_Z - z0) / (BOW_TIP_Z - nz)
+        : (z0 + BOW_TIP_Z) / (nz + BOW_TIP_Z);
+    bow.position.setXYZ(i, x0 + clamp(f, 0, 1) * (nx - BOW_STRING_X), y0, z0);
+  });
+  bow.position.needsUpdate = true;
+  bow.nock.position.set(nx, 0, nz);
+  bow.nock.visible = true;
+  bow.drawn = true;
 }
 
 // --- Rigid props, sized in world units and counter-scaled onto bones -------
@@ -1095,10 +1256,16 @@ function makeKayKitCharacter(
       anchor.add(builtWeapon);
     }
   }
-  slot('handslot.l', spec.left, undefined, spec.leftRot);
+  const leftHand = slot('handslot.l', spec.left, undefined, spec.leftRot);
   slot('chest', spec.back, [0, 0, -0.14]);
 
   const s = char.scale * (spec.scale ?? 1);
+
+  // The archer's bow gets a live string and an arrow to nock on it.
+  const bow =
+    leftHand && spec.left === 'bow_withString'
+      ? rigBow(leftHand.inst, boneOf('handslot.r'), s)
+      : undefined;
 
   // --- Gait paced by ground speed ----------------------------------------
   // The sim slides this unit at a fixed tiles/sec; the clips were authored
@@ -1216,6 +1383,7 @@ function makeKayKitCharacter(
     toolCustom,
     defaultTool: proceduralTool ?? rightHand?.inst ?? builtWeapon,
     toolKind: 0,
+    bow,
   };
   setGaitSpeed(visual, simSpeed);
   return {group, visual};

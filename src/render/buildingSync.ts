@@ -17,7 +17,12 @@ import * as AnimKey from './animKeyEnum.ts';
 import {crossedRelease} from './arrows';
 import {glbYardProp, glbYardRock, makeGlbBuilding} from './assets';
 import {CAMERA_YAW, type ViewBounds} from './cameraRig';
-import {makeCharacter, playAnimation, type CharacterVisual} from './characters';
+import {
+  makeCharacter,
+  playAnimation,
+  updateBow,
+  type CharacterVisual,
+} from './characters';
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
 import {eachMaterial, mapMaterials} from './materials';
@@ -1041,6 +1046,7 @@ export class BuildingSync {
         const shooting = v.levied ? AnimKey.throwing : AnimKey.shoot;
         playAnimation(char, v.firing ? shooting : AnimKey.idle, i * 0.37);
         char.mixer.update(dt);
+        if (char.bow) updateBow(char);
         // Each man's projectile leaves at his own clip's release — the
         // same phase-crossing watch the field archers keep (sceneSync),
         // against the throw's measured release for the levy. Volleys ride

@@ -20,6 +20,7 @@ import type {ViewBounds} from './cameraRig';
 import {
   TARGET_HEIGHT,
   gaitAnimKey,
+  updateBow,
   makeCharacter,
   playAnimation,
   setGaitSpeed,
@@ -1071,6 +1072,8 @@ export class SceneSync {
         visual.ax = x;
         visual.az = y;
         visual.char.mixer.update(dt);
+        // The archer's string and nocked arrow follow the posed hand.
+        if (visual.char.bow) updateBow(visual.char);
         // The 'loop' event only covers cycles after the first wrap, so a
         // percussive clip (re)started this frame would play its whole
         // first cycle mute — for Pickaxing that is two silent swings and
