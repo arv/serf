@@ -8,3 +8,5 @@ export const move = 2 as const;
 export type move = typeof move;
 export const rally = 3 as const;
 export type rally = typeof rally;
+export const patrol = 4 as const;
+export type patrol = typeof patrol;

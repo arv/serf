@@ -197,10 +197,12 @@ export const [buildAim, setBuildAim] = createSignal<BuildingTypeId | null>(
 export const [buildChord, setBuildChord] = createSignal(false);
 
 /**
- * An order armed and waiting for its target: A or M pressed (or the
+ * An order armed and waiting for its target: A, M or P pressed (or the
  * selection card's buttons tapped) with people selected, and the next click
  * on the map says where. `'attack'` is the attack-move that engages what it
- * meets, `'move'` the plain walk that ignores it. `'rally'` is the odd one
+ * meets, `'move'` the plain walk that ignores it, and `'patrol'` the beat
+ * walked back and forth between the click and where the squad set out
+ * from, fighting what it meets. `'rally'` is the odd one
  * out — armed from a selected barracks rather than a squad, and the click
  * plants its muster flag instead of moving anyone.
  *

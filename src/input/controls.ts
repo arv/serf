@@ -24,6 +24,7 @@ import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
 import {
   HIRE_KEY,
   HOLD_KEY,
+  PATROL_KEY,
   RALLY_KEY,
   RESEARCH_KEY,
   canHire,
@@ -89,6 +90,23 @@ import {foreignChord, typingInto} from './typing';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type OrderMode = Enum<typeof OrderMode>;
+
+/**
+ * Which of the move orders a click sends: `false` the plain walk, `true`
+ * the attack-move, `'half'` the quiet-then-live one a finger taps, and
+ * `'patrol'` the beat walked back and forth. The wire spells the last one
+ * as its own flag (see SimCommand); here it rides in the same slot as the
+ * others because every order site picks exactly one.
+ */
+type MoveOrder = boolean | 'half' | 'patrol';
+
+/** The move order an armed A, M or P stands for. Never called with the
+ * rally flag, which plants rather than moves. */
+function orderOf(order: OrderMode): MoveOrder {
+  if (order === OrderMode.attack) return true;
+  if (order === OrderMode.patrol) return 'patrol';
+  return false;
+}
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -449,7 +467,7 @@ export class Controls {
     }
     if (!order) return;
     if (order === OrderMode.rally) this.#issueRallyAt(tx, ty, px, py);
-    else this.#issueMoveAt(tx, ty, order === OrderMode.attack, px, py, queue);
+    else this.#issueMoveAt(tx, ty, orderOf(order), px, py, queue);
     this.armOrder(null);
   }
 
@@ -612,9 +630,15 @@ export class Controls {
       // key that means nothing here would be the keyboard scolding a
       // player who merely has no army yet).
       this.holdGround();
-    } else if (letter === 'A' || letter === 'M') {
+    } else if (letter === 'A' || letter === 'M' || letter === PATROL_KEY) {
       if (this.#selection.size > 0 && !replayMode()) {
-        this.armOrder(letter === 'A' ? OrderMode.attack : OrderMode.move);
+        this.armOrder(
+          letter === 'A'
+            ? OrderMode.attack
+            : letter === PATROL_KEY
+              ? OrderMode.patrol
+              : OrderMode.move,
+        );
         play('uiClick');
       } else if (letter === 'M') {
         toggleMuted();
@@ -989,17 +1013,13 @@ export class Controls {
         if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
         // A-click on something hostile means THAT one, not the ground it
         // stands on. Anywhere else the armed order is the attack-move it
-        // has always been. Shift queues either behind the standing orders.
+        // has always been. Shift queues either behind the standing orders
+        // — and, with P armed, adds the spot to the beat being walked.
         else if (
           order !== OrderMode.attack ||
           !this.#issueFocus(e.clientX, e.clientY, e.shiftKey)
         )
-          this.#issueMove(
-            e.clientX,
-            e.clientY,
-            order === OrderMode.attack,
-            e.shiftKey,
-          );
+          this.#issueMove(e.clientX, e.clientY, orderOf(order), e.shiftKey);
         this.armOrder(null);
       } else if (e.button === 2) {
         this.armOrder(null);
@@ -1238,7 +1258,7 @@ export class Controls {
           order !== OrderMode.attack ||
           !this.#issueFocus(e.clientX, e.clientY)
         )
-          this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
+          this.#issueMove(e.clientX, e.clientY, orderOf(order));
         this.armOrder(null);
       }
       return;
@@ -2042,17 +2062,19 @@ export class Controls {
   }
 
   /**
-   * Send the selection somewhere. `attack` picks between the three orders:
+   * Send the selection somewhere. `attack` picks between the four orders:
    * `true` is an attack-move that engages enemies met along the way,
    * `'half'` walks the front half of the route as a plain move before going
-   * live, and `false` is the plain move that ignores enemies throughout.
-   * A single touch tap sends the half order (safe to flee with); a repeat
-   * tap escalates it to the full attack-move; desktop right-click is the
-   * plain move, and A or M arms the explicit attack-move or move for the
-   * next click.
+   * live, `'patrol'` walks there and back and there again until told
+   * otherwise, and `false` is the plain move that ignores enemies
+   * throughout. A single touch tap sends the half order (safe to flee
+   * with); a repeat tap escalates it to the full attack-move; desktop
+   * right-click is the plain move, and A, M or P arms the explicit
+   * attack-move, move or patrol for the next click.
    *
    * `queue` lines the order up behind the squad's standing ones instead of
-   * replacing them (see #sendMove).
+   * replacing them (see #sendMove); on a patrol it adds the spot to the
+   * beat.
    *
    * Returns the ordered tile, so the touch double-tap can re-aim its
    * escalation at exactly what the first tap ordered; null if the point
@@ -2061,7 +2083,7 @@ export class Controls {
   #issueMove(
     px: number,
     py: number,
-    attack: boolean | 'half',
+    attack: MoveOrder,
     queue = false,
   ): {x: number; y: number} | null {
     const target = this.#orderTarget(px, py);
@@ -2083,7 +2105,7 @@ export class Controls {
   #issueMoveAt(
     x: number,
     y: number,
-    attack: boolean | 'half',
+    attack: MoveOrder,
     px: number,
     py: number,
     queue = false,
@@ -2283,14 +2305,11 @@ export class Controls {
    * order waits behind the ones the squad is already walking rather than
    * replacing them, so a string of shift-clicks is walked point by point.
    * An unshifted click drops the string. The sim owns the queue (Unit.orders):
-   * this side only says which kind of click it was.
+   * this side only says which kind of click it was. A patrol is its own
+   * flag rather than a third attack value: the sim reads it as the live
+   * order it is, and the attack flag stays home.
    */
-  #sendMove(
-    x: number,
-    y: number,
-    attack: boolean | 'half',
-    queue = false,
-  ): void {
+  #sendMove(x: number, y: number, attack: MoveOrder, queue = false): void {
     if (this.#selection.size === 0) return;
     this.#host.sendCommands([
       {
@@ -2298,18 +2317,22 @@ export class Controls {
         unitIds: [...this.#selection],
         x,
         y,
-        ...(attack ? {attack} : {}),
+        ...(attack === 'patrol'
+          ? {patrol: true as const}
+          : attack
+            ? {attack}
+            : {}),
         ...(queue ? {queue: true as const} : {}),
       },
     ]);
   }
 
   /** A ring blooming at the tap/click plus a tick of haptics: order taken.
-   * Attack-moves pulse a solid red ring, plain moves a dashed gold one, and
-   * the half order a dotted red — three border styles, so the shape carries
-   * the difference where color vision cannot. (The rally flag pulses too,
-   * through #pulse directly: solid gold.) */
-  #orderPulse(px: number, py: number, attack: boolean | 'half'): void {
+   * Attack-moves pulse a solid red ring, plain moves a dashed gold one, the
+   * half order a dotted red and a patrol a double red — four border styles,
+   * so the shape carries the difference where color vision cannot. (The
+   * rally flag pulses too, through #pulse directly: solid gold.) */
+  #orderPulse(px: number, py: number, attack: MoveOrder): void {
     this.#pulse(
       px,
       py,
@@ -2317,7 +2340,9 @@ export class Controls {
         ? 'solid #bf4342'
         : attack === 'half'
           ? 'dotted #bf4342'
-          : 'dashed #e5c469',
+          : attack === 'patrol'
+            ? 'double #bf4342'
+            : 'dashed #e5c469',
     );
   }
 

@@ -38,6 +38,21 @@ describe('command screening', () => {
         attack: 'half',
       },
       {
+        kind: CommandKind.moveUnits,
+        unitIds: [1, 2, 3],
+        x: 10,
+        y: 12,
+        patrol: true,
+      },
+      {
+        kind: CommandKind.moveUnits,
+        unitIds: [1, 2, 3],
+        x: 10,
+        y: 12,
+        patrol: true,
+        queue: true,
+      },
+      {
         kind: CommandKind.placeBuilding,
         building: BuildingTypeId.woodcutter,
         x: 4,
@@ -156,6 +171,40 @@ describe('command screening', () => {
         x: 1,
         y: 1,
         attack: 'yes',
+      }),
+    ).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 1,
+      y: 1,
+    });
+    // A patrol carries no attack flag: it is the live order already, and
+    // a well-formed one never says both.
+    expect(
+      sanitizeCommand({
+        kind: CommandKind.moveUnits,
+        unitIds: [1],
+        x: 1,
+        y: 1,
+        attack: 'half',
+        patrol: true,
+      }),
+    ).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 1,
+      y: 1,
+      patrol: true,
+    });
+    // And a garbled patrol flag is no patrol: only the literal true walks
+    // a beat, so a truthy string cannot leave a squad marching forever.
+    expect(
+      sanitizeCommand({
+        kind: CommandKind.moveUnits,
+        unitIds: [1],
+        x: 1,
+        y: 1,
+        patrol: 'yes',
       }),
     ).toEqual({
       kind: CommandKind.moveUnits,

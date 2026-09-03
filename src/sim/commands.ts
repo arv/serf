@@ -36,6 +36,12 @@ export type SimCommand =
   // the order waits its turn behind it (Unit.orders) — a unit standing idle
   // simply takes it now. Absent, the order is the fresh one it has always
   // been, and it drops whatever was queued.
+  // `patrol` is the beat: soldiers walk to the spot and back to where they
+  // set out from, and keep doing so, fighting what they meet on every leg
+  // (Waypoint.patrol). Always live, so `attack` says nothing beside it.
+  // With `queue` it extends the beat a squad is already walking by one
+  // more spot — or, behind a plain route, starts one from that route's
+  // end. Civilians in the list take the plain walk instead.
   | {
       kind: CommandKindNs.moveUnits;
       unitIds: EntityId[];
@@ -43,6 +49,7 @@ export type SimCommand =
       y: number;
       attack?: true | 'half';
       queue?: true;
+      patrol?: true;
     }
   /**
    * Put a squad on one target — focus fire, and the only way a caller can
@@ -276,12 +283,19 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         y: c.y,
         // Anything but the two literal fight values means a plain move —
         // the safe reading of a garbled flag is the order that starts no
-        // fights.
-        ...(c.attack === true || c.attack === 'half' ? {attack: c.attack} : {}),
+        // fights. A patrol carries no attack flag at all: it is the live
+        // order already, and a command's meaning must not hang on two
+        // flags agreeing.
+        ...((c.attack === true || c.attack === 'half') && c.patrol !== true
+          ? {attack: c.attack}
+          : {}),
         // Anything but a literal true is the fresh order: a garbled flag
         // replaces rather than appends, which is what an unflagged click
         // has always done.
         ...(c.queue === true ? {queue: true as const} : {}),
+        // And only a literal true walks a beat: a garbled flag must not
+        // leave a squad marching forever.
+        ...(c.patrol === true ? {patrol: true as const} : {}),
       };
     }
     case CommandKindNs.placeBuilding:

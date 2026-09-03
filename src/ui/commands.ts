@@ -142,6 +142,16 @@ export function canRally(b: BuildingSnap): boolean {
 export const HOLD_KEY = 'H';
 
 /**
+ * Arm the patrol: the next click is the far end of a beat the squad walks
+ * back and forth, fighting what it meets on the way, until another order
+ * comes. A mode like A and M — a spot to wait for — and Shift on that
+ * click adds the spot to a beat already being walked instead of starting
+ * a new one. P is free: no building's letter is P, and P over an empty
+ * selection means nothing, as A does.
+ */
+export const PATROL_KEY = 'P';
+
+/**
  * Open the tech tree. The one command here that is not contextual: the
  * tree is a sheet to read, not an order to give, and a player who wants to
  * check what Masonry costs should not first have to find their abbey. It

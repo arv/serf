@@ -581,6 +581,10 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
  * Handing the idle half of a squad its leg now and the walking half theirs
  * later means the two halves arrive apart — which is what the player asked
  * for by mixing them under one Shift-click, and what every RTS does.
+ *
+ * A patrol (`patrol`) is the soldiers' order and goes its own way
+ * (orderPatrol); a civilian named in one takes the click as the walk it
+ * would otherwise be, since he has nothing to fight with on the way.
  */
 function applyMoveUnits(
   world: World,
@@ -591,13 +595,23 @@ function applyMoveUnits(
     y: number;
     attack?: true | 'half';
     queue?: true;
+    patrol?: true;
   },
 ): void {
   const now: number[] = [];
   const later: Unit[] = [];
+  const beat: Unit[] = [];
+  // A patrol says nothing with its attack flag (the wire screens it off;
+  // an in-process caller may still set both): the civilians it walks take
+  // the plain walk, never a leg marked as a fight they cannot have.
+  const attack = cmd.patrol ? undefined : cmd.attack;
   for (const id of cmd.unitIds) {
     const unit = world.units.get(id);
     if (!unit || unit.dead || unit.owner !== playerId) continue;
+    if (cmd.patrol && UNIT_DEFS[unit.kind].combat) {
+      beat.push(unit);
+      continue;
+    }
     if (cmd.queue && underOrders(unit)) {
       later.push(unit);
       continue;
@@ -607,9 +621,152 @@ function applyMoveUnits(
     clearOrders(unit);
     now.push(id);
   }
-  if (later.length > 0)
-    queueLeg(world, playerId, later, cmd.x, cmd.y, cmd.attack);
-  if (now.length > 0) orderMove(world, playerId, now, cmd.x, cmd.y, cmd.attack);
+  if (later.length > 0) queueLeg(world, playerId, later, cmd.x, cmd.y, attack);
+  if (now.length > 0) orderMove(world, playerId, now, cmd.x, cmd.y, attack);
+  if (beat.length > 0)
+    orderPatrol(world, playerId, beat, cmd.x, cmd.y, cmd.queue === true);
+}
+
+/**
+ * The patrol order: a beat walked round and round. It is spelled entirely
+ * in the route — every leg of it a live attack-move that goes back to the
+ * end of the queue when taken (Waypoint.patrol, takeLeg) — so the combat
+ * system fights each leg exactly as it fights any attack-move, the
+ * waypoint step turns the squad round at each end, and a hold or a fresh
+ * order ends the beat by dropping the route, as they drop any route.
+ *
+ * A fresh patrol is two legs: the spot each man stands on now, and his
+ * tile of the squad's spread at the click — dealt by queueLeg like any
+ * queued leg, and facing from where he stands, since his own spot is the
+ * last leg on his route when the spread is dealt. Then the far end is
+ * brought to the head and taken at once, so the squad sets out on the
+ * click rather than at the end of the tick, and the beat runs there,
+ * home, there, home. The home leg walks at the squad's pace too: a march
+ * back is still a march.
+ *
+ * Shift-P (`queue`) on a squad already walking a beat — any beat leg in
+ * its route — adds the click as one more spot on it (the route already
+ * has its home). The spot goes in just before the home leg: the legs
+ * rotate as they are taken, so home is the one fixed point in the route,
+ * and "before home" is the end of the beat as the player drew it — the
+ * spots are walked in the order they were clicked, and home comes last,
+ * however many are added while the squad is still on the first leg.
+ * Behind a plain route it starts a beat from that route's end
+ * (expectedAt) — walk the route, then patrol between its last stop and
+ * the click — which is what StarCraft's shift-patrol does. Both legs of a
+ * new beat must fit under the cap, or the unit takes neither: a beat with
+ * one end is no beat.
+ *
+ * A far end nowhere to walk (a click into the margin) is what queueLeg
+ * drops, and takes the fresh beat with it: the unit keeps whatever it was
+ * doing, exactly as a fresh move with nowhere to walk changes nothing.
+ */
+function orderPatrol(
+  world: World,
+  playerId: Owner,
+  units: Unit[],
+  x: number,
+  y: number,
+  queue: boolean,
+): void {
+  const fresh: Unit[] = [];
+  const dealt: Unit[] = [];
+  const homes = new Map<Unit, Waypoint>();
+  const grown = new Map<Unit, number>();
+  for (const unit of units) {
+    if (queue && underOrders(unit)) {
+      // Any beat leg in the route means a beat is being walked, whatever
+      // sits at the tail — a plain waypoint queued behind the beat is at
+      // the tail until it is spent, and a Shift-P in that window still
+      // means "one more spot", never a second beat with a second home.
+      if (unit.orders?.some(wp => wp.patrol)) {
+        grown.set(unit, unit.orders.length);
+        dealt.push(unit);
+        continue;
+      }
+      if ((unit.orders?.length ?? 0) + 2 > WAYPOINT_QUEUE_CAP) continue;
+      const at = expectedAt(world, unit);
+      const home: Waypoint = {
+        x: Math.floor(at.x),
+        y: Math.floor(at.y),
+        attack: true,
+        patrol: true,
+        home: true,
+      };
+      if (unit.orders === undefined) unit.orders = [home];
+      else unit.orders.push(home);
+      homes.set(unit, home);
+      dealt.push(unit);
+      continue;
+    }
+    clearOrders(unit);
+    const home: Waypoint = {
+      x: Math.floor(unit.x),
+      y: Math.floor(unit.y),
+      attack: true,
+      patrol: true,
+      home: true,
+    };
+    unit.orders = [home];
+    homes.set(unit, home);
+    fresh.push(unit);
+    dealt.push(unit);
+  }
+  queueLeg(world, playerId, dealt, x, y, true, true);
+  for (const [unit, before] of grown) {
+    const orders = unit.orders!;
+    // Not grown: the spot had nowhere to walk, or the route was full.
+    if (orders.length === before) continue;
+    const spot = orders.pop()!;
+    const home = orders.findIndex(wp => wp.home);
+    orders.splice(home < 0 ? orders.length : home, 0, spot);
+  }
+  for (const [unit, home] of homes) {
+    const orders = unit.orders!;
+    const i = orders.indexOf(home);
+    const far = orders[i + 1];
+    if (far === undefined) {
+      // The far end was dropped: no beat. A fresh unit's route is only
+      // the home leg, which would walk him to where he already stands.
+      orders.pop();
+      if (orders.length === 0) clearOrders(unit);
+      continue;
+    }
+    if (far.pace !== undefined) home.pace = far.pace;
+    // The far end leads: the beat is walked out first and home after.
+    orders[i] = far;
+    orders[i + 1] = home;
+  }
+  for (const unit of fresh) {
+    if (unit.orders !== undefined) takeLeg(world, unit);
+  }
+}
+
+/**
+ * Hand a unit the head of its route as an order, now. A plain leg is
+ * spent; a beat's leg goes back to the end of the route, so the beat
+ * comes round again. A leg that cannot be walked — the goal sealed off
+ * since it was queued, a civilian's turn at an assault — is dropped
+ * rather than retried, and a beat's leg dropped takes the rest of the
+ * beat with it: a beat with one end is no beat, and one that kept coming
+ * round to a sealed-off spot would run the failed search every tick, the
+ * very shape of bug repathAt exists to prevent. Any plain legs queued
+ * behind the beat are kept and walked in turn.
+ */
+function takeLeg(world: World, unit: Unit): void {
+  const orders = unit.orders!;
+  const wp = orders.shift()!;
+  const taken =
+    orderMove(world, unit.owner, [unit.id], wp.x, wp.y, wp.attack, wp.pace) > 0;
+  if (wp.patrol) {
+    if (taken) orders.push(wp);
+    else {
+      const rest = orders.filter(o => !o.patrol);
+      orders.length = 0;
+      orders.push(...rest);
+    }
+  }
+  if (orders.length === 0) clearOrders(unit);
 }
 
 /** Is the unit walking an order a waypoint can wait behind? */
@@ -650,6 +807,9 @@ function underOrders(unit: Unit): boolean {
  * is what the fresh order does with such a click. A full queue drops the
  * leg too, rather than the queue's head, so what the player has already
  * lined up stays exactly as given.
+ *
+ * `patrol` marks the leg as a beat's (Waypoint.patrol): the same leg,
+ * dealt the same way, that comes round again once taken.
  */
 function queueLeg(
   world: World,
@@ -658,6 +818,7 @@ function queueLeg(
   x: number,
   y: number,
   attack: true | 'half' | undefined,
+  patrol = false,
 ): void {
   // Only the men who can still take a leg are the squad this leg is dealt
   // to: a full queue counted in the spread would hold a tile — the front
@@ -688,6 +849,7 @@ function queueLeg(
     if (attack) wp.attack = attack;
     // Only where it binds, the same rule the fresh order keeps.
     if (pace < effectiveSpeed(unit.kind, serfMod)) wp.pace = pace;
+    if (patrol) wp.patrol = true;
     if (unit.orders === undefined) unit.orders = [wp];
     else unit.orders.push(wp);
   }
@@ -765,16 +927,15 @@ function squadPace(movers: readonly Unit[], serfMod: number): number {
  * dealt when the leg was queued (queueLeg). A leg that cannot be walked —
  * the goal sealed off since, a civilian's turn at an assault — leaves him
  * idle, and the loop moves him straight on to the next, for the reason
- * above.
+ * above. The loop ends: a leg taken leaves him walking, and one not taken
+ * is dropped (takeLeg), so every pass shortens the route — a beat's legs
+ * included, which come round again only once taken.
  */
 function waypointSystem(world: World): void {
   for (const unit of world.units.values()) {
     if (unit.dead || unit.orders === undefined) continue;
-    while (unit.orders !== undefined && unit.task.t === UnitTaskKind.idle) {
-      const wp = unit.orders.shift()!;
-      if (unit.orders.length === 0) clearOrders(unit);
-      orderMove(world, unit.owner, [unit.id], wp.x, wp.y, wp.attack, wp.pace);
-    }
+    while (unit.orders !== undefined && unit.task.t === UnitTaskKind.idle)
+      takeLeg(world, unit);
   }
 }
 
@@ -793,6 +954,10 @@ function waypointSystem(world: World): void {
  * order does to the queue, and the waypoint step comes here for each leg
  * of a route that must survive it — with `pace` set to the squad's pace
  * that leg was dealt (squadPace), since the man arrives alone.
+ *
+ * Returns how many of the named units took the order: the ones now
+ * walking or assaulting, as against the civilians handed an assault and
+ * the men with no way to walk, whom it leaves exactly as they were.
  */
 function orderMove(
   world: World,
@@ -802,9 +967,10 @@ function orderMove(
   y: number,
   attack: true | 'half' | undefined,
   pace?: number,
-): void {
+): number {
   const cmd = {unitIds, x, y, attack};
   const size = world.map.size;
+  let taken = 0;
   const target = hostileBuildingAt(world, playerId, cmd.x, cmd.y);
   if (target) {
     for (const id of cmd.unitIds) {
@@ -816,8 +982,9 @@ function orderMove(
       unit.targetIsBuilding = true;
       unit.path = null;
       clearMarchSpeed(unit); // an assault runs at true speeds
+      taken++;
     }
-    return;
+    return taken;
   }
   const movers: Unit[] = [];
   for (const id of cmd.unitIds) {
@@ -826,7 +993,7 @@ function orderMove(
     movers.push(unit);
   }
   const targets = collectSpreadTargets(world, cmd.x, cmd.y, movers.length);
-  if (targets.length === 0) return;
+  if (targets.length === 0) return 0;
   orderFormation(movers, targets, size);
   const serfMod = getModifier(world, playerId, ModifierKey.serfSpeed);
   pace ??= squadPace(movers, serfMod);
@@ -880,7 +1047,9 @@ function orderMove(
     // Explicit orders disengage combat; an attack-move re-acquires freely.
     unit.targetId = undefined;
     unit.targetIsBuilding = undefined;
+    taken++;
   }
+  return taken;
 }
 
 /**

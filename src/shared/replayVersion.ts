@@ -20,6 +20,21 @@
  * directly.
  */
 /**
+ * 46: the patrol.
+ *
+ * A move order carries a `patrol` flag (commands.ts), and a waypoint can
+ * be a beat's leg (Waypoint.patrol): taken, it goes back to the end of
+ * the route instead of being spent, so soldiers walk the click and the
+ * spot they set out from round and round, fighting what they meet, until
+ * a fresh order drops the route (tick.ts orderPatrol, takeLeg). Shift-P
+ * adds a spot to the beat. A new field on the wire is pure format — no
+ * older log holds one, and a log without one plays back exactly, since a
+ * route without a beat leg is spent leg by leg as before. The bump is
+ * for the other direction: a build without the order screens the flag
+ * off a newer log and walks a single attack-move where the recording
+ * patrolled.
+ */
+/**
  * 45: the Shift-click route.
  *
  * A move order carries a `queue` flag now (commands.ts), and a unit carries
@@ -572,4 +587,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 45;
+export const REPLAY_VERSION = 46;

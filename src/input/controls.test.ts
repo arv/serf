@@ -2074,6 +2074,40 @@ describe('queued orders', () => {
       queue: true,
     });
   });
+
+  it('spends an armed P on the chart as a patrol, and adds to it with Shift', () => {
+    const h = warband();
+    controls = h.controls;
+    h.type('P');
+    expect(h.controls.orderArmed()).toBe(true);
+
+    h.controls.orderAtMapPoint(20.5, 33.5, false, 120, 640);
+
+    // The patrol is its own flag on the wire, never an attack flag: the
+    // sim reads it as the live order it is.
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 20,
+      y: 33,
+      patrol: true,
+    });
+    // One-shot, as A and M are.
+    expect(orderMode()).toBeNull();
+
+    // Shift on the armed click adds the spot to the beat.
+    h.type('P');
+    h.controls.orderAtMapPoint(40.5, 33.5, false, 120, 640, true);
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.moveUnits,
+      unitIds: [1],
+      x: 40,
+      y: 33,
+      patrol: true,
+      queue: true,
+    });
+    expect(orderMode()).toBeNull();
+  });
 });
 
 describe('holding ground', () => {
