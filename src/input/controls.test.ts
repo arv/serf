@@ -17,7 +17,7 @@ vi.hoisted(() => {
 });
 import type {WorldMirror} from '../app/mirror';
 import type {SimHost} from '../app/simHost';
-import type {BuildingSnap} from '../protocol/messages';
+import type {BuildingSnap, PlayerSnap} from '../protocol/messages';
 import type {GhostPlacement} from '../render/ghost';
 import type {HeightField} from '../render/heightField';
 import type {SceneSync} from '../render/sceneSync';
@@ -26,6 +26,8 @@ import * as CommandKind from '../sim/commandKindEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {BANDIT} from '../sim/entities';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as OrderMode from '../ui/orderModeEnum.ts';
 import {
   buildAim,
@@ -42,10 +44,13 @@ import {
   setReplayMode,
   setSelectedBuilding,
   setOrderMode,
+  setPlayersMeta,
   setSelection,
   setStock,
   setTechs,
   speed,
+  stock,
+  viewerId,
 } from '../ui/store';
 import {Controls} from './controls';
 import {screenToGround, worldToScreen} from './picking';
@@ -1557,6 +1562,111 @@ describe('watching a replay', () => {
     h.order(h.at(6, 0, 6));
 
     expect(h.commands).toEqual([]);
+  });
+
+  /** The two seats' faction blocks, told apart by what is in the stores. */
+  function seat(id: number, wood: number): PlayerSnap {
+    return {
+      id,
+      kind: id === ME ? PlayerKind.human : PlayerKind.ai,
+      alive: true,
+      stock: {[GoodId.wood]: wood},
+      toolWants: {},
+      techs: {
+        researched: [],
+        festivalTicksLeft: 0,
+        pavingUnlocked: false,
+        hasAbbey: false,
+      },
+      pop: 0,
+      popCap: 0,
+    };
+  }
+
+  it('turns the HUD to the seat whose people were picked', () => {
+    // The strip, the wants and the tree are read for the viewed seat, and
+    // the pick is what moves it — a ring around the Warlord's knights over
+    // a goods strip still counting your grain would be two ledgers open at
+    // once. The stores switch on the click itself, not on the seat's next
+    // event: the worker only ships a block when it changes.
+    const h = harness();
+    controls = h.controls;
+    setPlayersMeta([seat(ME, 1), seat(THEM, 7)]);
+    h.addUnit(3, 0, 0, THEM);
+
+    h.click(h.screenOf(3));
+
+    expect(viewerId()).toBe(THEM);
+    expect(stock()[GoodId.wood]).toBe(7);
+  });
+
+  it('turns it to the seat whose building card was opened', () => {
+    const h = harness();
+    controls = h.controls;
+    setPlayersMeta([seat(ME, 1), seat(THEM, 7)]);
+    const mill = theirs(9, THEM);
+    h.addBuilding(mill);
+
+    h.click(centerOf(h, mill));
+
+    expect(selectedBuilding()?.id).toBe(9);
+    expect(viewerId()).toBe(THEM);
+    expect(stock()[GoodId.wood]).toBe(7);
+  });
+
+  it('keeps the seat when the rings are let go', () => {
+    // A click on the ground clears the selection, not the strip: the
+    // village being watched is still the one being watched.
+    const h = harness();
+    controls = h.controls;
+    setPlayersMeta([seat(ME, 1), seat(THEM, 7)]);
+    h.addUnit(3, 0, 0, THEM);
+    h.click(h.screenOf(3));
+    expect(viewerId()).toBe(THEM);
+
+    h.click(h.at(12, 0, 12));
+
+    expect([...selection()]).toEqual([]);
+    expect(viewerId()).toBe(THEM);
+  });
+
+  it('leaves the HUD where it stands for bandits and for a mixed hand', () => {
+    // Bandits own no seat and have no stores to show; a squad picked out
+    // of both sides has no one seat to show for.
+    const h = harness();
+    controls = h.controls;
+    setPlayersMeta([seat(ME, 1), seat(THEM, 7)]);
+    h.addUnit(1, -5, -3);
+    h.addUnit(3, 0, 0, THEM);
+    h.addUnit(5, 4, 4, BANDIT);
+
+    h.click(h.screenOf(5));
+    expect([...selection()]).toEqual([5]);
+    expect(viewerId()).toBe(ME);
+
+    h.click(h.screenOf(1));
+    h.canvas.fire('pointerdown', ptr(h.screenOf(3).x, h.screenOf(3).y, true));
+    h.canvas.fire('pointerup', ptr(h.screenOf(3).x, h.screenOf(3).y, true));
+    expect(selectionOwner()).toBeNull();
+    expect(viewerId()).toBe(ME);
+  });
+
+  it('never turns a live match’s HUD', () => {
+    // Live, the pointer reaches only your own — so the seat has nowhere
+    // to go, and the store's stock stays whatever the roster last said.
+    const h = harness();
+    controls = h.controls;
+    setReplayMode(false);
+    setPlayersMeta([seat(ME, 1), seat(THEM, 7)]);
+    setStock({[GoodId.wood]: 1});
+    h.addUnit(1, -5, -3);
+    h.addUnit(3, 0, 0, THEM);
+
+    h.click(h.screenOf(3));
+    h.click(h.screenOf(1));
+
+    expect(viewerId()).toBe(ME);
+    expect(stock()[GoodId.wood]).toBe(1);
   });
 });
 

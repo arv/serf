@@ -16,6 +16,7 @@ import {
   loadCharacterAssets,
   makeCharacter,
   playAnimation,
+  updateBow,
 } from '../../src/render/characters';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
@@ -87,6 +88,7 @@ function tower(
       const action = made.visual.actions.get(clip);
       if (action) action.time = t * action.getClip().duration;
       made.visual.mixer.update(0);
+      updateBow(made.visual);
       mixers.push(made.visual.mixer);
     }
   }
@@ -114,6 +116,7 @@ function figure(
   const action = made.visual.actions.get(clip);
   if (action) action.time = phase * action.getClip().duration;
   made.visual.mixer.update(0);
+  updateBow(made.visual);
 }
 
 const strip = params.get('strip');

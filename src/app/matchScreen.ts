@@ -1,3 +1,4 @@
+import {batch} from 'solid-js';
 import {
   audioFrame,
   play,
@@ -32,7 +33,6 @@ import {SelectionFx} from '../render/selectionFx';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
 import {inBounds, tileCount, tileIdx} from '../shared/grid';
-import {AI_STRATEGIES} from '../sim/defs/aiStrategies.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
 import * as GameEventKind from '../sim/gameEventKindEnum.ts';
@@ -42,6 +42,7 @@ import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import {markMissionComplete} from '../ui/campaign';
 import {mountHud} from '../ui/mount';
+import {seatName} from '../ui/names';
 import {
   myPlayerId,
   playersMeta,
@@ -58,10 +59,9 @@ import {
   setSimTick,
   setPlayersMeta,
   setSelectedBuilding,
-  setPopulation,
-  setStock,
-  setToolWants,
-  setTechs,
+  applySeat,
+  viewSeat,
+  viewerId,
   setReplayMode,
   setReplayOver,
   speed,
@@ -154,6 +154,9 @@ export async function runMatch(
   // finishes installing must not swap the shell out from under it.
   holdServiceWorkerUpdates();
   setMyPlayerId(config.myPlayerId);
+  // ...and to begin with the HUD looks through that seat. A replay lets
+  // the selection move it (ui/store.ts viewerId); a match never does.
+  viewSeat(config.myPlayerId);
   setNetMode(net !== undefined);
   // Fog ON, whatever ?nofog said: the menu can walk into a networked
   // match in place, where the module-load flags and the last
@@ -574,15 +577,17 @@ export async function runMatch(
     // Rosters are optional: a frame that carries only map news leaves the
     // HUD's signals (and their subscribers) untouched.
     setSimTick(msg.tick);
-    const mine = msg.players?.[myPlayerId()];
-    if (mine) {
-      setStock(mine.stock);
-      setToolWants(mine.toolWants);
-      setTechs(mine.techs);
-      setPopulation({pop: mine.pop, cap: mine.popCap});
-    }
     if (msg.players) {
-      setPlayersMeta(msg.players);
+      // The readouts are the VIEWED seat's, which is this client's own in
+      // a match and whichever seat the pointer last picked in a replay.
+      // One batch with the roster: the seat chip reads playersMeta and
+      // the strip reads the readouts, and the two must not disagree for
+      // an update pass between the writes.
+      batch(() => {
+        setPlayersMeta(msg.players!);
+        const seat = msg.players![viewerId()];
+        if (seat) applySeat(seat);
+      });
       opponentsNow = msg.players.filter(p => p.kind === PlayerKind.ai).length;
     }
     if (msg.jobs) setDebugJobs(msg.jobs);
@@ -607,12 +612,21 @@ export async function runMatch(
     } else if (briefingOpen()) {
       setBriefingOpen(false);
     }
+    // Addressed events reach the screen for the VIEWED seat, not the
+    // played one: the two are the same seat in a match, and in a replay
+    // the horn, the herald and the damage haze belong to whoever the HUD
+    // is showing through — a raid on the Warlord is his news while you
+    // are watching his village, and yours is not. The mission latch above
+    // stays on myPlayerId: what the profile records is what YOU did.
+    //
     // A finished match or a fallen seat leaves a spectator, and a spectator
     // is not under attack: the rivals go on razing whatever still stands,
     // and every swing would otherwise keep toasting "your village is under
     // attack!" long after the village stopped being anyone's — and the
     // bandits' next raid, which picks any standing player building, would
-    // still sound the horn for it. Decided for
+    // still sound the horn for it. The viewed seat's fall, for the same
+    // reason as above: watching the Warlord's last stand in a replay, his
+    // village stops being anyone's when his storehouse goes. Decided for
     // the whole frame before any event is read: the roster (applied above)
     // carries the death, and the elimination event says the same without
     // leaning on the roster having shipped alongside — so the strikes that
@@ -620,16 +634,15 @@ export async function runMatch(
     // caused, go quiet with the rest.
     const spectating =
       msg.outcome.state === MatchState.over ||
-      playersMeta()[myPlayerId()]?.alive === false ||
+      playersMeta()[viewerId()]?.alive === false ||
       msg.events.some(
         e =>
-          e.kind === GameEventKind.playerEliminated &&
-          e.player === myPlayerId(),
+          e.kind === GameEventKind.playerEliminated && e.player === viewerId(),
       );
     for (const event of msg.events) {
       if (
         event.kind === GameEventKind.raidIncoming &&
-        event.player === myPlayerId() &&
+        event.player === viewerId() &&
         !spectating
       ) {
         // Non-positional on purpose: a warning must be heard wherever the
@@ -638,7 +651,7 @@ export async function runMatch(
         pushToast(event.text);
       } else if (
         event.kind === GameEventKind.heraldIncoming &&
-        event.player === myPlayerId() &&
+        event.player === viewerId() &&
         !spectating
       ) {
         // A rival lord announces the assault before it moves — the words
@@ -646,9 +659,11 @@ export async function runMatch(
         // numbers and the screen owns the phrasing. The horn is the raid
         // horn on purpose: one sound means "look up, something is coming".
         play('raidHorn');
-        const lord = playersMeta().find(p => p.id === event.attacker)?.strategy;
-        const name =
-          lord !== undefined ? AI_STRATEGIES[lord].name : 'a rival lord';
+        // Through seatName, so two lords dealt the same playbook are told
+        // apart here the way the cards tell them apart — and a seat with
+        // no playbook (an AI's from a save older than the deal) is named
+        // the way the cards name it, rather than "a rival lord".
+        const name = seatName(event.attacker, playersMeta());
         const words =
           event.note === HeraldNote.retribution
             ? 'For the raid on our lands — we are coming!'
@@ -658,13 +673,13 @@ export async function runMatch(
         pushToast(`A herald of ${name}: “${words}”`);
       } else if (
         event.kind === GameEventKind.playerEliminated &&
-        event.player !== myPlayerId()
+        event.player !== viewerId()
       ) {
         play('distantBell');
         pushToast('A rival banner has fallen!');
       } else if (
         event.kind === GameEventKind.damage &&
-        event.player === myPlayerId()
+        event.player === viewerId()
       ) {
         // The solo worker delivers every seat's events; filter like raids.
         // Only struck *buildings* sound from here — this event exists for
@@ -678,7 +693,7 @@ export async function runMatch(
         damageAlerts.report(event);
       } else if (
         event.kind === GameEventKind.objectiveComplete &&
-        event.player === myPlayerId()
+        event.player === viewerId()
       ) {
         play('objectiveDone');
         const label = msg.mission
@@ -688,7 +703,7 @@ export async function runMatch(
           label ? `Objective complete: ${label}` : 'Objective complete',
         );
       } else if (event.kind === GameEventKind.gameOver) {
-        play(event.winner === myPlayerId() ? 'victory' : 'defeat');
+        play(event.winner === viewerId() ? 'victory' : 'defeat');
       }
     }
     // After the loop, not before it: strikes in the frame that ended the

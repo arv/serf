@@ -29,6 +29,7 @@ import {
   simTick,
   stock,
   techs,
+  viewerId,
 } from './store';
 import {TextTip, TipWrap, UnitTip} from './tooltip';
 
@@ -548,7 +549,28 @@ export function SelectionPanel(props: {
               on this card for as long as the building is selected or
               never on it. */
           const gather = () => gatherRecipeOf(def());
-          const mine = () => b().owner === myPlayerId();
+          /** Raised by the seat this client plays. What names the card
+              when it is not — and, outside a replay, the only seat the
+              pointer can reach at all. */
+          const yours = () => b().owner === myPlayerId();
+          /**
+           * Raised by the seat the HUD is showing through: yours in a
+           * match, whichever seat the pointer last picked in a replay
+           * (viewerId in the store). The rows that read the stores and
+           * the techs — a Train button's lock, Hire's price against the
+           * silver, the forge's recipes — are drawn for THIS seat,
+           * because the stock() and techs() they are read against are
+           * this seat's. Drawn for the Warlord's barracks, they are the
+           * whole reason to open it: his queue, and what his village
+           * could and could not afford to put in it.
+           *
+           * Drawn, in a replay, and no more: a recording takes no orders,
+           * so every such row carries `inert={replayMode()}` — nothing in
+           * it takes a click or a focus — and the card's last line says
+           * so. selectionOrders.lint.test.ts checks that every order on
+           * this card sits under one of those rows.
+           */
+          const viewed = () => b().owner === viewerId();
           /**
            * Does this building offer a row of standing orders at all?
            * A type-level question on purpose: the answer has to hold
@@ -563,7 +585,8 @@ export function SelectionPanel(props: {
            * never appeared until the building finished. Which of the
            * buttons are live right now is each button's own affair.
            */
-          const hasOrders = () => mine() && !def().isRoad && !def().systemOnly;
+          const hasOrders = () =>
+            viewed() && !def().isRoad && !def().systemOnly;
           /** What a fresh order would be struck against: the damage, less
               what a running repair has already been paid to put back (a mend
               runs on for a few seconds after the last plank lands). */
@@ -593,7 +616,7 @@ export function SelectionPanel(props: {
                     thing the player already knows. Watching a recording it
                     is the first thing they need, because a mill is a mill
                     whoever raised it. */}
-                <Show when={!mine()}>
+                <Show when={!yours()}>
                   <span class="note">{seatName(b().owner, playersMeta())}</span>
                 </Show>
                 {/* The same feedback loop the unit card's badge is, for the
@@ -622,7 +645,7 @@ export function SelectionPanel(props: {
                   word of commentary — the three of them keep their
                   places for as long as this building is selected. */}
               <Show when={hasOrders()}>
-                <div class="sel-row">
+                <div class="sel-row" inert={replayMode()}>
                   {/* Repairs get a slot of their own rather than a line
                       in the block below, because the castle — which may
                       be neither paused nor sold — is exactly the
@@ -717,15 +740,17 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              {/* mine(), like every other row that gives an order: a
-                  replay can open a rival's Smith, and a live ✕ over the
-                  Warlord's forge queue offers a thing that was never on
-                  the table. Only the repair/pause/sell row used to need
+              {/* viewed(), like every other row that gives an order: a
+                  replay can open a rival's Smith, and the row is drawn
+                  for it — his order book, his recipes locked against his
+                  techs — but drawn inert, so a live ✕ over the Warlord's
+                  forge queue never offers a thing that was never on the
+                  table. Only the repair/pause/sell row used to need
                   saying so, because only your own buildings could be
                   selected at all. */}
               <Show
                 when={
-                  mine() &&
+                  viewed() &&
                   def().recipeOptions &&
                   b().state === BuildingState.built
                 }
@@ -736,7 +761,7 @@ export function SelectionPanel(props: {
                     not retune the smith: the queue is worked first, and
                     an empty queue falls back to auto — forge whatever
                     tool the village most lacks, or nothing. */}
-                <div class="sel-forge">
+                <div class="sel-forge" inert={replayMode()}>
                   <span class="sel-label">forge</span>
                   <For each={def().recipeOptions!}>
                     {(opt, i) => {
@@ -778,7 +803,7 @@ export function SelectionPanel(props: {
                 </div>
                 {/* The order book: FORGE_QUEUE_CAP declared slots, the
                     training queue's grid with the same rules. */}
-                <div class="sel-queue sel-forge-queue">
+                <div class="sel-queue sel-forge-queue" inert={replayMode()}>
                   <span class="sel-label">
                     queue <span class="num">{b().forgeQueue?.length ?? 0}</span>
                     /{FORGE_QUEUE_CAP}
@@ -843,7 +868,7 @@ export function SelectionPanel(props: {
                 {/* What the fire does between orders. Reserved line, so
                     the AI pinning or clearing a standing order (or a save
                     carrying one) never moves the buttons above it. */}
-                <div class="sel-line sel-forge-idle">
+                <div class="sel-line sel-forge-idle" inert={replayMode()}>
                   <Show
                     when={b().recipeIndex !== undefined}
                     fallback={
@@ -885,12 +910,12 @@ export function SelectionPanel(props: {
                   spearman does. */}
               <Show
                 when={
-                  mine() &&
+                  viewed() &&
                   b().type === BuildingTypeId.storehouse &&
                   b().state === BuildingState.built
                 }
               >
-                <div class="sel-row">
+                <div class="sel-row" inert={replayMode()}>
                   <TipWrap
                     tip={() => (
                       <TextTip
@@ -922,7 +947,7 @@ export function SelectionPanel(props: {
                     slot, drawn at full depth from the moment the castle is
                     selected, so a recruit landing changes what a slot says
                     and never how many there are. */}
-                <div class="sel-queue">
+                <div class="sel-queue" inert={replayMode()}>
                   <span class="sel-label">
                     queue <span class="num">{b().hireQueue ?? 0}</span>/
                     {HIRE_QUEUE_CAP}
@@ -1011,7 +1036,7 @@ export function SelectionPanel(props: {
 
               <Show
                 when={
-                  mine() && def().trains && b().state === BuildingState.built
+                  viewed() && def().trains && b().state === BuildingState.built
                 }
               >
                 {/* Wraps: three priced train buttons outgrow the card's
@@ -1020,7 +1045,7 @@ export function SelectionPanel(props: {
                     not: what these buttons say is settled by the
                     building's type, so the row is whatever height it is
                     from the moment the barracks is selected. */}
-                <div class="sel-row">
+                <div class="sel-row" inert={replayMode()}>
                   <For each={def().trains!}>
                     {option => {
                       const gate = unitTechGate(option.unit);
@@ -1066,7 +1091,7 @@ export function SelectionPanel(props: {
                     slot beside it holds either the armed hint or the
                     standing flag's note — one reserved line, so planting
                     or striking the flag never moves the queue below. */}
-                <div class="sel-row">
+                <div class="sel-row" inert={replayMode()}>
                   <TipWrap
                     tip={() => (
                       <TextTip
@@ -1129,7 +1154,7 @@ export function SelectionPanel(props: {
                     grid is the same size for an idle barracks as for a
                     full one, so the only thing an arriving soldier
                     changes is what a slot says. */}
-                <div class="sel-queue">
+                <div class="sel-queue" inert={replayMode()}>
                   <span class="sel-label">
                     queue <span class="num">{b().trainQueue?.length ?? 0}</span>
                     /{TRAIN_QUEUE_CAP}
@@ -1358,6 +1383,18 @@ export function SelectionPanel(props: {
                   </span>
                 </Show>
               </div>
+              {/* The people card's last line, for the same reason: the
+                  order rows above are drawn in a replay — the queue and
+                  the locks are what a recording is opened to read — and
+                  a row of buttons that takes no click needs the one line
+                  that says why. Only under rows there are; a bandit camp
+                  has none, and a line about orders over a card with none
+                  would be answering a question nobody asked. */}
+              <Show when={replayMode() && viewed()}>
+                <div class="sel-line" style={{opacity: 0.6}}>
+                  a recording takes no orders — watching only
+                </div>
+              </Show>
             </div>
           );
         }}
