@@ -284,16 +284,22 @@ export interface CharacterVisual {
 
 /**
  * The pack bow is one mesh — limbs and string in a single primitive —
- * so the string is found by where it is, not what it is called: the
- * thin straight run tip to tip along the chord, at the bow's own
- * measured x, within a hundredth of the plane. Measured on
- * bow_withString.gltf (tools/modelLab/animImpacts.mjs has the parser).
- * Geometry space: the bow lies along z, curves in x, the string is the
- * chord at BOW_STRING_X and the draw pulls it toward -x.
+ * and its string is a thin box with every vertex at the two tips, joined
+ * by quads the whole length: nothing along it to bend. So the string is
+ * found by where it is (the thin straight run tip to tip along the
+ * chord, at the bow's own measured x, within a hundredth of the plane),
+ * folded into the tips where it vanishes, and drawn again as two
+ * segments of our own, tip to nock and nock to tip, that a draw can
+ * fold at the hand. Measured on bow_withString.gltf
+ * (tools/modelLab/animImpacts.mjs has the parser). Geometry space: the
+ * bow lies along z, curves in x, the string is the chord at
+ * BOW_STRING_X and the draw pulls it toward -x.
  */
 const BOW_STRING_X = -0.355;
 const BOW_STRING_CATCH = 0.02;
 const BOW_STRING_HALF_Y = 0.011;
+/** The pack string's thickness, so ours is the string it replaces. */
+const BOW_STRING_RADIUS = 0.012;
 /** Half the string's span: where it meets the limb tips. */
 const BOW_TIP_Z = 0.992;
 /** The draw hand counts as on the string inside this box around it:
@@ -307,28 +313,57 @@ const BOW_HOLD_Y = 0.35;
 
 export interface BowRig {
   mesh: THREE.Mesh;
-  position: THREE.BufferAttribute;
-  /** Vertex indices on the string. */
-  string: number[];
-  /** Their rest positions, xyz per index. */
-  rest: Float32Array;
   /** The draw hand. */
   hand: THREE.Object3D;
   /** Holder at the nock: the arrow hangs off it, tip toward the limbs. */
   nock: THREE.Group;
+  /** The string, top tip to nock and nock to bottom tip. */
+  upper: THREE.Mesh;
+  lower: THREE.Mesh;
   /** Whether the string currently sits somewhere other than at rest. */
   drawn: boolean;
 }
 
 const BOW_P = new THREE.Vector3();
+const BOW_A = new THREE.Vector3();
+const BOW_B = new THREE.Vector3();
+const BOW_UP = new THREE.Vector3(0, 1, 0);
+const BOW_TOP = new THREE.Vector3(BOW_STRING_X, 0, BOW_TIP_Z);
+const BOW_BOTTOM = new THREE.Vector3(BOW_STRING_X, 0, -BOW_TIP_Z);
+const BOW_REST = new THREE.Vector3(BOW_STRING_X, 0, 0);
+
+let bowStringGeometry: THREE.CylinderGeometry | null = null;
+let bowStringMaterial: THREE.MeshLambertMaterial | null = null;
+
+/** A unit string segment: a thin cylinder along +y, one unit long. */
+function bowStringSegment(): THREE.Mesh {
+  bowStringGeometry ??= new THREE.CylinderGeometry(
+    BOW_STRING_RADIUS,
+    BOW_STRING_RADIUS,
+    1,
+    4,
+  );
+  bowStringMaterial ??= new THREE.MeshLambertMaterial({color: 0xece6d6});
+  const seg = new THREE.Mesh(bowStringGeometry, bowStringMaterial);
+  seg.castShadow = true;
+  return seg;
+}
+
+/** Lay a unit segment from `a` to `b`. */
+function laySegment(seg: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3): void {
+  seg.position.copy(a).add(b).multiplyScalar(0.5);
+  BOW_P.copy(b).sub(a);
+  seg.scale.y = BOW_P.length();
+  seg.quaternion.setFromUnitVectors(BOW_UP, BOW_P.normalize());
+}
 
 /**
  * Rig a bow instance (one archer's clone of the pack prop): the mesh
- * gets its own copy of the geometry so its string can move without
- * moving every other bow's, the string vertices are tagged, and a nocked
- * arrow is parented at the string's middle, hidden until a draw. `scale`
- * is the rig's world scale, so the arrow on the string is the size of
- * the one that flies (arrowModel.ts, authored in world units).
+ * gets its own copy of the geometry so folding its string away touches
+ * no other bow, the two-segment string goes on in its place, and a
+ * nocked arrow is parented at the string's middle, hidden until a draw.
+ * `scale` is the rig's world scale, so the arrow on the string is the
+ * size of the one that flies (arrowModel.ts, authored in world units).
  */
 function rigBow(
   inst: THREE.Object3D,
@@ -346,23 +381,26 @@ function rigBow(
   mesh.frustumCulled = false;
   const position = geometry.getAttribute('position');
   if (!(position instanceof THREE.BufferAttribute)) return undefined;
-  const string: number[] = [];
+  // Fold the pack string into the tips: each of its vertices goes to the
+  // tip on its own side, and the quads between collapse to nothing.
+  let folded = 0;
   for (let i = 0; i < position.count; i++) {
     if (
       position.getX(i) < BOW_STRING_X + BOW_STRING_CATCH &&
       Math.abs(position.getY(i)) < BOW_STRING_HALF_Y
-    )
-      string.push(i);
+    ) {
+      position.setZ(i, position.getZ(i) < 0 ? -BOW_TIP_Z : BOW_TIP_Z);
+      folded++;
+    }
   }
-  if (string.length === 0) return undefined;
-  const rest = new Float32Array(string.length * 3);
-  string.forEach((i, k) => {
-    rest[k * 3] = position.getX(i);
-    rest[k * 3 + 1] = position.getY(i);
-    rest[k * 3 + 2] = position.getZ(i);
-  });
+  if (folded === 0) return undefined;
+  position.needsUpdate = true;
+  const upper = bowStringSegment();
+  const lower = bowStringSegment();
+  laySegment(upper, BOW_TOP, BOW_REST);
+  laySegment(lower, BOW_REST, BOW_BOTTOM);
   const nock = new THREE.Group();
-  nock.position.x = BOW_STRING_X;
+  nock.position.copy(BOW_REST);
   nock.visible = false;
   const arrow = makeArrow();
   // Authored tip at the origin, shaft down -Y, in world units: turn +Y
@@ -372,12 +410,12 @@ function rigBow(
   arrow.scale.setScalar(1 / scale);
   arrow.position.x = ARROW_LENGTH / scale;
   nock.add(arrow);
-  mesh.add(nock);
-  return {mesh, position, string, rest, hand, nock, drawn: false};
+  mesh.add(upper, lower, nock);
+  return {mesh, hand, nock, upper, lower, drawn: false};
 }
 
 /**
- * Bend the string to the draw hand and show the arrow on it, or let both
+ * Fold the string to the draw hand and show the arrow on it, or let both
  * rest. Once a frame after the mixer has posed the rig, for any archer
  * on screen — the field (sceneSync), the tower roof (buildingSync) and
  * the lab page all call it. The hand holds the string while the shoot
@@ -405,35 +443,21 @@ export function updateBow(visual: CharacterVisual): void {
   }
   if (!holding) {
     if (!bow.drawn) return;
-    bow.string.forEach((i, k) => {
-      bow.position.setXYZ(
-        i,
-        bow.rest[k * 3]!,
-        bow.rest[k * 3 + 1]!,
-        bow.rest[k * 3 + 2]!,
-      );
-    });
-    bow.position.needsUpdate = true;
+    laySegment(bow.upper, BOW_TOP, BOW_REST);
+    laySegment(bow.lower, BOW_REST, BOW_BOTTOM);
     bow.nock.visible = false;
     bow.drawn = false;
     return;
   }
-  const nx = Math.min(BOW_P.x, BOW_STRING_X);
-  const nz = clamp(BOW_P.z, -BOW_TIP_Z * 0.9, BOW_TIP_Z * 0.9);
-  bow.string.forEach((i, k) => {
-    const x0 = bow.rest[k * 3]!;
-    const y0 = bow.rest[k * 3 + 1]!;
-    const z0 = bow.rest[k * 3 + 2]!;
-    // Two straight runs, tip to nock and nock to tip: how far along its
-    // run this vertex sits, 0 at the tip and 1 at the nock.
-    const f =
-      z0 >= nz
-        ? (BOW_TIP_Z - z0) / (BOW_TIP_Z - nz)
-        : (z0 + BOW_TIP_Z) / (nz + BOW_TIP_Z);
-    bow.position.setXYZ(i, x0 + clamp(f, 0, 1) * (nx - BOW_STRING_X), y0, z0);
-  });
-  bow.position.needsUpdate = true;
-  bow.nock.position.set(nx, 0, nz);
+  BOW_A.set(
+    Math.min(BOW_P.x, BOW_STRING_X),
+    0,
+    clamp(BOW_P.z, -BOW_TIP_Z * 0.9, BOW_TIP_Z * 0.9),
+  );
+  laySegment(bow.upper, BOW_TOP, BOW_A);
+  BOW_B.copy(BOW_BOTTOM);
+  laySegment(bow.lower, BOW_A, BOW_B);
+  bow.nock.position.copy(BOW_A);
   bow.nock.visible = true;
   bow.drawn = true;
 }
