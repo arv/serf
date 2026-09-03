@@ -32,7 +32,6 @@ import {SelectionFx} from '../render/selectionFx';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
 import {inBounds, tileCount, tileIdx} from '../shared/grid';
-import {AI_STRATEGIES} from '../sim/defs/aiStrategies.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
 import * as GameEventKind from '../sim/gameEventKindEnum.ts';
@@ -42,6 +41,7 @@ import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import {markMissionComplete} from '../ui/campaign';
 import {mountHud} from '../ui/mount';
+import {seatName} from '../ui/names';
 import {
   myPlayerId,
   playersMeta,
@@ -631,9 +631,13 @@ export async function runMatch(
         // numbers and the screen owns the phrasing. The horn is the raid
         // horn on purpose: one sound means "look up, something is coming".
         play('raidHorn');
+        // Through seatName, so two lords dealt the same playbook are
+        // told apart here the way the cards tell them apart.
         const lord = playersMeta().find(p => p.id === event.attacker)?.strategy;
         const name =
-          lord !== undefined ? AI_STRATEGIES[lord].name : 'a rival lord';
+          lord !== undefined
+            ? seatName(event.attacker, playersMeta())
+            : 'a rival lord';
         const words =
           event.note === HeraldNote.retribution
             ? 'For the raid on our lands — we are coming!'

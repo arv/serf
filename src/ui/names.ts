@@ -110,7 +110,14 @@ export function seatName(
   // A seat with no playbook is a person: either an opponent in a recorded
   // multiplayer match, or — before the deal existed — an AI from an older
   // save. Numbered from one, the way the seats are counted out loud.
-  return strategy !== undefined
-    ? AI_STRATEGIES[strategy].name
-    : `Player ${owner + 1}`;
+  if (strategy === undefined) return `Player ${owner + 1}`;
+  const name = AI_STRATEGIES[strategy].name;
+  // Two seats can hold the same playbook — ?bots=abbot,abbot names it
+  // twice, a lobby can pick it twice, and a fifth AI seat repeats someone
+  // once the deck is spent (dealStrategies). The name alone then points at
+  // two villages, and a card, a chip or a herald that says "The Abbot"
+  // says nothing. The seat number tells them apart, counted the same way
+  // a person's is above.
+  const twins = players.some(p => p.id !== owner && p.strategy === strategy);
+  return twins ? `${name} (seat ${owner + 1})` : name;
 }
