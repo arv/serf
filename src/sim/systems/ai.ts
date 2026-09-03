@@ -62,7 +62,7 @@ import {
   type TileResourceKind,
 } from '../map.ts';
 import * as MatchState from '../matchStateEnum.ts';
-import {findPath, nearestWalkable} from '../path.ts';
+import {findPath, nearestWalkable, tileStepCost} from '../path.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
 import {findSpot, nearestClaimableResource} from '../siting.ts';
@@ -3485,17 +3485,22 @@ export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
 }
 
 /**
- * The cheapest walkable road from a tile to the door of a building — any
- * tile touching its footprint — with a step onto a tile the `danger` grid
- * marks costing AI_WAR.flankDanger more than a plain one (or every step
- * plain, with no grid). Four-way over the play area, whole costs, ties to
- * the lower index: two hosts plan the same road. The road comes back as
- * tile indices from the start to the door, or null when there is none.
+ * The cheapest road from a tile to the door of a building — any tile
+ * touching its footprint — in the sim's own movement model, with a step
+ * onto a tile the `danger` grid marks costing AI_WAR.flankDanger more (or
+ * every step plain, with no grid). The road comes back as tile indices
+ * from the start to the door, or null when there is none.
  *
- * The brain's own search rather than path.ts's, because the sim's answers
- * only ever the shortest road and this one is asked what the shortest
- * road costs in arrows. The play area is under twenty-five thousand tiles
- * and a march plans a handful of legs, so a plain binary heap is enough.
+ * The model is path.ts's exactly: eight neighbours, no cutting a corner
+ * past a blocked tile, a diagonal step √2 long, every step weighted by
+ * the road under it (`tileStepCost`) — so that with no danger grid this
+ * finds the road the army's own `moveUnits` would walk, and the planner's
+ * "is the shortest road under a tower" is asked of the shortest road the
+ * sim means. A brain-side search rather than path.ts's because the sim's
+ * answers only ever that road, and this one is asked what it costs in
+ * arrows. Ties go to the lower index, so two hosts plan the same road;
+ * the play area is under twenty-five thousand tiles and a march plans a
+ * handful of legs, so a plain binary heap is enough.
  */
 export function cheapestRoad(
   map: GameMap,
@@ -3504,9 +3509,7 @@ export function cheapestRoad(
   danger: Uint8Array | null,
 ): number[] | null {
   const size = map.size;
-  const lo = playMin(map);
-  const hi = playMax(map);
-  const cost = new Int32Array(tileCount(size)).fill(-1);
+  const cost = new Float64Array(tileCount(size)).fill(-1);
   const parent = new Int32Array(tileCount(size)).fill(-1);
   const atDoor = (x: number, y: number): boolean =>
     x >= door.x - 1 &&
@@ -3515,17 +3518,20 @@ export function cheapestRoad(
     y <= door.y + door.h;
   // A binary heap of (cost, idx) pairs, ordered by cost then index.
   const heap: number[] = [];
+  const less = (a: number, b: number): boolean =>
+    heap[a * 2]! < heap[b * 2]! ||
+    (heap[a * 2] === heap[b * 2] && heap[a * 2 + 1]! < heap[b * 2 + 1]!);
+  const swap = (a: number, b: number): void => {
+    [heap[a * 2], heap[b * 2]] = [heap[b * 2]!, heap[a * 2]!];
+    [heap[a * 2 + 1], heap[b * 2 + 1]] = [heap[b * 2 + 1]!, heap[a * 2 + 1]!];
+  };
   const push = (c: number, i: number): void => {
     heap.push(c, i);
     let k = heap.length / 2 - 1;
     while (k > 0) {
       const p = (k - 1) >> 1;
-      const better =
-        heap[k * 2]! < heap[p * 2]! ||
-        (heap[k * 2] === heap[p * 2] && heap[k * 2 + 1]! < heap[p * 2 + 1]!);
-      if (!better) break;
-      [heap[k * 2], heap[p * 2]] = [heap[p * 2]!, heap[k * 2]!];
-      [heap[k * 2 + 1], heap[p * 2 + 1]] = [heap[p * 2 + 1]!, heap[k * 2 + 1]!];
+      if (!less(k, p)) break;
+      swap(k, p);
       k = p;
     }
   };
@@ -3543,17 +3549,10 @@ export function cheapestRoad(
         const l = k * 2 + 1;
         const r = l + 1;
         let m = k;
-        const less = (a: number, b: number): boolean =>
-          heap[a * 2]! < heap[b * 2]! ||
-          (heap[a * 2] === heap[b * 2] && heap[a * 2 + 1]! < heap[b * 2 + 1]!);
         if (l < n && less(l, m)) m = l;
         if (r < n && less(r, m)) m = r;
         if (m === k) break;
-        [heap[k * 2], heap[m * 2]] = [heap[m * 2]!, heap[k * 2]!];
-        [heap[k * 2 + 1], heap[m * 2 + 1]] = [
-          heap[m * 2 + 1]!,
-          heap[k * 2 + 1]!,
-        ];
+        swap(k, m);
         k = m;
       }
     }
@@ -3571,22 +3570,32 @@ export function cheapestRoad(
       for (let k = i; k >= 0; k = parent[k]!) road.push(k);
       return road.reverse();
     }
-    for (const [nx, ny] of [
-      [x + 1, y],
-      [x - 1, y],
-      [x, y + 1],
-      [x, y - 1],
-    ] as const) {
-      if (nx < lo || ny < lo || nx >= hi || ny >= hi) continue;
-      const n = tileIdx(nx, ny, size);
-      if (map.blocked[n]) continue;
-      const step = 1 + (danger && danger[n] === 1 ? AI_WAR.flankDanger : 0);
-      const nc = c + step;
-      const known = cost[n]!;
-      if (known >= 0 && known <= nc) continue;
-      cost[n] = nc;
-      parent[n] = i;
-      push(nc, n);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!inBounds(nx, ny, size)) continue;
+        const n = tileIdx(nx, ny, size);
+        if (map.blocked[n]) continue;
+        if (
+          dx !== 0 &&
+          dy !== 0 &&
+          (map.blocked[tileIdx(x + dx, y, size)] ||
+            map.blocked[tileIdx(x, y + dy, size)])
+        )
+          continue;
+        const stepLen = dx !== 0 && dy !== 0 ? Math.SQRT2 : 1;
+        const step =
+          stepLen * tileStepCost(map, n) +
+          (danger && danger[n] === 1 ? AI_WAR.flankDanger : 0);
+        const nc = c + step;
+        const known = cost[n]!;
+        if (known >= 0 && known <= nc) continue;
+        cost[n] = nc;
+        parent[n] = i;
+        push(nc, n);
+      }
     }
   }
   return null;

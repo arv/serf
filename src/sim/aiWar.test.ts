@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
@@ -6,7 +7,8 @@ import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import {AI_INTEL, AI_WAR, AiBrain} from './systems/ai.ts';
+import {findPathToAdjacent, tileStepCost} from './path.ts';
+import {AI_INTEL, AI_WAR, AiBrain, cheapestRoad} from './systems/ai.ts';
 import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
 import type {Unit} from './units.ts';
 import * as WarBehaviorId from './warBehaviorIdEnum.ts';
@@ -379,6 +381,39 @@ describe('the flanking march', () => {
     for (const leg of legs.slice(0, -1))
       expect(towerDist(leg.x, leg.y)).toBeGreaterThan(REACH);
     expect(brain.warReport().flanked).toBe(1);
+  });
+
+  it("plans in the sim's own metric: with no tower, the sim's road exactly", () => {
+    // The planner's "is the shortest road under a tower" is only worth
+    // asking of the road the army will actually walk — eight neighbours,
+    // no corner cut past a blocked tile, √2 diagonals, the road under
+    // each step — so with no danger it has to cost what path.ts's own
+    // answer costs, obstacles and all.
+    const world = village();
+    const size = world.map.size;
+    for (let y = 4; y < 20; y++) world.map.blocked[tileIdx(24, y, size)] = 1;
+    for (let x = 12; x < 30; x++) world.map.pathLevel[tileIdx(x, 14, size)] = 2;
+    const door = {x: 40, y: 12, w: 3, h: 3};
+    const road = cheapestRoad(world.map, tileIdx(8, 8, size), door, null);
+    const sim = findPathToAdjacent(world.map, 8, 8, 40, 12, 3, 3);
+    expect(road).not.toBeNull();
+    expect(sim).not.toBeNull();
+    const costOf = (steps: number[], from: number): number => {
+      let total = 0;
+      let prev = from;
+      for (const i of steps) {
+        const dx = Math.abs((i % size) - (prev % size));
+        const dy = Math.abs(Math.floor(i / size) - Math.floor(prev / size));
+        total += (dx && dy ? Math.SQRT2 : 1) * tileStepCost(world.map, i);
+        prev = i;
+      }
+      return total;
+    };
+    // The planner's road starts with its start tile; the sim's leaves it out.
+    expect(costOf(road!.slice(1), road![0]!)).toBeCloseTo(
+      costOf(sim!, tileIdx(8, 8, size)),
+      9,
+    );
   });
 
   it('marches straight when no tower stands on the road', () => {
