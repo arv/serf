@@ -203,8 +203,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // Brain and tier-table work, which playback never runs — the logged
 // marches re-run as they were marched. Both files are under src/sim, so
 // the hash moved anyway.
+// Still 43 after the flanking march (systems/ai.ts `flankMarch`,
+// Difficulty.flanksTowers): a hard seat plans its own road round the
+// towers it knows of and walks it in legs. Brain and tier-table work,
+// playback never runs a brain — the legs it logged re-run as legs.
 const EXPECTED_VERSION = 43;
-const EXPECTED_HASH = 'cc25dd1504e580b2ba59a37c23b3d96b';
+const EXPECTED_HASH = '5ab22db6715d21128474326d3e478245';
 
 /**
  * Everything a replay's playback depends on, as raw source:

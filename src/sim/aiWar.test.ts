@@ -3,6 +3,7 @@ import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {AI_INTEL, AI_WAR, AiBrain} from './systems/ai.ts';
@@ -10,7 +11,7 @@ import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
 import type {Unit} from './units.ts';
 import * as WarBehaviorId from './warBehaviorIdEnum.ts';
 import type {World} from './world.ts';
-import {spawnUnit} from './world.ts';
+import {placeBuiltBuilding, spawnUnit} from './world.ts';
 
 /**
  * The war behaviors (warBehaviorIdEnum, AI_WAR): the reactive verbs that
@@ -304,6 +305,90 @@ describe('the wiped march', () => {
     knights(world, 10);
     world.tick += 2000;
     expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(10);
+  });
+});
+
+describe('the flanking march', () => {
+  /** A castle thirty tiles east, with a tower on the straight road to it
+   * — and a hut of ours beside each, so the seat has laid eyes on both. */
+  const CASTLE = {x: 40, y: 12};
+  const TOWER = {x: 28, y: 11, w: 2, h: 2};
+  const REACH = 5 + 2; // an archer's range from the wall
+  function towered(
+    tier: DifficultyId.normal | DifficultyId.hard,
+    tower = true,
+  ): {world: World; brain: AiBrain; army: Unit[]} {
+    const world = village();
+    addStorehouse(world, CASTLE.x, CASTLE.y, {}, 1);
+    if (tower) {
+      const t = placeBuiltBuilding(
+        world,
+        BuildingTypeId.guardTower,
+        1,
+        TOWER.x,
+        TOWER.y,
+      );
+      t.garrison = 2;
+      t.garrisonKind = UnitTypeId.archer;
+    }
+    addBuiltHut(world, 31, 15, false);
+    addBuiltHut(world, 38, 16, false);
+    const army = knights(world, 8, 0, BASE - 2);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.warlord],
+      world.map.size,
+      tier,
+    );
+    brain.setWarBehaviors([WarBehaviorId.flankMarch]);
+    world.tick = 1500;
+    return {world, brain, army};
+  }
+  const towerDist = (x: number, y: number): number => {
+    const px = Math.max(TOWER.x, Math.min(x + 0.5, TOWER.x + TOWER.w));
+    const py = Math.max(TOWER.y, Math.min(y + 0.5, TOWER.y + TOWER.h));
+    return Math.hypot(x + 0.5 - px, y + 0.5 - py);
+  };
+  const isCastle = (m: Move): boolean =>
+    m.x === CASTLE.x + 1 && m.y === CASTLE.y + 1;
+
+  it('walks round a known tower in legs, and only then at the castle', () => {
+    const {world, brain, army} = towered(DifficultyId.hard);
+    const legs: Move[] = [];
+    for (let i = 0; i < 12; i++) {
+      const order = moves(brain.decide(world)).find(
+        m => m.unitIds.length === 8,
+      );
+      expect(order, `leg ${i}`).toBeDefined();
+      legs.push(order!);
+      if (isCastle(order!)) break;
+      // The army walks the leg (teleported: the sim is not under test).
+      for (const u of army) {
+        u.x = order!.x + 0.5;
+        u.y = order!.y + 0.5;
+        u.task = {t: 1, until: world.tick};
+      }
+      world.tick += 40;
+    }
+    expect(legs.length).toBeGreaterThan(1);
+    expect(isCastle(legs[legs.length - 1]!)).toBe(true);
+    // Every waypoint stands outside the tower's arrows.
+    for (const leg of legs.slice(0, -1))
+      expect(towerDist(leg.x, leg.y)).toBeGreaterThan(REACH);
+    expect(brain.warReport().flanked).toBe(1);
+  });
+
+  it('marches straight when no tower stands on the road', () => {
+    const {world, brain} = towered(DifficultyId.hard, false);
+    const order = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(order && isCastle(order)).toBe(true);
+    expect(brain.warReport().flanked).toBe(0);
+  });
+
+  it("is hard's alone", () => {
+    const {world, brain} = towered(DifficultyId.normal);
+    const order = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(order && isCastle(order)).toBe(true);
   });
 });
 

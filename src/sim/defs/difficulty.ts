@@ -232,6 +232,16 @@ export interface Difficulty {
    */
   remembersWipes: boolean;
   /**
+   * Whether the seat marches around the towers it knows of
+   * (warBehaviorIdEnum `flankMarch`, AI_WAR.flankLeg and friends): the
+   * all-in march plans its own road to the castle, charging every tile a
+   * known enemy tower reaches, and walks it in legs where that road
+   * differs from the shortest. A capability like `micro`, and `hard`
+   * alone: reading a wall and going round it is brain competence, and the
+   * lower tiers are meant to walk under it.
+   */
+  flanksTowers: boolean;
+  /**
    * Percent of the stance engine's clocks (AI_STANCE.evalPeriod and
    * `dwell`) — how often a seat re-reads which mood it should be in, and
    * how long it must hold one before it may change again.
@@ -458,6 +468,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     stanceLatencyPct: 250,
     micro: false,
     remembersWipes: false,
+    flanksTowers: false,
     // A muster this village cannot reach: fourteen soldiers on a thirty-bed
     // cap that also has to staff every post. So an easy seat never leaves
     // its opening for the stance that goes and takes a castle — it defends,
@@ -512,6 +523,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     foundAfterArmy: null,
     micro: false,
     remembersWipes: true,
+    flanksTowers: false,
     spearsOnly: false,
     decisionIntervalPct: 100,
     serfTarget: 0,
@@ -549,6 +561,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     stanceLatencyPct: 70,
     micro: true,
     remembersWipes: true,
+    flanksTowers: true,
     foundAfterArmy: null,
     spearsOnly: false,
     decisionIntervalPct: 100,

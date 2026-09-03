@@ -1,5 +1,5 @@
 import type {Enum} from '../../shared/enum.ts';
-import {tileCount, tileIdx, tileX, tileY} from '../../shared/grid.ts';
+import {inBounds, tileCount, tileIdx, tileX, tileY} from '../../shared/grid.ts';
 import {clamp, exactDist} from '../../shared/math.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {
@@ -54,9 +54,15 @@ import {
   type Owner,
 } from '../entities.ts';
 import * as HeraldNote from '../heraldNoteEnum.ts';
-import {playMin, playMax, tileBlocks, type TileResourceKind} from '../map.ts';
+import {
+  type GameMap,
+  playMin,
+  playMax,
+  tileBlocks,
+  type TileResourceKind,
+} from '../map.ts';
 import * as MatchState from '../matchStateEnum.ts';
-import {findPath} from '../path.ts';
+import {findPath, nearestWalkable} from '../path.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
 import {findSpot, nearestClaimableResource} from '../siting.ts';
@@ -552,6 +558,7 @@ export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.focusFire]: 'focusFire',
   [WarBehaviorIdNs.withdrawWounded]: 'withdrawWounded',
   [WarBehaviorIdNs.wipedMarch]: 'wipedMarch',
+  [WarBehaviorIdNs.flankMarch]: 'flankMarch',
 };
 
 export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
@@ -564,6 +571,7 @@ export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
   WarBehaviorIdNs.focusFire,
   WarBehaviorIdNs.withdrawWounded,
   WarBehaviorIdNs.wipedMarch,
+  WarBehaviorIdNs.flankMarch,
 ];
 
 const WAR_BEHAVIOR_BY_KEY = new Map<string, WarBehaviorId>(
@@ -650,6 +658,29 @@ export const AI_WAR = {
    * still marches in the end.
    */
   wipeLesson: 1,
+  /**
+   * The flanking march (`flankMarch`, Difficulty.flanksTowers): a march
+   * that plans its own road to the castle, charging every tile a known
+   * enemy tower can reach, and walks it in legs the way the scout walks
+   * its two — because the sim's own pathfinder walks the shortest road,
+   * and on the seed-55973911 valley the shortest road to the human's
+   * castle ran under the tower that killed fifty-three of the warlord's
+   * fifty-eight soldiers.
+   *
+   * `flankDanger` is what a step inside a tower's reach costs against a
+   * step outside it, so a detour of that many tiles is preferred to one
+   * tile under the arrows. `flankMargin` widens the reach the planner
+   * respects by that many tiles past the tower's own. `flankLeg` is how
+   * far ahead each waypoint is laid: short enough that the sim's shortest
+   * road between two of them stays on the planned one, long enough that a
+   * march is a handful of orders rather than a hundred. `flankArrive` is
+   * how near the army's middle has to stand to a waypoint before the next
+   * is laid.
+   */
+  flankDanger: 6,
+  flankMargin: 1,
+  flankLeg: 8,
+  flankArrive: 3,
 } as const;
 
 /**
@@ -735,6 +766,9 @@ export class AiBrain {
    * (Difficulty.remembersWipes, off on easy): gates `wipedMarch` the way
    * `#micro` gates the two micro verbs. */
   readonly #remembersWipes: boolean;
+  /** Whether this seat marches around the towers it knows of
+   * (Difficulty.flanksTowers): gates `flankMarch` the same way. */
+  readonly #flanksTowers: boolean;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -820,6 +854,10 @@ export class AiBrain {
    */
   #wiped: {targetId: EntityId; sent: number} | null = null;
   #wipes = 0;
+  /** The flanking march's current waypoint as a tile index, or -1 while
+   * the army is walking straight at its target (`flankMarch`). */
+  #marchLeg = -1;
+  #flanked = 0;
   /** War fingerprints, for warReport(): when the first all-in march left,
    * and how often each behavior actually spoke. A behavior that never
    * fires and one that fires without paying print the same win rate, and
@@ -947,6 +985,7 @@ export class AiBrain {
     this.#minSighting = scaleMinSighting(AI_INTEL.minSighting, difficulty);
     this.#micro = difficultyOf(difficulty).micro;
     this.#remembersWipes = difficultyOf(difficulty).remembersWipes;
+    this.#flanksTowers = difficultyOf(difficulty).flanksTowers;
     this.#stanceEval = scaleStanceClock(AI_STANCE.evalPeriod, difficulty);
     this.#stanceDwell = scaleStanceClock(AI_STANCE.dwell, difficulty);
     this.#vision = new SeatVision(mapSize);
@@ -1029,6 +1068,7 @@ export class AiBrain {
     withdrawn: number;
     focused: number;
     wipes: number;
+    flanked: number;
   } {
     return {
       firstMarchTick: this.#firstMarchTick,
@@ -1043,6 +1083,7 @@ export class AiBrain {
       withdrawn: this.#withdrawn,
       focused: this.#focused,
       wipes: this.#wipes,
+      flanked: this.#flanked,
     };
   }
 
@@ -1537,6 +1578,7 @@ export class AiBrain {
     if (this.#retreatIfRouted(world, army, commands, baseX, baseY)) {
       return commands;
     }
+    this.#followMarch(world, army, commands);
     this.#defendOutposts(world, mine, army, commands, baseX, baseY, spokenFor);
     // Micro, last of the reactive verbs and only where the tier grants it:
     // both read the fight as it stands, so they want every earlier verb's
@@ -1696,12 +1738,8 @@ export class AiBrain {
       this.#marchedCount = army.length;
       this.#marchTargetId = target.id;
       if (this.#firstMarchTick < 0) this.#firstMarchTick = world.tick;
-      commands.push({
-        kind: CommandKind.moveUnits,
-        unitIds: army.map(u => u.id),
-        x: target.x + 1,
-        y: target.y + 1,
-      });
+      this.#marchLeg = -1;
+      this.#orderMarch(world, army, target, commands);
     } else if (
       s.homeGuard > 0 &&
       army.length > 0 &&
@@ -2924,6 +2962,162 @@ export class AiBrain {
   }
 
   /**
+   * The next leg of the all-in march: straight at the castle, or — for a
+   * seat that flanks (`flankMarch`, Difficulty.flanksTowers) with a known
+   * tower on the shortest road — the next waypoint of a road that keeps
+   * out of the towers' reach where the ground allows (`#planLeg`).
+   */
+  #orderMarch(
+    world: World,
+    army: Unit[],
+    target: Building,
+    commands: SimCommand[],
+  ): void {
+    const leg =
+      this.#flanksTowers && this.#warOn(WarBehaviorIdNs.flankMarch)
+        ? this.#planLeg(world, army, target)
+        : -1;
+    if (leg >= 0) {
+      if (this.#marchLeg < 0) this.#flanked++;
+      this.#marchLeg = leg;
+      const size = world.map.size;
+      commands.push({
+        kind: CommandKind.moveUnits,
+        unitIds: army.map(u => u.id),
+        x: tileX(leg, size),
+        y: tileY(leg, size),
+      });
+      return;
+    }
+    this.#marchLeg = -1;
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: army.map(u => u.id),
+      x: target.x + 1,
+      y: target.y + 1,
+    });
+  }
+
+  /**
+   * Walk the flanking march leg by leg: once the army's middle stands at
+   * the waypoint (AI_WAR.flankArrive), or the whole army has stopped
+   * walking, the next leg is planned from where it stands. An army that
+   * stopped short of its waypoint has found the way shut, and marches
+   * straight at the castle rather than being ordered at the same wall
+   * every beat.
+   */
+  #followMarch(world: World, army: Unit[], commands: SimCommand[]): void {
+    if (!this.#attacking || this.#marchLeg < 0 || army.length === 0) return;
+    const target = world.buildings.get(this.#marchTargetId);
+    if (!target || target.dead) {
+      this.#marchLeg = -1;
+      return;
+    }
+    const size = world.map.size;
+    const lx = tileX(this.#marchLeg, size) + 0.5;
+    const ly = tileY(this.#marchLeg, size) + 0.5;
+    let cx = 0;
+    let cy = 0;
+    for (const u of army) {
+      cx += u.x;
+      cy += u.y;
+    }
+    cx /= army.length;
+    cy /= army.length;
+    const near = Math.abs(cx - lx) + Math.abs(cy - ly) <= AI_WAR.flankArrive;
+    const halted = army.every(u => u.task.t === UnitTaskKind.idle);
+    if (!near && !halted) return;
+    if (near) {
+      this.#orderMarch(world, army, target, commands);
+      return;
+    }
+    this.#marchLeg = -1;
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: army.map(u => u.id),
+      x: target.x + 1,
+      y: target.y + 1,
+    });
+  }
+
+  /**
+   * Plan the flanking march's next waypoint, as a tile index, or -1 for
+   * "straight at the castle": no known tower stands on the shortest road,
+   * the ground allows no road at all, or what is left of the planned one
+   * is short enough to walk in a piece.
+   *
+   * The road is the cheapest one from the army's middle to the castle's
+   * door over the walkable map, a step inside a known enemy tower's reach
+   * costing AI_WAR.flankDanger more than a step outside it (`#dangerOf`).
+   * Only where that road differs from the shortest is there anything to
+   * walk around; where it does, the waypoint is laid AI_WAR.flankLeg tiles
+   * down it, and the castle itself once the rest is under two legs.
+   *
+   * Towers count when the seat has laid eyes on them (explored ground),
+   * built or not manned: an empty tower calls its levy up the moment a
+   * hostile is in sight of it, and reading it as harmless marches under it.
+   */
+  #planLeg(world: World, army: Unit[], target: Building): number {
+    const danger = this.#dangerOf(world);
+    if (!danger) return -1;
+    let cx = 0;
+    let cy = 0;
+    for (const u of army) {
+      cx += u.x;
+      cy += u.y;
+    }
+    const start = nearestWalkable(
+      world.map,
+      Math.floor(cx / army.length),
+      Math.floor(cy / army.length),
+    );
+    if (start < 0) return -1;
+    const direct = cheapestRoad(world.map, start, target, null);
+    if (!direct) return -1;
+    if (!direct.some(i => danger[i] === 1)) return -1; // nothing to go round
+    const road = cheapestRoad(world.map, start, target, danger);
+    if (!road) return -1;
+    if (road.length <= AI_WAR.flankLeg * 2) return -1;
+    return road[AI_WAR.flankLeg]!;
+  }
+
+  /**
+   * Every tile a known enemy tower can reach, as a grid of ones, or null
+   * when the seat knows of no tower at all — the cheap answer for the
+   * marches that have nothing to go round.
+   */
+  #dangerOf(world: World): Uint8Array | null {
+    const size = world.map.size;
+    let grid: Uint8Array | null = null;
+    for (const b of world.buildings.values()) {
+      if (b.dead || b.owner === this.playerId) continue;
+      if (b.state !== BuildingState.built) continue;
+      const rule = buildingDef(b.type).garrison;
+      if (!rule) continue;
+      if (!this.#vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
+      const combat = UNIT_DEFS[rule.unit].combat;
+      if (!combat) continue;
+      const reach = combat.range + rule.rangeBonus + AI_WAR.flankMargin;
+      grid ??= new Uint8Array(tileCount(size));
+      const r = Math.ceil(reach);
+      for (let ty = b.y - r; ty < b.y + b.h + r; ty++) {
+        for (let tx = b.x - r; tx < b.x + b.w + r; tx++) {
+          if (!inBounds(tx, ty, size)) continue;
+          // Tile center to the footprint, the way the tower's own acquire
+          // measures a unit standing on it.
+          const px = Math.max(b.x, Math.min(tx + 0.5, b.x + b.w));
+          const py = Math.max(b.y, Math.min(ty + 0.5, b.y + b.h));
+          const dx = tx + 0.5 - px;
+          const dy = ty + 0.5 - py;
+          if (dx * dx + dy * dy <= reach * reach)
+            grid[tileIdx(tx, ty, size)] = 1;
+        }
+      }
+    }
+    return grid;
+  }
+
+  /**
    * Learn from a march that was wiped out: the army marched, every man of
    * it is dead, and the castle it marched on still stands. What is
    * remembered is the number that was not enough (`#wiped`), read back by
@@ -3279,6 +3473,114 @@ export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
   const impatience = Math.floor((idleFor - staleAfter) / stalePeriod) + 1;
   const floor = idleFor > forlornAfter ? 1 : staleFloor;
   return Math.max(floor, armyAttackSize - impatience);
+}
+
+/**
+ * The cheapest walkable road from a tile to the door of a building — any
+ * tile touching its footprint — with a step onto a tile the `danger` grid
+ * marks costing AI_WAR.flankDanger more than a plain one (or every step
+ * plain, with no grid). Four-way over the play area, whole costs, ties to
+ * the lower index: two hosts plan the same road. The road comes back as
+ * tile indices from the start to the door, or null when there is none.
+ *
+ * The brain's own search rather than path.ts's, because the sim's answers
+ * only ever the shortest road and this one is asked what the shortest
+ * road costs in arrows. The play area is under twenty-five thousand tiles
+ * and a march plans a handful of legs, so a plain binary heap is enough.
+ */
+export function cheapestRoad(
+  map: GameMap,
+  start: number,
+  door: {x: number; y: number; w: number; h: number},
+  danger: Uint8Array | null,
+): number[] | null {
+  const size = map.size;
+  const lo = playMin(map);
+  const hi = playMax(map);
+  const cost = new Int32Array(tileCount(size)).fill(-1);
+  const parent = new Int32Array(tileCount(size)).fill(-1);
+  const atDoor = (x: number, y: number): boolean =>
+    x >= door.x - 1 &&
+    x <= door.x + door.w &&
+    y >= door.y - 1 &&
+    y <= door.y + door.h;
+  // A binary heap of (cost, idx) pairs, ordered by cost then index.
+  const heap: number[] = [];
+  const push = (c: number, i: number): void => {
+    heap.push(c, i);
+    let k = heap.length / 2 - 1;
+    while (k > 0) {
+      const p = (k - 1) >> 1;
+      const better =
+        heap[k * 2]! < heap[p * 2]! ||
+        (heap[k * 2] === heap[p * 2] && heap[k * 2 + 1]! < heap[p * 2 + 1]!);
+      if (!better) break;
+      [heap[k * 2], heap[p * 2]] = [heap[p * 2]!, heap[k * 2]!];
+      [heap[k * 2 + 1], heap[p * 2 + 1]] = [heap[p * 2 + 1]!, heap[k * 2 + 1]!];
+      k = p;
+    }
+  };
+  const pop = (): [number, number] => {
+    const c = heap[0]!;
+    const i = heap[1]!;
+    const li = heap.pop()!; // the pair is (cost, idx): idx comes off first
+    const lc = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = lc;
+      heap[1] = li;
+      let k = 0;
+      const n = heap.length / 2;
+      for (;;) {
+        const l = k * 2 + 1;
+        const r = l + 1;
+        let m = k;
+        const less = (a: number, b: number): boolean =>
+          heap[a * 2]! < heap[b * 2]! ||
+          (heap[a * 2] === heap[b * 2] && heap[a * 2 + 1]! < heap[b * 2 + 1]!);
+        if (l < n && less(l, m)) m = l;
+        if (r < n && less(r, m)) m = r;
+        if (m === k) break;
+        [heap[k * 2], heap[m * 2]] = [heap[m * 2]!, heap[k * 2]!];
+        [heap[k * 2 + 1], heap[m * 2 + 1]] = [
+          heap[m * 2 + 1]!,
+          heap[k * 2 + 1]!,
+        ];
+        k = m;
+      }
+    }
+    return [c, i];
+  };
+  cost[start] = 0;
+  push(0, start);
+  while (heap.length > 0) {
+    const [c, i] = pop();
+    if (c > cost[i]!) continue; // a stale entry, already relaxed cheaper
+    const x = tileX(i, size);
+    const y = tileY(i, size);
+    if (atDoor(x, y)) {
+      const road: number[] = [];
+      for (let k = i; k >= 0; k = parent[k]!) road.push(k);
+      return road.reverse();
+    }
+    for (const [nx, ny] of [
+      [x + 1, y],
+      [x - 1, y],
+      [x, y + 1],
+      [x, y - 1],
+    ] as const) {
+      if (nx < lo || ny < lo || nx >= hi || ny >= hi) continue;
+      const n = tileIdx(nx, ny, size);
+      if (map.blocked[n]) continue;
+      const step = 1 + (danger && danger[n] === 1 ? AI_WAR.flankDanger : 0);
+      const nc = c + step;
+      const known = cost[n]!;
+      if (known >= 0 && known <= nc) continue;
+      cost[n] = nc;
+      parent[n] = i;
+      push(nc, n);
+    }
+  }
+  return null;
 }
 
 /**
