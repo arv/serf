@@ -266,6 +266,11 @@ describe('map fairness', () => {
             // do it). A radius slice that reached one would mask a short
             // seam by topping the count back up, or fail a whole one by
             // making it seven.
+            // Before the search: an empty set is a regression this test
+            // exists to report, and a bare reduce would answer it with a
+            // TypeError instead of the label saying which seat and which
+            // metal went missing.
+            expect(all.length, `${label}: placed at all`).toBeGreaterThan(0);
             const near = all.reduce((best, t) =>
               Math.hypot(t[0] + 0.5 - h.x, t[1] + 0.5 - h.y) <
               Math.hypot(best[0] + 0.5 - h.x, best[1] + 0.5 - h.y)
