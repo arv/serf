@@ -774,8 +774,10 @@ export function generateMap(
    * seam sits is still a roll (see seamFor), but how it lies once the center
    * is chosen is the terrain's business alone.
    *
-   * The budget is checked rather than merely documented, because both ends
-   * of its range fail silently. `resourceAmt` is a byte, so a budget past
+   * The budget is checked rather than merely documented — in seamRoom, the
+   * scan both this and the center-weighing come through, so no caller can
+   * reach the ground with an unscreened one — because both ends of its
+   * range fail silently. `resourceAmt` is a byte, so a budget past
    * 255 wraps on a seam that lands on one tile — 300 becoming 44 — and a
    * map that reads as fair while one faction mines a seventh of what its
    * rivals do is the exact failure this function exists to remove. A budget
@@ -793,6 +795,17 @@ export function generateMap(
    * least-wooded center that can still hold a whole one).
    */
   const seamRoom = (budget: number, cx: number, cy: number): number[] => {
+    // The budget check lives HERE, not in placeSeam, because this is the
+    // door every caller comes through first: seamFor weighs candidate
+    // centers by what they would hold, so a budget of NaN or zero would
+    // make every center in the band look roomless and the seam would go
+    // quietly unplaced — the silent failure the check exists to prevent,
+    // wearing a different coat.
+    if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
+      throw new Error(
+        `seam budget must be a whole number of 1..255 (got ${budget})`,
+      );
+    }
     const open: {i: number; d2: number}[] = [];
     for (let dy = -SEAM_REACH; dy <= SEAM_REACH; dy++) {
       for (let dx = -SEAM_REACH; dx <= SEAM_REACH; dx++) {
@@ -827,11 +840,7 @@ export function generateMap(
     cy: number,
     minTiles = 1,
   ): number => {
-    if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
-      throw new Error(
-        `seam budget must be a whole number of 1..255 (got ${budget})`,
-      );
-    }
+    // Budget screened by seamRoom, on the first line below.
     const take = seamRoom(budget, cx, cy);
     if (take.length < Math.max(1, minTiles)) return 0;
     // The even split, with the remainder going to the tiles nearest the

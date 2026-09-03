@@ -240,8 +240,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // at the first center that clears the bar (map.ts, words only): same
 // statements, same draws, same valley. The hash is over raw bytes, which
 // is why it moved anyway.
+// Still 47 after the seam budget's check moved to seamRoom (map.ts): the
+// same throw on the same inputs, one function earlier, where the center
+// weighing also passes through it. No draw and no tile moved; the hash is
+// over raw bytes.
 const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = '9f14a995bf5e1363359f3453c6b0b9ca';
+const EXPECTED_HASH = '0c04f3bf57d9bb254d093df36145fa2f';
 
 /**
  * Everything a replay's playback depends on, as raw source:
