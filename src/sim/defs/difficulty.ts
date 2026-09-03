@@ -214,6 +214,24 @@ export interface Difficulty {
    */
   micro: boolean;
   /**
+   * Whether the seat learns from a march that was wiped out
+   * (warBehaviorIdEnum `wipedMarch`, AI_WAR.wipeLesson): the next march on
+   * the same castle wants more men than the party that died there,
+   * whatever the muster bar's clamps would settle for.
+   *
+   * A capability, like `micro`, and outside the header's rule for the same
+   * reason: no playbook expresses an opinion about marching the same three
+   * knights into the same tower every cooldown. The lesson is the reverse
+   * of the confidence gate the header records as measured and rejected —
+   * that one refused fights it predicted losing, which against an equal
+   * read as passivity; this one refuses only a fight it has already lost
+   * outright, with that exact force, and marches the moment it has more.
+   * On for `normal` as well — a lord who keeps feeding the same three men
+   * to the same tower reads as broken rather than beatable — and off for
+   * `easy` on purpose, which is the one tier meant to be beaten that way.
+   */
+  remembersWipes: boolean;
+  /**
    * Percent of the stance engine's clocks (AI_STANCE.evalPeriod and
    * `dwell`) — how often a seat re-reads which mood it should be in, and
    * how long it must hold one before it may change again.
@@ -439,6 +457,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     minSighting: 2,
     stanceLatencyPct: 250,
     micro: false,
+    remembersWipes: false,
     // A muster this village cannot reach: fourteen soldiers on a thirty-bed
     // cap that also has to staff every post. So an easy seat never leaves
     // its opening for the stance that goes and takes a castle — it defends,
@@ -471,7 +490,9 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   // every override is null, and applyDifficulty short-circuits on the id
   // besides — a normal match is byte-for-byte the match this build played
   // before difficulty existed, which is what keeps the balance sweep's
-  // standing numbers (tools/aiLab/README.md) meaningful.
+  // standing numbers (tools/aiLab/README.md) meaningful. The one
+  // capability it carries, `remembersWipes`, is read beside the knobs
+  // rather than through them, and is part of the printed game now.
   [DifficultyIdNs.normal]: {
     id: DifficultyIdNs.normal,
     name: 'Normal',
@@ -490,6 +511,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     stanceLatencyPct: 100,
     foundAfterArmy: null,
     micro: false,
+    remembersWipes: true,
     spearsOnly: false,
     decisionIntervalPct: 100,
     serfTarget: 0,
@@ -526,6 +548,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     minSighting: -1,
     stanceLatencyPct: 70,
     micro: true,
+    remembersWipes: true,
     foundAfterArmy: null,
     spearsOnly: false,
     decisionIntervalPct: 100,

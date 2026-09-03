@@ -551,6 +551,7 @@ export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.heraldMarch]: 'heraldMarch',
   [WarBehaviorIdNs.focusFire]: 'focusFire',
   [WarBehaviorIdNs.withdrawWounded]: 'withdrawWounded',
+  [WarBehaviorIdNs.wipedMarch]: 'wipedMarch',
 };
 
 export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
@@ -562,6 +563,7 @@ export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
   WarBehaviorIdNs.heraldMarch,
   WarBehaviorIdNs.focusFire,
   WarBehaviorIdNs.withdrawWounded,
+  WarBehaviorIdNs.wipedMarch,
 ];
 
 const WAR_BEHAVIOR_BY_KEY = new Map<string, WarBehaviorId>(
@@ -631,6 +633,23 @@ export const AI_WAR = {
   /** Marches smaller than this go unannounced: a forlorn pair of archers
    * limping at a castle is not an assault worth a herald's breath. */
   heraldMin: 6,
+  /**
+   * The wiped march (`wipedMarch`, Difficulty.remembersWipes): how many
+   * more men than the party that was wiped out the next march on the same
+   * castle has to have. One is the whole lesson — "that many was not
+   * enough" — and it compounds on its own, since a bigger party wiped out
+   * in turn raises the bar again. The bar it raises outranks the
+   * growth-stall clamp, which is the thing that was feeding the men: an
+   * army that cannot grow past what already died is not "as big as it is
+   * getting" so much as known to be too small, and the seed-55973911
+   * warlord marched three knights at a tower-and-army every 300 ticks for
+   * twenty thousand ticks on exactly that clamp, fifty-three of its
+   * fifty-eight soldiers dying within twelve tiles of the tower. Only the
+   * forlorn clock (AI_PACING.forlornAfter) outranks the lesson, as it
+   * outranks every other hold: a seat that can never field the number
+   * still marches in the end.
+   */
+  wipeLesson: 1,
 } as const;
 
 /**
@@ -712,6 +731,10 @@ export class AiBrain {
    * two war behaviours that need it, on top of the lab's own `--war`
    * ablation, so a tier without micro runs the pre-micro brain exactly. */
   readonly #micro: boolean;
+  /** Whether this seat learns from a march that was wiped out
+   * (Difficulty.remembersWipes, off on easy): gates `wipedMarch` the way
+   * `#micro` gates the two micro verbs. */
+  readonly #remembersWipes: boolean;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -789,6 +812,14 @@ export class AiBrain {
    * what the retreat compares the survivors and the garrison against. */
   #marchedCount = 0;
   #marchTargetId: EntityId = -1;
+  /**
+   * The last march that was wiped out: what it marched at and how many it
+   * left with (`wipedMarch`, AI_WAR.wipeLesson). The next march on that
+   * castle wants more men than that, whatever the muster bar and its
+   * clamps would settle for. Brain-local like everything else here.
+   */
+  #wiped: {targetId: EntityId; sent: number} | null = null;
+  #wipes = 0;
   /** War fingerprints, for warReport(): when the first all-in march left,
    * and how often each behavior actually spoke. A behavior that never
    * fires and one that fires without paying print the same win rate, and
@@ -915,6 +946,7 @@ export class AiBrain {
     this.#intelTrust = scaleIntelTrust(AI_INTEL.trustFor, difficulty);
     this.#minSighting = scaleMinSighting(AI_INTEL.minSighting, difficulty);
     this.#micro = difficultyOf(difficulty).micro;
+    this.#remembersWipes = difficultyOf(difficulty).remembersWipes;
     this.#stanceEval = scaleStanceClock(AI_STANCE.evalPeriod, difficulty);
     this.#stanceDwell = scaleStanceClock(AI_STANCE.dwell, difficulty);
     this.#vision = new SeatVision(mapSize);
@@ -996,6 +1028,7 @@ export class AiBrain {
     stanceSwitches: number;
     withdrawn: number;
     focused: number;
+    wipes: number;
   } {
     return {
       firstMarchTick: this.#firstMarchTick,
@@ -1009,6 +1042,7 @@ export class AiBrain {
       stanceSwitches: this.#stanceSwitches,
       withdrawn: this.#withdrawn,
       focused: this.#focused,
+      wipes: this.#wipes,
     };
   }
 
@@ -1514,6 +1548,7 @@ export class AiBrain {
     const cooled = idleFor > s.attackCooldown;
     if (army.length > this.#lastArmyCount) this.#armyGrewTick = world.tick;
     this.#lastArmyCount = army.length;
+    this.#noteWipe(world, army);
     // The bar, with the growth-stall clamp over the impatience ramp: an
     // army that has stopped growing is as big as it is getting, so waiting
     // for the playbook's full size only feeds soldiers to the raids one at
@@ -1522,6 +1557,15 @@ export class AiBrain {
     if (world.tick - this.#armyGrewTick > AI_PACING.growthStallAfter) {
       bar = Math.min(bar, Math.max(army.length, AI_PACING.staleFloor));
     }
+    // ...and the wiped march's lesson over both (AI_WAR.wipeLesson): the
+    // number that just died at this castle is not a number to march again.
+    // The forlorn clock is the one thing that outranks it, as it outranks
+    // the odds hold below.
+    const wipedBar =
+      target && idleFor <= AI_PACING.forlornAfter
+        ? this.#wipedBarFor(target)
+        : 0;
+    bar = Math.max(bar, wipedBar);
     const headcountReady = army.length >= bar && cooled;
     /**
      * What the combat prediction says about the fight at the end of this
@@ -1552,7 +1596,7 @@ export class AiBrain {
     const mustered =
       heeded === null
         ? headcountReady
-        : heeded && cooled && army.length >= MIN_SORTIE;
+        : heeded && cooled && army.length >= Math.max(MIN_SORTIE, wipedBar);
     // A hold has to reach the sweep as well: falling through to it would send
     // the army walking into unexplored ground instead, which is the one
     // outcome worse than the march it just refused. Only an actual hold
@@ -2877,6 +2921,42 @@ export class AiBrain {
       this.#outpostDefenses++;
       return; // one call per beat
     }
+  }
+
+  /**
+   * Learn from a march that was wiped out: the army marched, every man of
+   * it is dead, and the castle it marched on still stands. What is
+   * remembered is the number that was not enough (`#wiped`), read back by
+   * `#wipedBarFor`. A march the retreat rule brought home is not a wipe —
+   * the survivors are the lesson there — and neither is one whose target
+   * fell, whatever it cost.
+   *
+   * Normal and hard (Difficulty.remembersWipes), and a war behaviour so
+   * the lab can ablate it. Easy plays the pre-lesson brain exactly: the
+   * clamp lowers the bar to what stands, and what stands marches.
+   */
+  #noteWipe(world: World, army: Unit[]): void {
+    if (!this.#attacking || this.#marchedCount === 0 || army.length > 0) return;
+    const target = world.buildings.get(this.#marchTargetId);
+    const stands = target !== undefined && !target.dead;
+    if (
+      stands &&
+      this.#remembersWipes &&
+      this.#warOn(WarBehaviorIdNs.wipedMarch)
+    ) {
+      this.#wiped = {targetId: this.#marchTargetId, sent: this.#marchedCount};
+      this.#wipes++;
+    }
+    // The march is over either way: nobody is left to be on it.
+    this.#attacking = false;
+    this.#marchedCount = 0;
+  }
+
+  /** The muster the wiped march's lesson asks for against this target, or
+   * zero where there is no lesson (AI_WAR.wipeLesson). */
+  #wipedBarFor(target: Building): number {
+    if (!this.#wiped || this.#wiped.targetId !== target.id) return 0;
+    return this.#wiped.sent + AI_WAR.wipeLesson;
   }
 
   /**

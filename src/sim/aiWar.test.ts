@@ -3,6 +3,7 @@ import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {AI_INTEL, AI_WAR, AiBrain} from './systems/ai.ts';
 import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
@@ -224,6 +225,85 @@ describe('the losing march', () => {
     const {world, brain} = routedMarch(AiStrategyId.warlord);
     brain.decide(world);
     expect(brain.warReport().marchRetreats).toBe(0);
+  });
+});
+
+describe('the wiped march', () => {
+  /** The rival castle's tile, as the all-in march orders it. */
+  const CASTLE = {x: BASE + 9, y: BASE + 1};
+  const marchesOn = (commands: SimCommand[]): Move | undefined =>
+    moves(commands).find(m => m.x === CASTLE.x && m.y === CASTLE.y);
+
+  /** March `n` knights at a found castle and lose every one of them. */
+  function wipedMarch(
+    tier: DifficultyId.easy | DifficultyId.normal | DifficultyId.hard,
+    n: number,
+  ): {world: World; brain: AiBrain} {
+    const world = village();
+    addStorehouse(world, BASE + 8, BASE, {}, 1);
+    const army = knights(world, n);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.warlord],
+      world.map.size,
+      tier,
+    );
+    brain.setWarBehaviors([WarBehaviorId.wipedMarch]);
+    world.tick = 1500; // past dwell and every cooldown: the march fires
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(n);
+    for (const u of army) u.dead = true;
+    world.tick += 40;
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+    return {world, brain};
+  }
+
+  it('the same number does not march twice, and one more does', () => {
+    // The played case (seed 55973911): three knights at a tower and an
+    // army, every cooldown, for twenty thousand ticks. What died is the
+    // lesson — the next march on that castle wants more than that.
+    const {world, brain} = wipedMarch(DifficultyId.hard, 6);
+    expect(brain.warReport().wipes).toBe(1);
+    knights(world, 6);
+    world.tick += 2000; // past the attack cooldown, short of impatience
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+    knights(world, 1, 0, BASE + 1);
+    world.tick += 40;
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(7);
+  });
+
+  it('outranks the growth-stall clamp that was feeding the men', () => {
+    // An army that cannot grow past what already died is not "as big as
+    // it is getting", it is known to be too small: the clamp that drops
+    // the bar to whatever stands does not get to march it.
+    const {world, brain} = wipedMarch(DifficultyId.hard, 6);
+    knights(world, 3);
+    world.tick += 6000; // past growthStallAfter, short of staleAfter
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+  });
+
+  it('is a lesson about one castle, not about marching', () => {
+    const {world, brain} = wipedMarch(DifficultyId.hard, 6);
+    // The castle that wiped the march falls to someone else: nothing to
+    // remember, and the next target is marched on at the bar.
+    const castle = [...world.buildings.values()].find(b => b.owner === 1)!;
+    castle.dead = true;
+    addStorehouse(world, BASE, BASE + 8, {}, 2);
+    knights(world, 6);
+    world.tick += 2000;
+    const next = moves(brain.decide(world)).find(
+      m => m.x === BASE + 1 && m.y === BASE + 9,
+    );
+    expect(next?.unitIds.length).toBe(6);
+  });
+
+  it('on normal the lesson is learned too; on easy it is not', () => {
+    expect(wipedMarch(DifficultyId.normal, 6).brain.warReport().wipes).toBe(1);
+    // Easy musters three higher, so it takes more men to get a march out.
+    const {world, brain} = wipedMarch(DifficultyId.easy, 10);
+    expect(brain.warReport().wipes).toBe(0);
+    knights(world, 10);
+    world.tick += 2000;
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(10);
   });
 });
 

@@ -197,8 +197,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // and a replay's mines go looking for it (see replayVersion.ts). The seats
 // keeping to their own side of the valley, and off ground their
 // foundations were razed on, is brain and rule work playback never runs.
+// Still 43 after the wiped march (systems/ai.ts `wipedMarch`,
+// Difficulty.remembersWipes): a seat that lost every man of a march
+// wants more than that many before it marches on the same castle again.
+// Brain and tier-table work, which playback never runs — the logged
+// marches re-run as they were marched. Both files are under src/sim, so
+// the hash moved anyway.
 const EXPECTED_VERSION = 43;
-const EXPECTED_HASH = '571202091e116d41ffec4fdf338dcaea';
+const EXPECTED_HASH = 'cc25dd1504e580b2ba59a37c23b3d96b';
 
 /**
  * Everything a replay's playback depends on, as raw source:

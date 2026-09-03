@@ -24,3 +24,5 @@ export const focusFire = 7 as const;
 export type focusFire = typeof focusFire;
 export const withdrawWounded = 8 as const;
 export type withdrawWounded = typeof withdrawWounded;
+export const wipedMarch = 9 as const;
+export type wipedMarch = typeof wipedMarch;
