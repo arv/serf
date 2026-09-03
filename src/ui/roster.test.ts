@@ -43,6 +43,7 @@ function source(rows: readonly Row[]): UnitSource {
       const r = by.get(id);
       return r ? maxOf(r) : null;
     },
+    isHolding: () => false,
   };
 }
 
@@ -65,14 +66,31 @@ describe('the selection roster', () => {
         kind: UnitTypeId.knight,
         hp: Math.round(knightMax / 2),
         maxHp: knightMax,
+        holding: false,
       },
       {
         id: 9,
         kind: UnitTypeId.serf,
         hp: UNIT_DEFS[UnitTypeId.serf].hp,
         maxHp: UNIT_DEFS[UnitTypeId.serf].hp,
+        holding: false,
       },
     ]);
+  });
+
+  it('reads the hold stance off the publish, and counts a change of it as news', () => {
+    // The card's Hold button lights off this flag, and the roster is
+    // rebuilt every frame: a man told to hold has to reach the card on
+    // the next publish, not on his next wound.
+    const rows: Row[] = [{id: 7, kind: UnitTypeId.knight, pct: FULL}];
+    const holding = new Set<number>();
+    const src = {...source(rows), isHolding: (id: number) => holding.has(id)};
+    const before = rosterOf([7], src);
+    expect(before[0]!.holding).toBe(false);
+    holding.add(7);
+    const after = rosterOf([7], src);
+    expect(after[0]!.holding).toBe(true);
+    expect(sameRoster(before, after)).toBe(false);
   });
 
   it('names an armoured soldier’s own maximum, not his kind’s', () => {
@@ -90,6 +108,7 @@ describe('the selection roster', () => {
       kind: UnitTypeId.knight,
       hp: 120,
       maxHp: 120,
+      holding: false,
     });
     expect(whole!.maxHp).toBeGreaterThan(kindMax);
 
@@ -275,11 +294,20 @@ describe('the health bars', () => {
     kind: UnitTypeId.knight,
     hp,
     maxHp: 80,
+    holding: false,
   });
 
   it('reads health as a fraction of the kind, and survives a zero maximum', () => {
     expect(hpFraction(unit(20))).toBeCloseTo(0.25);
-    expect(hpFraction({id: 1, kind: UnitTypeId.serf, hp: 0, maxHp: 0})).toBe(0);
+    expect(
+      hpFraction({
+        id: 1,
+        kind: UnitTypeId.serf,
+        hp: 0,
+        maxHp: 0,
+        holding: false,
+      }),
+    ).toBe(0);
   });
 
   it('bands health into the three decisions rather than a gradient', () => {

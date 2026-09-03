@@ -755,6 +755,7 @@ export async function runMatch(
     pickUnit: (id, additive) => controls.pickUnit(id, additive),
     place: type => controls.setPlacement(type),
     armOrder: mode => controls.armOrder(mode),
+    holdGround: () => void controls.holdGround(),
     save: saveGame,
     saveReplay: async () => {
       // Empty means there is nothing to save: the server declines while

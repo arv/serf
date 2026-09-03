@@ -66,6 +66,18 @@ export type SimCommand =
       targetId: EntityId;
       building?: true;
     }
+  /**
+   * Hold ground: the named soldiers stop where they stand and fight only
+   * what comes within weapon reach (units.ts, UnitTaskKind.hold). No
+   * target and no tile — the order is the ground under their feet. The
+   * one order that ends a march without starting another, which is what
+   * makes it the retreat's other half: M walks a squad clear, and this is
+   * how it is told to stop running and turn round on the spot rather than
+   * at the tile it was sent to. Civilians in the list are skipped: a serf
+   * has no reach to hold ground with, and stopping his errand mid-haul
+   * would only strand the good.
+   */
+  | {kind: CommandKindNs.holdGround; unitIds: EntityId[]}
   | {
       kind: CommandKindNs.placeBuilding;
       building: BuildingTypeId;
@@ -236,6 +248,15 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         unitIds: [...(c.unitIds as EntityId[])],
         targetId: c.targetId as EntityId,
         ...(c.building === true ? {building: true as const} : {}),
+      };
+    }
+    case CommandKindNs.holdGround: {
+      if (!Array.isArray(c.unitIds)) return null;
+      if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
+      if (!c.unitIds.every(isId)) return null;
+      return {
+        kind: CommandKindNs.holdGround,
+        unitIds: [...(c.unitIds as EntityId[])],
       };
     }
     case CommandKindNs.moveUnits: {

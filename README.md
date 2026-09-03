@@ -207,6 +207,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Click building | Building panel (barracks: train units) |
 | Click a face on the selection card | Take that one on his own (shift = leave him behind) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target, on the map or on the minimap |
+| **H** (units selected) | Hold ground — the soldiers stop where they stand and fight only what comes within reach; no chasing, no giving ground. Sent on the spot, no click to wait for; any other order releases them |
 | Minimap: drag | Steer the camera; right click it, or click it with **A**/**M** armed, to send the selection there |
 | **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |
 | **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Guard **T**ower |
@@ -357,8 +358,8 @@ fog the map is drawn through (F lifts it), and the outcome.
 
 The letters on a selected building's panel are contextual, as in both those
 games, so they may reuse a global letter: the barracks' **A**rcher is the
-attack-move's A, which is only safe because a building selection and a unit
-selection cannot both stand. The gates are shared between the button and the
+attack-move's A and the castle's **H**ire is hold ground's H, which is only
+safe because a building selection and a unit selection cannot both stand. The gates are shared between the button and the
 key (`ui/commands.ts`, `ui/buildMenu.ts`), so a shortcut can never fire where
 its button is greyed out — and every refusal names which gate it hit.
 

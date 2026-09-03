@@ -358,6 +358,9 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
   if (u.dead) return ACTION.dead;
   // Engaged fighters swing (the renderer overrides with a walk while moving).
   if (engaged) return ACTION.fight;
+  // Holding ground with nobody in reach: idle to the renderer, a stance to
+  // the selection card (see ACTION in sabLayout.ts).
+  if (u.task.t === UnitTaskKind.hold) return ACTION.hold;
   // Gather workers swinging at a resource tile.
   if (u.task.t === UnitTaskKind.gatherWork) return ACTION.work;
   // A hauler on the well's windlass. The well keeps no resident, so this is
