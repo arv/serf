@@ -498,6 +498,7 @@ export function resetMatchState(): void {
   setReplayOver(false);
   setNetStatus(null);
   setStock({});
+  setToolWants({});
   setPopulation({pop: 0, cap: 0});
   setPlacing(null);
   setBuildAim(null);
