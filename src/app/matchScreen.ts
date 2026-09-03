@@ -607,13 +607,14 @@ export async function runMatch(
     } else if (briefingOpen()) {
       setBriefingOpen(false);
     }
-    // A lost seat is a spectator, and a spectator is not under attack: the
-    // rivals go on razing whatever still stands, and every swing would
-    // otherwise keep toasting "your village is under attack!" long after
-    // the village stopped being anyone's. The roster (applied above)
-    // carries the death when the frame has one; the elimination event
-    // covers the same frame's later strikes when it does not.
-    let lost =
+    // A finished match or a fallen seat leaves a spectator, and a spectator
+    // is not under attack: the rivals go on razing whatever still stands,
+    // and every swing would otherwise keep toasting "your village is under
+    // attack!" long after the village stopped being anyone's. The roster
+    // (applied above) carries the death when the frame has one; the
+    // elimination event covers the same frame's later strikes when it does
+    // not.
+    let spectating =
       msg.outcome.state === MatchState.over ||
       playersMeta()[myPlayerId()]?.alive === false;
     for (const event of msg.events) {
@@ -621,7 +622,7 @@ export async function runMatch(
         event.kind === GameEventKind.playerEliminated &&
         event.player === myPlayerId()
       ) {
-        lost = true;
+        spectating = true;
       } else if (
         event.kind === GameEventKind.raidIncoming &&
         event.player === myPlayerId()
@@ -664,9 +665,9 @@ export async function runMatch(
         // player-owned damage alone (combat.ts filters at the source), so
         // it is an alarm bell, not the battle's soundtrack. Unit combat
         // sounds come from the animation layer, which sees every side.
-        // A lost seat hears neither: the bell is an alarm, and there is no
+        // A spectator hears neither: the bell is an alarm, and there is no
         // one left to answer it.
-        if (lost) continue;
+        if (spectating) continue;
         if (event.building) playAt('buildingHit', event.x, event.y);
         damageAlerts.report(event);
       } else if (
@@ -686,7 +687,7 @@ export async function runMatch(
     }
     // After the loop, not before it: strikes in the frame that ended the
     // match (or the seat) would otherwise reopen what was just dropped.
-    if (lost) damageAlerts.clear();
+    if (spectating) damageAlerts.clear();
     // Keep the selected building's panel fresh (or clear it if destroyed).
     const sel = selectedBuilding();
     if (sel && msg.buildings) {
