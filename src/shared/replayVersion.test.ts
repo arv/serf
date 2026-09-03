@@ -223,6 +223,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // waypoint, which comes round again once taken instead of being spent
 // (tick.ts takeLeg). A log that names it plays a single attack-move on
 // any build that screens the flag off (see replayVersion.ts).
+// Still 46 after the towers learned which way to look (sim/siting.ts
+// findSpot `toward`, `nearestRivalStart`; systems/ai.ts `facing`): a seat
+// sites a building that fights on the side of its castle the nearest
+// stronghold it has found is on. Brain and siting work, which playback
+// never runs — a log's towers were placed by command and re-run where
+// they were placed. siting.ts is on the surface for the sim it is, so the
+// hash moved anyway.
 // 47 for seams a player can find (map.ts): a home seam is drawn from a
 // center with a clearing around it, and no seam settles for a stub while
 // the band still holds a center that can take a whole one. Ore lies on
@@ -234,7 +241,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // statements, same draws, same valley. The hash is over raw bytes, which
 // is why it moved anyway.
 const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = '559596d4eabf45e9892296accadc942b';
+const EXPECTED_HASH = '9f14a995bf5e1363359f3453c6b0b9ca';
 
 /**
  * Everything a replay's playback depends on, as raw source:

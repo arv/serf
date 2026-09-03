@@ -24,6 +24,23 @@ type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
  * economy rules opening a mine on the reserve seam before the working one
  * runs dry. Both have to spiral the same way or the same seat would pick
  * two different tiles for the same job.
+ *
+ * `toward` is the one thing that outranks pure nearness, and only a
+ * building that fights ever passes it (systems/ai.ts `spotFor`): a wall is
+ * built to stand between the village and something, and the spiral on its
+ * own has no idea which side that is. It reads row by row from the
+ * north-west corner of each ring, so it answered "the first legal tile"
+ * — which on a packed base is whichever side of the castle happens to
+ * have a gap, and a seat in the valley's south-east corner put its towers
+ * on its north-west shoulder, looking at nobody, every game.
+ *
+ * Given a point, each ring instead yields the legal site NEAREST that
+ * point, and only sites that stand nearer to it than the anchor itself
+ * count as facing it at all — a ring whose gaps are all behind the castle
+ * is skipped for the next one out. Rings are still walked inward-out, so
+ * a facing tower is never further from home than it has to be, and a base
+ * hemmed in on the threat side falls back to the plain nearest legal
+ * tile, which is exactly what the search always gave.
  */
 export function findSpot(
   world: World,
@@ -31,6 +48,7 @@ export function findSpot(
   cx: number,
   cy: number,
   maxR = 14,
+  toward?: {x: number; y: number} | null,
 ): {x: number; y: number} | null {
   const def = BUILDING_DEFS[type];
   const size = world.map.size;
@@ -43,17 +61,44 @@ export function findSpot(
     }
     return true;
   };
+  // Squared, and never rooted: `-`, `*` and `+` are bit-exact on every
+  // engine, where the square root's neighbours are not, and the nearer of
+  // two points is the same either way (determinism.lint.test.ts, and the
+  // same reasoning as `rivalGround` below).
+  const toThreat = (px: number, py: number): number => {
+    const dx = px - toward!.x;
+    const dy = py - toward!.y;
+    return dx * dx + dy * dy;
+  };
+  // What the anchor itself reads, and the bar a site clears to count as
+  // facing the threat rather than merely standing beside it.
+  const home = toward ? toThreat(cx, cy) : 0;
+  let nearest: {x: number; y: number} | null = null;
   for (let r = 1; r <= maxR; r++) {
+    let facing: {x: number; y: number} | null = null;
+    let best = home;
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const x = cx + dx;
         const y = cy + dy;
-        if (canPlace(world.map, type, x, y) && spaced(x, y)) return {x, y};
+        if (!canPlace(world.map, type, x, y) || !spaced(x, y)) continue;
+        if (!toward) return {x, y};
+        // Kept in case no ring ever faces the threat — this is the answer
+        // the search gave before there was such a thing as facing.
+        nearest ??= {x, y};
+        const cost = toThreat(x + def.w / 2, y + def.h / 2);
+        // Strictly nearer, so ties keep the ring's own reading order and
+        // two hosts site the same tower.
+        if (cost < best) {
+          best = cost;
+          facing = {x, y};
+        }
       }
     }
+    if (facing) return facing;
   }
-  return null;
+  return nearest;
 }
 
 /**
@@ -94,6 +139,43 @@ export function rivalGround(
     const own = d2(mine, x, y);
     return rivals.some(r => d2(r, x, y) < own);
   };
+}
+
+/**
+ * The nearest living rival's castle plateau, or null on a valley with
+ * nobody else in it — where a seat should look when it has not yet FOUND
+ * anything to look at (systems/ai.ts `facing`).
+ *
+ * Reads the dealt start spots, exactly as `rivalGround` above does and for
+ * the same reason: the plateaus are drawn on the terrain every player is
+ * shipped, so which corners are lived in is public, and only which rival
+ * lives in which one has to be scouted (RivalPicture.home). A dead rival's
+ * corner drops out — its castle is rubble and nothing marches out of it.
+ *
+ * Squared whole distances, the same as `rivalGround`, so two hosts pick
+ * the same corner. Ties break on the lower seat, which is the order
+ * `world.players` is walked in.
+ */
+export function nearestRivalStart(
+  world: World,
+  owner: Owner,
+  cx: number,
+  cy: number,
+): {x: number; y: number} | null {
+  let best: {x: number; y: number} | null = null;
+  let bestD = Infinity;
+  for (const p of world.players) {
+    if (p.id === owner || !p.alive) continue;
+    const start = world.starts[p.id];
+    if (!start) continue;
+    const a = anchorOf(start);
+    const d = (a.x - cx) * (a.x - cx) + (a.y - cy) * (a.y - cy);
+    if (d < bestD) {
+      bestD = d;
+      best = a;
+    }
+  }
+  return best;
 }
 
 /**
