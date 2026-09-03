@@ -1,6 +1,6 @@
 import {For, Index, Show, createSignal, onCleanup, onMount} from 'solid-js';
 import {createStore, reconcile} from 'solid-js/store';
-import {BUILD_LABEL} from '../app/buildInfo';
+import {BUILD_CHANNEL, BUILD_LABEL} from '../app/buildInfo';
 import type {ImportResult, StoredFileInfo} from '../app/fileStore';
 import {missionUrl} from '../app/gameConfig';
 import {
@@ -946,6 +946,13 @@ export function StartMenu(props: StartMenuProps) {
               <i class="r" />
             </div>
             <h1>SERF VALLEY</h1>
+            {/* The staging deploy says so on its face. Installed to a home
+                screen the tab title and the manifest name are out of sight,
+                and the footer that spells the branch out is the first thing
+                a short window drops. */}
+            <Show when={BUILD_CHANNEL === 'staging'}>
+              <span class="channel">Staging</span>
+            </Show>
             <p class="tagline">
               Settle the valley. Feed the levy. Hold the road.
             </p>
