@@ -27,6 +27,11 @@ export interface HudActions {
    * others: placement and an order both claim the next click, and two
    * things claiming one click is one of them losing silently. */
   armOrder(mode: OrderMode | null): void;
+  /** Hold ground: the selected soldiers stop where they stand. Sent on
+   * the spot rather than armed — there is no click to wait for — and
+   * Controls owns it because the selection is its, and because sending
+   * it has to disarm an A or M still waiting for a target. */
+  holdGround(): void;
   /** The full save string — the worker's world plus the fog's memory,
    * under the metadata head the saves shelf lists it by. */
   save(): Promise<string>;
@@ -85,6 +90,10 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           actions.armOrder(mode);
         }}
+        // No uiClick here: the order itself confirms with the ring and
+        // the order sound, the way a click on the map does — a click
+        // sound on top would make the button louder than the key.
+        onHold={() => actions.holdGround()}
         onClearRally={buildingId => {
           play('uiClick');
           // No coordinates is the take-the-flag-down spelling; planting one

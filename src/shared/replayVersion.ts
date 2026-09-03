@@ -20,6 +20,24 @@
  * directly.
  */
 /**
+ * 44: soldiers can hold ground.
+ *
+ * An eighteenth command kind (`holdGround`, commands.ts) and the stance it
+ * puts a soldier in (UnitTaskKind.hold, served by systems/combat.ts
+ * holdGround): stand where you are and strike only what comes within
+ * reach — no chase, no kite, no walk to the wall. Warcraft's Hold
+ * Position, on H.
+ *
+ * The bump is for the same reason focusTarget's was (39): an older
+ * build's sanitizeCommand screens a kind it has never heard of out of the
+ * log, so a recording with a hold in it re-runs there with the squad
+ * still marching — and every strike from the tick they were told to stop
+ * lands from different ground. A log recorded before this plays back
+ * unchanged: nothing an older log can say takes a different branch. It
+ * sits on top of main's own 43 (the reserve iron seam), which is why this
+ * is 44 and not 43: the two shipped in different PRs.
+ */
+/**
  * 43: a reserve iron seam in every valley.
  *
  * Worldgen deals every start a second iron seam out past its home ring,
@@ -542,4 +560,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 43;
+export const REPLAY_VERSION = 44;

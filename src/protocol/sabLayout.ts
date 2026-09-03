@@ -28,7 +28,16 @@ export const AUX_STRIDE = 10;
 const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 
 /** What a unit is visibly doing — drives limb animation in the renderer. */
-export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3} as const;
+/**
+ * `hold` is the one value that is not an animation: a soldier holding
+ * ground stands exactly as an idle one does, and the renderer treats it
+ * so (nothing there tests for it). It rides here because this byte is
+ * the only per-unit word the main thread has, and the selection card
+ * needs to say whose stance it is — a lit Hold button over a squad that
+ * is actually holding. A holding man with an enemy in reach publishes
+ * `fight`, as any fighter does; the stance shows through while he waits.
+ */
+export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3, hold: 4} as const;
 
 /** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
 export const WORK = {

@@ -157,6 +157,13 @@ export function checkInvariants(world: World): InvariantReport {
         `unit ${u.id}: plain move with no route — nothing will move it again`,
       );
     }
+
+    // The mirror image: a hold is the promise never to walk, and the
+    // combat branch that serves it plans no path. A route on a holding
+    // man is some other system moving a man that was told to stand.
+    if (u.task.t === UnitTaskKind.hold && u.path !== null) {
+      violations.push(`unit ${u.id}: holding ground with a route in hand`);
+    }
   }
 
   return {tick: world.tick, violations};

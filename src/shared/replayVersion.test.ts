@@ -207,8 +207,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // Difficulty.flanksTowers): a hard seat plans its own road round the
 // towers it knows of and walks it in legs. Brain and tier-table work,
 // playback never runs a brain — the legs it logged re-run as legs.
-const EXPECTED_VERSION = 43;
-const EXPECTED_HASH = 'cd36e0dc1981ee4e1f98c6aeeba3aca7';
+// 44 for holding ground: an eighteenth command kind (`holdGround`) that an
+// older sanitizeCommand would screen out of a log recorded here, so the
+// squad it stopped keeps marching there — the focusTarget reasoning under
+// 39. The stance itself (UnitTaskKind.hold, systems/combat.ts holdGround)
+// is a branch no older log can reach. On top of main's 43, the reserve
+// iron seam, which is why this is 44 and not 43. In replayVersion.ts at
+// length.
+const EXPECTED_VERSION = 44;
+const EXPECTED_HASH = 'cc2333e6a3979c7e49fdd28002a46a6e';
 
 /**
  * Everything a replay's playback depends on, as raw source:

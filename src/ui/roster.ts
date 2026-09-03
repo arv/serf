@@ -28,6 +28,10 @@ export interface SelectedUnit {
   kind: UnitTypeId;
   hp: number;
   maxHp: number;
+  /** Standing his ground on order (UnitTaskKind.hold) — what lights the
+   * card's Hold button. Always false for a civilian, who takes no such
+   * order. */
+  holding: boolean;
 }
 
 /** One kind, and how many of it are in hand — the composition line. */
@@ -47,6 +51,8 @@ export interface UnitSource {
    * moves off his kind's. Null for an id that has gone.
    */
   maxHpOf(id: number): number | null;
+  /** Holding ground on order; false for an id that has gone. */
+  isHolding(id: number): boolean;
 }
 
 /**
@@ -132,7 +138,13 @@ export function rosterOf(
     if (pct === null) continue;
     const maxHp = src.maxHpOf(id);
     if (maxHp === null) continue;
-    out.push({id, kind, hp: hpFromPct(pct, maxHp), maxHp});
+    out.push({
+      id,
+      kind,
+      hp: hpFromPct(pct, maxHp),
+      maxHp,
+      holding: src.isHolding(id),
+    });
   }
   const crowded = out.length > ROSTER_TILES;
   out.sort(
@@ -180,7 +192,13 @@ export function sameRoster(
   for (let i = 0; i < a.length; i++) {
     const x = a[i]!;
     const y = b[i]!;
-    if (x.id !== y.id || x.kind !== y.kind || x.hp !== y.hp) return false;
+    if (
+      x.id !== y.id ||
+      x.kind !== y.kind ||
+      x.hp !== y.hp ||
+      x.holding !== y.holding
+    )
+      return false;
   }
   return true;
 }

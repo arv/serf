@@ -38,3 +38,5 @@ export const cancelHire = 16 as const;
 export type cancelHire = typeof cancelHire;
 export const focusTarget = 17 as const;
 export type focusTarget = typeof focusTarget;
+export const holdGround = 18 as const;
+export type holdGround = typeof holdGround;
