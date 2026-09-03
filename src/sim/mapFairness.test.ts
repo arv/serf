@@ -250,31 +250,45 @@ describe('map fairness', () => {
           const all = tilesOf(world, code);
           for (const h of anchors(world)) {
             const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}: ${code}`;
-            // The home seam is the blob nearest the castle: its closest
-            // tile, plus everything of that metal within a seam's own
-            // span (SEAM_REACH off a center, so 2x that end to end).
-            // Grown from the tile rather than sliced out of the band,
-            // because the last-resort tier may center a seam at the band's
-            // wide edge and a fixed radius would then cut it in half and
-            // report a promise broken that was kept.
-            const inBand = all.filter(
-              ([x, y]) =>
-                Math.hypot(x + 0.5 - h.x, y + 0.5 - h.y) <=
-                HOME_SEAM_BAND.wide + SEAM_REACH,
-            );
-            expect(
-              inBand.length,
-              `${label}: seam in the home band`,
-            ).toBeGreaterThan(0);
-            const [nx, ny] = inBand.reduce((best, t) =>
+            // The home seam is WHAT ONE CENTER COVERS, nearest the castle.
+            // placeSeam lays every tile of a seam within SEAM_REACH of the
+            // center it drew, so the seam is the disc of that radius
+            // holding the most of this metal — found by trying the centers
+            // that could have drawn the tile nearest the castle, which is
+            // a home tile on any map that keeps the promise below.
+            //
+            // Not a slice of the map around that tile, which is a
+            // different set and a weaker one: the reserve seam stands off
+            // by RESERVE_SEAM_KEEPOUT less a seam's reach, measured to the
+            // anchor rather than to the castle's middle, and lands a tile
+            // just inside the home ring often enough to be worth refusing
+            // to count (seeds 225/3p, 227/2p and 272/4p of the first 400
+            // do it). A radius slice that reached one would mask a short
+            // seam by topping the count back up, or fail a whole one by
+            // making it seven.
+            const near = all.reduce((best, t) =>
               Math.hypot(t[0] + 0.5 - h.x, t[1] + 0.5 - h.y) <
               Math.hypot(best[0] + 0.5 - h.x, best[1] + 0.5 - h.y)
                 ? t
                 : best,
             );
-            const seam = all.filter(
-              ([x, y]) => Math.hypot(x - nx, y - ny) <= SEAM_REACH * 2,
-            );
+            let seam: [number, number][] = [];
+            for (
+              let cy = near[1] - SEAM_REACH;
+              cy <= near[1] + SEAM_REACH;
+              cy++
+            ) {
+              for (
+                let cx = near[0] - SEAM_REACH;
+                cx <= near[0] + SEAM_REACH;
+                cx++
+              ) {
+                const cover = all.filter(
+                  ([x, y]) => Math.hypot(x - cx, y - cy) <= SEAM_REACH,
+                );
+                if (cover.length > seam.length) seam = cover;
+              }
+            }
             expect(seam.length, `${label}: seam tiles`).toBe(SEAM_TILES);
 
             const own = new Set(seam.map(([x, y]) => y * size + x));
