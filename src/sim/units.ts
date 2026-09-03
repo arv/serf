@@ -25,6 +25,13 @@ export type UnitTask =
       destY: number;
       engageIdx?: number;
     }
+  // Hold ground: stand on this spot and strike only what comes within
+  // weapon reach — never chase, never kite, never walk to a wall. The
+  // stance Warcraft and StarCraft both call Hold Position. It has no
+  // fields because it has no destination: the unit's own feet are the
+  // order, and only a fresh order (a move, an attack-move, a focus) ends
+  // it. The combat system's hold branch is the only thing that reads it.
+  | {t: UnitTaskKindNs.hold}
   // Serf hauling (job id lives on the unit; phase lives on the job):
   | {t: UnitTaskKindNs.haul}
   // Resident worker gather loop:

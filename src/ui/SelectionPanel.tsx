@@ -11,6 +11,7 @@ import {
 } from '../sim/defs/balance';
 import {BUILDING_DEFS, gatherRecipeOf, repairBill} from '../sim/defs/buildings';
 import {type GoodAmounts, goodEntries, goodKeys} from '../sim/defs/goods';
+import {UNIT_DEFS} from '../sim/defs/units';
 import {GoodIcon, LockIcon, UnitIcon} from './icons';
 import {Key} from './shortcut';
 import {
@@ -161,6 +162,8 @@ export function SelectionPanel(props: {
   /** One face on the roster, clicked: him alone, or dropped with shift. */
   onPickUnit: (id: number, additive: boolean) => void;
   onArmOrder: (mode: OrderMode | null) => void;
+  /** Hold ground — sent on the spot, unlike the two orders above. */
+  onHold: () => void;
   onClearRally: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
@@ -211,6 +214,9 @@ export function SelectionPanel(props: {
    * people before they draw at all, so nothing contradicts it there.
    */
   const headCount = () => roster().length || selection().size;
+  /** The soldiers in hand — who the hold order is for. */
+  const fighters = () =>
+    roster().filter(u => UNIT_DEFS[u.kind].combat !== undefined);
   /** The one in hand, when it is one — the card that gets a name. */
   const lone = () => (roster().length === 1 ? roster()[0]! : null);
   /** All of one kind, so the head can name them: knights, not units. */
@@ -1618,6 +1624,30 @@ export function SelectionPanel(props: {
                   <Key label="Move" k="M" />
                 </button>
               </TipWrap>
+              {/* Hold ground. Not a mode like its two neighbours — there
+                  is no spot to click, so the press IS the order — and
+                  lit not because it is armed but because the sim says the
+                  squad is holding (the roster reads the stance off each
+                  publish). Soldiers only: a serf takes no such order, and
+                  a band of them is offered nothing rather than a button
+                  that would confirm an order the sim throws away. */}
+              <Show when={fighters().length > 0}>
+                <TipWrap
+                  tip={() => (
+                    <TextTip
+                      title="Hold ground"
+                      body="They stop where they stand and fight only what comes within reach — no chasing, no giving ground. Any other order releases them."
+                    />
+                  )}
+                >
+                  <button
+                    classList={{active: fighters().every(u => u.holding)}}
+                    onClick={() => props.onHold()}
+                  >
+                    <Key label="Hold" k="H" />
+                  </button>
+                </TipWrap>
+              </Show>
             </Show>
             {/* Let them go — pinned to the far end of the row, which is
                 where it stood when a count line was holding this row open.
@@ -1642,9 +1672,11 @@ export function SelectionPanel(props: {
                 ? 'click where to attack-move'
                 : orderMode() === OrderMode.move
                   ? 'click where to walk'
-                  : matchMedia('(pointer: coarse)').matches
-                    ? 'tap the ground to send them'
-                    : 'right-click to send them'}
+                  : fighters().length > 0 && fighters().every(u => u.holding)
+                    ? 'holding ground — any order releases them'
+                    : matchMedia('(pointer: coarse)').matches
+                      ? 'tap the ground to send them'
+                      : 'right-click to send them'}
           </div>
         </div>
       </Show>

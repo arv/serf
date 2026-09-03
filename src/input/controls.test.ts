@@ -26,6 +26,7 @@ import * as CommandKind from '../sim/commandKindEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as OrderMode from '../ui/orderModeEnum.ts';
 import {
   buildAim,
   orderMode,
@@ -251,6 +252,8 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
      * standing figure keeps the fake to what these tests are about.
      */
     maxHpOf: (id: number): number | null => (units.has(id) ? 100 : null),
+    /** ...and nobody has been told to hold ground. */
+    isHolding: (): boolean => false,
     isDead: (): boolean => false,
   };
   const addUnit = (
@@ -1843,5 +1846,102 @@ describe('minimap orders', () => {
     chart(h.controls, 30.5, 42.5, true);
 
     expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.moveUnits});
+  });
+});
+
+describe('holding ground', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+    setReplayMode(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('H sends the selected soldiers the order on the spot', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.archer);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.type('H');
+
+    // No click to wait for: the order is the ground under their feet.
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.holdGround,
+      unitIds: [1, 2],
+    });
+    expect(orderMode()).toBeNull();
+  });
+
+  it('names only the soldiers in a mixed band', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.serf);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.knight);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.type('H');
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.holdGround,
+      unitIds: [2],
+    });
+  });
+
+  it('does nothing for a band with nobody to hold with', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.serf);
+    h.click(h.screenOf(1));
+
+    h.type('H');
+
+    expect(h.commands).toEqual([]);
+  });
+
+  it('disarms an order that was waiting for its click', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    h.type('A');
+    expect(orderMode()).toBe(OrderMode.attack);
+
+    h.type('H');
+
+    expect(orderMode()).toBeNull();
+    expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.holdGround});
+  });
+
+  it('gives no orders in a replay', () => {
+    const h = harness();
+    controls = h.controls;
+    setReplayMode(true);
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    expect([...selection()]).toEqual([1]);
+
+    h.type('H');
+
+    expect(h.commands).toEqual([]);
   });
 });

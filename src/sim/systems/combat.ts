@@ -8,6 +8,7 @@ import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import {
   COUNTER_TABLE,
   UNIT_DEFS,
+  type CombatStats,
   type UnitClass,
   type UnitTypeId,
 } from '../defs/units.ts';
@@ -75,6 +76,16 @@ export function combatSystem(world: World): void {
     // reporting itself as fighting an enemy it has left behind.
     if (unit.task.t === UnitTaskKind.move) {
       disengage(unit);
+      continue;
+    }
+
+    // Holding ground: the stance that never moves. Its own branch rather
+    // than a flag on the one below, because everything below is written
+    // to close distance — the acquire radius reaches past the weapon, the
+    // chase and the kite plan paths, the siege walks to the wall — and a
+    // hold is the promise that none of that happens.
+    if (unit.task.t === UnitTaskKind.hold) {
+      holdGround(world, liveUnits, liveBuildings, unit, combat);
       continue;
     }
 
@@ -231,27 +242,10 @@ export function combatSystem(world: World): void {
       }
     } else if (targetBuilding) {
       const near = distToBuilding(unit, targetBuilding);
-      if (near <= Math.max(combat.range, 1.4)) {
+      if (near <= wallReach(combat)) {
         unit.path = null;
-        if (unit.cooldownLeft <= 0) {
-          targetBuilding.hp -=
-            combat.damage * BUILDING_DAMAGE_MULT[combat.class];
-          if (isPlayerOwner(targetBuilding.owner)) {
-            const c = centerOf(targetBuilding);
-            world.pendingEvents.push({
-              kind: GameEventKind.damage,
-              player: targetBuilding.owner,
-              x: c.x,
-              y: c.y,
-              building: true,
-            });
-          }
-          unit.cooldownLeft = combat.cooldownTicks;
-          if (targetBuilding.hp <= 0) {
-            destroyBuilding(world, targetBuilding);
-            disengage(unit);
-          }
-        }
+        if (unit.cooldownLeft <= 0)
+          strikeBuilding(world, unit, targetBuilding, combat);
       } else if (fightTheWall(world, liveUnits, unit, combat.range)) {
         // Held off the building by the men in front of it: they first.
       } else if (unit.path === null) {
@@ -273,6 +267,115 @@ export function combatSystem(world: World): void {
         }
       }
     }
+  }
+}
+
+/**
+ * How close a soldier must stand to a building to hit it: his weapon's
+ * reach, or a body's width for the melee arms whose reach is shorter than
+ * the tile they stand on. Measured to the footprint (distToBuilding), so
+ * a wide wall is hit from its face, not its middle.
+ */
+function wallReach(combat: CombatStats): number {
+  return Math.max(combat.range, 1.4);
+}
+
+/**
+ * One blow on a building, on cooldown — the siege's half of strikeUnit.
+ * Buildings do not fight back, so this is only the damage, the alert to
+ * its owner, and the collapse: a wall that comes down releases the man
+ * who brought it down to find the next thing.
+ */
+function strikeBuilding(
+  world: World,
+  unit: Unit,
+  b: Building,
+  combat: CombatStats,
+): void {
+  b.hp -= combat.damage * BUILDING_DAMAGE_MULT[combat.class];
+  if (isPlayerOwner(b.owner)) {
+    const c = centerOf(b);
+    world.pendingEvents.push({
+      kind: GameEventKind.damage,
+      player: b.owner,
+      x: c.x,
+      y: c.y,
+      building: true,
+    });
+  }
+  unit.cooldownLeft = combat.cooldownTicks;
+  if (b.hp <= 0) {
+    destroyBuilding(world, b);
+    disengage(unit);
+  }
+}
+
+/**
+ * A soldier holding ground (UnitTaskKind.hold): the one combat stance
+ * that never plans a path. Warcraft's Hold Position, and it keeps that
+ * game's whole bargain — the man stands exactly where he was told, and
+ * strikes whatever comes within his weapon's reach. What that buys is the
+ * formation the player made: a line of spears that would otherwise be
+ * pulled apart one man at a time by every archer that shows itself, a
+ * rank of bowmen behind them that would otherwise back away from a charge
+ * and be run down in the open.
+ *
+ * Reach is the only radius here, on both ends. Targets are taken inside
+ * weapon range (not acquireRadius, which reaches past the weapon on the
+ * promise of walking the difference) and dropped the moment they step
+ * out of it, so an enemy who backs off is let go and the next one to
+ * close is met fresh. A building is a target too, at the same reach the
+ * siege strikes at — a man told to hold at a wall hits the wall — but
+ * only for player seats, as the idle siege is (camp guards take their
+ * targets from raids).
+ *
+ * Retaliation (strikeUnit) can still hand this man an attacker beyond his
+ * reach — an archer shooting him from across the field. It is validated
+ * away here next tick like any other target that left his reach, so he
+ * turns on whoever IS in reach instead of standing fixed on a man he was
+ * never going to walk to.
+ */
+function holdGround(
+  world: World,
+  units: readonly Unit[],
+  buildings: readonly Building[],
+  unit: Unit,
+  combat: CombatStats,
+): void {
+  let targetUnit: Unit | undefined;
+  let targetBuilding: Building | undefined;
+  if (unit.targetId !== undefined) {
+    if (unit.targetIsBuilding) {
+      const b = world.buildings.get(unit.targetId);
+      if (b && !b.dead && distToBuilding(unit, b) <= wallReach(combat))
+        targetBuilding = b;
+    } else {
+      const t = world.units.get(unit.targetId);
+      if (t && !t.dead && exactDist(t.x - unit.x, t.y - unit.y) <= combat.range)
+        targetUnit = t;
+    }
+    if (!targetUnit && !targetBuilding) disengage(unit);
+  }
+  if (unit.targetId === undefined) {
+    targetUnit = acquireUnit(units, unit, combat.range);
+    if (targetUnit) {
+      unit.targetId = targetUnit.id;
+      unit.targetIsBuilding = false;
+    } else if (isPlayerOwner(unit.owner)) {
+      const b = nearestEnemyBuilding(buildings, unit);
+      if (b && distToBuilding(unit, b) <= wallReach(combat)) {
+        targetBuilding = b;
+        unit.targetId = b.id;
+        unit.targetIsBuilding = true;
+      }
+    }
+  }
+  if (unit.cooldownLeft > 0) return;
+  if (targetUnit) {
+    strikeUnit(world, unit, targetUnit);
+    unit.cooldownLeft = combat.cooldownTicks;
+  } else if (targetBuilding) {
+    strikeBuilding(world, unit, targetBuilding, combat);
   }
 }
 

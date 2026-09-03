@@ -166,6 +166,26 @@ export function applyCommand(
     case CommandKind.moveUnits:
       applyMoveUnits(world, playerId, cmd);
       break;
+    case CommandKind.holdGround:
+      // Stop where you stand and fight only what reaches you. Soldiers
+      // only, re-checked per man like every other order: a civilian in
+      // the list keeps his errand (see the command's note in commands.ts).
+      // The walk in hand is dropped outright — the spot the man is on IS
+      // the order — and with it the squad pace, which was for a march
+      // that is now over. The target goes too: a chaser told to hold
+      // must not go on chasing, and combat's hold branch re-acquires
+      // anything actually within reach on the very next tick.
+      for (const id of cmd.unitIds) {
+        const unit = world.units.get(id);
+        if (!unit || unit.dead || unit.owner !== playerId) continue;
+        if (!UNIT_DEFS[unit.kind].combat) continue;
+        unit.task = {t: UnitTaskKind.hold};
+        unit.path = null;
+        clearMarchSpeed(unit);
+        unit.targetId = undefined;
+        unit.targetIsBuilding = undefined;
+      }
+      break;
     case CommandKind.focusTarget: {
       // The one order that names a target. Everything is re-checked here,
       // because a command arrives off a socket as readily as off a click:
@@ -183,6 +203,13 @@ export function applyCommand(
         if (!u || u.dead || u.owner !== playerId) continue;
         if (!UNIT_DEFS[u.kind].combat) continue;
         if (u.task.t === UnitTaskKind.move) continue;
+        // Naming a target is an order to go and fight it, so it releases a
+        // hold: a man holding ground strikes only what reaches him, and a
+        // target pinned on him from across the field would be one he
+        // never walks to — exactly as Warcraft's Hold Position is undone
+        // by the next attack order.
+        if (u.task.t === UnitTaskKind.hold)
+          u.task = {t: UnitTaskKind.idle, until: world.tick};
         u.targetId = target.id;
         u.targetIsBuilding = cmd.building === true;
         // A building target never drops by distance, so a squad given one

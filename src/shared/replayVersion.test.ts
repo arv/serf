@@ -184,8 +184,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // HAUL_SHARE, read by dispatch in systems/logistics.ts): which serf takes
 // which errand is the sim, and lower priority now means less often rather
 // than never. In replayVersion.ts at length.
-const EXPECTED_VERSION = 42;
-const EXPECTED_HASH = '3a7772b82ddc25c8df38b17d3c98552d';
+// 43 for holding ground: an eighteenth command kind (`holdGround`) that an
+// older sanitizeCommand would screen out of a log recorded here, so the
+// squad it stopped keeps marching there — the focusTarget reasoning under
+// 39. The stance itself (UnitTaskKind.hold, systems/combat.ts holdGround)
+// is a branch no older log can reach. In replayVersion.ts at length.
+const EXPECTED_VERSION = 43;
+const EXPECTED_HASH = '9f688ed201f13759a232a68f55d48369';
 
 /**
  * Everything a replay's playback depends on, as raw source:

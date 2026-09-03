@@ -96,6 +96,11 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
       'A taunt with an address: announce a coming march (or vengeance) to one rival. The AI seats send these before a full assault; the note is a number the screen turns into words, never free text.',
     payload: 'target, note (marchComing · retribution · finalAssault), count?',
   },
+  [CommandKind.holdGround]: {
+    summary:
+      'Hold ground — Warcraft’s Hold Position, on H. The soldiers named stop where they stand and fight only what comes within weapon reach: no chasing, no kiting, no walking to a wall, and a target that steps out of reach is let go rather than followed. Any other order releases them. Civilians in the list are skipped.',
+    payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
+  },
   [CommandKind.focusTarget]: {
     summary:
       'Put a squad on one enemy — focus fire. Every other order leaves targeting to the sim, which sends each soldier at the nearest enemy it counters; this overrides that for the units named, until the target dies or outruns them. Worth having because damage is flat: a soldier at a sliver of health hits as hard as a fresh one, so killing one outright removes its whole output where spreading the same damage over three removes none.',
