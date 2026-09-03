@@ -1,3 +1,4 @@
+import {batch} from 'solid-js';
 import {
   audioFrame,
   play,
@@ -577,11 +578,16 @@ export async function runMatch(
     // HUD's signals (and their subscribers) untouched.
     setSimTick(msg.tick);
     if (msg.players) {
-      setPlayersMeta(msg.players);
       // The readouts are the VIEWED seat's, which is this client's own in
       // a match and whichever seat the pointer last picked in a replay.
-      const seat = msg.players[viewerId()];
-      if (seat) applySeat(seat);
+      // One batch with the roster: the seat chip reads playersMeta and
+      // the strip reads the readouts, and the two must not disagree for
+      // an update pass between the writes.
+      batch(() => {
+        setPlayersMeta(msg.players!);
+        const seat = msg.players![viewerId()];
+        if (seat) applySeat(seat);
+      });
       opponentsNow = msg.players.filter(p => p.kind === PlayerKind.ai).length;
     }
     if (msg.jobs) setDebugJobs(msg.jobs);
@@ -653,13 +659,11 @@ export async function runMatch(
         // numbers and the screen owns the phrasing. The horn is the raid
         // horn on purpose: one sound means "look up, something is coming".
         play('raidHorn');
-        // Through seatName, so two lords dealt the same playbook are
-        // told apart here the way the cards tell them apart.
-        const lord = playersMeta().find(p => p.id === event.attacker)?.strategy;
-        const name =
-          lord !== undefined
-            ? seatName(event.attacker, playersMeta())
-            : 'a rival lord';
+        // Through seatName, so two lords dealt the same playbook are told
+        // apart here the way the cards tell them apart — and a seat with
+        // no playbook (an AI's from a save older than the deal) is named
+        // the way the cards name it, rather than "a rival lord".
+        const name = seatName(event.attacker, playersMeta());
         const words =
           event.note === HeraldNote.retribution
             ? 'For the raid on our lands — we are coming!'

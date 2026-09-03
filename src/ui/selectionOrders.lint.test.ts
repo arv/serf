@@ -106,8 +106,12 @@ describe('selection card order lint', () => {
         const oi = indentOf(outer);
         if (oi >= indent) continue;
         indent = oi;
-        if (outer.includes(INERT)) guarded = true;
-        else if (outer.includes('<Show')) guarded = GUARDS.test(outer);
+        // A tag, and only a tag: the card's own comments spell the marker
+        // out, and a comment that guarded a row would be a hole this test
+        // is here to close.
+        const tag = outer.trimStart().startsWith('<');
+        if (tag && outer.includes(INERT)) guarded = true;
+        else if (tag && outer.includes('<Show')) guarded = GUARDS.test(outer);
       }
       if (!guarded) offenders.push(`${i + 1}: ${line.trim()}`);
     }
