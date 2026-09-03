@@ -653,8 +653,8 @@ describe('the stall watchdog', () => {
     // sent after each one were lost on the road. Nearest is not
     // reachable when the ground between is somebody else's yard.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 10, 50, {}, 1); // the rival, in the south-west
     addStorehouse(world, 30, 30, {[GoodId.wood]: 20, [GoodId.stone]: 20});
+    addStorehouse(world, 10, 50, {}, 1); // the rival, in the south-west
     // The only trees on the map stand at the rival's door.
     for (let x = 8; x < 14; x++) addResourceTile(world, x, 46);
     const brain = new AiBrain(
@@ -690,8 +690,8 @@ describe('the stall watchdog', () => {
     // hut, and it reads the same line: a grove at a living rival's door
     // is not somewhere to go.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 10, 50, {}, 1);
     addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 10, 50, {}, 1);
     const dead = addBuiltHut(world, 40, 40); // no resource tile in reach
     for (let x = 8; x < 14; x++) addResourceTile(world, x, 46);
     const brain = new AiBrain(
@@ -758,6 +758,38 @@ describe('the stall watchdog', () => {
     // And once the mark has aged out, the grove is worth a hut again.
     world.tick += AI_SITING.razedFor;
     expect(cutters(beat()).length).toBe(1);
+  });
+
+  it('a razed house in the yard marks nothing: only outposts leave a mark', () => {
+    // The castle yard is rebuilt under fire on purpose, and a house lost
+    // there must not keep the next woodcutter off the grove at the door.
+    const world = bareWorld(1, 2);
+    // Own castle first: addStorehouse pads world.starts up to the owner it
+    // is given, and a rival added first would leave seat 0's start at 0,0.
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 40, [GoodId.stone]: 40});
+    addStorehouse(world, 10, 50, {}, 1);
+    for (let x = 33; x < 38; x++) addResourceTile(world, x, 34); // at the door
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    // A house foundation two tiles from that grove, seen by the brain and
+    // then razed before the next beat.
+    const house = placeSite(world, BuildingTypeId.house, 0, 34, 31);
+    world.tick += AI_PACING.decisionInterval;
+    brain.decide(world);
+    destroyBuilding(world, house);
+    world.tick += AI_PACING.decisionInterval;
+    const cutter = brain
+      .decide(world)
+      .find(
+        c =>
+          c.kind === CommandKind.placeBuilding &&
+          c.building === BuildingTypeId.woodcutter,
+      ) as {x: number; y: number} | undefined;
+    expect(cutter).toBeDefined();
+    expect(Math.abs(cutter!.y - 34)).toBeLessThanOrEqual(6);
   });
 
   it('will not sell a worked-out extractor with nowhere live to move to', () => {
@@ -1585,12 +1617,13 @@ describe('the seat that sees its seam running out', () => {
     opts: {reserve?: boolean; successor?: boolean; rival?: boolean} = {},
   ): {world: World; brain: AiBrain; mine: Building} {
     const world = bareWorld(1, opts.rival ? 2 : 1);
-    // A living rival whose castle stands over the reserve, so the seam is
-    // its yard rather than this seat's (siting.ts rivalGround).
-    if (opts.rival) addStorehouse(world, 30, 60, {}, 1);
     // Exactly one mine's worth of materials: enough for the successor,
     // not enough for the abbey the plan wants next.
     addStorehouse(world, 30, 30, {[GoodId.wood]: 8, [GoodId.stone]: 4});
+    // A living rival whose castle stands over the reserve, so the seam is
+    // its yard rather than this seat's (siting.ts rivalGround). After our
+    // own: addStorehouse pads world.starts up to the owner it is given.
+    if (opts.rival) addStorehouse(world, 30, 60, {}, 1);
     for (const [type, x, y] of [
       [BuildingTypeId.house, 27, 30],
       [BuildingTypeId.well, 27, 33],

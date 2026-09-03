@@ -1124,6 +1124,13 @@ export class AiBrain {
    * razed (nothing else removes a site — the seat sells only built
    * extractors), and its ground is marked for AI_SITING.razedFor. Then
    * take stock of the foundations standing now, for the next beat to read.
+   *
+   * Outpost foundations only — the gatherers and the fishery, the
+   * buildings the playbooks anchor on a seam or the shore — because those
+   * are the only steps that read the marks. A house razed in the castle
+   * yard during a siege is the yard's business (see AI_SITING), and a
+   * mark from it would keep the next woodcutter off a grove at the door
+   * for no reason the mark was made for.
    */
   #noteRazed(world: World, mine: Building[]): void {
     const now = world.tick;
@@ -1134,8 +1141,10 @@ export class AiBrain {
     }
     this.#foundations.clear();
     for (const b of mine) {
-      if (b.state === BuildingState.site)
-        this.#foundations.set(b.id, {x: b.x, y: b.y});
+      if (b.state !== BuildingState.site) continue;
+      const def = BUILDING_DEFS[b.type];
+      if (!gatherRecipeOf(def) && !def.nearWater) continue;
+      this.#foundations.set(b.id, {x: b.x, y: b.y});
     }
     if (this.#razed.length > 0)
       this.#razed = this.#razed.filter(r => r.until > now);
