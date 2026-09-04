@@ -252,8 +252,35 @@ import {REPLAY_VERSION} from './replayVersion';
 // now returns the name of the rule that fired, and canPlace is that
 // function asked whether the name is null. Every site legal yesterday is
 // legal today, so a log's placements re-run tile for tile.
-const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = '5e136257bb3118591c658e86b90e0be5';
+// 48 for the miners' ration: a gather recipe may now carry one (defs/
+// buildings.ts), the three mines do, production charges it and logistics
+// hauls it (systems/), and a mine with an empty pantry stops. That is
+// sim behavior in the plainest sense — the same commands on the same
+// ground produce a different valley — so the version moves with the hash.
+// Still 48 after the four playbooks stopped gating the mill and the bakery
+// behind the barracks (defs/aiStrategies.ts): playbook data, and playback
+// never runs a brain — a replay stores the seats' commands rather than
+// re-deriving them (app/replay.ts), so a seat that would build in a
+// different order today replays as it built then. The hash is over raw
+// bytes, which is why it moved anyway.
+// Still 48 after the opening peace stretched 540s -> 610s (defs/balance.ts
+// FIRST_RAID_TICK): the first wave spawns on a different tick, which is
+// sim behavior of the plainest kind — but it ships in the same unreleased
+// build as the ration that made it necessary, and one build is one
+// version. There is no build in the wild that has the ration and the old
+// clock, so there is nothing for a 49 to tell apart.
+// Still 48 after RATION_STOCK's comment stopped calling the pantry a shelf
+// (defs/balance.ts, words only): a shelf is `stock` everywhere else in the
+// sim, and the loaves were never there. Same bytes hashed, same behavior.
+// Still 48 after the second half of that same correction (systems/
+// logistics.ts) and after FIRST_RAID_TICK's note said which side of the
+// stretch its 13.4% was measured on. Comments both times.
+// Still 48 after rationLeft's doc stopped saying a meal tops the counter
+// up to `per` (sim/entities.ts): chargeRation sets `per - 1`, because the
+// load that found the pantry empty is the first of the `per` its loaf
+// buys. Words; the counter always did this.
+const EXPECTED_VERSION = 48;
+const EXPECTED_HASH = '4fe650913d7f340868e9bd356b47e5ff';
 
 /**
  * Everything a replay's playback depends on, as raw source:

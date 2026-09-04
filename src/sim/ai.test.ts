@@ -1626,10 +1626,17 @@ describe('the seat that sees its seam running out', () => {
     // its yard rather than this seat's (siting.ts rivalGround). After our
     // own: addStorehouse pads world.starts up to the owner it is given.
     if (opts.rival) addStorehouse(world, 30, 60, {}, 1);
+    // The plan's cheap wants, already standing, so the build order has
+    // nothing it can afford this beat and the reserve rule is what speaks.
+    // The mill is on the list since the mines started eating: with the
+    // bread chain ungated it is the next thing the plan reaches for, and
+    // it costs exactly the mine's worth of materials below — so without it
+    // the build order spends them and `ctx.placed` stands the rule down.
     for (const [type, x, y] of [
       [BuildingTypeId.house, 27, 30],
       [BuildingTypeId.well, 27, 33],
       [BuildingTypeId.wheatFarm, 24, 30],
+      [BuildingTypeId.mill, 24, 34],
     ] as const) {
       placeBuiltBuilding(world, type, 0, x, y);
     }

@@ -50,6 +50,44 @@ export const START_STOCK: GoodAmounts = {
   [GoodId.rod]: 1,
 };
 
+/**
+ * The miners' ration: how many loads one food buys at a mine.
+ *
+ * The Settlers rule, and the reason it is here: before this, food's only
+ * consumer in the whole game was the barracks (`trains` in buildings.ts),
+ * so the longest chain in the village — well, farm, mill, bakery, four
+ * roofs and three residents — was a military supply line wearing an
+ * economy's clothes. A mine that eats gives the bread chain a customer
+ * that is not the army, and makes "another mine" a question about the
+ * ovens rather than a free tap.
+ *
+ * Every mine, silver included, because silver is what hires the hands that
+ * carry the bread: leaving it out would have left the one ore that pays
+ * for the whole ramp outside the loop it is supposed to close.
+ *
+ * A mine with no ration idles rather than dying, and the way back is
+ * always open — the fishery takes no input at all and its rod is the
+ * Smith's one wood-only tool, so a village that has run its granary dry
+ * can always fish its way back out. That is the same reasoning that keeps
+ * the pickaxe off iron (see the Smith's recipes).
+ */
+export const MINE_RATION_PER = 3;
+/**
+ * Loaves a mine keeps in its pantry — the input buffer a converter's
+ * ingredients wait in, never the output shelf evacuation carts home (see
+ * `deliver` in systems/logistics.ts). The size is the abbey's ale cap one
+ * door over rather than the converters' INPUT_CAP of five.
+ *
+ * Small on purpose. Three mines each holding five would park a whole
+ * bakery's minute of output as inventory in the hillside, where the
+ * barracks and the abbey cannot reach it; two is about six loads of
+ * runway at MINE_RATION_PER, which covers a hauler's round trip out to
+ * the seam and back without turning the shaft into a granary. If the
+ * sweep shows mines idling with bread on the board rather than none in
+ * the world, this is the number that is wrong, not the ration.
+ */
+export const RATION_STOCK = 2;
+
 // Logistics
 export const MATCHER_INTERVAL = 5; // ticks between matcher/reconcile passes
 export const JOB_BLOCKED_BACKOFF = 40; // ticks before retrying an unreachable job
@@ -226,12 +264,29 @@ export const BUILDING_DAMAGE_MULT: Record<UnitClass, number> = {
 // first raid now has to wait out a house as well as a barracks. At the old
 // seven minutes every playbook met the first wave a squad short and the
 // campaign stopped being winnable.
-export const FIRST_RAID_TICK = 540 * TICKS_PER_SECOND; // 9 minutes of peace on the classic 64 map
+//
+// Stretched again, by a further eighth, when the mines started eating
+// (MINE_RATION_PER). Same reason as the housing stretch and measured the
+// same way: the ration puts the whole bread chain in front of the ore, and
+// across three seed ranges of the balance sweep the median winning tick
+// rose 13.4% — 17.3k to 19.6k, measured BEFORE this stretch and with the
+// clock still at 540, which is the slowdown the stretch is answering and
+// not a number the shipped build produces — while the first wave went on
+// arriving at exactly the tick it always had. Deaths across the deck more
+// than doubled on the range that had not been tuned against. (With the
+// stretch in, the median settles at 20.1k, +16.4% on the baseline: the
+// game is longer still, because a later first raid is itself part of why
+// it runs on.) 540 -> 610 gives the
+// slower ramp back the same share of peace it had before, and nothing
+// else about the raid moves: the CAP, the roster and the between-waves
+// interval are all as they were, so what is being answered here is the
+// economy's new opening and not the war.
+export const FIRST_RAID_TICK = 610 * TICKS_PER_SECOND; // ~10.2 minutes of peace on the classic 64 map
 export const RAID_INTERVAL = 180 * TICKS_PER_SECOND;
 export const RAID_CAP = 8;
 
 /**
- * The peace period, scaled to the map being played. The 9 minutes above
+ * The peace period, scaled to the map being played. The minutes above
  * were tuned against 64-tile commutes; every haul on a bigger map walks
  * proportionally further, the economy ramps proportionally slower, and a
  * raid clock that ignored that made every playbook meet the first wave a

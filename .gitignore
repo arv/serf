@@ -22,3 +22,6 @@ server/.data/
 
 # bake-off run logs (tools/aiLab)
 runs/
+
+# aiLab scratch: one-off seed searches and probes, never committed.
+tools/aiLab/scratch/
