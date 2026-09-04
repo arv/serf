@@ -99,6 +99,33 @@ carry were tuned. `?marks=1` beads every walk mark to check the circuit
 against the rows; `?rival=1` turns the seat red for the team roof.
 `w`/`h`/`zoom`/`fy` frame the shot as everywhere else.
 
+## The monument
+
+`_monument.html` is where the wonder was composed: a serf cast in gold on a
+battered stone pedestal, the one building here that is a person rather than
+a workplace. It calls the real builder (`makeMonument`, in
+`src/render/procBuildings.ts`) with the real figure — `makeStatueGeometry`
+bakes one frame of the rig down to plain geometry (`src/render/statue.ts`)
+— and sizes the result the way `makeGlbBuilding` sizes a building of that
+footprint, with a live serf standing at the foot of it so the only question
+that matters (how big is this next to the people who built it?) is on the
+screen rather than in the head.
+
+```sh
+pnpm dev   # then /tools/modelLab/_monument.html
+```
+
+`?fp=<2|3>` sets the footprint it is sized for — 4.0 tall at 2x2, against a
+house's 2.3 and the castle's 5.6. `?pose=<anim key>`, `?phase=<0..1>`,
+`?load=<carry code>`, `?tool=<WORK kind>` and `?lift=<degrees>` cut the
+figure from a different clip, moment, load, tool and chin angle; the
+defaults are `SERF_AT_REST`, and the note on it says which alternatives were
+looked at here and why they lost. `?serf=0` sends the man beside it home,
+`?yaw` walks the camera round, `w`/`h`/`zoom`/`fy` frame the shot as
+everywhere else. The page also prints the model's height and how many of its
+triangles land in the team-colour slot — a monument nobody's colour reaches
+is a monument every seat builds identically.
+
 ## Publishing the gallery
 
 ```sh
