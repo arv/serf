@@ -176,6 +176,9 @@ async function main(): Promise<void> {
     onlyAt < 0 ? null : new Set(process.argv[onlyAt + 1]!.split(','));
   const ablateAt = process.argv.indexOf('--ablate');
   const ablate = ablateAt < 0 ? null : process.argv[ablateAt + 1]!;
+  const keysAt = process.argv.indexOf('--keys');
+  const keys =
+    keysAt < 0 ? null : new Set(process.argv[keysAt + 1]!.split(','));
   const timeoutMs = arg('--match-timeout-ms', 300_000);
 
   const parent: AiStrategy = AI_STRATEGIES[AiStrategyIdNs.steward];
@@ -247,6 +250,27 @@ async function main(): Promise<void> {
     : candidates;
   candidates.length = 0;
   candidates.push(...kept);
+
+  // `--keys` narrows every candidate's advice to a subset of the knobs,
+  // and it is how a finding gets tested with the stance engine LIVE.
+  // The override is merged over the stance knobs, not instead of them
+  // (systems/ai.ts), so advice that names only knobs no posture sets —
+  // serfTarget, houseLimit, housingHeadroom, researchReserve, the four
+  // STANCE_KNOB_KEYS leaves alone — pins those and lets both seats keep
+  // their moods. For those four, narrow advice is exactly what editing
+  // the printed playbook would do. For the five a posture does set, it is
+  // not: pinning homeGuard also stops `fortify` raising it under a raid,
+  // which no playbook edit would.
+  if (keys) {
+    for (const c of candidates) {
+      const narrowed: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(c.advice)) {
+        if (keys.has(k)) narrowed[k] = v;
+      }
+      c.advice = narrowed as StrategyAdvice;
+      c.what = `${c.what}  [keys: ${[...keys].join(',')}]`;
+    }
+  }
 
   const parent0 = candidates[0]!;
   const seeds = Array.from({length: seedCount}, (_, i) => i + seedStart);
