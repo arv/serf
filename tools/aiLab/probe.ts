@@ -176,6 +176,8 @@ async function main(): Promise<void> {
     onlyAt < 0 ? null : new Set(process.argv[onlyAt + 1]!.split(','));
   const ablateAt = process.argv.indexOf('--ablate');
   const ablate = ablateAt < 0 ? null : process.argv[ablateAt + 1]!;
+  const sweepAt = process.argv.indexOf('--sweep');
+  const sweep = sweepAt < 0 ? null : process.argv[sweepAt + 1]!;
   const keysAt = process.argv.indexOf('--keys');
   const keys =
     keysAt < 0 ? null : new Set(process.argv[keysAt + 1]!.split(','));
@@ -212,6 +214,23 @@ async function main(): Promise<void> {
       },
     },
   ];
+  // `--sweep serfTarget:11,12,13,14,16` — one candidate per value of one
+  // knob. A single winning step says a knob is mis-set; a dose-response
+  // says whether the printed value sits on a slope or at a peak, and only
+  // the second tells you what to write in the playbook.
+  if (sweep) {
+    const [knob, list] = sweep.split(':');
+    for (const raw of (list ?? '').split(',')) {
+      const value = Number(raw);
+      const one: AiStrategy = {...parent};
+      Object.assign(one, {[knob!]: value});
+      candidates.push({
+        label: `${knob}=${raw}`,
+        what: `dose · ${knob} ${String((parent as never)[knob!])}→${raw}`,
+        advice: adviceOf(one),
+      });
+    }
+  }
   for (let i = 0; i < mutantCount; i++) {
     // Alternating one- and three-knob steps: the honest neighbour, and a
     // bolder jump, because a search that only ever moves one knob a fifth
@@ -247,7 +266,9 @@ async function main(): Promise<void> {
           only.has(c.label) ||
           (ablate !== null && c.label.startsWith(`${ablate}.`)),
       )
-    : candidates;
+    : // A COPY, never the array itself: the splice below empties
+      // `candidates`, and an alias would take the whole slate with it.
+      [...candidates];
   candidates.length = 0;
   candidates.push(...kept);
 
