@@ -84,8 +84,13 @@ const PRESET = LORD ? LORD_AT_ARMS : SERF_AT_REST;
 const KIND = num('kind', LORD ? UnitTypeId.knight : UnitTypeId.serf);
 
 const poseName = params.get('pose');
+// `Object.hasOwn`, not `in`: the repo's pattern for reading a name against an
+// enum module (asUnitTypeId in sim/defs/units.ts, parseAdvice in ai/advice.ts)
+// and the one that stays right however the namespace is materialized. A live
+// ES module namespace has a null prototype, so `in` happens to be safe on the
+// dev server this page runs on — but nothing here should depend on that.
 const clip =
-  poseName && poseName in AnimKey
+  poseName && Object.hasOwn(AnimKey, poseName)
     ? ((AnimKey as unknown as Record<string, AnimKeyT>)[poseName] as AnimKeyT)
     : PRESET.clip;
 const statue = makeStatueGeometry(
