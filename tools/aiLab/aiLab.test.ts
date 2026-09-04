@@ -291,6 +291,33 @@ describe('a headless match', () => {
     expect(digestOf(second)).toBe(digestOf(first));
   });
 
+  it('plays a handed-in playbook, and plays the printed one identically', async () => {
+    // The search seam, end to end. Two halves, and both matter: a
+    // candidate has to reach the field, and handing a seat back its own
+    // printed numbers has to change nothing — otherwise the seam itself
+    // is a treatment and every candidate is measured against a perturbed
+    // control.
+    const control = await playMatch(config());
+    const restated = await playMatch(
+      config({playbooks: [AI_STRATEGIES[AiStrategyId.steward], null]}),
+    );
+    expect(digestOf(restated)).toBe(digestOf(control));
+
+    // researchReserve rather than serfTarget: this fixture is 4,000 ticks
+    // and the growth knobs sit behind growthAfter research, so a serf
+    // target moved here would assert nothing. Silver held back from
+    // hiring bites on the opening beats.
+    const changed = await playMatch(
+      config({
+        playbooks: [
+          {...AI_STRATEGIES[AiStrategyId.steward], researchReserve: 0},
+          null,
+        ],
+      }),
+    );
+    expect(digestOf(changed)).not.toBe(digestOf(control));
+  });
+
   it('plays a different war than unadvised — but only if the advice lands in time', async () => {
     // Advise seat 1: the seat whose march the advice moves on this fixture.
     // It musters at four instead of seven, marches earlier, and loses the

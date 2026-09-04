@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {AiSeats} from './aiSeats';
 import * as DifficultyId from './defs/difficultyEnum.ts';
+import type {Owner} from './entities.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import {deserializeWorld, serializeWorld} from './save.ts';
 import {tickWorld} from './tick';
@@ -120,6 +121,38 @@ describe('AI seats at a difficulty', () => {
     expect(new AiSeats(reloaded).brainFor(1)?.difficulty).toBe(
       DifficultyId.hard,
     );
+  });
+
+  it('plays a playbook handed in over the one the seat was dealt', () => {
+    // The search seam. It is the BASE layer, not advice: a candidate has
+    // to be measured with its moods and its tier intact, or a searched
+    // winner arrives in the shipped game a different animal.
+    const world = createWorld({
+      seed: 3,
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+      adminEnabled: false,
+    });
+    const dealt = new AiSeats(world).brainFor(1)!.strategy;
+    const handed = {...dealt, serfTarget: dealt.serfTarget + 6};
+    const seats = new AiSeats(world, new Map([[1 as Owner, handed]]));
+    expect(seats.brainFor(1)!.strategy.serfTarget).toBe(dealt.serfTarget + 6);
+    // The opening rides by reference: a handed-in playbook is its lineage
+    // plus knobs, never a rewrite of the build order.
+    expect(seats.brainFor(1)!.strategy.build).toBe(dealt.build);
+  });
+
+  it('leaves a seat nobody named on its own printed line', () => {
+    const world = createWorld({
+      seed: 3,
+      players: [{kind: PlayerKind.ai}, {kind: PlayerKind.ai}],
+      adminEnabled: false,
+    });
+    const dealt = new AiSeats(world);
+    const handed = new AiSeats(
+      world,
+      new Map([[1 as Owner, {...dealt.brainFor(1)!.strategy, serfTarget: 19}]]),
+    );
+    expect(handed.brainFor(0)!.strategy).toBe(dealt.brainFor(0)!.strategy);
   });
 
   it('thinks on a slower beat when the seat is easy', () => {

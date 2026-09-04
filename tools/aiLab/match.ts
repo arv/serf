@@ -79,6 +79,14 @@ export interface MatchConfig {
    * time, and an empty array is the pre-reactive brain.
    */
   warBehaviors?: readonly WarBehaviorId[];
+  /**
+   * Seat-indexed base playbooks, for a search that is trying candidates
+   * rather than steering shipped ones. A seat with none plays the
+   * playbook its id names. Unlike advice, these compose UNDER the stance
+   * cascade and the difficulty tier (see AiSeats), so a candidate is
+   * measured in the configuration that ships.
+   */
+  playbooks?: readonly (AiStrategy | null)[];
   /** Give up and call it undecided past here. */
   maxTicks: number;
   /** Ticks between one seat's consultations (simWorker shipped 1800 = 90 s). */
@@ -234,7 +242,11 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     banditsEnabled: cfg.bandits,
     mapSize: cfg.mapSize,
   });
-  const seats = new AiSeats(world);
+  const handed = new Map<Owner, AiStrategy>();
+  for (const [seat, playbook] of (cfg.playbooks ?? []).entries()) {
+    if (playbook) handed.set(seat as Owner, playbook);
+  }
+  const seats = new AiSeats(world, handed.size ? handed : undefined);
   if (cfg.economyRules !== undefined) {
     for (const id of seats.seatIds())
       seats.brainFor(id)?.setEconomyRules(cfg.economyRules);

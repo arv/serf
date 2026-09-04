@@ -23,7 +23,23 @@ import type {World} from './world.ts';
 export class AiSeats {
   #brains: AiBrain[];
 
-  constructor(world: World) {
+  /**
+   * `playbooks` replaces a seat's printed line with one handed in — the
+   * seam a playbook SEARCH needs, and deliberately not the one advice
+   * uses. Advice (`applyAdvice`) lands on top of everything: it outranks
+   * the stance cascade, so a seat told its own printed numbers still ends
+   * up with its moods muted. A playbook handed in here is the BASE layer
+   * instead, with the stance cascade and the difficulty transform
+   * composing over it exactly as they do over a shipped one — which is
+   * what makes a searched candidate measurable in the configuration that
+   * ships rather than in a stanceless one.
+   *
+   * Nothing in the game passes it. A handed-in playbook keeps its
+   * lineage's id and is NOT registered in `AI_STRATEGIES`, so it cannot
+   * ride a save; that is why this is a constructor argument and not a
+   * field on the player.
+   */
+  constructor(world: World, playbooks?: ReadonlyMap<Owner, AiStrategy>) {
     // The playbook AND the tier come off the seat: both were dealt at
     // creation and both ride the save, so a reloaded match faces the same
     // opponents playing the same way.
@@ -33,7 +49,7 @@ export class AiSeats {
         p =>
           new AiBrain(
             p.id,
-            strategyOf(p.strategy),
+            playbooks?.get(p.id) ?? strategyOf(p.strategy),
             world.map.size,
             p.difficulty,
           ),

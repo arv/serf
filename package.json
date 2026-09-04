@@ -20,7 +20,8 @@
     "bakeoff": "node --experimental-strip-types tools/aiLab/bakeoff.ts",
     "balance": "node --experimental-strip-types tools/aiLab/balance.ts",
     "tiers": "node --experimental-strip-types tools/aiLab/tiers.ts",
-    "bakeoff:compare": "node --experimental-strip-types tools/aiLab/compare.ts"
+    "bakeoff:compare": "node --experimental-strip-types tools/aiLab/compare.ts",
+    "evolve": "node --experimental-strip-types tools/aiLab/evolve.ts"
   },
   "dependencies": {
     "solid-js": "^1.9.14",
