@@ -75,6 +75,25 @@ export const SERF_AT_REST: StatuePose = {
 };
 
 /**
+ * The lord, for the other statue a village raises: the knight body, armed
+ * and helmeted, caught at the top of the chop where the sword is up and the
+ * shield across him — the one moment in the whole clip library where a
+ * figure stands square with a weapon raised. His own idle holds the sword
+ * out sideways, which reaches past the pedestal and loses the blade against
+ * the ground behind it.
+ *
+ * The load is a hauler's, so he carries none; the chin comes up further
+ * than the serf's because a helmet's brow hides more of a face than hair
+ * does.
+ */
+export const LORD_AT_ARMS: StatuePose = {
+  clip: AnimKeyNs.attack,
+  phase: 0.2,
+  load: 0,
+  lift: (26 * Math.PI) / 180,
+};
+
+/**
  * Bake one pose of a villager into a single static geometry, feet on y=0,
  * standing on the origin, exactly 1 tall — so a caller sizes the figure by
  * scaling and nothing here has to know how big a monument is.

@@ -9,7 +9,10 @@
  * height, because the only question that matters is how the thing reads
  * next to the people who built it.
  *
- * ?fp=<2|3> sets the footprint it is sized for. ?pose=<anim key name> and
+ * ?figure=lord swaps the serf for the knight preset; ?kind=<unit kind> puts
+ * any other body on the plinth (1 serf, 2 worker, 3 knight, 4 spearman,
+ * 5 archer, 6-8 the bandits). ?fp=<2|3> sets the footprint it is sized for.
+ * ?pose=<anim key name> and
  * ?phase=<0..1> cut the figure from a different clip and moment;
  * ?load=<carry code> changes what is in his arms (0 = empty).
  * ?serf=0 sends the man beside it home, ?yaw walks the camera round, and
@@ -26,7 +29,11 @@ import {
 } from '../../src/render/characters';
 import {TEAM_SWATCH_UV} from '../../src/render/factionPalette';
 import {makeMonument} from '../../src/render/procBuildings';
-import {makeStatueGeometry, SERF_AT_REST} from '../../src/render/statue';
+import {
+  LORD_AT_ARMS,
+  makeStatueGeometry,
+  SERF_AT_REST,
+} from '../../src/render/statue';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import {makeLights, makeRenderer, PITCH, YAW} from './scene';
@@ -70,20 +77,35 @@ makeGlbBuilding(BuildingTypeId.house, 0)?.traverse(o => {
 
 const DEG = (rad: number): number => (rad * 180) / Math.PI;
 
+// ?figure=lord swaps the whole preset — body and pose travel together, and
+// the knight's default is not the serf's.
+const LORD = params.get('figure') === 'lord';
+const PRESET = LORD ? LORD_AT_ARMS : SERF_AT_REST;
+const KIND = num('kind', LORD ? UnitTypeId.knight : UnitTypeId.serf);
+
 const poseName = params.get('pose');
 const clip =
   poseName && poseName in AnimKey
     ? ((AnimKey as unknown as Record<string, AnimKeyT>)[poseName] as AnimKeyT)
-    : SERF_AT_REST.clip;
-const statue = makeStatueGeometry({
-  clip,
-  phase: num('phase', SERF_AT_REST.phase),
-  load: num('load', SERF_AT_REST.load),
-  tool: num('tool', SERF_AT_REST.tool ?? 0),
-  // The chin is typed in degrees here and carried in radians everywhere
-  // else — this is the one number on the page that gets nudged by eye.
-  lift: (num('lift', DEG(SERF_AT_REST.lift ?? 0)) * Math.PI) / 180,
-});
+    : PRESET.clip;
+const statue = makeStatueGeometry(
+  {
+    clip,
+    phase: num('phase', PRESET.phase),
+    // A load is a hauler's business: it comes off anybody but the serf
+    // unless it is asked for by name.
+    load: num('load', KIND === UnitTypeId.serf ? PRESET.load : 0),
+    tool: num('tool', PRESET.tool ?? 0),
+    // The chin is typed in degrees here and carried in radians everywhere
+    // else — this is the one number on the page that gets nudged by eye.
+    lift: (num('lift', DEG(PRESET.lift ?? 0)) * Math.PI) / 180,
+  },
+  // ?kind=<unit kind byte> puts somebody else on the plinth, dressed by
+  // the wardrobe exactly as that unit walks around dressed: 1 serf,
+  // 2 worker, 3 knight, 4 spearman, 5 archer, and the bandit kinds after
+  // them.
+  KIND,
+);
 if (!statue) throw new Error('no statue: characters not loaded');
 
 const model = makeMonument(packMaterial, statue);

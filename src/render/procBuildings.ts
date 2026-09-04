@@ -1093,6 +1093,8 @@ const MON_CORNICE = 0.07;
 const MON_SOCLE = 0.035;
 /** The figure, and what the whole thing comes to. */
 const MON_FIGURE = 1.05;
+/** The bottom step's span — what the figure is not allowed to outreach. */
+const MON_BASE = 1.0;
 const MON_PEDESTAL =
   MON_STEP_A + MON_STEP_B + MON_DIE + MON_CORNICE + MON_SOCLE;
 
@@ -1138,7 +1140,27 @@ export function makeMonument(
   pedestal(g);
   if (statue) {
     const figure = mesh(statue.clone(), KAY.gilt);
-    figure.scale.setScalar(MON_FIGURE);
+    // Sized by height, unless the figure reaches wider than the monument
+    // stands — a spear or a scythe held across the body doubles the span,
+    // and since normalize fits the whole model to the unit square, an
+    // unchecked one shrinks the pedestal under it (a spearman came out
+    // 2.9 tall where the serf stands 4.0). Height is what a monument is;
+    // the reach gives way.
+    statue.computeBoundingBox();
+    const bb = statue.boundingBox!;
+    // Measured from the origin, not across the box: the figure stands on
+    // his feet, and a prop held out to one side reaches past the step on
+    // that side while the other side has room to spare.
+    const reach =
+      2 *
+      Math.max(
+        Math.abs(bb.min.x),
+        Math.abs(bb.max.x),
+        Math.abs(bb.min.z),
+        Math.abs(bb.max.z),
+        1e-6,
+      );
+    figure.scale.setScalar(Math.min(MON_FIGURE, MON_BASE / reach));
     figure.position.y = MON_PEDESTAL;
     g.add(figure);
   }
