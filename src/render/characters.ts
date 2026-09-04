@@ -17,9 +17,10 @@ import * as GaitNs from './gaitEnum.ts';
 export type Gait = Enum<typeof GaitNs>;
 
 /**
- * Skinned-character pipeline: KayKit Adventurers 2.0 characters animated by
- * the KayKit Character Animations library (both CC0, both on the same
- * Rig_Medium skeleton, so library clips drive every character directly).
+ * Skinned-character pipeline: KayKit Adventurers 2.0 characters — plus the
+ * Series 6 farmer — animated by the KayKit Character Animations library
+ * (all CC0, all on the same Rig_Medium skeleton, so library clips drive
+ * every character directly).
  * Weapons are pack props dropped into the rig's handslot bones. When the
  * assets can't load, callers fall back to the procedural people in
  * models.ts.
@@ -33,11 +34,19 @@ const KK_CHARACTER_FILES = [
   'Rogue_Hooded',
   'Mage',
   'Ranger',
-  // Monthly Mystery Series 6 (CC0, see lorekeeper/LICENSE.txt) rather than
-  // Adventurers, and on the same Rig_Medium as the six above — same 23
-  // joints, handslots included, and no clips of its own, so the shared
-  // library drives him exactly as it drives them. No unit wears him: he is
-  // here for the figure a monument is cast from (FIGURE_LOREKEEPER).
+  // Both from Monthly Mystery Series 6 (CC0) rather than Adventurers, and
+  // both on the same Rig_Medium as the six above — same joints, handslot
+  // bones included, no clips of their own — so the shared library drives
+  // them exactly as it drives the rest. The pack's license sits in each
+  // one's directory; they are the same file, because they are the same
+  // pack.
+  //
+  // The one Kay ships a farmer in. Its body mesh is named to the CLOTH
+  // pattern below, so the overalls take the seat's dye, and its straw hat
+  // is modeled — which retired the hand-built one the tinted Rogue wore.
+  'farmers/Farmer_A',
+  // No unit wears the Lorekeeper: he is here for the figure a monument is
+  // cast from, addressed by FIGURE_LOREKEEPER rather than a unit kind.
   'Lorekeeper',
 ];
 const KK_ANIMATION_FILES = [
@@ -521,40 +530,6 @@ export function updateBow(visual: CharacterVisual): void {
   bow.nock.position.copy(BOW_A);
   bow.nock.visible = true;
   bow.drawn = true;
-}
-
-// --- Rigid props, sized in world units and counter-scaled onto bones -------
-
-function peasantHat(bandColor?: number): THREE.Group {
-  const g = new THREE.Group();
-  // Peasant straw hat: a wide thin brim that sags at the edge, a low
-  // rounded crown, and a dark band where they meet. The crown seat stays
-  // wider than the chibi skull (~0.30 world at the seat) so the hair
-  // mostly tucks under instead of shearing through the brim ring.
-  const straw = 0xd3ab5c;
-  const hat = lathe(
-    [
-      [0.172, 0.0],
-      [0.167, 0.012],
-      [0.12, 0.03],
-      [0.115, 0.042],
-      [0.098, 0.095],
-      [0.05, 0.118],
-      [0.0, 0.125],
-    ],
-    straw,
-    16,
-  );
-  // The band takes the seat's color when one is given — the farmer's
-  // tunic mostly hides under the brim from the game camera, so the hat
-  // itself joins the heraldry.
-  const band = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.117, 0.12, 0.022, 16),
-    new THREE.MeshLambertMaterial({color: bandColor ?? 0x7a5636}),
-  );
-  band.position.y = 0.045;
-  g.add(hat, band);
-  return g;
 }
 
 /** Matte, shadow-casting setup shared by every loaded KayKit scene. */
@@ -1224,19 +1199,19 @@ interface ProfLook {
   toolWorkKind?: number;
   /** Extra roll about the fist for that tool (gripPose's `pitch`). */
   gripPitch?: number;
-  strawHat?: boolean;
 }
 
 const PROF_LOOKS = new Map<number, ProfLook>([
-  // Farmer: sun-worn tan leathers, straw hat, scythe in hand.
+  // Farmer: the pack's own man — straw hat, overalls, scythe in hand. No
+  // tint: he was a Rogue washed tan to read as a peasant, and a model
+  // built as one beats a dye job over leather armor.
   [
     1,
     {
-      spec: {file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a},
+      spec: {file: 'farmers/Farmer_A'},
       tool: packScytheProp,
       toolWorkKind: 8, // WORK.mow
       gripPitch: SCYTHE_PITCH,
-      strawHat: true,
     },
   ],
   // Miner: dust-grey barbarian with his pickaxe over the shoulder.
@@ -1405,24 +1380,6 @@ function makeKayKitCharacter(
       proceduralTool = gripPose(look.tool(), look.gripPitch ?? 0);
       proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
       toolAnchor.add(proceduralTool);
-    }
-  }
-
-  if (look?.strawHat) {
-    // Straw hat on the head bone, counter-scaled and sized for the big
-    // KayKit skull.
-    const head = root.getObjectByName('head');
-    if (head) {
-      const holder = new THREE.Group();
-      holder.scale.setScalar(1 / s);
-      const hat = peasantHat(faction);
-      // Sized against the measured skull: crown tops out ~0.56 above the
-      // head bone and spans ~0.32 wide (world units) — the old 1.9/0.12
-      // hat sat entirely inside the head.
-      hat.scale.setScalar(2.35);
-      hat.position.y = 0.41;
-      holder.add(hat);
-      head.add(holder);
     }
   }
 

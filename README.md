@@ -492,8 +492,8 @@ also linked from the start screen's footer — with logos and links.
 
 - 3D models: [KayKit](https://kaylousberg.itch.io/kaykit-medieval-hexagon)
   packs by Kay Lousberg (CC0) — Medieval Hexagon foremost, plus the
-  Adventurers characters, Dungeon Remastered, Forest Nature, Restaurant
-  Bits and RPG Tools — `public/models/kaykit/`
+  Adventurers characters, the Series 6 farmer, Dungeon Remastered, Forest
+  Nature, Restaurant Bits and RPG Tools — `public/models/kaykit/`
 - Audio samples: [Kenney](https://kenney.nl) impact / RPG / interface /
   jingle packs (CC0) — `public/audio/`; every cue also has a synthesized
   fallback, so the samples only ever improve what is already audible
