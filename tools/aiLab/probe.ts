@@ -170,6 +170,12 @@ async function main(): Promise<void> {
   const jobs = arg('--jobs', 4);
   const mapSize = arg('--map', 96);
   const mutSeed = arg('--mut-seed', 1);
+  const seedStart = arg('--seed-start', 1);
+  const onlyAt = process.argv.indexOf('--only');
+  const only =
+    onlyAt < 0 ? null : new Set(process.argv[onlyAt + 1]!.split(','));
+  const ablateAt = process.argv.indexOf('--ablate');
+  const ablate = ablateAt < 0 ? null : process.argv[ablateAt + 1]!;
   const timeoutMs = arg('--match-timeout-ms', 300_000);
 
   const parent: AiStrategy = AI_STRATEGIES[AiStrategyIdNs.steward];
@@ -209,15 +215,41 @@ async function main(): Promise<void> {
     // of its range may be too small a step to move a win rate at all.
     const knobs = i % 2 === 0 ? 1 : 3;
     const m = mutate(parent, rng, {knobs});
+    const label = `mut${i + 1}`;
     candidates.push({
-      label: `mut${i + 1}`,
+      label,
       what: `${knobs}-knob · ${describeMutation(m)}`,
       advice: adviceOf(m.strategy),
     });
+    // The winner of a multi-knob step says nothing about which of its knobs
+    // won. Split it: one candidate per change, played on the same seeds.
+    if (ablate === label) {
+      for (const c of m.changes) {
+        const one: AiStrategy = {...parent};
+        Object.assign(one, {[c.knob]: c.to});
+        candidates.push({
+          label: `${label}.${c.knob}`,
+          what: `ablation · ${c.knob} ${JSON.stringify(c.from)}→${JSON.stringify(c.to)}`,
+          advice: adviceOf(one),
+        });
+      }
+    }
   }
+  // The parent is index 0 and is never filtered out — it is what every
+  // other candidate is played against.
+  const kept = only
+    ? candidates.filter(
+        (c, i) =>
+          i === 0 ||
+          only.has(c.label) ||
+          (ablate !== null && c.label.startsWith(`${ablate}.`)),
+      )
+    : candidates;
+  candidates.length = 0;
+  candidates.push(...kept);
 
   const parent0 = candidates[0]!;
-  const seeds = Array.from({length: seedCount}, (_, i) => i + 1);
+  const seeds = Array.from({length: seedCount}, (_, i) => i + seedStart);
   const trials: Trial[] = [];
   // The control is the parent against itself — one match per seed, shared.
   for (const seed of seeds)
@@ -285,7 +317,7 @@ async function main(): Promise<void> {
   console.log('');
   console.log(
     `KNOB-SPACE PROBE — parent ${parent.name}, both seats, ` +
-      `map ${mapSize}, seeds 1-${seedCount}`,
+      `map ${mapSize}, seeds ${seeds[0]}-${seeds.at(-1)}`,
   );
   console.log('');
   console.log(
