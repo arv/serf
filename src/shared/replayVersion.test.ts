@@ -247,8 +247,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 47 after placeSeam's narrative moved back above placeSeam, where
 // extracting seamRoom had left it stranded a function early (map.ts,
 // comment placement only). Same statements, same draws, same valleys.
+// Still 47 after canPlace grew a reason (world.ts, placementRefusal): the
+// rules and their order are untouched — each refusal that returned false
+// now returns the name of the rule that fired, and canPlace is that
+// function asked whether the name is null. Every site legal yesterday is
+// legal today, so a log's placements re-run tile for tile.
 const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = '42f3fa4e84931e97ad21ad8fd36587c6';
+const EXPECTED_HASH = '5e136257bb3118591c658e86b90e0be5';
 
 /**
  * Everything a replay's playback depends on, as raw source:

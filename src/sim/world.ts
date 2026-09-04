@@ -925,6 +925,14 @@ export function placeSite(
 }
 
 /**
+ * Why a spot refuses a building. The site rules each have their own reason
+ * so the refusal can be said out loud: "no room" is a lie under a mine
+ * standing four tiles from the nearest seam, and a player who reads it goes
+ * looking for the wrong fix — clearing ground that was never in the way.
+ */
+export type PlacementRefusal = 'occupied' | 'slope' | 'resource' | 'water';
+
+/**
  * Placement validity: footprint on clear grass, and at least one walkable
  * ring tile so the door isn't sealed. Shared by the worker (authoritative)
  * and mirrored logic on the main thread for instant ghost feedback.
@@ -935,12 +943,28 @@ export function canPlace(
   x: number,
   y: number,
 ): boolean {
+  return placementRefusal(map, type, x, y) === null;
+}
+
+/**
+ * The same rules as canPlace, answering which one said no — null when the
+ * spot takes the building. One function underneath both, so the answer and
+ * the reason given for it can never drift apart.
+ */
+export function placementRefusal(
+  map: MapView,
+  type: BuildingTypeId,
+  x: number,
+  y: number,
+): PlacementRefusal | null {
   const def = buildingDef(type);
   const size = map.size;
-  if (!rectClear(map, x, y, def.w, def.h)) return false;
+  if (!rectClear(map, x, y, def.w, def.h)) return 'occupied';
   for (let ty = y; ty < y + def.h; ty++) {
     for (let tx = x; tx < x + def.w; tx++) {
-      if (map.terrain[tileIdx(tx, ty, size)] !== Terrain.Grass) return false;
+      if (map.terrain[tileIdx(tx, ty, size)] !== Terrain.Grass) {
+        return 'occupied';
+      }
     }
   }
 
@@ -977,7 +1001,7 @@ export function canPlace(
       if (h < lo) lo = h;
       if (h > hi) hi = h;
     }
-    if (hi - lo > 0.5) return false;
+    if (hi - lo > 0.5) return 'slope';
   }
   let hasDoor = false;
   for (let tx = x - 1; tx <= x + def.w && !hasDoor; tx++) {
@@ -988,7 +1012,7 @@ export function canPlace(
       if (!map.blocked[tileIdx(tx, ty, size)]) hasDoor = true;
     }
   }
-  if (!hasDoor) return false;
+  if (!hasDoor) return 'occupied';
 
   // A gatherer has to be within reach of something to gather. The mine's
   // seam is the obvious case, but the woodcutter and the quarry answer to
@@ -1001,7 +1025,7 @@ export function canPlace(
   if (gather) {
     const c = gatherOrigin(def, x, y);
     if (findResourceNear(map, c.x, c.y, gather.resource, gather.radius) < 0) {
-      return false;
+      return 'resource';
     }
   }
 
@@ -1022,9 +1046,9 @@ export function canPlace(
         if (map.terrain[tileIdx(tx, ty, size)] === Terrain.Water) found = true;
       }
     }
-    if (!found) return false;
+    if (!found) return 'water';
   }
-  return true;
+  return null;
 }
 
 /**
