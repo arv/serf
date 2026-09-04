@@ -180,7 +180,7 @@ const CREDITS: Credit[] = [
     what:
       'Every roof, tree and person on the valley floor: the buildings and ' +
       'terrain are the Medieval Hexagon pack, the serfs and soldiers its ' +
-      'Adventurers, the farmer in the fields a Series 6 character, and ' +
+      'Adventurers, the farmer in the fields a Series 6 character; ' +
       'Dungeon Remastered, Forest Nature, Restaurant Bits and RPG Tools ' +
       'fill the corners.',
     license: {
