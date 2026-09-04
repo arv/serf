@@ -1,3 +1,8 @@
+# Both spellings on purpose: the trailing slash matches a directory, and a
+# `node_modules` SYMLINK — what a scratch worktree gets when it borrows the
+# real tree's install — is not one. One slipped into a commit that way and
+# CI's `pnpm install` died on ENOTDIR before a check ran.
+node_modules
 node_modules/
 dist/
 

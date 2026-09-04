@@ -89,6 +89,23 @@ const KAY = {
   wheat: {cell: [1, 3], from: 0.16, to: 0.78},
   /** Cut hay in the barn, straw-beige. */
   hay: {cell: [2, 3], from: 0.2, to: 0.65},
+  /** Gilding: the bright top of the same gold ramp the wheat is painted
+   * in, taken above the slice the grain takes so a gilded figure and a
+   * standing crop cannot be confused for one material. Its own span is a
+   * whole man, so the ramp reads as light gathering on the head and
+   * shoulders and draining into the boots.
+   *
+   * 0.96 and not 1.0, which is where this started and is the only value in
+   * this table that ever touched a cell edge. applyRamps lands the bottom
+   * of a span at `(row + to) / 4`, so row 1 at to=1.0 samples V=0.5000 —
+   * texel row 512.00 of a 1024px atlas, exactly the seam between this cell
+   * and the one below it. Linear filtering blends across that seam and
+   * mipmaps blend further, so the boots picked up whatever cell (2,3)
+   * happens to hold. Ten texels of margin costs nothing visible: the cell
+   * is a nine-stop gradient and 0.96 is still inside the darkest stop's
+   * band, which is the stop this was reaching for. Nothing else here comes
+   * near — the next-deepest `to` in the table is 0.92. */
+  gilt: {cell: [1, 3], from: 0.3, to: 0.96},
   /** The corner footings, a step lighter so they read as separate stones. */
   stonePale: {cell: [0, 2], from: 0.4, to: 0.72},
   /** The oven mass: the light half of the same ramp. It used to be a warm
@@ -1068,4 +1085,189 @@ function marks(g: THREE.Group): void {
       li % 2 === 0 ? [-MOW_TURN_X, MOW_TURN_X] : [MOW_TURN_X, -MOW_TURN_X];
     for (const x of xs) mark(`mowPath${i++}`, x, z);
   }
+}
+
+// --- The monument -------------------------------------------------------
+
+/**
+ * Heights of the pedestal's courses, bottom to top, in the authored space
+ * `normalize` fits to the unit square. A monument is a stack of few, big,
+ * square masses — the one shape rule in this file that a building without
+ * a roof can still keep — and every one of them is battered, which is what
+ * makes a stack of stone read as carrying its own weight rather than as
+ * boxes set down on each other (see frustumGeo).
+ */
+const MON_STEP_A = 0.075;
+const MON_STEP_B = 0.065;
+const MON_DIE = 0.6;
+const MON_CORNICE = 0.07;
+const MON_SOCLE = 0.035;
+/** The figure, and what the whole thing comes to. */
+const MON_FIGURE = 1.05;
+/** The bottom step's span — what the figure is not allowed to outreach. */
+const MON_BASE = 1.0;
+const MON_PEDESTAL =
+  MON_STEP_A + MON_STEP_B + MON_DIE + MON_CORNICE + MON_SOCLE;
+
+/**
+ * The monument: a serf cast in gold on a battered stone pedestal.
+ *
+ * The pack has no monument and nothing that could stand in for one — the
+ * shells it leaves unspoken for are a second house, a market stall, an
+ * archery range and a watermill, and the two masses grand enough to read
+ * as a wonder (the castle, the church) are already the storehouse and the
+ * abbey. A second building wearing either silhouette is the mistake the
+ * bakehouse note above spends a paragraph on. So the pedestal is ours.
+ *
+ * The figure is not. It is the serf himself — the same body, the same carry
+ * pose, the same load the haulers carry — baked out of the rig by statue.ts
+ * and handed in here as plain geometry. That is the whole idea: the village
+ * raises a monument to the man who carries everything, and the man on it is
+ * recognizably one of the men walking past it. He costs what he costs: this
+ * is the character's own mesh, so the monument carries a villager's triangle
+ * budget rather than a building's.
+ *
+ * Gold is the one paint on it that is not stone, and it comes out of the
+ * atlas like everything else: cell (1,3) is the gold ramp the pack paints
+ * its grain in, and the figure takes the deep end of it — light gathering
+ * on the head and shoulders, bronzing into the boots, which is what gilding
+ * does under a sun. The brighter gold two cells over was tried and dropped:
+ * (3,2) is where the pack paints the fourth seat's team colour (the gold
+ * #f9aa4e in factionPalette is that cell), and a figure painted there is a
+ * faction claim on any map with a gold banner in it.
+ *
+ * `statue` is a parameter rather than a call because the figure comes from
+ * the character pack, which loads on its own schedule beside the building
+ * pack — assets.ts must not wait on it. Null (characters not up yet, or a
+ * failed load) raises the pedestal alone, which is an honest half-finished
+ * monument rather than an empty screen.
+ */
+export function makeMonument(
+  packMaterial: THREE.Material | null,
+  statue: THREE.BufferGeometry | null,
+): THREE.Group {
+  atlas = packMaterial;
+  const g = new THREE.Group();
+  pedestal(g);
+  if (statue) {
+    const figure = mesh(statue.clone(), KAY.gilt);
+    // Sized by height, unless the figure reaches wider than the monument
+    // stands — a spear or a scythe held across the body doubles the span,
+    // and since normalize fits the whole model to the unit square, an
+    // unchecked one shrinks the pedestal under it (a spearman came out
+    // 2.9 tall where the serf stands 4.0). Height is what a monument is;
+    // the reach gives way.
+    statue.computeBoundingBox();
+    const bb = statue.boundingBox!;
+    // Measured from the origin, not across the box: the figure stands on
+    // his feet, and a prop held out to one side reaches past the step on
+    // that side while the other side has room to spare.
+    const reach =
+      2 *
+      Math.max(
+        Math.abs(bb.min.x),
+        Math.abs(bb.max.x),
+        Math.abs(bb.min.z),
+        Math.abs(bb.max.z),
+        1e-6,
+      );
+    figure.scale.setScalar(Math.min(MON_FIGURE, MON_BASE / reach));
+    figure.position.y = MON_PEDESTAL;
+    g.add(figure);
+  }
+  applyRamps(g);
+  return g;
+}
+
+/** The stone under him: two steps, a battered die, a cornice, a socle. */
+function pedestal(g: THREE.Group): void {
+  let y = 0;
+  const course = (
+    wb: number,
+    wt: number,
+    h: number,
+    paint: Paint,
+  ): THREE.Mesh => {
+    const m = mesh(frustumGeo(wb, wb, wt, wt, h), paint);
+    m.position.y = y;
+    y += h;
+    g.add(m);
+    return m;
+  };
+  // The steps: the widest thing here, and the only part of the monument a
+  // villager walking past it comes level with. Light stone under dark, so
+  // the stack darkens downward the way a rain-washed plinth does.
+  course(1.0, 0.965, MON_STEP_A, KAY.stone);
+  course(0.8, 0.775, MON_STEP_B, KAY.stonePale);
+  // The die, and all the height. Its batter is slight in the numbers —
+  // 0.58 across at the foot to 0.50 at the neck, over 0.6 of rise — and
+  // the only one that reads, because it is the one mass tall enough to
+  // show a lean at all.
+  course(0.58, 0.5, MON_DIE, KAY.stone);
+  // The cornice flares the other way — out and up, overhanging the die it
+  // caps. A moulding that leans in like the courses under it reads as one
+  // more block; leaning out is what makes it a lid.
+  course(0.54, 0.64, MON_CORNICE, KAY.stonePale);
+  // The socle the boots stand on, a step back in from the cornice.
+  course(0.44, 0.42, MON_SOCLE, KAY.stone);
+  blazon(g);
+}
+
+/**
+ * The owner's blazon on the front of the die: a plain panel standing proud
+ * of the stone, painted into cell (3,3) — the slot splitTeamColorGroups
+ * repaints per faction, the same one that carries a roof. Without it two
+ * seats' monuments are the same grey object; with it, a rival's monument
+ * announces itself across the valley, which is what a monument is for.
+ */
+function blazon(g: THREE.Group): void {
+  const W = 0.19;
+  const H = 0.24;
+  const D = 0.02;
+  // A heater shield: square shoulders, straight flanks, a point. The pack
+  // draws heraldry exactly once — the knight's shield_badge — and this is
+  // that outline, cut as a shape rather than borrowed as a prop, because a
+  // built building has no prop factory to reach for.
+  const outline = new THREE.Shape();
+  outline.moveTo(-W / 2, H / 2);
+  outline.lineTo(W / 2, H / 2);
+  outline.lineTo(W / 2, H * 0.06);
+  outline.quadraticCurveTo(W / 2, -H / 2 + H * 0.08, 0, -H / 2);
+  outline.quadraticCurveTo(-W / 2, -H / 2 + H * 0.08, -W / 2, H * 0.06);
+  outline.closePath();
+  const shield = mesh(
+    new THREE.ExtrudeGeometry(outline, {
+      depth: D,
+      bevelEnabled: false,
+      curveSegments: 6,
+    }),
+    KAY.roof,
+  );
+
+  // Set on a panel of lighter stone, so the colour reads as a shield hung
+  // on the die and not as paint spilled down it.
+  const panel = mesh(
+    new THREE.BoxGeometry(W + 0.08, H + 0.09, D * 1.5),
+    KAY.stonePale,
+  );
+  // The panel stands 0.015 proud of the die and the shield another 0.02
+  // proud of the panel — the depth this file's timber has, on the two
+  // pieces that need to read as hung on the stone rather than painted on
+  // it. Flush, they were a decal.
+  shield.position.z = D * 0.75;
+  const holder = new THREE.Group();
+  holder.add(panel, shield);
+
+  // Centred on the die's height and leaning with it: the face falls 0.04
+  // in z over 0.6 of rise, and a flat plate hung on a leaning wall gaps at
+  // one end unless it leans too.
+  holder.rotation.x = -Math.atan2(0.04, MON_DIE);
+  holder.position.set(
+    0,
+    MON_STEP_A + MON_STEP_B + MON_DIE / 2,
+    // Half-span of the die's face at that height, so the panel stands on
+    // the stone rather than sinking into it.
+    0.29 - 0.04 * 0.5,
+  );
+  g.add(holder);
 }

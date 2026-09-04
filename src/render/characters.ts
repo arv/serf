@@ -34,13 +34,20 @@ const KK_CHARACTER_FILES = [
   'Rogue_Hooded',
   'Mage',
   'Ranger',
-  // Monthly Mystery Series 6 (CC0), the one pack Kay ships a farmer in.
-  // Same Rig_Medium down to the joint, same handslot bones, and its body
-  // mesh is named to the CLOTH pattern below, so it needs nothing the
-  // Adventurers don't: the clip library drives it and the overalls take
-  // the seat's dye. Its straw hat is modeled, which retired the
-  // hand-built one the tinted Rogue wore in its place.
+  // Both from Monthly Mystery Series 6 (CC0) rather than Adventurers, and
+  // both on the same Rig_Medium as the six above — same joints, handslot
+  // bones included, no clips of their own — so the shared library drives
+  // them exactly as it drives the rest. The pack's license sits in each
+  // one's directory; they are the same file, because they are the same
+  // pack.
+  //
+  // The one Kay ships a farmer in. Its body mesh is named to the CLOTH
+  // pattern below, so the overalls take the seat's dye, and its straw hat
+  // is modeled — which retired the hand-built one the tinted Rogue wore.
   'farmers/Farmer_A',
+  // No unit wears the Lorekeeper: he is here for the figure a monument is
+  // cast from, addressed by FIGURE_LOREKEEPER rather than a unit kind.
+  'Lorekeeper',
 ];
 const KK_ANIMATION_FILES = [
   'MovementBasic',
@@ -76,6 +83,10 @@ const KK_PROP_FILES = [
   // their not-yet-loaded fallbacks.
   'weapons/scythe',
   'weapons/spear_A',
+  // The Lorekeeper's own staff, from the pack he comes in. Its gltf names
+  // a texture beside it, which is why he keeps a directory rather than
+  // sitting loose with the Adventurers props.
+  'lorekeeper/Lorekeeper_Staff',
 ];
 
 const KK_CLIP_NAMES: Record<AnimKey, string> = {
@@ -141,7 +152,31 @@ interface KKSpec {
 /** The bow prop's fix-up: a half turn about the grip (see the archer). */
 const BOW_ROT: [number, number, number] = [0, Math.PI, 0];
 
+/**
+ * Figure keys: bodies that are not any unit's, addressed the same way a
+ * unit kind is because `makeKayKitCharacter` reads one number.
+ *
+ * Numbered clear of UnitTypeId (1-8) on purpose, and never stored on an
+ * entity or sent over the wire — nothing in the sim knows these exist.
+ * They reach the character pipeline only from `statue.ts`, which asks for
+ * a body to freeze rather than a man to animate. An unknown key already
+ * falls back to the serf below, so a stale one degrades rather than
+ * throwing.
+ */
+export const FIGURE_LOREKEEPER = 100;
+
 const KK_SPECS = new Map<number, KKSpec>([
+  [
+    FIGURE_LOREKEEPER,
+    {
+      // Staff in the right hand, the way every armed body here carries its
+      // prop. Nothing hidden: the glasses and the pack are what tell an old
+      // scholar from an old man at monument scale, and the backpack of
+      // scrolls is the whole silhouette from behind.
+      file: 'Lorekeeper',
+      right: 'lorekeeper/Lorekeeper_Staff',
+    },
+  ],
   [1, {file: 'Rogue', hide: ['Rogue_Cape']}],
   [
     2,
