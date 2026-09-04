@@ -73,9 +73,15 @@ export interface Building {
   prodTicksLeft?: number;
   /**
    * Gather recipe with a ration (the mines): loads still covered by the
-   * food already eaten. Counted down as each load lands and topped back
-   * up to `per` by swallowing one more from the input buffer; absent or
-   * zero means the next load has to be paid for first.
+   * food already eaten, NOT counting the one being paid for right now.
+   *
+   * So a fresh meal sets this to `per - 1`, not `per` (chargeRation in
+   * systems/production.ts): the loaf is swallowed on the load that found
+   * the counter empty, and that load is the first of the `per` it buys.
+   * Counted down by one on each load after it; absent or zero means the
+   * next load won has to buy the next loaf. The off-by-one is worth
+   * spelling out because the field reads like a plain countdown and is
+   * not one.
    *
    * On the building rather than the worker because the meal is the post's:
    * a miner who dies mid-ration leaves the bread he was given behind, and

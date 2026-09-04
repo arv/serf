@@ -275,8 +275,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 48 after the second half of that same correction (systems/
 // logistics.ts) and after FIRST_RAID_TICK's note said which side of the
 // stretch its 13.4% was measured on. Comments both times.
+// Still 48 after rationLeft's doc stopped saying a meal tops the counter
+// up to `per` (sim/entities.ts): chargeRation sets `per - 1`, because the
+// load that found the pantry empty is the first of the `per` its loaf
+// buys. Words; the counter always did this.
 const EXPECTED_VERSION = 48;
-const EXPECTED_HASH = '32052b7c01a7209690afc8f865d1314e';
+const EXPECTED_HASH = '4fe650913d7f340868e9bd356b47e5ff';
 
 /**
  * Everything a replay's playback depends on, as raw source:
