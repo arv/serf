@@ -94,6 +94,32 @@ export const LORD_AT_ARMS: StatuePose = {
 };
 
 /**
+ * The abbot, for the village that raises its monument to the studying
+ * rather than the carrying: the Lorekeeper body (FIGURE_LOREKEEPER), staff
+ * in hand, on the plain idle.
+ *
+ * The idle rather than the carry-idle the serf takes, because the argument
+ * against it there does not hold here: an idle's empty hands make a
+ * mannequin of a figure with nothing to hold, and this one is holding a
+ * staff. It also leaves the stoop the body is modeled with intact, which
+ * is the reading — a man bent over his books, not a lord at ease.
+ *
+ * No load and no tool: a bundle of timber in a scholar's arms is a joke,
+ * and the pack's own staff is already in his right hand.
+ *
+ * The chin comes up least of the three. The serf's is lifted 22 degrees
+ * and the lord's 26 to get a face out from under hair and a helmet brow;
+ * this one wears glasses on a bare head, which hide nothing, and lifting
+ * him further straightens the very stoop that makes him legible.
+ */
+export const ABBOT_AT_STUDY: StatuePose = {
+  clip: AnimKeyNs.idle,
+  phase: 0.5,
+  load: 0,
+  lift: (14 * Math.PI) / 180,
+};
+
+/**
  * Bake one pose of a villager into a single static geometry, feet on y=0,
  * standing on the origin, exactly 1 tall — so a caller sizes the figure by
  * scaling and nothing here has to know how big a monument is.

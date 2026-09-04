@@ -27,13 +27,16 @@ import {
   makeCharacter,
   playAnimation,
 } from '../../src/render/characters';
+import {FIGURE_LOREKEEPER} from '../../src/render/characters';
 import {TEAM_SWATCH_UV} from '../../src/render/factionPalette';
 import {makeMonument} from '../../src/render/procBuildings';
 import {
+  ABBOT_AT_STUDY,
   LORD_AT_ARMS,
   makeStatueGeometry,
   SERF_AT_REST,
 } from '../../src/render/statue';
+import type {StatuePose} from '../../src/render/statue';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import {makeLights, makeRenderer, PITCH, YAW} from './scene';
@@ -77,11 +80,16 @@ makeGlbBuilding(BuildingTypeId.house, 0)?.traverse(o => {
 
 const DEG = (rad: number): number => (rad * 180) / Math.PI;
 
-// ?figure=lord swaps the whole preset — body and pose travel together, and
-// the knight's default is not the serf's.
-const LORD = params.get('figure') === 'lord';
-const PRESET = LORD ? LORD_AT_ARMS : SERF_AT_REST;
-const KIND = num('kind', LORD ? UnitTypeId.knight : UnitTypeId.serf);
+// ?figure= swaps the whole preset — body and pose travel together, and
+// neither the knight's default nor the abbot's is the serf's. `?kind=` still
+// overrides the body alone, for putting a pose on someone it was not cut for.
+const FIGURES: Record<string, {pose: StatuePose; kind: number}> = {
+  lord: {pose: LORD_AT_ARMS, kind: UnitTypeId.knight},
+  abbot: {pose: ABBOT_AT_STUDY, kind: FIGURE_LOREKEEPER},
+};
+const FIGURE = FIGURES[params.get('figure') ?? ''];
+const PRESET = FIGURE?.pose ?? SERF_AT_REST;
+const KIND = num('kind', FIGURE?.kind ?? UnitTypeId.serf);
 
 const poseName = params.get('pose');
 // `Object.hasOwn`, not `in`: the repo's pattern for reading a name against an

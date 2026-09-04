@@ -115,6 +115,17 @@ screen rather than in the head.
 pnpm dev   # then /tools/modelLab/_monument.html
 ```
 
+`?figure=<lord|abbot>` swaps the whole preset — body and pose travel
+together, since neither the knight's nor the abbot's is the serf's. The
+abbot is the **Lorekeeper** (KayKit Monthly Mystery Series 6, CC0 like every
+other pack here — `public/models/kaykit/lorekeeper/LICENSE.txt`), which no
+unit wears: he is addressed by a figure key rather than a unit kind
+(`FIGURE_LOREKEEPER` in `src/render/characters.ts`), because the character
+pipeline reads one number and the sim must never learn of him. He rides the
+same Rig_Medium as the Adventurers bodies — same 23 joints, handslots
+included, no clips of his own — so the shared animation library drives him
+unchanged.
+
 `?fp=<2|3>` sets the footprint it is sized for — 4.0 tall at 2x2, against a
 house's 2.3 and the castle's 5.6. `?pose=<anim key>`, `?phase=<0..1>`,
 `?load=<carry code>`, `?tool=<WORK kind>` and `?lift=<degrees>` cut the
