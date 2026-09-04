@@ -321,6 +321,10 @@ describe('gatherer placement', () => {
     const mine = placeBuiltBuilding(world, BuildingTypeId.ironMine, 0, 30, 30);
     const miner = spawnUnit(world, UnitTypeId.worker, 0, 30.5, 33.5);
     bindWorker(mine, miner);
+    // Bread in the pantry: a mine is the one gatherer that eats (see
+    // MINE_RATION_PER), and this test is about the seam, not the ration —
+    // the ration has mineRations.test.ts to itself.
+    mine.inputs[GoodId.food] = 5;
     run(world, 20 * 60);
 
     expect(mine.stock[GoodId.iron] ?? 0).toBeGreaterThan(0);

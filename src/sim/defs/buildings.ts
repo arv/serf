@@ -1,5 +1,9 @@
 import type {Enum} from '../../shared/enum.ts';
-import {REPAIR_COST_SHARE, type HaulPriority} from './balance.ts';
+import {
+  MINE_RATION_PER,
+  REPAIR_COST_SHARE,
+  type HaulPriority,
+} from './balance.ts';
 import * as BuildingTypeIdNs from './buildingTypeIdEnum.ts';
 
 export type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
@@ -44,6 +48,22 @@ export type Recipe =
       radius: number;
       /** Ticks spent working a tile before yielding 1 good. */
       workTicks: number;
+      /**
+       * The worker's ration: one `good` eaten for every `per` loads he
+       * brings home, drawn from the building's input buffer like a
+       * converter's ingredients (see MINE_RATION_PER for why the mines
+       * eat at all).
+       *
+       * A trip that finds nothing still spends nothing: the ration is
+       * charged when a load is won, not when a worker sets out, so a
+       * seam walled in by its own rock cannot eat the granary.
+       *
+       * Absent on the surface gatherers — the woodcutter and the quarry
+       * are where a starved village restarts from, and a village that
+       * must eat to cut the wood that becomes the rod that catches the
+       * fish has no way back at all.
+       */
+      ration?: {good: GoodId; per: number};
     }
   | {
       kind: RecipeKindNs.convert;
@@ -459,6 +479,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       resource: TileResource.IronDep,
       output: GoodId.iron,
       radius: 4,
+      ration: {good: GoodId.food, per: MINE_RATION_PER},
       workTicks: 4 * S,
     },
     mine: true,
@@ -479,6 +500,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       resource: TileResource.SilverDep,
       output: GoodId.silver,
       radius: 4,
+      ration: {good: GoodId.food, per: MINE_RATION_PER},
       workTicks: 4 * S,
     },
     mine: true,
@@ -500,6 +522,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       resource: TileResource.GoldDep,
       output: GoodId.gold,
       radius: 4,
+      ration: {good: GoodId.food, per: MINE_RATION_PER},
       workTicks: 5 * S,
     },
     mine: true,
@@ -802,6 +825,18 @@ export function gatherRecipeOf(
   def: BuildingDef,
 ): (Recipe & {kind: RecipeKindNs.gather}) | undefined {
   return def.recipe?.kind === RecipeKindNs.gather ? def.recipe : undefined;
+}
+
+/**
+ * What this building feeds its worker, if anything: the ration on its
+ * gather recipe. The one spelling of "does this post eat" — production
+ * charges it, logistics stocks it, and the two must agree or a mine
+ * calls for bread it will never swallow.
+ */
+export function rationOf(
+  def: BuildingDef,
+): {good: GoodId; per: number} | undefined {
+  return gatherRecipeOf(def)?.ration;
 }
 
 /** The tile a gatherer searches outward from: its footprint center, floored.

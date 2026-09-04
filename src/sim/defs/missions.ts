@@ -246,11 +246,18 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     players: [{kind: PlayerKind.human}],
     bandits: false,
     startSerfs: 10,
-    // Picks for both taught mines on top of the prebuilt camp's own kit.
+    // Picks for both taught mines on top of the prebuilt camp's own kit —
+    // and a larder to feed them. A mine eats (MINE_RATION_PER), and this
+    // commission's prebuilt camp stops at the wheat farm mission 2 ended
+    // on, so the crown sends the bread with the picks: enough to see both
+    // shafts through the checklist. A reeve who dawdles past it already
+    // knows what to do about it — the mill and the oven were the last
+    // lesson, and the well and the field are already standing.
     startStock: {
       [GoodId.wood]: 50,
       [GoodId.stone]: 20,
       [GoodId.wheat]: 12,
+      [GoodId.food]: 20,
       [GoodId.silver]: 10,
       [GoodId.axe]: 1,
       [GoodId.pickaxe]: 3,
