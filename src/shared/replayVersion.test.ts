@@ -252,8 +252,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // now returns the name of the rule that fired, and canPlace is that
 // function asked whether the name is null. Every site legal yesterday is
 // legal today, so a log's placements re-run tile for tile.
-const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = '5e136257bb3118591c658e86b90e0be5';
+// 48 for the miners' ration: a gather recipe may now carry one (defs/
+// buildings.ts), the three mines do, production charges it and logistics
+// hauls it (systems/), and a mine with an empty pantry stops. That is
+// sim behavior in the plainest sense — the same commands on the same
+// ground produce a different valley — so the version moves with the hash.
+const EXPECTED_VERSION = 48;
+const EXPECTED_HASH = 'ba455de0ca3c163648ed0ccf370ac393';
 
 /**
  * Everything a replay's playback depends on, as raw source:

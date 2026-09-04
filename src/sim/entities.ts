@@ -71,6 +71,17 @@ export interface Building {
   recruitId?: EntityId;
   /** Convert recipe: ticks left on the current batch (undefined = not running). */
   prodTicksLeft?: number;
+  /**
+   * Gather recipe with a ration (the mines): loads still covered by the
+   * food already eaten. Counted down as each load lands and topped back
+   * up to `per` by swallowing one more from the input buffer; absent or
+   * zero means the next load has to be paid for first.
+   *
+   * On the building rather than the worker because the meal is the post's:
+   * a miner who dies mid-ration leaves the bread he was given behind, and
+   * the man who takes the pick up next works off what is left of it.
+   */
+  rationLeft?: number;
   /** Standing order in the def's recipeOptions (the Smith's forge menu).
    * Undefined = auto: forge whatever tool the village most lacks. */
   recipeIndex?: number;

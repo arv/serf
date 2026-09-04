@@ -18,6 +18,7 @@ import {TICKS_PER_SECOND} from '../sim/defs/balance';
 import {
   BUILDING_DEFS,
   gatherRecipeOf,
+  rationOf,
   type Recipe,
 } from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
@@ -422,6 +423,19 @@ export function BuildingTip(props: {type: BuildingTypeId}) {
             Must be built within {gather().radius} tiles of{' '}
             {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is
             as far as its worker will walk.
+          </div>
+        )}
+      </Show>
+      {/* The ration, said before the wood is spent rather than after the
+          shaft goes quiet: a mine is the one gatherer that costs something
+          every day it runs, and that is a thing to know while choosing
+          where — and whether — to put it. */}
+      <Show when={rationOf(def())}>
+        {ration => (
+          <div class="tip-line">
+            Its miner eats 1 {goodName(ration().good).toLowerCase()} for every{' '}
+            {ration().per} loads. No {goodName(ration().good).toLowerCase()}{' '}
+            hauled out here and the shaft stands idle.
           </div>
         )}
       </Show>

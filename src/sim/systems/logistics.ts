@@ -8,6 +8,7 @@ import {
   BARRACKS_ALE_CAP,
   EVAC_PRIORITY,
   HAUL_SHARE,
+  RATION_STOCK,
   type HaulPriority,
 } from '../defs/balance.ts';
 import {
@@ -17,6 +18,7 @@ import {
   buildingDef,
   convertRecipeOf,
   outputGoodsOf,
+  rationOf,
 } from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
@@ -247,6 +249,24 @@ function match(world: World): void {
         } else if (want <= 0) {
           clearDemandAge(b, good);
         }
+      }
+    }
+
+    // A mine keeps its pantry stocked (priority 2, with the mill's wheat
+    // and the smith's iron). A short cap on purpose — RATION_STOCK, not
+    // INPUT_CAP: three mines each hoarding five loaves would hold a whole
+    // bakery's output as inventory, and the loaf that matters is the one
+    // already in the shaft when the last one is eaten.
+    const ration = b.paused ? undefined : rationOf(def);
+    if (ration) {
+      const want =
+        RATION_STOCK -
+        (b.inputs[ration.good] ?? 0) -
+        (b.inbound[ration.good] ?? 0);
+      if (want > 0 && !suspended(world, b, ration.good)) {
+        demands.push(demandOf(world, b, ration.good, want, 2));
+      } else if (want <= 0) {
+        clearDemandAge(b, ration.good);
       }
     }
 
@@ -566,6 +586,14 @@ function deliveryTargetFor(
       (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP
     )
       return b;
+    // A hungry mine takes the loaf off a passing hauler the same way,
+    // against its own shorter shelf.
+    if (
+      !b.paused &&
+      rationOf(def)?.good === good &&
+      (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < RATION_STOCK
+    )
+      return b;
   }
   return home;
 }
@@ -872,6 +900,11 @@ function deliver(world: World, to: Building, good: GoodId): void {
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;
   } else if (to.type === BuildingTypeId.abbey && good === GoodId.ale) {
     to.inputs[GoodId.ale] = (to.inputs[GoodId.ale] ?? 0) + 1;
+  } else if (rationOf(def)?.good === good) {
+    // The miners' bread waits in the buffer, not on the output shelf —
+    // the shelf is what evacuation carts home, and a mine that shipped
+    // its own dinner back to the castle would never eat.
+    to.inputs[good] = (to.inputs[good] ?? 0) + 1;
   } else if (def.trains) {
     // Training ingredients live in the input buffer too.
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;

@@ -50,6 +50,42 @@ export const START_STOCK: GoodAmounts = {
   [GoodId.rod]: 1,
 };
 
+/**
+ * The miners' ration: how many loads one food buys at a mine.
+ *
+ * The Settlers rule, and the reason it is here: before this, food's only
+ * consumer in the whole game was the barracks (`trains` in buildings.ts),
+ * so the longest chain in the village — well, farm, mill, bakery, four
+ * roofs and three residents — was a military supply line wearing an
+ * economy's clothes. A mine that eats gives the bread chain a customer
+ * that is not the army, and makes "another mine" a question about the
+ * ovens rather than a free tap.
+ *
+ * Every mine, silver included, because silver is what hires the hands that
+ * carry the bread: leaving it out would have left the one ore that pays
+ * for the whole ramp outside the loop it is supposed to close.
+ *
+ * A mine with no ration idles rather than dying, and the way back is
+ * always open — the fishery takes no input at all and its rod is the
+ * Smith's one wood-only tool, so a village that has run its granary dry
+ * can always fish its way back out. That is the same reasoning that keeps
+ * the pickaxe off iron (see the Smith's recipes).
+ */
+export const MINE_RATION_PER = 3;
+/**
+ * Loaves a mine keeps on the shelf — its standing demand, the abbey's
+ * ale cap one door over rather than the converters' INPUT_CAP of five.
+ *
+ * Small on purpose. Three mines each holding five would park a whole
+ * bakery's minute of output as inventory in the hillside, where the
+ * barracks and the abbey cannot reach it; two is about six loads of
+ * runway at MINE_RATION_PER, which covers a hauler's round trip out to
+ * the seam and back without turning the shaft into a granary. If the
+ * sweep shows mines idling with bread on the board rather than none in
+ * the world, this is the number that is wrong, not the ration.
+ */
+export const RATION_STOCK = 2;
+
 // Logistics
 export const MATCHER_INTERVAL = 5; // ticks between matcher/reconcile passes
 export const JOB_BLOCKED_BACKOFF = 40; // ticks before retrying an unreachable job

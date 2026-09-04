@@ -592,6 +592,15 @@
  *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
+ * 48: the mines eat. Every gather recipe may now carry a ration (the iron,
+ * silver and gold mines each spend one food per MINE_RATION_PER loads), the
+ * mines raise a standing demand for it, and a mine with an empty pantry
+ * stops producing until bread reaches it. Ore rates, haul boards and every
+ * downstream clock move with it, so a log recorded before this build re-runs
+ * into a different valley within the first minute.
+ *
+ * 47's note follows.
+ *
  * buffer holds five instead of four, and the guard tower exists: a new
  * building that swallows archers and shoots with them. Two playbooks then
  * learned to use it (the Abbot took up the bow line for it), which moves
@@ -607,4 +616,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 47;
+export const REPLAY_VERSION = 48;
