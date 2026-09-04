@@ -269,8 +269,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // build as the ration that made it necessary, and one build is one
 // version. There is no build in the wild that has the ration and the old
 // clock, so there is nothing for a 49 to tell apart.
+// Still 48 after RATION_STOCK's comment stopped calling the pantry a shelf
+// (defs/balance.ts, words only): a shelf is `stock` everywhere else in the
+// sim, and the loaves were never there. Same bytes hashed, same behavior.
 const EXPECTED_VERSION = 48;
-const EXPECTED_HASH = '86bba0180aa463fcfa8ec626f3791eb6';
+const EXPECTED_HASH = '0b82079d189d514e3be0ae982a64a9cd';
 
 /**
  * Everything a replay's playback depends on, as raw source:

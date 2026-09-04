@@ -73,8 +73,10 @@ export const START_STOCK: GoodAmounts = {
  */
 export const MINE_RATION_PER = 3;
 /**
- * Loaves a mine keeps on the shelf — its standing demand, the abbey's
- * ale cap one door over rather than the converters' INPUT_CAP of five.
+ * Loaves a mine keeps in its pantry — the input buffer a converter's
+ * ingredients wait in, never the output shelf evacuation carts home (see
+ * `deliver` in systems/logistics.ts). The size is the abbey's ale cap one
+ * door over rather than the converters' INPUT_CAP of five.
  *
  * Small on purpose. Three mines each holding five would park a whole
  * bakery's minute of output as inventory in the hillside, where the

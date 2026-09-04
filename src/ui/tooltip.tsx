@@ -434,8 +434,8 @@ export function BuildingTip(props: {type: BuildingTypeId}) {
         {ration => (
           <div class="tip-line">
             Its miner eats 1 {goodName(ration().good).toLowerCase()} for every{' '}
-            {ration().per} loads. No {goodName(ration().good).toLowerCase()}{' '}
-            hauled out here and the shaft stands idle.
+            {ration().per} loads, carried out to him like any other delivery.
+            None waiting and the shaft stands idle.
           </div>
         )}
       </Show>
