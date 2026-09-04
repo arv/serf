@@ -262,12 +262,24 @@ export const BUILDING_DAMAGE_MULT: Record<UnitClass, number> = {
 // first raid now has to wait out a house as well as a barracks. At the old
 // seven minutes every playbook met the first wave a squad short and the
 // campaign stopped being winnable.
-export const FIRST_RAID_TICK = 540 * TICKS_PER_SECOND; // 9 minutes of peace on the classic 64 map
+//
+// Stretched again, by a further eighth, when the mines started eating
+// (MINE_RATION_PER). Same reason as the housing stretch and measured the
+// same way: the ration puts the whole bread chain in front of the ore, and
+// across three seed ranges of the balance sweep the median winning tick
+// rose 13.4% (17.3k -> 19.6k) while the first wave went on arriving at
+// exactly the tick it always had. Deaths across the deck more than doubled
+// on the range that had not been tuned against. 540 -> 610 gives the
+// slower ramp back the same share of peace it had before, and nothing
+// else about the raid moves: the CAP, the roster and the between-waves
+// interval are all as they were, so what is being answered here is the
+// economy's new opening and not the war.
+export const FIRST_RAID_TICK = 610 * TICKS_PER_SECOND; // ~10.2 minutes of peace on the classic 64 map
 export const RAID_INTERVAL = 180 * TICKS_PER_SECOND;
 export const RAID_CAP = 8;
 
 /**
- * The peace period, scaled to the map being played. The 9 minutes above
+ * The peace period, scaled to the map being played. The minutes above
  * were tuned against 64-tile commutes; every haul on a bigger map walks
  * proportionally further, the economy ramps proportionally slower, and a
  * raid clock that ignored that made every playbook meet the first wave a

@@ -263,8 +263,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // re-deriving them (app/replay.ts), so a seat that would build in a
 // different order today replays as it built then. The hash is over raw
 // bytes, which is why it moved anyway.
+// Still 48 after the opening peace stretched 540s -> 610s (defs/balance.ts
+// FIRST_RAID_TICK): the first wave spawns on a different tick, which is
+// sim behavior of the plainest kind — but it ships in the same unreleased
+// build as the ration that made it necessary, and one build is one
+// version. There is no build in the wild that has the ration and the old
+// clock, so there is nothing for a 49 to tell apart.
 const EXPECTED_VERSION = 48;
-const EXPECTED_HASH = 'b82cb2af4d4e741eb103dbf04e06e64b';
+const EXPECTED_HASH = '86bba0180aa463fcfa8ec626f3791eb6';
 
 /**
  * Everything a replay's playback depends on, as raw source:

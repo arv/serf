@@ -597,7 +597,12 @@
  * mines raise a standing demand for it, and a mine with an empty pantry
  * stops producing until bread reaches it. Ore rates, haul boards and every
  * downstream clock move with it, so a log recorded before this build re-runs
- * into a different valley within the first minute.
+ * into a different valley within the first minute. Two things ride along in
+ * the same build because the ration is what made them true: the playbooks no
+ * longer gate the mill and the bakery behind the barracks (bread has a
+ * second customer now, so the gate's own reason is gone), and the opening
+ * peace stretches 540s -> 610s to give the slower ramp back the share of
+ * quiet the housing gate was given in its turn.
  *
  * 47's note follows.
  *
