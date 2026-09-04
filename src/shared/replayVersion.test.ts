@@ -257,8 +257,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // hauls it (systems/), and a mine with an empty pantry stops. That is
 // sim behavior in the plainest sense — the same commands on the same
 // ground produce a different valley — so the version moves with the hash.
+// Still 48 after the four playbooks stopped gating the mill and the bakery
+// behind the barracks (defs/aiStrategies.ts): playbook data, and playback
+// never runs a brain — a replay stores the seats' commands rather than
+// re-deriving them (app/replay.ts), so a seat that would build in a
+// different order today replays as it built then. The hash is over raw
+// bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 48;
-const EXPECTED_HASH = 'ba455de0ca3c163648ed0ccf370ac393';
+const EXPECTED_HASH = 'b82cb2af4d4e741eb103dbf04e06e64b';
 
 /**
  * Everything a replay's playback depends on, as raw source:

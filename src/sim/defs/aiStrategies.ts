@@ -233,23 +233,24 @@ const STEWARD_BUILD: BuildStep[] = [
   {type: BuildingTypeId.well, count: 1, anchor: BuildAnchorNs.base},
   {type: BuildingTypeId.wheatFarm, count: 1, anchor: BuildAnchorNs.base},
   // Grain is no longer a war material on its own: without the mill and the
-  // bakery behind it the barracks trains nobody at all. Both wait on the
-  // barracks itself, though — the castle's opening stock of bread covers
-  // the first defenders, and a chain built before there is anywhere to send
-  // its bread just eats the wood the barracks was waiting for. (Without the
-  // gate the campaign is unwinnable: the plan reaches Soldiery with the
-  // mill standing and nothing left to raise a barracks with.)
+  // bakery behind it the barracks trains nobody at all.
+  //
+  // Both used to wait on the barracks, because bread had exactly one
+  // customer and a chain built before there was anywhere to send its loaves
+  // just ate the wood the barracks was waiting for. The mines eat now
+  // (MINE_RATION_PER), so the ovens have a second customer that opens
+  // before Soldiery does — and the silver mine three lines up stops the
+  // day the castle's opening larder runs out. The gate is off: the chain
+  // is income now, not a war material bought early.
   {
     type: BuildingTypeId.mill,
     count: 1,
     anchor: BuildAnchorNs.base,
-    needs: BuildingTypeId.barracks,
   },
   {
     type: BuildingTypeId.bakery,
     count: 1,
     anchor: BuildAnchorNs.base,
-    needs: BuildingTypeId.barracks,
   },
   {
     type: BuildingTypeId.ironMine,
@@ -367,13 +368,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         type: BuildingTypeId.mill,
         count: 1,
         anchor: BuildAnchorNs.base,
-        needs: BuildingTypeId.barracks,
       },
       {
         type: BuildingTypeId.bakery,
         count: 1,
         anchor: BuildAnchorNs.base,
-        needs: BuildingTypeId.barracks,
       },
       // Two mines for two forges. A sword is two iron to a spear's one, so
       // an all-knight army on one seam starves the smiths and fields four
@@ -523,13 +522,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         type: BuildingTypeId.mill,
         count: 1,
         anchor: BuildAnchorNs.base,
-        needs: BuildingTypeId.barracks,
       },
       {
         type: BuildingTypeId.bakery,
         count: 1,
         anchor: BuildAnchorNs.base,
-        needs: BuildingTypeId.barracks,
       },
       {
         type: BuildingTypeId.ironMine,
@@ -741,13 +738,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         type: BuildingTypeId.mill,
         count: 1,
         anchor: BuildAnchorNs.base,
-        needs: BuildingTypeId.barracks,
       },
       {
         type: BuildingTypeId.bakery,
         count: 1,
         anchor: BuildAnchorNs.base,
-        needs: BuildingTypeId.barracks,
       },
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
