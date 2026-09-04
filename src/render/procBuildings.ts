@@ -93,8 +93,19 @@ const KAY = {
    * in, taken above the slice the grain takes so a gilded figure and a
    * standing crop cannot be confused for one material. Its own span is a
    * whole man, so the ramp reads as light gathering on the head and
-   * shoulders and draining into the boots. */
-  gilt: {cell: [1, 3], from: 0.3, to: 1.0},
+   * shoulders and draining into the boots.
+   *
+   * 0.96 and not 1.0, which is where this started and is the only value in
+   * this table that ever touched a cell edge. applyRamps lands the bottom
+   * of a span at `(row + to) / 4`, so row 1 at to=1.0 samples V=0.5000 —
+   * texel row 512.00 of a 1024px atlas, exactly the seam between this cell
+   * and the one below it. Linear filtering blends across that seam and
+   * mipmaps blend further, so the boots picked up whatever cell (2,3)
+   * happens to hold. Ten texels of margin costs nothing visible: the cell
+   * is a nine-stop gradient and 0.96 is still inside the darkest stop's
+   * band, which is the stop this was reaching for. Nothing else here comes
+   * near — the next-deepest `to` in the table is 0.92. */
+  gilt: {cell: [1, 3], from: 0.3, to: 0.96},
   /** The corner footings, a step lighter so they read as separate stones. */
   stonePale: {cell: [0, 2], from: 0.4, to: 0.72},
   /** The oven mass: the light half of the same ramp. It used to be a warm

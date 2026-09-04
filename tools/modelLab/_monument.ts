@@ -22,12 +22,12 @@ import * as THREE from 'three';
 import * as AnimKey from '../../src/render/animKeyEnum.ts';
 import {loadGlbAssets, makeGlbBuilding} from '../../src/render/assets';
 import {
-  type AnimKey as AnimKeyT,
+  FIGURE_LOREKEEPER,
   loadCharacterAssets,
   makeCharacter,
   playAnimation,
+  type AnimKey as AnimKeyT,
 } from '../../src/render/characters';
-import {FIGURE_LOREKEEPER} from '../../src/render/characters';
 import {TEAM_SWATCH_UV} from '../../src/render/factionPalette';
 import {makeMonument} from '../../src/render/procBuildings';
 import {
