@@ -587,7 +587,8 @@ function deliveryTargetFor(
     )
       return b;
     // A hungry mine takes the loaf off a passing hauler the same way,
-    // against its own shorter shelf.
+    // against its own shorter cap — RATION_STOCK on the pantry it eats
+    // from, never Building.stock, which is the shelf everywhere else here.
     if (
       !b.paused &&
       rationOf(def)?.good === good &&

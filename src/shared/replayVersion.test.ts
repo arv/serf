@@ -272,8 +272,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 48 after RATION_STOCK's comment stopped calling the pantry a shelf
 // (defs/balance.ts, words only): a shelf is `stock` everywhere else in the
 // sim, and the loaves were never there. Same bytes hashed, same behavior.
+// Still 48 after the second half of that same correction (systems/
+// logistics.ts) and after FIRST_RAID_TICK's note said which side of the
+// stretch its 13.4% was measured on. Comments both times.
 const EXPECTED_VERSION = 48;
-const EXPECTED_HASH = '0b82079d189d514e3be0ae982a64a9cd';
+const EXPECTED_HASH = '32052b7c01a7209690afc8f865d1314e';
 
 /**
  * Everything a replay's playback depends on, as raw source:

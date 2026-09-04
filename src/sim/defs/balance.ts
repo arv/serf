@@ -269,9 +269,14 @@ export const BUILDING_DAMAGE_MULT: Record<UnitClass, number> = {
 // (MINE_RATION_PER). Same reason as the housing stretch and measured the
 // same way: the ration puts the whole bread chain in front of the ore, and
 // across three seed ranges of the balance sweep the median winning tick
-// rose 13.4% (17.3k -> 19.6k) while the first wave went on arriving at
-// exactly the tick it always had. Deaths across the deck more than doubled
-// on the range that had not been tuned against. 540 -> 610 gives the
+// rose 13.4% — 17.3k to 19.6k, measured BEFORE this stretch and with the
+// clock still at 540, which is the slowdown the stretch is answering and
+// not a number the shipped build produces — while the first wave went on
+// arriving at exactly the tick it always had. Deaths across the deck more
+// than doubled on the range that had not been tuned against. (With the
+// stretch in, the median settles at 20.1k, +16.4% on the baseline: the
+// game is longer still, because a later first raid is itself part of why
+// it runs on.) 540 -> 610 gives the
 // slower ramp back the same share of peace it had before, and nothing
 // else about the raid moves: the CAP, the roster and the between-waves
 // interval are all as they were, so what is being answered here is the
