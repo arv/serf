@@ -1656,8 +1656,18 @@ export class AiBrain {
     // army that has stopped growing is as big as it is getting, so waiting
     // for the playbook's full size only feeds soldiers to the raids one at
     // a time (see AI_PACING.growthStallAfter).
-    let bar = mustersNeeded(s.armyAttackSize, idleFor);
-    if (world.tick - this.#armyGrewTick > AI_PACING.growthStallAfter) {
+    // A seat that holds ground prints a bar that means what it says: none
+    // of the three erosions below apply to it. See AiStrategy.holdsGround
+    // for why this cannot be a number — impatience walks any bar down to
+    // one soldier eventually, which is right for every seat whose plan ends
+    // at a rival's castle and wrong for the one whose plan is a clock.
+    let bar = s.holdsGround
+      ? s.armyAttackSize
+      : mustersNeeded(s.armyAttackSize, idleFor);
+    if (
+      !s.holdsGround &&
+      world.tick - this.#armyGrewTick > AI_PACING.growthStallAfter
+    ) {
       bar = Math.min(bar, Math.max(army.length, AI_PACING.staleFloor));
     }
     // ...and the wiped march's lesson over both (AI_WAR.wipeLesson): the
@@ -1695,11 +1705,26 @@ export class AiBrain {
     // does: it re-reads the rival's yard on the refresh clock, so the
     // garrison stays inside the trust window and the veto renews itself
     // forever. The clock, not the picture, is what breaks the standoff.
-    const heeded = idleFor > AI_PACING.forlornAfter ? null : odds;
+    // ...and for a holding seat the odds never speak at all: a favourable
+    // reading only ever STARTS a march the headcount bar was still waiting
+    // on, which is the one thing this seat must not do.
+    const heeded = s.holdsGround
+      ? null
+      : idleFor > AI_PACING.forlornAfter
+        ? null
+        : odds;
+    // A holding seat never musters, full stop — not "musters at a bar it is
+    // unlikely to reach". Leaving the printed bar honest was not enough:
+    // measured, a Mason with a healthy economy simply grew past its own 16,
+    // marched once, and razed the camp in 27 of 32 campaigns without ever
+    // laying a monument. `armyAttackSize` on such a seat describes the
+    // garrison it wants standing, and CLAMP (defs/difficulty.ts) caps every
+    // playbook's bar at 16 anyway, so there is no number that means never.
     const mustered =
-      heeded === null
+      !s.holdsGround &&
+      (heeded === null
         ? headcountReady
-        : heeded && cooled && army.length >= Math.max(MIN_SORTIE, wipedBar);
+        : heeded && cooled && army.length >= Math.max(MIN_SORTIE, wipedBar));
     // A hold has to reach the sweep as well: falling through to it would send
     // the army walking into unexplored ground instead, which is the one
     // outcome worse than the march it just refused. Only an actual hold
