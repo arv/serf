@@ -154,6 +154,32 @@ describe('a construction site with multi-material meshes', () => {
     expect(scene.children.length).toBe(0);
   });
 
+  it('draws both sides, so the clipped shell is not see-through', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0.5, siteNeeds: {}}),
+    ]);
+
+    // The clip plane cuts a closed shell open. Front-faced, that cut is a
+    // hole — the faces that would be behind the near wall all point away
+    // and are never drawn. Every material the plane touches has to be
+    // two-sided, shadow included, or a half-raised building reads as a
+    // facade with nothing behind it.
+    const clipped: THREE.Material[] = [];
+    scene.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (m.clippingPlanes?.length) clipped.push(m);
+      }
+    });
+
+    expect(clipped.length).toBeGreaterThan(0);
+    for (const m of clipped) {
+      expect(m.side).toBe(THREE.DoubleSide);
+      expect(m.shadowSide).toBe(THREE.DoubleSide);
+    }
+  });
+
   it('a poisoned frame does not orphan later buildings', () => {
     const {sync, scene} = makeSync();
     sync.update([
