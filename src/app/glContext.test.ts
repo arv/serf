@@ -73,6 +73,23 @@ describe('openWithRetry', () => {
     expect(waits).toEqual([10, 20]);
   });
 
+  it('asks past a promise that rejects, not only a throw', async () => {
+    const {waits, wait} = fakeWait();
+    const attempts: number[] = [];
+    const got = await openWithRetry(
+      async n => {
+        attempts.push(n);
+        if (n < 1) throw new Error('refused');
+        return 'context';
+      },
+      {delays: [10, 20], wait},
+    );
+    // Unwrapped, too: the value comes back rather than a promise of one.
+    expect(got).toBe('context');
+    expect(attempts).toEqual([0, 1]);
+    expect(waits).toEqual([10]);
+  });
+
   it('waits a few seconds in total — long enough for a GPU process to come back, short enough to sit through', () => {
     const total = GL_RETRY_DELAYS.reduce((a, b) => a + b, 0);
     expect(GL_RETRY_DELAYS.length).toBeGreaterThan(0);
