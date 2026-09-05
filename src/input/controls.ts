@@ -18,7 +18,7 @@ import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
 import {isPlayerOwner} from '../sim/entities';
-import {playMax, playMin} from '../sim/map';
+import {playMax, playMin, seamSpoil} from '../sim/map';
 import {canPlace, placementRefusal} from '../sim/world';
 import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
 import {
@@ -34,7 +34,13 @@ import {
   unitTechGate,
 } from '../ui/commands';
 import {fullscreen, guardEsc} from '../ui/fullscreen';
-import {goodName, techName, unitName} from '../ui/names';
+import {
+  buildingName,
+  goodName,
+  RESOURCE_NAMES,
+  techName,
+  unitName,
+} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
 import {rosterOf, sameRoster, type SelectedUnit} from '../ui/roster';
 import {nudgeSpeed} from '../ui/speedControl';
@@ -1173,6 +1179,18 @@ export class Controls {
       }
       case 'water':
         return 'Too far from the water to fish.';
+      case 'seam': {
+        // The one rule that names ground rather than a worker's reach, so
+        // it gets the resource's own word rather than the gatherer's.
+        const near = def.nearResource;
+        if (!near) return 'The ground there is wrong for it.';
+        // A seam that leaves spoil behind counts once it is worked out, so
+        // the message has to say so — a player who has just mined the gold
+        // out would otherwise read this as "you have lost your chance".
+        const worked =
+          seamSpoil(near.kind) !== undefined ? ', worked out or not' : '';
+        return `${buildingName(type)} must stand within ${near.radius} tiles of ${RESOURCE_NAMES[near.kind] ?? 'the seam'}${worked}.`;
+      }
       case 'slope':
         return 'The ground is too steep to build there.';
       case 'occupied':

@@ -242,7 +242,10 @@ export class ScatterMesh {
         if (this.#nearShadow(i)) add(groveTiles, chunk, 1);
         else add(farGroveTiles, chunk, 1);
       } else if (res === TileResource.Rock) add(rockTiles, chunk, 1);
-      else if (res !== TileResource.None) add(oreTiles, chunk, 1);
+      // Ore, and only live ore: spoil is a worked-out seam, and standing
+      // ore boulders on it would draw gold that is no longer there.
+      else if (res !== TileResource.None && res !== TileResource.GoldSpoil)
+        add(oreTiles, chunk, 1);
       // Rocky banks: grass tiles touching water, thinned by hash.
       if (
         map.terrain[i] === Terrain.Grass &&

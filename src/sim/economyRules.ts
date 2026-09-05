@@ -156,7 +156,8 @@ export interface EconomyRule {
  *
  * A gatherer with nothing left in reach is a hand and a hut spent on ground
  * that will never yield again. Not a figure of speech: `depleteResourceTile`
- * (world.ts) writes the last load's tile back to `TileResource.None`, and
+ * (world.ts) writes the last load's tile back to `TileResource.None` — to
+ * `GoldSpoil` for a gold seam, which is not ore either — and
  * `regrow` (systems/production.ts) only ever bumps a tile that is STILL
  * wood, so a cleared radius has nothing left to grow from. A woodcutter that
  * felled its grove is standing on dead earth for the rest of the match, and

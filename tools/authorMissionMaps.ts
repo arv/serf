@@ -35,6 +35,7 @@ import {audit, type Authored} from './mapAuthor/kit.ts';
 type MissionId = Enum<typeof MissionId>;
 import {build as breadAndWater} from './mapAuthor/missions/breadAndWater.ts';
 import {build as clearing} from './mapAuthor/missions/clearing.ts';
+import {build as gildedValley} from './mapAuthor/missions/gildedValley.ts';
 import {build as hammerAndHaft} from './mapAuthor/missions/hammerAndHaft.ts';
 import {build as holdTheValley} from './mapAuthor/missions/holdTheValley.ts';
 import {build as ledger} from './mapAuthor/missions/ledger.ts';
@@ -48,6 +49,7 @@ const RECIPES: Record<MissionId, () => Authored> = {
   [MissionId.hammerAndHaft]: hammerAndHaft,
   [MissionId.levy]: levy,
   [MissionId.holdTheValley]: holdTheValley,
+  [MissionId.gildedValley]: gildedValley,
   [MissionId.rivalBanner]: rivalBanner,
 };
 

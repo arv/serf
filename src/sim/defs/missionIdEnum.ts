@@ -17,3 +17,5 @@ export const holdTheValley = 6 as const;
 export type holdTheValley = typeof holdTheValley;
 export const rivalBanner = 7 as const;
 export type rivalBanner = typeof rivalBanner;
+export const gildedValley = 8 as const;
+export type gildedValley = typeof gildedValley;

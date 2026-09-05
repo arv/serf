@@ -24,6 +24,16 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// Still 49 after the worked-out gold seam (TileResource.GoldSpoil): a byte
+// in map.resource no earlier build ever wrote, which is format as much as
+// behavior — but 49 is this build's own bump and has never shipped, so
+// again there is nothing older to break.
+// Still 49 after the mission checklist latches before either win is
+// declared (systems/victory.ts): 49 is this build's own bump and has
+// never shipped, so there is nothing older to break. The change is real
+// sim behavior all the same — a commission that asks for a Monument now
+// ends with its last line ticked instead of unticked, because the
+// monument win used to return before the latch ran.
 // 32 for the campaign's ground being composed rather than rolled: every
 // tile of every mission map moved, so a mission log re-run on an older
 // build is a log played on different ground (see replayVersion.ts).
@@ -279,8 +289,24 @@ import {REPLAY_VERSION} from './replayVersion';
 // up to `per` (sim/entities.ts): chargeRation sets `per - 1`, because the
 // load that found the pantry empty is the first of the `per` its loaf
 // buys. Words; the counter always did this.
-const EXPECTED_VERSION = 48;
-const EXPECTED_HASH = '4fe650913d7f340868e9bd356b47e5ff';
+// 49 for the Monument: a building type, a placement rule keyed on the gold
+// seam, a hold clock in the victory system, and a reveal that puts a
+// finished one on every rival's map. The last two are the sharp end — a
+// match can now end on a tick and for a reason no earlier build had, and
+// the AI's target picture reads the explored grid the reveal writes to, so
+// a replay recorded before this diverges in outcome and not just in scenery.
+// Still 49 after the Monument's win moved from holding it to finishing it,
+// and its reveal from completion to the site's first delivery (systems/
+// victory.ts, visibility.ts, defs/balance.ts, entities.ts). Both are sim
+// behavior of the plainest kind — a different tick ends the match, and a
+// different tick tells rivals where to march — but they ship in the same
+// unreleased build as the Monument itself, so there is no build in the wild
+// holding the old rule for a 50 to tell apart.
+// Still 49 after `holdsGround` (systems/ai.ts, defs/aiStrategies.ts): a seat
+// that sets it never marches, which changes what the brain decides — but no
+// shipped playbook sets it, so every dealt seat plays exactly as it did.
+const EXPECTED_VERSION = 49;
+const EXPECTED_HASH = '78769da0bf69f7d1c22412d3c751e754';
 
 /**
  * Everything a replay's playback depends on, as raw source:

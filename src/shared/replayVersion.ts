@@ -592,6 +592,33 @@
  *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
+ * 49: the Monument, and the economy's own way to win. A new building type
+ * (buildingTypeIdEnum, defs/buildings) with a placement rule no other
+ * building has — it must stand within reach of a gold seam — and a victory
+ * rule to match: finish it and the match ends in its owner's favour. The
+ * contest is the raising, not anything after it, so a monument SITE stamps
+ * its footprint into every rival's explored grid the moment it takes its
+ * first delivery (visibility.ts) — which changes what the AI brain knows
+ * and therefore what it does. A match can now end on a tick and for a
+ * reason no earlier build had, so a log recorded before this re-runs into a
+ * different outcome, not merely a different valley.
+ *
+ * The checklist latches before either win is declared, so a commission
+ * that asks for a Monument ends with its last line ticked rather than
+ * unticked — the monument win used to return out of victorySystem before
+ * the objective pass ran.
+ *
+ * And the ground remembers a seam it no longer holds: a gold tile worked
+ * dry becomes TileResource.GoldSpoil rather than None (depleteResourceTile),
+ * spoil takes a footprint the way bare ground does (map.ts resourceOccupies),
+ * and the monument's rule counts it. Without that, digging the gold — the
+ * thing the mission asks for — deleted every legal monument site on the map,
+ * permanently and with nothing on screen to say so. It is a byte in
+ * map.resource that no earlier build ever wrote, which is format as well as
+ * behavior; authored map files still may not carry one (TILE_RESOURCE_KINDS).
+ *
+ * 48's note follows.
+ *
  * 48: the mines eat. Every gather recipe may now carry a ration (the iron,
  * silver and gold mines each spend one food per MINE_RATION_PER loads), the
  * mines raise a standing demand for it, and a mine with an empty pantry
@@ -621,4 +648,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 48;
+export const REPLAY_VERSION = 49;

@@ -5,7 +5,7 @@ import type {Enum} from '../shared/enum.ts';
 import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
-import {makeBakehouse, makeFarmstead} from './procBuildings';
+import {makeBakehouse, makeFarmstead, makeMonument} from './procBuildings';
 import {
   makeAshlar,
   makeHeadframe,
@@ -16,6 +16,7 @@ import {
 } from './procMines';
 import {makeFishSign, makeShoal} from './procParts';
 import * as ScatterPackNs from './scatterPackEnum.ts';
+import {makeStatueGeometry} from './statue';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 export type ScatterPack = Enum<typeof ScatterPackNs>;
@@ -350,6 +351,13 @@ interface Assets {
   forestMaterial: THREE.Material;
   /** Loaded pack prop scenes (wheelbarrow, resource piles...). */
   props: Map<string, THREE.Group>;
+  /**
+   * The pack's own building material, kept for the templates built after
+   * loading rather than during it (see lazyTemplate). Every built building
+   * draws with this one so there is no second material in the scene
+   * pretending to match the pack's.
+   */
+  packMaterial: THREE.Material | null;
 }
 
 let assets: Assets | null = null;
@@ -1056,6 +1064,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       natureMaterial,
       forestMaterial,
       props,
+      packMaterial,
     };
     return true;
   }
@@ -1112,11 +1121,39 @@ function teamMaterial(color: number): THREE.MeshLambertMaterial {
   return m;
 }
 
+/**
+ * The monument's template, built on first use rather than with the rest.
+ *
+ * Every other built building is baked inside loadGlbAssets, which must not
+ * wait on the character pack (see the note on makeMonument) — and the
+ * monument's figure comes out of exactly that pack. The two loads race in
+ * one Promise.all (matchScreen.ts), so baking it with the others would
+ * leave a permanently headless plinth on whichever runs first.
+ *
+ * Deferring costs nothing: both loads are awaited before a frame is drawn,
+ * so by the time anything asks for this the characters are up. Cached the
+ * moment it succeeds; a null figure is NOT cached, so a call that somehow
+ * lands early raises the pedestal alone that once and the next one gets the
+ * whole thing.
+ */
+function lazyTemplate(type: BuildingTypeId): THREE.Group | undefined {
+  if (type !== BuildingTypeId.monument || !assets) return undefined;
+  const statue = makeStatueGeometry();
+  const group = normalize(makeMonument(assets.packMaterial, statue));
+  // No `dress` pass: that closure lives inside loadGlbAssets, and the only
+  // thing it does is hang BUILDING_DECOR on a template. The monument has no
+  // decor entry — the figure IS its dressing — so there is nothing here for
+  // it to do and no reason to lift it out of the loader for one caller.
+  splitTeamColorGroups(group);
+  if (statue) assets.buildings.set(type, group);
+  return group;
+}
+
 export function makeGlbBuilding(
   type: BuildingTypeId,
   owner = 0,
 ): THREE.Group | null {
-  const template = assets?.buildings.get(type);
+  const template = assets?.buildings.get(type) ?? lazyTemplate(type);
   if (!template) return null;
   const def = BUILDING_DEFS[type];
   const group = template.clone();

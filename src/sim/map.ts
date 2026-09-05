@@ -1837,6 +1837,31 @@ export function clearResources(
   }
 }
 
+/**
+ * What a worked-out seam leaves on the ground, for the rules that ask where
+ * the ore WAS rather than where it still is. Only gold has an answer: it is
+ * the only seam a building's site depends on (the Monument's `nearResource`,
+ * and TileResource.GoldSpoil for why the ground has to remember at all).
+ */
+export function seamSpoil(kind: number): TileResourceKind | undefined {
+  return kind === TileResourceNs.GoldDep ? TileResourceNs.GoldSpoil : undefined;
+}
+
+/**
+ * Does this tile's resource keep a roof off it? Everything standing or
+ * buried does — no one builds over a wood, an outcrop or a live seam.
+ *
+ * Spoil is the exception, and it has to be: it is the ground a worked-out
+ * gold seam leaves behind (TileResource.GoldSpoil), and before spoil
+ * existed that same tile simply went back to bare grass and took a
+ * building like any other dirt. Refusing it would be a regression dressed
+ * as a rule — and it would put the Monument's own footprint off the tailings
+ * it is gilded from, which is the last place it should be unwelcome.
+ */
+export function resourceOccupies(res: number): boolean {
+  return res !== TileResourceNs.None && res !== TileResourceNs.GoldSpoil;
+}
+
 /** Is every tile of the rect grass, resource-free, and building-free? */
 export function rectClear(
   map: MapView,
@@ -1850,7 +1875,7 @@ export function rectClear(
       if (!inPlayArea(map, x, y)) return false;
       const i = tileIdx(x, y, map.size);
       if (map.terrain[i] !== TerrainNs.Grass) return false;
-      if (map.resource[i] !== TileResourceNs.None) return false;
+      if (resourceOccupies(map.resource[i]!)) return false;
       if (map.buildingAt[i] !== -1) return false;
     }
   }
