@@ -76,6 +76,7 @@ import {DamageAlerts} from './damageAlerts';
 import {fatal} from './fatalScreen';
 import {stampName} from './fileStore';
 import type {GameConfig} from './gameConfig';
+import {openWithRetry} from './glContext';
 import {HiddenSync} from './hiddenSync';
 import {WorldMirror} from './mirror';
 import type {ReplayData} from './replay';
@@ -100,6 +101,57 @@ import {createWakeLock, domWakeLockPort} from './wakeLock';
  * just been pressed; the editor, the field guide and the wardrobe already
  * arrive the same way.
  */
+
+/**
+ * How much of the browser's own account of a refusal is worth carrying into
+ * the error card. Chrome's is a sentence and a driver string; the sentence
+ * is the half that says anything.
+ */
+const GL_REASON_MAX = 160;
+
+/**
+ * A blank canvas, in the place of one that has been asked and refused.
+ *
+ * Retrying on the same element is legal — a failed ask leaves no context
+ * behind — but it is not clean: three.js probes a second time before it
+ * throws (that is how it tells "your attributes" from "no context at all"),
+ * and a probe that succeeds leaves a context on the canvas that every later
+ * getContext is then answered with, attributes and all. A fresh element
+ * costs nothing and cannot inherit any of that.
+ */
+function freshCanvas(old: HTMLCanvasElement): HTMLCanvasElement {
+  const fresh = old.cloneNode(false) as HTMLCanvasElement;
+  old.replaceWith(fresh);
+  return fresh;
+}
+
+/**
+ * Build the renderer, keeping whatever the browser said on the way past.
+ *
+ * three.js reports a refusal in its own words ("Error creating WebGL
+ * context"), which say that it happened and nothing about why. The browser
+ * is more forthcoming, but only to a `webglcontextcreationerror` listener
+ * on the canvas — the one place the reason is ever spoken. This is the only
+ * evidence anyone gets about a failure that happens on someone else's
+ * phone, so it goes on the card with the rest.
+ */
+function openRenderer(canvas: HTMLCanvasElement): GameRenderer {
+  let said = '';
+  const note = (event: Event): void => {
+    const status = (event as {statusMessage?: string}).statusMessage;
+    if (status) said = status;
+  };
+  canvas.addEventListener('webglcontextcreationerror', note);
+  try {
+    return new GameRenderer(canvas);
+  } catch (err) {
+    if (said === '') throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`${message} ${said.slice(0, GL_REASON_MAX)}`);
+  } finally {
+    canvas.removeEventListener('webglcontextcreationerror', note);
+  }
+}
 
 /**
  * The match itself: worker, renderer, HUD and the frame loop. Reached
@@ -166,7 +218,7 @@ export async function runMatch(
   if (net !== undefined) setFogEnabled(true);
   setReplayMode(replay !== undefined);
 
-  const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  let canvas = document.getElementById('canvas') as HTMLCanvasElement;
   /**
    * Every listener this function registers, on one signal.
    *
@@ -189,27 +241,48 @@ export async function runMatch(
   // fetched. Two reasons, both about the phone this fails on: asking while
   // the page is at its lightest is the ask most likely to be granted, and
   // when it is refused anyway, failing here costs nothing — no worker, no
-  // map, nothing to tear down before the reload below.
+  // map, nothing to tear down before the retries below.
   //
   // Android Chrome kills the GPU process under memory pressure, and for a
   // while afterwards a WebGL context simply isn't granted. A dead-end error
   // screen made that read as "the game is broken"; the process usually
-  // comes back within a breath, so try again on our own — twice, giving it
-  // longer the second time — and leave a button for when it needs longer
-  // still.
+  // comes back within a breath, so ask again on our own — three times over
+  // the next few seconds (glContext.ts), which costs a wait rather than the
+  // whole document — and leave the card, and one reload, for the refusal
+  // that outlasts them.
   let renderer: GameRenderer;
   try {
-    renderer = new GameRenderer(canvas);
+    renderer = await openWithRetry(attempt => {
+      // Every ask after the first gets a canvas of its own. A canvas that
+      // has answered once — and three.js probes a second time on its way to
+      // the error, so one that has refused usually has — is no longer blank,
+      // and the attributes we asked for are settled on whatever it already
+      // holds rather than on the context we want.
+      if (attempt > 0) canvas = freshCanvas(canvas);
+      return openRenderer(canvas);
+    });
     teardown.push(() => renderer.dispose());
     stashSet('session', 'serf-gl-fails', null);
   } catch (err) {
+    // Nothing here is built yet, but the little that is — the listeners
+    // above, the canvas the last ask spoiled — belongs to a match that will
+    // not exist, and no one else will take it off the page: a screen that
+    // throws is never presented, so its dispose is never called.
+    screen.dispose();
     const fails = Number(stashGet('session', 'serf-gl-fails') ?? '0') + 1;
     // The reload is only scheduled when the counter persisted: with storage
     // denied every attempt reads as the first, and the page would bounce
     // forever instead of settling on the card below.
+    //
+    // One reload, where there used to be two. It is the second line of
+    // defence now — a fresh document is worth trying when the trouble is
+    // this page's own footprint rather than the driver's — and the retries
+    // above have already spent nearly three seconds per document. Two more
+    // rounds of them put the card eight seconds further off, all of it in
+    // front of a black screen, which is longer than anyone waits before
+    // deciding the game is broken.
     const counted = stashSet('session', 'serf-gl-fails', String(fails));
-    if (counted && fails <= 2)
-      setTimeout(() => location.reload(), fails * 1500);
+    if (counted && fails <= 1) setTimeout(() => location.reload(), 1500);
     fatal(
       'The browser refused a WebGL context — this usually passes in a moment. ' +
         `(${err instanceof Error ? err.message : String(err)})`,
