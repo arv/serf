@@ -24,6 +24,12 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// Still 49 after the mission checklist latches before either win is
+// declared (systems/victory.ts): 49 is this build's own bump and has
+// never shipped, so there is nothing older to break. The change is real
+// sim behavior all the same — a commission that asks for a Monument now
+// ends with its last line ticked instead of unticked, because the
+// monument win used to return before the latch ran.
 // 32 for the campaign's ground being composed rather than rolled: every
 // tile of every mission map moved, so a mission log re-run on an older
 // build is a log played on different ground (see replayVersion.ts).
@@ -296,7 +302,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // that sets it never marches, which changes what the brain decides — but no
 // shipped playbook sets it, so every dealt seat plays exactly as it did.
 const EXPECTED_VERSION = 49;
-const EXPECTED_HASH = 'eeb25b4d1a2d0fcc59c66473b4ba0ce6';
+const EXPECTED_HASH = '37992b28fe1534d49daa4a37ba0225d5';
 
 /**
  * Everything a replay's playback depends on, as raw source:

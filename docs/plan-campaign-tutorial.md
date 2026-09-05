@@ -1,7 +1,8 @@
 # Plan: single-player campaign + tutorial
 
-Status: implemented. Seven missions (Hammer and Haft, mission 4 below,
-was added after the first six shipped), authored maps, objectives
+Status: implemented. Eight missions (Hammer and Haft, mission 4 below,
+was added after the first six shipped; The Gilded Valley, mission 7, came
+later still — see the addendum at the end), authored maps, objectives
 evaluated in the sim (a `mission` on `WorldConfig`, checked in
 `victory.ts`), hints driven entirely on the main thread from
 `StructuralUpdate` snapshots. No new save format, no rewrite of the solo
@@ -77,7 +78,8 @@ files, and the seeds no longer describe the ground.)*
 | 4 | Hammer and Haft | the tools chain: the Smith, tool-gated posts, the borrowed hammer | off | Smith + iron, wood, food flowing + 3 hammers | castle falls |
 | 5 | The Levy | barracks, RPS triangle, defending raids, attacking | on, early | 6 soldiers, raze the camp | castle falls |
 | 6 | Hold the Valley | everything, unassisted | on, default | raze the camp (today's solo mode) | castle falls |
-| 7 | The Rival Banner (bonus) | facing an AI playbook | on (neutral, mid-map) | last banner standing | eliminated |
+| 7 | The Gilded Valley | the economic win: gold, the long haul, the Monument | on, nine-minute peace | finish a Monument | castle falls |
+| 8 | The Rival Banner (bonus) | facing an AI playbook | on (neutral, mid-map) | last banner standing | eliminated |
 
 ### Mission 1 — The Clearing
 
@@ -215,7 +217,7 @@ the briefing card and the objective line. This is the graduation exam,
 and it needs **zero new balance work** because `winnable.test.ts`
 already holds this exact line.
 
-### Mission 7 — The Rival Banner (bonus, post-campaign)
+### Mission 8 — The Rival Banner (bonus, post-campaign)
 
 *"A rival reeve claims the far end of the valley. Two banners, one
 charter."*
@@ -473,3 +475,37 @@ touches the sim.
   3-minute `RAID_INTERVAL`. If playtesting wants a faster drumbeat
   there, the knob means threading an interval through `raidState` —
   small, but sim state, so deferred until a mission proves it needs it.
+
+## Addendum: mission 7 — The Gilded Valley
+
+Not in the plan above; it landed with the Monument, the second way to win
+a match in any mode. The commission is a checklist of three — research
+Deep Mining, cut a Gold Mine, raise the Monument — and finishing the
+Monument ends the match on its own (`victorySystem`), so the last line is
+belt and braces rather than the mechanism.
+
+What the mission had to be built around, learned the expensive way:
+
+- **The camp is 44 tiles out**, the same march the Levy and Hold the
+  Valley ask for, and deliberately equidistant from the keep and the
+  Monument's shelf. A first draft put it at 25. The guards' reach then
+  covered ground the town wanted to work; serfs walked into it and died
+  by the dozen before the first wave, and the seat never trained a
+  soldier. That reads as a broken economy, not as a hard mission.
+- **Four pickaxes in the opening stock**, not three: the prebuilt quarry
+  and silver mine hold one each, the Iron Mine a player digs on the way
+  to Deep Mining takes a third, and the Gold Mine takes a fourth. Short
+  of that the gold mine stands finished and unstaffed — which looks
+  exactly like a working one — and the Monument waits forever on twelve
+  gold.
+- **The checklist latches before either win is declared** now
+  (`systems/victory.ts`). The monument win used to return out of
+  `victorySystem` first, so the mission's own last line stayed unticked
+  on the end card of the match it had just won.
+
+Its playthrough test is a hybrid rather than either of the two shapes the
+plan describes: the brain drives the town (serfs, bread, the answer to
+the raids) and a scripted hand makes the three clicks the commission is
+about. It has to be — no playbook ever sites a Monument, and a mission
+checklist replaces the raze-the-camp win, so a purely AI-driven seat
+razes the camp and then plays on forever.

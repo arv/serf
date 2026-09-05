@@ -62,6 +62,15 @@ export function victorySystem(world: World): void {
     }
   }
 
+  // The checklist is evaluated before either win is declared, because the
+  // two overlap: a monument topping out on a commission that asks for one
+  // is ALSO that commission's last line, and an end card showing it unticked
+  // would be lying about the thing the player just did. Latching first costs
+  // nothing — it is the same predicate pass either way — and the monument
+  // still takes precedence below over the checklist's own win.
+  const allObjectivesDone =
+    world.players[0]?.alive === true && latchObjectives(world);
+
   // A finished monument wins, for an owner who is still standing — a keep
   // lost on the same tick is a loss, the way the mission checklist below is
   // also gated on being alive.
@@ -78,10 +87,11 @@ export function victorySystem(world: World): void {
     return;
   }
 
-  // Mission checklist first: all objectives latched at once is the win.
-  // Only while the human seat still stands — a castle lost on the same
-  // tick is a loss, not a photo finish.
-  if (world.players[0]?.alive && latchObjectives(world)) {
+  // Mission checklist: all objectives latched at once is the win. Only
+  // while the human seat still stands — a castle lost on the same tick is
+  // a loss, not a photo finish (the `alive` half is folded into the latch
+  // above).
+  if (allObjectivesDone) {
     endMatch(world, 0);
     return;
   }

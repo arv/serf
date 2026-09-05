@@ -497,6 +497,116 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     ],
   },
 
+  [MissionIdNs.gildedValley]: {
+    id: MissionIdNs.gildedValley,
+    title: 'The Gilded Valley',
+    briefing:
+      'There is gold at the far end of this valley, and the crown has ' +
+      'tired of being told about camps. Dig it, gild a monument on the ' +
+      'knap above the seam, and finish it. The bandits will hear the first ' +
+      'cartload land — everyone will. Raze them or outwork them, reeve; ' +
+      'the commission is the stone, not the corpses.',
+    tagline: 'Win by finishing a Monument, not by razing a camp.',
+    // The ground is the argument (mapAuthor/missions/gildedValley.ts): the
+    // town's own trades are all within a dozen tiles, and the gold knap is
+    // out at the far south-east with a levelled shelf beside it. The only
+    // long haul on the map is the one this mission is about.
+    seed: 507,
+    players: [{kind: PlayerKind.human}],
+    bandits: true,
+    // Off the town-to-knap diagonal on purpose: the raiders' road crosses
+    // the builders' road, but the camp is not a gate on it. Razing it is a
+    // way to buy quiet, not the way to win.
+    //
+    // Forty-four tiles out, the same march the Levy and Hold the Valley
+    // ask for, and deliberately equidistant from the keep (43.9) and the
+    // Monument's shelf (44.0) — the raiders threaten the haul and the town
+    // alike. A nearer camp is not a harder mission but a broken one: the
+    // guards' reach covers the ground the town wants to work, and serfs
+    // walk into it and die by the dozen long before the first wave.
+    campSpot: {x: 112, y: 52},
+    // No raid-clock override: the default is already the longest peace in
+    // the game (FIRST_RAID_TICK scaled to the 96-tile playfield, so about
+    // fifteen minutes), and this mission is long by design — the clock
+    // should not be the thing that makes it so. An earlier draft set
+    // 10_800 here under the impression it was granting the full nine
+    // minutes; it was taking away six.
+    startSerfs: 14,
+    startStock: {
+      [GoodId.wood]: 40,
+      [GoodId.stone]: 25,
+      [GoodId.food]: 14,
+      [GoodId.iron]: 8,
+      [GoodId.silver]: 30,
+      [GoodId.spear]: 3,
+      [GoodId.sword]: 1,
+      // The standing town's kit, plus the spare picks the two mines this
+      // commission asks for want: the prebuilt quarry and silver mine hold
+      // one each, the Iron Mine a player digs for Deep Mining takes a
+      // third, and the Gold Mine — the whole point of the map — takes a
+      // fourth. Short of that the mine stands finished and unstaffed, and
+      // the Monument waits forever on twelve gold that never comes.
+      [GoodId.axe]: 1,
+      [GoodId.pickaxe]: 5,
+      [GoodId.scythe]: 1,
+      [GoodId.cauldron]: 1,
+      [GoodId.rod]: 1,
+      [GoodId.hammer]: 3,
+    },
+    // Everything the earlier commissions taught, already learned. What is
+    // NOT granted is Deep Mining: opening the gold is the first thing this
+    // mission asks for, and it is on the checklist below.
+    startTechs: [
+      TechId.soldiery,
+      TechId.cobbledBoots,
+      TechId.ironworking,
+      TechId.archery,
+    ],
+    // A working town, so the player's whole attention is on the far end of
+    // the valley rather than on re-teaching the bread chain.
+    prebuilt: [
+      {type: BuildingTypeId.woodcutter, dx: -8, dy: -2},
+      {type: BuildingTypeId.quarry, dx: -2, dy: -9},
+      {type: BuildingTypeId.house, dx: -5, dy: 5},
+      {type: BuildingTypeId.house, dx: -8, dy: 2},
+      {type: BuildingTypeId.well, dx: 4, dy: 5},
+      {type: BuildingTypeId.wheatFarm, dx: 7, dy: 3},
+      {type: BuildingTypeId.mill, dx: -2, dy: 8},
+      {type: BuildingTypeId.bakery, dx: 3, dy: 8},
+      {type: BuildingTypeId.silverMine, dx: -7, dy: -13},
+      {type: BuildingTypeId.abbey, dx: 6, dy: -3},
+      {type: BuildingTypeId.barracks, dx: -4, dy: -5},
+      {type: BuildingTypeId.weaponsmith, dx: 2, dy: -6},
+    ],
+    // Three lines, and they are the three steps of the economic win: open
+    // the seam, work it, finish the thing it is for. The Monument's own
+    // completion also ends the match outright (systems/victory.ts), so the
+    // last line is belt and braces — but it is the line that says what the
+    // commission IS, and a checklist that stopped at "mine some gold"
+    // would read like the crown lost interest.
+    objectives: [
+      {
+        spec: {kind: ObjectiveKindNs.research, tech: TechId.deepMining},
+        label: 'Research Deep Mining',
+      },
+      {
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.goldMine,
+          count: 1,
+        },
+        label: 'Cut a Gold Mine into the knap',
+      },
+      {
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.monument,
+          count: 1,
+        },
+        label: 'Raise the Monument',
+      },
+    ],
+  },
   [MissionIdNs.rivalBanner]: {
     id: MissionIdNs.rivalBanner,
     title: 'The Rival Banner',
@@ -532,6 +642,7 @@ export const MISSION_ORDER: MissionId[] = [
   MissionIdNs.hammerAndHaft,
   MissionIdNs.levy,
   MissionIdNs.holdTheValley,
+  MissionIdNs.gildedValley,
   MissionIdNs.rivalBanner,
 ];
 
@@ -568,6 +679,7 @@ export const MISSION_KEYS: Readonly<Record<MissionId, string>> = {
   [MissionIdNs.hammerAndHaft]: 'hammerAndHaft',
   [MissionIdNs.levy]: 'levy',
   [MissionIdNs.holdTheValley]: 'holdTheValley',
+  [MissionIdNs.gildedValley]: 'gildedValley',
   [MissionIdNs.rivalBanner]: 'rivalBanner',
 };
 

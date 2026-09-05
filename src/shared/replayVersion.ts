@@ -603,6 +603,11 @@
  * reason no earlier build had, so a log recorded before this re-runs into a
  * different outcome, not merely a different valley.
  *
+ * The checklist latches before either win is declared, so a commission
+ * that asks for a Monument ends with its last line ticked rather than
+ * unticked — the monument win used to return out of victorySystem before
+ * the objective pass ran.
+ *
  * 48's note follows.
  *
  * 48: the mines eat. Every gather recipe may now carry a ration (the iron,
