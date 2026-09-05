@@ -6,7 +6,6 @@ import {
   HIRE_QUEUE_CAP,
   HIRE_SERF_COST,
   HIRE_SERF_TICKS,
-  MONUMENT_HOLD_TICKS,
   TICKS_PER_SECOND,
   TRAIN_QUEUE_CAP,
 } from '../sim/defs/balance';
@@ -1384,23 +1383,6 @@ export function SelectionPanel(props: {
                   </span>
                 </Show>
               </div>
-              {/* The monument's clock, on anybody's monument. A rival's is
-                  the number that decides whether you march, so it is drawn
-                  for whoever can see the stone rather than for its owner —
-                  the one readout on this card that is more use to the enemy
-                  than to the man who built it. */}
-              <Show when={b().hold01 !== undefined}>
-                <div class="sel-line">
-                  <span>
-                    held {Math.floor((b().hold01 ?? 0) * 100)}% —{' '}
-                    {Math.ceil(
-                      (MONUMENT_HOLD_TICKS * (1 - (b().hold01 ?? 0))) /
-                        TICKS_PER_SECOND,
-                    )}
-                    s to go
-                  </span>
-                </div>
-              </Show>
               {/* The people card's last line, for the same reason: the
                   order rows above are drawn in a replay — the queue and
                   the locks are what a recording is opened to read — and

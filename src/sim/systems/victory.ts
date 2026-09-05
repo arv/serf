@@ -1,5 +1,4 @@
 import * as BuildingState from '../buildingStateEnum.ts';
-import {MONUMENT_HOLD_TICKS} from '../defs/balance.ts';
 import {buildingDef} from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import type {Owner} from '../entities.ts';
@@ -21,13 +20,22 @@ import {latchObjectives} from './objectives.ts';
  * checklist (the rival-banner bonus) falls through to the ordinary
  * elimination rules.
  *
- * The monument is the second way to win in every mode, and the only one
- * the economy reaches on its own: raise it, hold it MONUMENT_HOLD_TICKS,
- * take the valley. Its clock ticks here because it IS a victory condition
- * rather than a production step — nothing else in the sim reads holdTicks
- * — and it is checked before the elimination rules so that a monument that
- * comes good on the same tick a rival's last castle falls still reads as
- * the monument's win, which is what the player was playing for.
+ * The monument is the second way to win in every mode, and the only one the
+ * economy reaches on its own: finish it and the valley is yours.
+ *
+ * Finishing it, rather than holding it for a while afterwards, because the
+ * contest belongs BEFORE the last stone and not after. Every rival is told
+ * the moment a monument site takes its first delivery (visibility.ts), so
+ * what they get is the whole raising — the hauling of sixty-odd goods to
+ * the middle of the map and ninety seconds of masonry — to march on a frame
+ * standing at a fifth of its hit points. A hold instead put the contest
+ * after completion, which is the worst of both: the builder had the entire
+ * raising unobserved to garrison the ground, and the thing rivals finally
+ * heard about was finished and at full health.
+ *
+ * Checked before the elimination rules, so a monument topping out on the
+ * same tick a rival's last castle falls still reads as the monument's win.
+ * That is what its owner was playing for.
  */
 export function victorySystem(world: World): void {
   if (world.outcome.state !== MatchState.playing) return;
@@ -54,11 +62,9 @@ export function victorySystem(world: World): void {
     }
   }
 
-  // The monument's clock. Only a finished one counts, and only while its
-  // owner is still standing — a keep lost on the same tick is a loss, the
-  // way the mission checklist below is also gated on being alive. A razed
-  // monument takes its count down with it (holdTicks lives on the
-  // building), so this can never resume a hold the stone did not survive.
+  // A finished monument wins, for an owner who is still standing — a keep
+  // lost on the same tick is a loss, the way the mission checklist below is
+  // also gated on being alive.
   for (const b of world.buildings.values()) {
     if (
       b.dead ||
@@ -68,12 +74,8 @@ export function victorySystem(world: World): void {
       continue;
     }
     if (!world.players[b.owner]?.alive) continue;
-    const held = (b.holdTicks ?? 0) + 1;
-    b.holdTicks = held;
-    if (held >= MONUMENT_HOLD_TICKS) {
-      endMatch(world, b.owner);
-      return;
-    }
+    endMatch(world, b.owner);
+    return;
   }
 
   // Mission checklist first: all objectives latched at once is the win.

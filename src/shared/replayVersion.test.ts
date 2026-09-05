@@ -285,13 +285,18 @@ import {REPLAY_VERSION} from './replayVersion';
 // match can now end on a tick and for a reason no earlier build had, and
 // the AI's target picture reads the explored grid the reveal writes to, so
 // a replay recorded before this diverges in outcome and not just in scenery.
-// Still 49 after `holdsGround` (systems/ai.ts, defs/aiStrategies.ts): a
-// seat that sets it never marches, which changes what the brain decides —
-// but no shipped playbook sets it, so every dealt seat plays exactly as it
-// did, and it ships in the same unreleased build as the Monument it exists
-// to make measurable.
+// Still 49 after the Monument's win moved from holding it to finishing it,
+// and its reveal from completion to the site's first delivery (systems/
+// victory.ts, visibility.ts, defs/balance.ts, entities.ts). Both are sim
+// behavior of the plainest kind — a different tick ends the match, and a
+// different tick tells rivals where to march — but they ship in the same
+// unreleased build as the Monument itself, so there is no build in the wild
+// holding the old rule for a 50 to tell apart.
+// Still 49 after `holdsGround` (systems/ai.ts, defs/aiStrategies.ts): a seat
+// that sets it never marches, which changes what the brain decides — but no
+// shipped playbook sets it, so every dealt seat plays exactly as it did.
 const EXPECTED_VERSION = 49;
-const EXPECTED_HASH = '3355755077782925332d96d4462da2f3';
+const EXPECTED_HASH = 'eeb25b4d1a2d0fcc59c66473b4ba0ce6';
 
 /**
  * Everything a replay's playback depends on, as raw source:

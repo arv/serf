@@ -312,26 +312,6 @@ export function raidIntervalFor(mapSize: number): number {
   return Math.floor((RAID_INTERVAL * mapSize) / 64);
 }
 
-// The Monument — the economy's own way to win.
-/**
- * How long a finished monument must stand before its owner takes the
- * valley.
- *
- * The whole mechanic is in this number being long. A monument that wins on
- * completion is a purchase: the dominant line becomes skip everything,
- * rush the price, win, which is one more build order rather than a second
- * way to play. Winning by HOLDING it makes it a claim — announced to every
- * rival the moment it tops out (see the reveal in visibility.ts), standing
- * on the contested middle by its own placement rule, and soft enough to
- * break that keeping it costs an army standing somewhere an army would
- * rather not be.
- *
- * Four minutes, against a between-waves raid interval of three at 64: long
- * enough that a bandit wave lands inside the hold on almost any map, short
- * enough that it is not simply a slower version of marching on the camp.
- */
-export const MONUMENT_HOLD_TICKS = 240 * TICKS_PER_SECOND;
-
 // Training
 export const TRAIN_QUEUE_CAP = 5;
 /** Forge orders (Smith queue) waiting at once — trainQueue's twin. */

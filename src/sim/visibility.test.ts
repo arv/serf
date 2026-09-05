@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid';
 import {buildingDef} from './defs/buildings';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
 import {UNIT_DEFS} from './defs/units';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {addStorehouse, bareWorld} from './testUtils';
@@ -144,14 +145,31 @@ describe('seat vision', () => {
     expect(v.revealed).not.toContain(foot);
   });
 
-  it('keeps an unfinished rival monument secret', () => {
+  it('keeps a rival monument secret until somebody actually spends on it', () => {
     const world = bareWorld(1, 2);
     const site = placeSite(world, BuildingTypeId.monument, 1, 40, 40);
     const v = new SeatVision(world.map.size);
     v.recompute(world, 0);
 
-    // The clock starts at topping-out and so does the telling: a rival who
-    // is still hauling stone has not made a claim yet.
+    // A site is free to put down — placeSite leaves the whole cost owed in
+    // siteNeeds — so a reveal on placement would be a costless way to bait
+    // every rival on the map into marching at nothing.
+    expect(v.hasExplored(site.x + 0.5, site.y + 0.5)).toBe(false);
+
+    // One load landed is somebody spending, and that is the tell.
+    site.siteNeeds![GoodId.stone] = (site.siteNeeds![GoodId.stone] ?? 1) - 1;
+    v.recompute(world, 0);
+    expect(v.hasExplored(site.x + 0.5, site.y + 0.5)).toBe(true);
+  });
+
+  it('does not count the borrowed hammer as spending on it', () => {
+    const world = bareWorld(1, 2);
+    const site = placeSite(world, BuildingTypeId.monument, 1, 40, 40);
+    // Every site borrows a hammer and gives it back; one landing says a
+    // builder turned up, not that anyone is committed to this.
+    site.siteNeeds![GoodId.hammer] = 0;
+    const v = new SeatVision(world.map.size);
+    v.recompute(world, 0);
     expect(v.hasExplored(site.x + 0.5, site.y + 0.5)).toBe(false);
   });
 

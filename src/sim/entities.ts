@@ -88,17 +88,6 @@ export interface Building {
    * the man who takes the pick up next works off what is left of it.
    */
   rationLeft?: number;
-  /**
-   * Ticks this finished monument has stood (see MONUMENT_HOLD_TICKS).
-   * Counted by the victory system, which is the only thing that reads it,
-   * and undefined on every building that is not one.
-   *
-   * On the building rather than the player because losing the monument is
-   * meant to lose the progress with it: there is nowhere for the count to
-   * survive when the stone comes down, and raising a second one starts the
-   * clock again from nothing. That is the whole reason the hold is a hold.
-   */
-  holdTicks?: number;
   /** Standing order in the def's recipeOptions (the Smith's forge menu).
    * Undefined = auto: forge whatever tool the village most lacks. */
   recipeIndex?: number;

@@ -128,10 +128,6 @@ export function hashWorld(world: World): number {
       // hp above; a save that lost the order must not hash as the same world.
       mix(b.repairNeeds?.[good] ?? 0);
     }
-    // The monument's clock: it decides who wins and when, so a save that
-    // dropped it would play on as the same world until the hold ran out
-    // early or never.
-    mix(b.holdTicks ?? 0);
     // The miners' bread: loads still covered by what the post has already
     // eaten. It steers whether the shaft runs for the next few trips, so a
     // save that dropped it would play on as the same world until the pantry

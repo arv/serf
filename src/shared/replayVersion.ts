@@ -594,13 +594,14 @@
  * each weapon rather than two spears, every building's input and output
  * 49: the Monument, and the economy's own way to win. A new building type
  * (buildingTypeIdEnum, defs/buildings) with a placement rule no other
- * building has — it must stand within reach of a gold seam — and a hold
- * clock the victory system counts on it: finished, held MONUMENT_HOLD_TICKS,
- * the match ends in its owner's favour. A finished one also stamps its
- * footprint into every rival's explored grid (visibility.ts), which changes
- * what the AI brain knows and therefore what it does. A match can now end on
- * a tick and for a reason no earlier build had, so a log recorded before
- * this re-runs into a different outcome, not merely a different valley.
+ * building has — it must stand within reach of a gold seam — and a victory
+ * rule to match: finish it and the match ends in its owner's favour. The
+ * contest is the raising, not anything after it, so a monument SITE stamps
+ * its footprint into every rival's explored grid the moment it takes its
+ * first delivery (visibility.ts) — which changes what the AI brain knows
+ * and therefore what it does. A match can now end on a tick and for a
+ * reason no earlier build had, so a log recorded before this re-runs into a
+ * different outcome, not merely a different valley.
  *
  * 48's note follows.
  *

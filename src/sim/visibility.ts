@@ -21,9 +21,30 @@ import {tileCount, tileIdx} from '../shared/grid.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import {buildingDef} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import {goodEntries} from './defs/goods.ts';
 import {UNIT_DEFS} from './defs/units.ts';
 import type {Owner} from './entities.ts';
 import type {World} from './world.ts';
+
+/**
+ * Has this site taken delivery of anything yet?
+ *
+ * A pure read of what is still owed against what the building costs — no
+ * new state to keep in step across save, clone or the determinism hash.
+ * The borrowed hammer is deliberately not counted: it is a loan every site
+ * takes and gives back, so a hammer landing says a builder showed up, not
+ * that anyone is committed to this.
+ */
+function anyDelivered(b: {
+  type: Parameters<typeof buildingDef>[0];
+  siteNeeds?: Record<number, number | undefined>;
+}): boolean {
+  const cost = buildingDef(b.type).cost;
+  for (const [good, owed] of goodEntries(cost)) {
+    if ((b.siteNeeds?.[good] ?? 0) < owed) return true;
+  }
+  return false;
+}
 
 /** A building watches from its edges, not its middle, so its footprint
  * widens what it covers. Units are points and need no such adjustment. */
@@ -89,7 +110,8 @@ export class SeatVision {
   }
 
   /**
-   * A rival's finished monument is on everybody's map.
+   * A rival's monument is on everybody's map from the moment it is really
+   * being built.
    *
    * `explored` and not `visible`, which is the whole of the design: a
    * monument does not walk away, so it belongs in the grid that remembers
@@ -100,8 +122,21 @@ export class SeatVision {
    * on `canSee`, and a remembered stub otherwise. Knowing where to march
    * is the point; being handed the garrison count is not.
    *
-   * A hold nobody can find is a stopwatch, not a claim, so this is what
-   * makes the countdown contestable at all.
+   * A monument nobody can find is a countdown, not a contest, so this is
+   * what makes it stoppable at all.
+   *
+   * A SITE counts, not just a finished one, and that is the whole shape of
+   * the mechanic: telling rivals only when the stone is finished tells them
+   * once it is too late to do anything cheap about it — the builder has had
+   * the entire raising unobserved to garrison the ground, and the thing is
+   * at full health. Told at the start, they get the whole build window
+   * against a frame that stands at a fifth of its hit points and climbs.
+   *
+   * But not from PLACEMENT. A site is free to put down (placeSite leaves
+   * the whole cost in siteNeeds and the materials are carried in
+   * afterwards), so a reveal on placement is a costless way to bait every
+   * rival on the map into marching at nothing. The tell is the first
+   * delivery: once a load has actually landed, somebody is spending.
    *
    * The tiles are pushed onto `revealed` the first time they light, because
    * that list is what actually ships tile CONTENTS to a client (sync.ts) —
@@ -110,14 +145,10 @@ export class SeatVision {
    */
   #revealMonuments(world: World, owner: Owner): void {
     for (const b of world.buildings.values()) {
-      if (
-        b.dead ||
-        b.owner === owner ||
-        b.type !== BuildingTypeId.monument ||
-        b.state !== BuildingState.built
-      ) {
+      if (b.dead || b.owner === owner || b.type !== BuildingTypeId.monument) {
         continue;
       }
+      if (b.state === BuildingState.site && !anyDelivered(b)) continue;
       for (let ty = b.y; ty < b.y + b.h; ty++) {
         for (let tx = b.x; tx < b.x + b.w; tx++) {
           if (tx < 0 || ty < 0 || tx >= this.size || ty >= this.size) continue;
