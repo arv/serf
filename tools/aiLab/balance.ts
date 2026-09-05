@@ -50,7 +50,18 @@ import {intArgOrExit} from './args.ts';
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /** Long enough that a seat which is going to win has, and a stalled one is
- * visibly stalled rather than merely slow. */
+ * visibly stalled rather than merely slow.
+ *
+ * One playbook it is NOT long enough for, and knowingly. The Mason wins by
+ * finishing a Monument rather than by razing the camp, and its median win is
+ * about 58k to 61k ticks against the other four's 18k to 23k — so at this
+ * horizon it reports roughly 12/32 with a dozen timeouts, where at 90k ticks
+ * it takes 27 of 32 on the tuning range and 26 of 32 on the untuned one,
+ * every win a Monument. Read its row here as "did not finish in time", not
+ * as "lost", and raise the horizon if the Mason is the question. The number
+ * is left where it is because moving it would re-time every other row for
+ * the sake of one, and the other four are what this sweep was calibrated
+ * on. */
 const MAX_TICKS = 60_000;
 /** Tower state is sampled rather than read off the end: a levy that held a
  * wall through a raid and was relieved leaves no trace in the final world. */

@@ -24,6 +24,16 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// Still 49 after the Mason: a fifth playbook, an economy rule that stands a
+// full garrison's barracks down, and a build-order anchor that counts spoil.
+// Playbook data and the rule layer that reads it are brain-side, and
+// playback never runs a brain — a replay stores the seats' commands rather
+// than re-deriving them (app/replay.ts), so a seat that would decide
+// differently today replays as it decided then. The same reasoning the
+// "Still 32 after the Warlord's gold line" and "Still 33 after the stance
+// engine" entries below record. `nearestSeamGround` is in map.ts and so
+// hashes with the sim, but nothing in a tick calls it: the build order does,
+// once a beat, and the build order is the brain.
 // Still 49 after the worked-out gold seam (TileResource.GoldSpoil): a byte
 // in map.resource no earlier build ever wrote, which is format as much as
 // behavior — but 49 is this build's own bump and has never shipped, so
@@ -306,7 +316,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // that sets it never marches, which changes what the brain decides — but no
 // shipped playbook sets it, so every dealt seat plays exactly as it did.
 const EXPECTED_VERSION = 49;
-const EXPECTED_HASH = '78769da0bf69f7d1c22412d3c751e754';
+const EXPECTED_HASH = '10d6fc0fbc6445e92470d27d18153157';
 
 /**
  * Everything a replay's playback depends on, as raw source:

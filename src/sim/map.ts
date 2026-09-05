@@ -1931,6 +1931,48 @@ export function nearestResourceOutside(
 }
 
 /**
+ * The nearest ground a `nearResource` building may stand beside: a live tile
+ * of the seam, or the spoil that seam left when it was worked out.
+ *
+ * Its own scan rather than a flag on `nearestResourceWhere`, because "live
+ * tile" is load-bearing there — every caller of that one is looking for
+ * something to DIG, and spoil is not diggable. This asks the other question:
+ * where was the seam. The Monument is the only building that asks it, and it
+ * has to, or the AI's build order anchors on ore that its own mine is busy
+ * removing and loses the site the moment the last load comes up (the
+ * placement rule already counts spoil; measured before this existed, a seat
+ * banked its whole seam and then had nowhere to put the thing it dug it for).
+ */
+export function nearestSeamGround(
+  map: GameMap,
+  kind: TileResourceKind,
+  cx: number,
+  cy: number,
+): number {
+  const spoil = seamSpoil(kind);
+  const size = map.size;
+  const lo = playMin(map);
+  const hi = playMax(map);
+  let best = -1;
+  let bestDist = Infinity;
+  for (let y = lo; y < hi; y++) {
+    for (let x = lo; x < hi; x++) {
+      const i = y * size + x;
+      const res = map.resource[i];
+      const counts =
+        (res === kind && map.resourceAmt[i]! > 0) ||
+        (spoil !== undefined && res === spoil);
+      if (!counts) continue;
+      const d = Math.abs(x - cx) + Math.abs(y - cy);
+      if (d >= bestDist) continue;
+      bestDist = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/**
  * The scan under both of the above: the nearest live tile of a resource
  * (manhattan, ties to the lower index) among those `ok` admits. The
  * predicate is asked only of tiles that hold the resource, so a caller

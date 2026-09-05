@@ -1160,10 +1160,24 @@ describe('the stall watchdog', () => {
   it('leaves a seat that is going somewhere byte-identical', () => {
     // The whole safety story: the watchdog is memory and a comparison, and
     // an unstalled seat must play the game it played before it existed.
-    // Long enough to run past graceUntil and a full window.
+    // Long enough to run past graceUntil (20k) and a full window (14k).
+    //
+    // The playbook is named rather than dealt, which the rest of this file
+    // does not do. What is under test is the watchdog, not the deal — and a
+    // dealt seat makes this test's COST a function of the deck: adding a
+    // fifth playbook moved seed 7's seat from the Abbot to the Mason, whose
+    // whole design is to never end a match, and two runs that used to stop
+    // at 19.5k ticks apiece ran the full 40k and took twelve minutes
+    // between them. The sim itself did not slow down (same seat, same
+    // ticks, 24.2s against 24.6s across that change); the world simply got
+    // bigger and lasted longer. Naming the seat keeps this measuring the
+    // one thing it is for.
     const config: WorldConfig = {
       seed: 7,
-      players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
+      players: [
+        {kind: PlayerKind.human},
+        {kind: PlayerKind.ai, strategy: AiStrategyId.abbot},
+      ],
     };
     expect(digest(runWithBrains(config, 40_000))).toEqual(
       digest(runWithBrains(config, 40_000)),
