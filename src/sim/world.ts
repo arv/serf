@@ -852,6 +852,52 @@ function occupyFootprint(world: World, b: Building): void {
       pushDelta(world, i);
     }
   }
+  if (blocks) shoveClear(world, b);
+}
+
+/**
+ * Anyone standing where the walls just went up gets moved outside them.
+ *
+ * Placement does not refuse a footprint with people in it — the ground is
+ * the player's to build on, and a serf who happens to be crossing it is not
+ * a reason to say no. But the tiles are blocked now, and a unit left inside
+ * them is sealed in: every path out is through a wall, so it can reach
+ * nothing and nothing can reach it.
+ *
+ * That is not merely a stuck serf. `dispatch` offers each haul to the
+ * nearest idle serf and, when he cannot path to the pickup, penalises the
+ * *job* rather than passing him over — so one walled-in serf standing in the
+ * middle of a village is the nearest candidate for haul after haul, blocks
+ * each one four times, and every one of them is finally aborted as
+ * unreachable with a demand backoff on its destination. Two serfs caught
+ * under a wheat farm stalled a whole village's logistics this way while the
+ * goods they were meant to carry sat in the castle.
+ *
+ * Deterministic: `world.units` iterates in insertion order and
+ * `nearestWalkable` scans fixed rings, so every client shoves the same units
+ * to the same tiles. A unit with nowhere walkable within the scan is left
+ * where it is — there is nothing better to do with it, and it is no worse
+ * off than before.
+ */
+function shoveClear(world: World, b: Building): void {
+  const size = world.map.size;
+  for (const u of world.units.values()) {
+    if (u.dead) continue;
+    const tx = Math.floor(u.x);
+    const ty = Math.floor(u.y);
+    if (tx < b.x || tx >= b.x + b.w || ty < b.y || ty >= b.y + b.h) continue;
+    const idx = nearestWalkable(world.map, tx, ty, 8);
+    if (idx < 0) continue;
+    u.x = (idx % size) + 0.5;
+    u.y = Math.floor(idx / size) + 0.5;
+    u.lastTile = idx;
+    // The route he was walking started inside the wall and is worthless
+    // now. Dropping it sends him back through the movement system, which
+    // re-paths from where he actually stands; his job, if he has one, is
+    // untouched and picks up again from there.
+    u.path = null;
+    u.pathIdx = 0;
+  }
 }
 
 /** Pre-placed, already-complete buildings (worldgen). */
