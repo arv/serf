@@ -78,7 +78,7 @@ files, and the seeds no longer describe the ground.)*
 | 4 | Hammer and Haft | the tools chain: the Smith, tool-gated posts, the borrowed hammer | off | Smith + iron, wood, food flowing + 3 hammers | castle falls |
 | 5 | The Levy | barracks, RPS triangle, defending raids, attacking | on, early | 6 soldiers, raze the camp | castle falls |
 | 6 | Hold the Valley | everything, unassisted | on, default | raze the camp (today's solo mode) | castle falls |
-| 7 | The Gilded Valley | the economic win: gold, the long haul, the Monument | on, nine-minute peace | finish a Monument | castle falls |
+| 7 | The Gilded Valley | the economic win: gold, the long haul, the Monument | on, default | finish a Monument | castle falls |
 | 8 | The Rival Banner (bonus) | facing an AI playbook | on (neutral, mid-map) | last banner standing | eliminated |
 
 ### Mission 1 — The Clearing
@@ -498,6 +498,11 @@ What the mission had to be built around, learned the expensive way:
   of that the gold mine stands finished and unstaffed — which looks
   exactly like a working one — and the Monument waits forever on twelve
   gold.
+- **No raid-clock override**, and the table row above says so. A draft set
+  `firstRaidTick: 10_800` believing it granted the full nine minutes; the
+  default at this playfield is 18_300, so it was taking away six. The
+  longest peace in the game is already the default, and a mission that is
+  long by design should not be made so by the clock.
 - **The checklist latches before either win is declared** now
   (`systems/victory.ts`). The monument win used to return out of
   `victorySystem` first, so the mission's own last line stayed unticked

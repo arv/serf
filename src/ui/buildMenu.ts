@@ -166,8 +166,11 @@ export function playerBuildable(type: BuildingTypeId): boolean {
  * B**r**ewery takes R and Barrac**k**s takes K, and the Guard **T**ower —
  * whose G belongs to the Gold Mine — takes the letter of the thing it is.
  * The Smith's rename spent every letter of its short name; the Fish**e**ry
- * yielded S and fell back to its E; the M**o**nument yielded M to the Mill. The test beside this file
- * holds the two rules that matter — one key per building, no key used twice.
+ * yielded S and fell back to its E; the M**o**nument yielded M to the Mill
+ * and fell back to its O. (The bold is always the letter the building GOT,
+ * never the one it lost — the same letter the HUD bolds in its button.)
+ * The test beside this file holds the two rules that matter — one key per
+ * building, no key used twice.
  */
 export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.house]: 'H',

@@ -547,7 +547,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       // fourth. Short of that the mine stands finished and unstaffed, and
       // the Monument waits forever on twelve gold that never comes.
       [GoodId.axe]: 1,
-      [GoodId.pickaxe]: 5,
+      [GoodId.pickaxe]: 4,
       [GoodId.scythe]: 1,
       [GoodId.cauldron]: 1,
       [GoodId.rod]: 1,
