@@ -20,3 +20,5 @@ export const keepTheQueueWarm = 8 as const;
 export type keepTheQueueWarm = typeof keepTheQueueWarm;
 export const openReserveMine = 9 as const;
 export type openReserveMine = typeof openReserveMine;
+export const garrisonIsEnough = 10 as const;
+export type garrisonIsEnough = typeof garrisonIsEnough;

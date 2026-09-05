@@ -128,10 +128,16 @@ export interface AiStrategy {
    * walks into the yard, towers still shoot, walls still get mended. What it
    * removes is the seat's willingness to LEAVE.
    *
-   * No shipped playbook sets it yet. It exists because the Monument gives
-   * the economy a way to win that a marching seat can never demonstrate, and
-   * the playbook that will use it is not finished — see the note in
-   * aiHoldsGround.test.ts.
+   * The Mason sets it, and is the only playbook that does. It exists because
+   * the Monument gives the economy a way to win that a marching seat can
+   * never demonstrate: razing the camp ends a solo match, so a seat that
+   * takes the camp never gets to finish anything.
+   *
+   * Half of it was missing until the Mason was written. The flag removed the
+   * march but nothing capped the recruiting, and a seat that never marches
+   * never loses anybody — measured at 30 to 41 soldiers on a playbook
+   * printing 7. `garrisonIsEnough` (economyRules.ts) is the other half, and
+   * it is what makes an economy priced in bread possible at all.
    */
   holdsGround?: boolean;
 
@@ -894,6 +900,190 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     homeGuard: 10,
     marchConfidence: 0,
   },
+
+  [AiStrategyIdNs.mason]: {
+    id: AiStrategyIdNs.mason,
+    name: 'The Mason',
+    blurb:
+      'Digs the gold nobody else wants and gilds a Monument with it. Never marches — it only has to finish.',
+    /**
+     * Measured on two ranges, 32 campaigns each: 27 of 32 from seed 101 and
+     * 26 of 32 from seed 1000, every single win a finished Monument with the
+     * bandit camp still standing. Median 58k and 61k ticks against the other
+     * four playbooks' 18k to 23k — this seat takes about three times as long
+     * to win, which is the whole point of it and also the one number to
+     * carry into any comparison.
+     *
+     * `pnpm balance` runs 60k ticks and will therefore report this playbook
+     * at roughly 12/32 with a dozen timeouts. That is the instrument's
+     * horizon, not the playbook's record; see the note in tools/aiLab/README.
+     */
+    /**
+     * The economic win, as a playbook. Everything here follows from one
+     * fact: a Monument costs twelve gold, thirty stone and twenty BREAD,
+     * and finishing it ends the match.
+     *
+     * The bread is why this is not the Steward with two steps bolted on.
+     * Every other plan treats the ovens as the barracks' supply line and
+     * runs them at the edge of demand; this one has to BANK twenty loaves
+     * while three mines eat a ration apiece. So it builds the chain twice
+     * over — two farms, two mills, two bakeries — and stops recruiting once
+     * its garrison is full (`holdsGround`, and garrisonIsEnough in
+     * economyRules.ts). Measured with one chain and no cap, on the seat this
+     * was cut from: the castle shelf sat at two to four loaves for forty
+     * thousand ticks while the seat stood at the monument step every single
+     * beat with sixty gold and a hundred stone banked behind it.
+     *
+     * The gold mine before the Monument and both behind ironworking's iron
+     * mine, because Deep Mining is priced in iron and silver and the plan
+     * has to have dug both before it can ask for the tech that opens the
+     * seam it is named for.
+     */
+    build: [
+      {
+        type: BuildingTypeId.woodcutter,
+        count: 1,
+        anchor: BuildAnchorNs.wood,
+        radius: 6,
+        more: {after: TechId.ironworking, count: 2},
+      },
+      {
+        type: BuildingTypeId.quarry,
+        count: 1,
+        anchor: BuildAnchorNs.rock,
+        radius: 6,
+        // Two, where every other plan keeps one: thirty stone for the
+        // Monument on top of the roofs, and this seat never takes a rival's
+        // quarry because it never leaves home.
+        more: {after: TechId.ironworking, count: 2},
+      },
+      {
+        type: BuildingTypeId.house,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        more: {after: TechId.ironworking, count: 3},
+      },
+      {type: BuildingTypeId.abbey, count: 1, anchor: BuildAnchorNs.base},
+      {
+        type: BuildingTypeId.silverMine,
+        count: 1,
+        anchor: BuildAnchorNs.silver,
+        radius: 4,
+      },
+      {
+        type: BuildingTypeId.barracks,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        after: TechId.soldiery,
+      },
+      {type: BuildingTypeId.well, count: 1, anchor: BuildAnchorNs.base},
+      // The bread chain, doubled. Not a flourish: this is the plan's
+      // treasury, and the Monument is the only thing in the game that is
+      // bought with loaves rather than fed by them.
+      {
+        type: BuildingTypeId.wheatFarm,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        more: {after: TechId.ironworking, count: 2},
+      },
+      {
+        type: BuildingTypeId.mill,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        more: {after: TechId.ironworking, count: 2},
+      },
+      {
+        type: BuildingTypeId.bakery,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        more: {after: TechId.ironworking, count: 2},
+      },
+      {
+        type: BuildingTypeId.ironMine,
+        count: 1,
+        anchor: BuildAnchorNs.iron,
+        radius: 4,
+        after: TechId.ironworking,
+      },
+      {
+        type: BuildingTypeId.weaponsmith,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        after: TechId.ironworking,
+        needs: BuildingTypeId.barracks,
+      },
+      // The two steps this playbook exists for, last so they can never
+      // starve the town that has to pay for them.
+      {
+        type: BuildingTypeId.goldMine,
+        count: 1,
+        anchor: BuildAnchorNs.gold,
+        radius: 4,
+        after: TechId.deepMining,
+      },
+      {
+        type: BuildingTypeId.monument,
+        count: 1,
+        anchor: BuildAnchorNs.gold,
+        radius: 6,
+        after: TechId.deepMining,
+      },
+    ],
+    // Deep Mining is the whole line, and it is the only playbook that names
+    // it: nothing else in the game wants the gold badly enough to pay four
+    // iron and eight silver for the privilege of digging it.
+    researchOrder: [
+      TechId.soldiery,
+      TechId.cobbledBoots,
+      TechId.ironworking,
+      TechId.deepMining,
+    ],
+    researchReserve: 10,
+    // Two above the Steward's, for the two extra workshops: the second
+    // mill and bakery each keep a resident, and a plan that staffed them
+    // out of the same pool would field its garrison two hands short.
+    serfTarget: 12,
+    survivalFloor: 3,
+    growthAfter: TechId.soldiery,
+    housingHeadroom: 3,
+    houseLimit: 6,
+    // The flag this playbook was written for, and the reason the flag
+    // exists. A seat that marches on the camp ends the campaign long before
+    // a Monument could pay for itself, so the only seat that can ever
+    // demonstrate the economic win is one that refuses to leave.
+    holdsGround: true,
+    // Finding a rival changes nothing about where this seat's soldiers
+    // stand — it has no siege in it — but it does change how deep the
+    // barracks runs and how hard the yard is held.
+    stances: {
+      underAttackBreak: true,
+      found: {posture: PostureId.fortify},
+    },
+    // No harass block: a sortie is leaving, and this seat does not leave.
+    retreats: true,
+    // Spears, and only spears. A knight costs three bread where a spearman
+    // costs two, and bread is the currency this plan is saving in.
+    weaponMix: [0],
+    trainPreference: [UnitTypeId.spearman],
+    trainFallback: UnitTypeId.spearman,
+    barracksQueueDepth: 2,
+    // Not a muster bar: the size of the garrison it keeps standing
+    // (`holdsGround`, enforced by garrisonIsEnough). Ten rather than the
+    // Steward's seven because nothing else defends this seat — no sortie
+    // thins the raiders, no siege ends the war — and every soldier past ten
+    // is a loaf the Monument wanted. Thirteen scores the same and sixteen
+    // scores worse (12/16, 12/16, 11/16 on the tuning range): the four
+    // campaigns this playbook loses are lost to the FIRST wave, around tick
+    // 20k, and no garrison size reaches back that far.
+    armyAttackSize: 10,
+    attackCooldown: 900,
+    rallyCooldown: 400,
+    prefersRivals: false,
+    // Everything home, from a long way out: the garrison's whole job is the
+    // ground the Monument stands on.
+    homeGuard: 20,
+    marchConfidence: 0,
+  },
 };
 
 /** The deck, in the order it is written down. Shuffled before it is dealt. */
@@ -902,6 +1092,7 @@ export const AI_STRATEGY_ORDER: AiStrategyId[] = [
   AiStrategyIdNs.warlord,
   AiStrategyIdNs.abbot,
   AiStrategyIdNs.fletcher,
+  AiStrategyIdNs.mason,
 ];
 
 /**
@@ -991,6 +1182,7 @@ export const AI_STRATEGY_KEYS: Readonly<Record<AiStrategyId, string>> = {
   [AiStrategyIdNs.warlord]: 'warlord',
   [AiStrategyIdNs.abbot]: 'abbot',
   [AiStrategyIdNs.fletcher]: 'fletcher',
+  [AiStrategyIdNs.mason]: 'mason',
 };
 
 const STRATEGY_BY_KEY = new Map<string, AiStrategyId>(

@@ -11,3 +11,5 @@ export const abbot = 3 as const;
 export type abbot = typeof abbot;
 export const fletcher = 4 as const;
 export type fletcher = typeof fletcher;
+export const mason = 5 as const;
+export type mason = typeof mason;

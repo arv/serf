@@ -14,11 +14,11 @@ import {createWorld} from './world.ts';
  * It exists for the Monument: an economic victory is a clock that runs while
  * you hold ground, and no seat that marches on the bandit camp will ever
  * demonstrate one — razing the camp ends the campaign long before a monument
- * could pay for itself. No shipped playbook sets the flag yet, because the
- * playbook that wants it is not finished (it survives indefinitely but does
- * not reliably reach its own win condition — see the balance notes on the
- * Monument). This file is what keeps the mechanism honest in the meantime:
- * without it the flag would be untested code with no caller.
+ * could pay for itself. The Mason is the playbook that sets it, and
+ * aiMonument.test.ts is where the shipped seat is measured; this file stays
+ * because it tests the MECHANISM on a synthetic seat rather than the
+ * playbook, and the negative below is one no playbook test can state —
+ * the Steward's own line, one flag apart from itself.
  *
  * What is asserted is the negative that no number could buy. The muster bar
  * is eroded three ways in the brain — the impatience ramp, the growth-stall

@@ -97,6 +97,12 @@ export interface RuleContext {
   /** Loose hands: nothing in the village moves without one. */
   serfCount: number;
   /**
+   * Fighters this seat has standing. Counted in the same unit sweep as
+   * `serfCount`, so it costs nothing to have — and a rule that reasons about
+   * an army must not run a scan of its own per beat.
+   */
+  soldierCount: number;
+  /**
    * The stall watchdog's reading for this beat. No rule reads it today —
    * `resiteExtractor` was the last, and 2026-09-01 gave it a condition of
    * its own (see its comment, and AI_STALL in systems/ai.ts). It is still
@@ -983,6 +989,74 @@ const handsBeforeSoldiers: EconomyRule = {
 };
 
 /**
+ * The garrison is at strength: a seat that holds ground stops recruiting.
+ *
+ * `holdsGround` says the army is a garrison and `armyAttackSize` "describes
+ * the size that garrison wants, not a bar it is working towards"
+ * (defs/aiStrategies.ts). Nothing enforced the second half. A marching seat
+ * is capped by its own losses; one that never leaves the yard never loses
+ * anybody, so it recruited forever — measured at 30 to 41 soldiers on a seat
+ * whose printed size was 7, four seeds out of four.
+ *
+ * That is not merely off-plan, it is the reason such a seat can never buy
+ * anything priced in bread. Every recruit eats two or three, and the barracks
+ * raises a standing demand for more, so the castle shelf sits at two to four
+ * loaves in perpetuity while the ovens run flat out. A Monument wants twenty
+ * at once. On the four seeds above the seat reached Deep Mining, dug its
+ * gold, banked sixty-odd stone — and stood at the monument step every beat
+ * for forty thousand ticks with the bread three short of a fifth of the bill.
+ *
+ * Halting rather than trimming the queue, for `handsBeforeSoldiers`' third
+ * reason: a halted barracks stops CALLING for bread (systems/logistics.ts),
+ * and the call is what keeps the loaves out of the storehouse. A rule that
+ * only stopped the orders would leave the same six loaves parked in the
+ * barracks' larder against a batch it is not going to start.
+ *
+ * The band is one soldier wide and deliberately not a Schmitt trigger: unlike
+ * the hands floor there is no sweep racing the brain here — a garrison only
+ * shrinks when somebody dies — so closing at the size and opening under it
+ * cannot flap. A death reopens the barracks, the replacement closes it again,
+ * and that is the whole cycle.
+ *
+ * Only for a seat that holds ground. Anyone else is spending its army by
+ * marching it, and capping recruitment at the muster bar would stand the
+ * barracks down exactly when the seat was about to need it most.
+ */
+const garrisonIsEnough: EconomyRule = {
+  id: EconomyRuleIdNs.garrisonIsEnough,
+  when: 'a seat that never marches already has the garrison its playbook asks for',
+  phase: RulePhaseNs.production,
+  fire(ctx) {
+    if (!ctx.strategy.holdsGround) return null;
+    const full = ctx.soldierCount >= ctx.strategy.armyAttackSize;
+    const commands: SimCommand[] = [];
+    const claims: EntityId[] = [];
+    for (const b of ctx.mine) {
+      if (
+        b.state !== BuildingState.built ||
+        BUILDING_DEFS[b.type as BuildingTypeId].trains === undefined
+      ) {
+        continue;
+      }
+      const halted = b.paused === true;
+      // Same discipline as handsBeforeSoldiers: a barracks this rule does
+      // not want to hold is not its business, and claiming one would silence
+      // keepTheQueueWarm for the whole match.
+      if (!full && !halted) continue;
+      if (full !== halted) {
+        commands.push({
+          kind: CommandKind.setBuildingPaused,
+          buildingId: b.id,
+          paused: full,
+        });
+      }
+      claims.push(b.id);
+    }
+    return commands.length > 0 || claims.length > 0 ? {commands, claims} : null;
+  },
+};
+
+/**
  * Keep the barracks queue warm, and unjam it when it sticks.
  *
  * The counter unit jumps the queue when its weapon is at hand — `around` is
@@ -1094,6 +1168,10 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   forgeTheCounter,
   holdTheGlutForge,
   handsBeforeSoldiers,
+  // Ahead of keepTheQueueWarm for the same reason handsBeforeSoldiers is:
+  // it claims the barracks it is standing down, and a claim only silences
+  // rules that come after it.
+  garrisonIsEnough,
   keepTheQueueWarm,
 ];
 
@@ -1148,6 +1226,7 @@ export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
   [EconomyRuleIdNs.holdTheGlutForge]: 'holdTheGlutForge',
   [EconomyRuleIdNs.handsBeforeSoldiers]: 'handsBeforeSoldiers',
   [EconomyRuleIdNs.keepTheQueueWarm]: 'keepTheQueueWarm',
+  [EconomyRuleIdNs.garrisonIsEnough]: 'garrisonIsEnough',
 };
 
 const ECONOMY_RULE_BY_KEY = new Map<string, EconomyRuleId>(
