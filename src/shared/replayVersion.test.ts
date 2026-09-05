@@ -279,8 +279,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // up to `per` (sim/entities.ts): chargeRation sets `per - 1`, because the
 // load that found the pantry empty is the first of the `per` its loaf
 // buys. Words; the counter always did this.
-const EXPECTED_VERSION = 49;
-const EXPECTED_HASH = 'e6da14342a380921ce0f3d698aa883ce';
+const EXPECTED_VERSION = 50;
+const EXPECTED_HASH = '914353d9ad89be268cd03d6f32a67c13';
 
 /**
  * Everything a replay's playback depends on, as raw source:

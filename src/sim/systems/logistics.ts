@@ -599,6 +599,16 @@ function deliveryTargetFor(
   return home;
 }
 
+/**
+ * How many candidates a single job will ask the pathfinder about before it
+ * gives up and backs off. One was the old behaviour and the bug: the
+ * nearest man's bad luck became the job's. Three is enough to step over a
+ * knot of stranded serfs — the case that motivated this was two — while
+ * keeping the cost of a pass a small constant times the old one rather
+ * than idle-count times job-count.
+ */
+const PATH_TRIES = 3;
+
 // --- Serf claiming ---------------------------------------------------------
 
 function dispatch(world: World): void {
@@ -668,6 +678,9 @@ function dispatch(world: World): void {
     if (!q) continue;
     const hands = busy.get(owner) ?? [0, 0, 0];
     const next = [0, 0, 0];
+    // Per source building, the serfs already found unable to reach it in
+    // this pass. Cleared with the pass: the map changes and so do they.
+    const unreachableBy = new Map<number, Set<number>>();
     while (idle.length > 0) {
       // The tier furthest below its share of the hands (HAUL_SHARE); on a
       // tie the more urgent one, tier 1 before 2 before 3, which is what
@@ -704,30 +717,61 @@ function dispatch(world: World): void {
       const from = world.buildings.get(job.from);
       if (!from) continue; // reconcile will clean it up
 
-      // Nearest idle serf to the pickup.
+      // The nearest idle serf who can actually get there.
+      //
+      // Nearest alone was not enough. A serf who cannot path to the source
+      // is not a candidate at all, and treating his predicament as the
+      // job's fault is what turns one stranded man into a dead village: he
+      // stays in the pool, is nearest again for the next job and the next,
+      // and every one of them backs off four times and is finally aborted
+      // as unreachable with a demand backoff on its destination. Two serfs
+      // walled into a wheat farm's footprint stopped a village's haulage
+      // outright this way, with the goods sitting in the castle and
+      // twenty-five idle men who could all have walked there.
+      //
+      // So step outward: take the nearest, and if the ground says no, pass
+      // him over and take the next. The job is only blocked when nobody
+      // tried can reach the source, which is the case the backoff was
+      // written for.
       const c = centerOf(from);
+      let serf: Unit | undefined;
+      let path: number[] | null = null;
       let bestIdx = -1;
-      let bestDist = Infinity;
-      for (let i = 0; i < idle.length; i++) {
-        const s = idle[i]!;
-        const dist = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestIdx = i;
+      // Whoever has already failed to reach THIS source during this pass.
+      // A building's jobs come up together and it is the same walk every
+      // time, so asking twice only spends the pathfinder.
+      let refused = unreachableBy.get(job.from);
+      for (let tries = 0; tries < PATH_TRIES; tries++) {
+        bestIdx = -1;
+        let bestDist = Infinity;
+        for (let i = 0; i < idle.length; i++) {
+          const s = idle[i]!;
+          if (refused?.has(s.id)) continue;
+          const dist = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
         }
+        if (bestIdx < 0) break; // everybody near has already been refused
+        const cand = idle[bestIdx]!;
+        path = findPathToAdjacent(
+          world.map,
+          Math.floor(cand.x),
+          Math.floor(cand.y),
+          from.x,
+          from.y,
+          from.w,
+          from.h,
+        );
+        if (path) {
+          serf = cand;
+          break;
+        }
+        if (!refused) unreachableBy.set(job.from, (refused = new Set()));
+        refused.add(cand.id);
       }
-      const serf = idle[bestIdx]!;
-
-      const path = findPathToAdjacent(
-        world.map,
-        Math.floor(serf.x),
-        Math.floor(serf.y),
-        from.x,
-        from.y,
-        from.w,
-        from.h,
-      );
-      if (!path) {
+      if (!path || !serf) {
         job.blockedUntil = world.tick + JOB_BLOCKED_BACKOFF;
         job.blockedCount = (job.blockedCount ?? 0) + 1;
         if (job.blockedCount >= 4) {
