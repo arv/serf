@@ -916,7 +916,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
      *
      * `pnpm balance` runs 60k ticks and will therefore report this playbook
      * at roughly 12/32 with a dozen timeouts. That is the instrument's
-     * horizon, not the playbook's record; see the note in tools/aiLab/README.
+     * horizon, not the playbook's record; see the note on MAX_TICKS in
+     * tools/aiLab/balance.ts.
      */
     /**
      * The economic win, as a playbook. Everything here follows from one

@@ -7,6 +7,7 @@ import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import {BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
+import {UNIT_DEFS} from './defs/units.ts';
 import {nearestSeamGround} from './map.ts';
 import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
@@ -177,9 +178,13 @@ describe('a garrison at strength', () => {
     // playbook printing 7, four seeds of four — and every recruit is two or
     // three loaves plus a standing call for more.
     const world = playOut(101, AiStrategyId.mason, 40_000);
+    // Counted off `combat` rather than an id range, because that is the
+    // predicate garrisonIsEnough itself counts by (RuleContext.soldierCount):
+    // a test that measured a different set could pass while the rule capped
+    // the wrong thing.
     let soldiers = 0;
     for (const u of world.units.values()) {
-      if (!u.dead && u.owner === 0 && u.kind >= 3 && u.kind <= 5) soldiers++;
+      if (!u.dead && u.owner === 0 && UNIT_DEFS[u.kind].combat) soldiers++;
     }
     const size = AI_STRATEGIES[AiStrategyId.mason].armyAttackSize;
     // A little over is the queue landing: orders already started still
