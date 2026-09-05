@@ -9,6 +9,7 @@ import {addStorehouse, bareWorld} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import * as TileResource from './tileResourceEnum.ts';
 import {
+  depleteResourceTile,
   destroyBuilding,
   placeBuiltBuilding,
   placementRefusal,
@@ -55,6 +56,51 @@ describe('the monument', () => {
     // ...and only within its radius. The def's 4 is measured from the
     // footprint, so a seam 12 tiles off is out of reach by any reading.
     expect(refusalFor(world, 44, 30)).toBe('seam');
+  });
+
+  it('still stands where the seam WAS, once the gold is dug out', () => {
+    // The trap this rule used to be. A gold seam is finite and the mission
+    // that wants a monument also wants a gold mine, so the obvious order of
+    // play — dig the gold, then raise the thing it is for — deleted every
+    // legal site on the map the moment the last tile went dry. Measured on
+    // a campaign seat with the tech and the step in its playbook: 72 legal
+    // sites at t=5000, and 0 from t=62500, holding 108 gold it could not
+    // spend anywhere.
+    const world = bareWorld();
+    plantGold(world, 30, 30);
+    const i = tileIdx(30, 30, world.map.size);
+    expect(refusalFor(world, 32, 30)).toBeNull();
+
+    // Work it out, one load at a time, the way a mine does.
+    while (world.map.resource[i] === TileResource.GoldDep)
+      depleteResourceTile(world, i);
+
+    // The ore is gone and no mine will ever work this tile again...
+    expect(world.map.resource[i]).toBe(TileResource.GoldSpoil);
+    expect(world.map.resourceAmt[i]).toBe(0);
+    expect(placementRefusal(world.map, BuildingTypeId.goldMine, 29, 29)).toBe(
+      'resource',
+    );
+    // ...but the ground remembers what it was, so the monument still stands.
+    expect(refusalFor(world, 32, 30)).toBeNull();
+  });
+
+  it('takes the tailings as its own footprint, not just its neighbour', () => {
+    // Spoil is dirt, not standing material. Before it existed the same tile
+    // went back to bare grass and took a building like any other ground, so
+    // refusing one here would be a regression wearing a rule's clothes —
+    // and the tailings are the last place THIS building should be unwelcome.
+    const world = bareWorld();
+    for (let x = 29; x <= 33; x++)
+      for (let y = 29; y <= 33; y++) plantGold(world, x, y);
+    for (let x = 29; x <= 33; x++)
+      for (let y = 29; y <= 33; y++) {
+        const i = tileIdx(x, y, world.map.size);
+        while (world.map.resource[i] === TileResource.GoldDep)
+          depleteResourceTile(world, i);
+      }
+    // A footprint standing entirely on worked-out ground.
+    expect(refusalFor(world, 30, 30)).toBeNull();
   });
 
   it('is gated behind Deep Mining, the tech that opens the gold at all', () => {

@@ -608,6 +608,15 @@
  * unticked — the monument win used to return out of victorySystem before
  * the objective pass ran.
  *
+ * And the ground remembers a seam it no longer holds: a gold tile worked
+ * dry becomes TileResource.GoldSpoil rather than None (depleteResourceTile),
+ * spoil takes a footprint the way bare ground does (map.ts resourceOccupies),
+ * and the monument's rule counts it. Without that, digging the gold — the
+ * thing the mission asks for — deleted every legal monument site on the map,
+ * permanently and with nothing on screen to say so. It is a byte in
+ * map.resource that no earlier build ever wrote, which is format as well as
+ * behavior; authored map files still may not carry one (TILE_RESOURCE_KINDS).
+ *
  * 48's note follows.
  *
  * 48: the mines eat. Every gather recipe may now carry a ration (the iron,

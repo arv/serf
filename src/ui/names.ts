@@ -139,4 +139,7 @@ export const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
   [TileResource.IronDep]: 'iron seams',
   [TileResource.SilverDep]: 'silver seams',
   [TileResource.GoldDep]: 'gold seams',
+  // Tailings — a gold seam that has been worked out. Named because the
+  // Monument still stands on it (TileResource.GoldSpoil).
+  [TileResource.GoldSpoil]: 'worked-out gold seams',
 };

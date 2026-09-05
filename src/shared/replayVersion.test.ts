@@ -24,6 +24,10 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// Still 49 after the worked-out gold seam (TileResource.GoldSpoil): a byte
+// in map.resource no earlier build ever wrote, which is format as much as
+// behavior — but 49 is this build's own bump and has never shipped, so
+// again there is nothing older to break.
 // Still 49 after the mission checklist latches before either win is
 // declared (systems/victory.ts): 49 is this build's own bump and has
 // never shipped, so there is nothing older to break. The change is real
@@ -302,7 +306,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // that sets it never marches, which changes what the brain decides — but no
 // shipped playbook sets it, so every dealt seat plays exactly as it did.
 const EXPECTED_VERSION = 49;
-const EXPECTED_HASH = '37992b28fe1534d49daa4a37ba0225d5';
+const EXPECTED_HASH = 'f186890e0f378560a089f0c17b49ef03';
 
 /**
  * Everything a replay's playback depends on, as raw source:
