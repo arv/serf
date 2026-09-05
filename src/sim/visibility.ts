@@ -18,7 +18,9 @@
  * world rather than as fog.
  */
 import {tileCount, tileIdx} from '../shared/grid.ts';
+import * as BuildingState from './buildingStateEnum.ts';
 import {buildingDef} from './defs/buildings.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import {UNIT_DEFS} from './defs/units.ts';
 import type {Owner} from './entities.ts';
 import type {World} from './world.ts';
@@ -82,6 +84,49 @@ export class SeatVision {
       if (lit && !this.#prev[i]) this.revealed.push(i);
       if (lit) this.explored[i] = 1;
       this.#prev[i] = lit;
+    }
+    this.#revealMonuments(world, owner);
+  }
+
+  /**
+   * A rival's finished monument is on everybody's map.
+   *
+   * `explored` and not `visible`, which is the whole of the design: a
+   * monument does not walk away, so it belongs in the grid that remembers
+   * buildings rather than the one that shows what is lit right now — the
+   * same distinction the class comment above draws for a bandit camp. The
+   * effect is that an enemy learns WHERE it stands and has to scout to
+   * learn what is guarding it: sync.ts sends a full building snapshot only
+   * on `canSee`, and a remembered stub otherwise. Knowing where to march
+   * is the point; being handed the garrison count is not.
+   *
+   * A hold nobody can find is a stopwatch, not a claim, so this is what
+   * makes the countdown contestable at all.
+   *
+   * The tiles are pushed onto `revealed` the first time they light, because
+   * that list is what actually ships tile CONTENTS to a client (sync.ts) —
+   * marking the ground explored without it would leave a rival looking at
+   * remembered grass where the stone is.
+   */
+  #revealMonuments(world: World, owner: Owner): void {
+    for (const b of world.buildings.values()) {
+      if (
+        b.dead ||
+        b.owner === owner ||
+        b.type !== BuildingTypeId.monument ||
+        b.state !== BuildingState.built
+      ) {
+        continue;
+      }
+      for (let ty = b.y; ty < b.y + b.h; ty++) {
+        for (let tx = b.x; tx < b.x + b.w; tx++) {
+          if (tx < 0 || ty < 0 || tx >= this.size || ty >= this.size) continue;
+          const i = tileIdx(tx, ty, this.size);
+          if (this.explored[i]) continue;
+          this.explored[i] = 1;
+          this.revealed.push(i);
+        }
+      }
     }
   }
 

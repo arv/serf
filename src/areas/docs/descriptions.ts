@@ -99,6 +99,8 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.guardTower]: `Stone that shoots back. ${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers on the wall hit harder and further than the same number on the grass — and until archers exist, the levy drops stones.`,
   [BuildingTypeId.roadSite]:
     'A single tile of paving, placed by the Masonry road pass rather than by hand. When it finishes, the trail beneath it is stone for good.',
+  [BuildingTypeId.monument]:
+    'The other way to win. Gilded from the gold at the map’s heart — the one seam worldgen shares out to nobody — and finished it starts a clock every rival is shown. Hold it until the clock runs out and the valley is yours without razing a thing; lose it and the clock stops with it. Expensive to raise, cheap to break, and it stands where everyone can reach it.',
   [BuildingTypeId.salvage]:
     'What a demolition leaves behind: half the materials and everything the building held, piled on the ground where it stood. Serfs cart it to the stores — or a nearby site draws from it directly — and the ground frees up when the last good leaves.',
 };

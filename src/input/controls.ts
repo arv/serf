@@ -34,7 +34,13 @@ import {
   unitTechGate,
 } from '../ui/commands';
 import {fullscreen, guardEsc} from '../ui/fullscreen';
-import {goodName, techName, unitName} from '../ui/names';
+import {
+  buildingName,
+  goodName,
+  RESOURCE_NAMES,
+  techName,
+  unitName,
+} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
 import {rosterOf, sameRoster, type SelectedUnit} from '../ui/roster';
 import {nudgeSpeed} from '../ui/speedControl';
@@ -1173,6 +1179,14 @@ export class Controls {
       }
       case 'water':
         return 'Too far from the water to fish.';
+      case 'seam': {
+        // The one rule that names ground rather than a worker's reach, so
+        // it gets the resource's own word rather than the gatherer's.
+        const near = def.nearResource;
+        return near
+          ? `${buildingName(type)} must stand within ${near.radius} tiles of ${RESOURCE_NAMES[near.kind] ?? 'the seam'}.`
+          : 'The ground there is wrong for it.';
+      }
       case 'slope':
         return 'The ground is too steep to build there.';
       case 'occupied':

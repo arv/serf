@@ -279,8 +279,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // up to `per` (sim/entities.ts): chargeRation sets `per - 1`, because the
 // load that found the pantry empty is the first of the `per` its loaf
 // buys. Words; the counter always did this.
-const EXPECTED_VERSION = 48;
-const EXPECTED_HASH = '4fe650913d7f340868e9bd356b47e5ff';
+// 49 for the Monument: a building type, a placement rule keyed on the gold
+// seam, a hold clock in the victory system, and a reveal that puts a
+// finished one on every rival's map. The last two are the sharp end — a
+// match can now end on a tick and for a reason no earlier build had, and
+// the AI's target picture reads the explored grid the reveal writes to, so
+// a replay recorded before this diverges in outcome and not just in scenery.
+const EXPECTED_VERSION = 49;
+const EXPECTED_HASH = 'af4bd84943b64acb575bd484fece1e3d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

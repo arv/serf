@@ -592,6 +592,18 @@
  *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
+ * 49: the Monument, and the economy's own way to win. A new building type
+ * (buildingTypeIdEnum, defs/buildings) with a placement rule no other
+ * building has — it must stand within reach of a gold seam — and a hold
+ * clock the victory system counts on it: finished, held MONUMENT_HOLD_TICKS,
+ * the match ends in its owner's favour. A finished one also stamps its
+ * footprint into every rival's explored grid (visibility.ts), which changes
+ * what the AI brain knows and therefore what it does. A match can now end on
+ * a tick and for a reason no earlier build had, so a log recorded before
+ * this re-runs into a different outcome, not merely a different valley.
+ *
+ * 48's note follows.
+ *
  * 48: the mines eat. Every gather recipe may now carry a ration (the iron,
  * silver and gold mines each spend one food per MINE_RATION_PER loads), the
  * mines raise a standing demand for it, and a mine with an empty pantry
@@ -621,4 +633,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 48;
+export const REPLAY_VERSION = 49;

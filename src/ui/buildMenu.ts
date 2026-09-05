@@ -107,8 +107,13 @@ export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
       ],
     },
     // Ore, forge, army along the top, in that order and in that direction.
-    // Under them the two that come later: the wall raised when the raids
-    // start, and the gilding affordable once the army already stands.
+    // Under them the ones that come later: the wall raised when the raids
+    // start, the gilding affordable once the army already stands — and the
+    // Monument, last because it is the end of that gold and the end of the
+    // match. It sits on Arms rather than Village for the reason the gold
+    // mine does: this tab is where the deep seam's chain lives, and the
+    // Monument is what the seam is finally for. That it wins the game
+    // without an army is the joke, not a filing error.
     {
       label: 'Arms',
       types: [
@@ -117,6 +122,7 @@ export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
         BuildingTypeId.barracks,
         BuildingTypeId.guardTower,
         BuildingTypeId.goldMine,
+        BuildingTypeId.monument,
       ],
     },
   ];
@@ -160,7 +166,7 @@ export function playerBuildable(type: BuildingTypeId): boolean {
  * B**r**ewery takes R and Barrac**k**s takes K, and the Guard **T**ower —
  * whose G belongs to the Gold Mine — takes the letter of the thing it is.
  * The Smith's rename spent every letter of its short name; the Fish**e**ry
- * yielded S and fell back to its E. The test beside this file
+ * yielded S and fell back to its E; the M**o**nument yielded M to the Mill. The test beside this file
  * holds the two rules that matter — one key per building, no key used twice.
  */
 export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
@@ -180,6 +186,9 @@ export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.weaponsmith]: 'S',
   [BuildingTypeId.barracks]: 'K',
   [BuildingTypeId.guardTower]: 'T',
+  // M belongs to the Mill, so the Monument takes the next letter of its own
+  // name — the same fallback the Brewery and the Barracks took.
+  [BuildingTypeId.monument]: 'O',
 };
 
 /** The letter that arms this building, or '' for one the ribbon never offers. */

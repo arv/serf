@@ -91,6 +91,13 @@ export interface BuildingSnap {
   repairPending?: number;
   /** Build timer progress 0..1 once materials are complete. */
   progress01?: number;
+  /**
+   * The monument's hold, 0..1 — how much of MONUMENT_HOLD_TICKS its owner
+   * has banked. Present only on a finished monument, and sent to every seat
+   * that can see one: a rival's clock is exactly the thing they need to
+   * read to decide whether to march.
+   */
+  hold01?: number;
   stock: GoodAmounts;
   inputs: GoodAmounts;
   inbound: GoodAmounts;

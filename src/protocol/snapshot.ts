@@ -12,7 +12,7 @@ import type {Enum} from '../shared/enum.ts';
 import {exactDist} from '../shared/math.ts';
 import {distToFootprint} from '../sim/arrival.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
-import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
+import {HIRE_SERF_TICKS, MONUMENT_HOLD_TICKS} from '../sim/defs/balance.ts';
 import {
   TOOL_OF,
   buildingDef,
@@ -78,6 +78,10 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     progress01:
       b.state === BuildingState.site && def.buildTicks > 0
         ? (b.buildProgress ?? 0) / def.buildTicks
+        : undefined,
+    hold01:
+      b.holdTicks !== undefined
+        ? Math.min(1, b.holdTicks / MONUMENT_HOLD_TICKS)
         : undefined,
     stock: {...b.stock},
     inputs: {...b.inputs},
