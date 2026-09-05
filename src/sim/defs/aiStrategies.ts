@@ -102,6 +102,38 @@ export interface AiStrategy {
   /** Ceiling on houses, the plan's own included. Past this the seat grows
    * by winning rather than by building. */
   houseLimit: number;
+  /**
+   * This seat never marches. Its army is a garrison: it holds the ground it
+   * stands on and `armyAttackSize` describes the size that garrison wants,
+   * not a bar it is working towards.
+   *
+   * A flag rather than a number, because no number can say this. The muster
+   * bar is eroded from three directions on purpose — the impatience ramp
+   * (mustersNeeded) walks it down to a single soldier once an army has stood
+   * idle past AI_PACING.forlornAfter, the growth-stall clamp drops it to
+   * whatever is standing when recruitment stops, and a favourable odds
+   * reading starts a march the bar was still waiting on. All three exist
+   * because a seat that never attacks is normally a bug. CLAMP
+   * (defs/difficulty.ts) also caps every playbook's bar at 16, so there is
+   * no large number to hide behind either.
+   *
+   * Measured while this was being built, on a playbook that printed
+   * armyAttackSize 16 and homeGuard 20 and nothing else: it mustered,
+   * marched and razed the camp in 29 of 32 campaigns. With the erosions off
+   * but the bar still honest it simply grew past 16 and marched anyway, in
+   * 27 of 32. Only a flat refusal holds — and it holds well: the same seat
+   * went from 23 losses in 32 to 5.
+   *
+   * It does not make a seat passive. The home guard still fights whatever
+   * walks into the yard, towers still shoot, walls still get mended. What it
+   * removes is the seat's willingness to LEAVE.
+   *
+   * No shipped playbook sets it yet. It exists because the Monument gives
+   * the economy a way to win that a marching seat can never demonstrate, and
+   * the playbook that will use it is not finished — see the note in
+   * aiHoldsGround.test.ts.
+   */
+  holdsGround?: boolean;
 
   // — War —
   /**

@@ -47,6 +47,7 @@ import {
   findResourceNear,
   generateMap,
   rectClear,
+  seamSpoil,
   tileBlocks,
   type GameMap,
   type MapView,
@@ -930,7 +931,12 @@ export function placeSite(
  * standing four tiles from the nearest seam, and a player who reads it goes
  * looking for the wrong fix — clearing ground that was never in the way.
  */
-export type PlacementRefusal = 'occupied' | 'slope' | 'resource' | 'water';
+export type PlacementRefusal =
+  | 'occupied'
+  | 'slope'
+  | 'resource'
+  | 'water'
+  | 'seam';
 
 /**
  * Placement validity: footprint on clear grass, and at least one walkable
@@ -1047,6 +1053,34 @@ export function placementRefusal(
       }
     }
     if (!found) return 'water';
+  }
+
+  // A monument stands over the seam it is gilded from. Its own rule rather
+  // than the gatherer's above, because it works nothing: the check is that
+  // the ground is the right ground, not that a worker has somewhere to
+  // walk. Same box as the fishery's — the footprint grown by `radius` —
+  // and the same playable-only screen, so a seam drawn out in the scenery
+  // margin cannot anchor one.
+  //
+  // A worked-out seam still counts, and that is the whole point of spoil
+  // (TileResource.GoldSpoil): the seam and the monument want the same
+  // ground, and a rule that read live ore alone made digging the gold —
+  // the thing the mission tells you to do — quietly delete every legal
+  // site on the map. What the ground has to remember is that gold was
+  // here, not that some is left.
+  if (def.nearResource) {
+    const {kind, radius: r} = def.nearResource;
+    const spoil = seamSpoil(kind);
+    let found = false;
+    for (let ty = y - r; ty < y + def.h + r && !found; ty++) {
+      for (let tx = x - r; tx < x + def.w + r && !found; tx++) {
+        if (!inPlayArea(map, tx, ty)) continue;
+        const res = map.resource[tileIdx(tx, ty, size)];
+        if (res === kind || (spoil !== undefined && res === spoil))
+          found = true;
+      }
+    }
+    if (!found) return 'seam';
   }
   return null;
 }
@@ -1237,11 +1271,23 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
   for (const g of bill) delete b.demandSince[g];
 }
 
-/** Deplete one unit of a tile resource; clears + unblocks the tile at zero. */
+/**
+ * Deplete one unit of a tile resource; clears + unblocks the tile at zero.
+ *
+ * Gold is the exception: a worked-out gold seam becomes SPOIL rather than
+ * bare ground, because the Monument's placement rule reads the seam it is
+ * gilded from and a seam that vanished took every legal site with it (see
+ * TileResource.GoldSpoil). Spoil is not ore — `findResourceNear` looks for
+ * an exact code, so no mine will ever work it, and a gold mine's ghost
+ * refuses the ground exactly as it does today.
+ */
 export function depleteResourceTile(world: World, idx: number): void {
   const amt = world.map.resourceAmt[idx]!;
   if (amt <= 1) {
-    world.map.resource[idx] = TileResource.None;
+    world.map.resource[idx] =
+      world.map.resource[idx] === TileResource.GoldDep
+        ? TileResource.GoldSpoil
+        : TileResource.None;
     world.map.resourceAmt[idx] = 0;
     if (
       world.map.buildingAt[idx]! < 0 &&
