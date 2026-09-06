@@ -196,23 +196,38 @@ export function parseStrategies(spec: string): SeatStrategies {
   return [ids[0]!, ids[1] ?? ids[0]!];
 }
 
-function parseSeeds(spec: string): number[] {
+/**
+ * `1-24`, `1,4,9`, or a mix. Exported because every tool in this directory
+ * takes seeds the same way and they must reject the same things: a
+ * backwards range, a non-integer, and a spec that selects nothing all have
+ * to fail loudly rather than hand a sweep a NaN to seed a world with.
+ *
+ * `flag` names the option being parsed, because the refusal is the whole
+ * point and one that says `--seeds` to someone who typed `--train` sends
+ * them to the wrong flag.
+ */
+export function parseSeeds(spec: string, flag = '--seeds'): number[] {
   const seeds: number[] = [];
   for (const part of spec.split(',')) {
     const range = /^(\d+)-(\d+)$/.exec(part.trim());
     if (range) {
       const lo = Number(range[1]);
       const hi = Number(range[2]);
-      if (hi < lo) throw new Error(`--seeds range runs backwards: "${part}"`);
+      if (hi < lo) throw new Error(`${flag} range runs backwards: "${part}"`);
       for (let s = lo; s <= hi; s++) seeds.push(s);
       continue;
     }
-    const one = Number(part.trim());
+    const text = part.trim();
+    // An empty entry is not seed zero. `Number('')` is 0 and passes the
+    // integer check below, so `--seeds ''` and `--seeds '1,,2'` both used
+    // to smuggle a seed nobody asked for past every guard here.
+    if (text === '') throw new Error(`${flag} has an empty entry: "${spec}"`);
+    const one = Number(text);
     if (!Number.isInteger(one))
-      throw new Error(`--seeds wants integers, got "${part}"`);
+      throw new Error(`${flag} wants integers, got "${part}"`);
     seeds.push(one);
   }
-  if (seeds.length === 0) throw new Error('--seeds selected nothing');
+  if (seeds.length === 0) throw new Error(`${flag} selected nothing`);
   return seeds;
 }
 
