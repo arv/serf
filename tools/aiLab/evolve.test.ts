@@ -4,11 +4,13 @@ import {AI_STRATEGIES} from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
 import {
+  bestChallenger,
   deltaOf,
   halvingPlan,
   pairedFlips,
   pairingsFor,
   parseSeeds,
+  promotes,
   randomDelta,
   sample,
   scoreOf,
@@ -129,6 +131,68 @@ describe('selection', () => {
       ['clean', {...score(5, 10), undecided: 0}],
     ]);
     expect(survivors(scores, 1)).toEqual(['clean']);
+  });
+});
+
+describe('the controls', () => {
+  it('never cuts a protected id, however badly it is scoring', () => {
+    // The incumbent IS the comparison. A shakedown cut it in round one on
+    // twelve trials and then promoted a challenger against it on a single
+    // discordant pair, because the paired test only sees the trials both
+    // sides played.
+    const scores = new Map([
+      ['inc', score(1, 10)],
+      ['dice', score(2, 10)],
+      ['m1', score(9, 10)],
+      ['m2', score(8, 10)],
+      ['m3', score(7, 10)],
+    ]);
+    const kept = survivors(scores, 2, new Set(['inc', 'dice']));
+    expect(kept).toContain('inc');
+    expect(kept).toContain('dice');
+    // Two mutants besides the two controls, and the worst mutant is gone.
+    expect(kept.filter(id => id.startsWith('m'))).toEqual(['m1', 'm2']);
+  });
+
+  it('keeps the ranking order it was given', () => {
+    const scores = new Map([
+      ['inc', score(1, 10)],
+      ['m1', score(9, 10)],
+    ]);
+    expect(survivors(scores, 1, new Set(['inc']))).toEqual(['m1', 'inc']);
+  });
+
+  it('will not crown a control', () => {
+    // A dice that wins is a verdict on the search, not a playbook. Crown
+    // it and the next generation's "incumbent vs dice" line compares one
+    // lottery ticket against another.
+    const scores = new Map([
+      ['dice', score(9, 10)],
+      ['inc', score(8, 10)],
+      ['m1', score(7, 10)],
+    ]);
+    expect(bestChallenger(scores, new Set(['inc', 'dice']))).toBe('m1');
+  });
+
+  it('has no challenger when every candidate is a control', () => {
+    const scores = new Map([['dice', score(9, 10)]]);
+    expect(bestChallenger(scores, new Set(['dice']))).toBeNull();
+  });
+});
+
+describe('the promotion bar', () => {
+  it('refuses a winning record too small to mean anything', () => {
+    // Both of these promoted in the first shakedown.
+    expect(promotes({won: 3, lost: 1, p: 0.625}, 8, 0.2)).toBe(false);
+    expect(promotes({won: 1, lost: 0, p: 1}, 8, 0.2)).toBe(false);
+  });
+
+  it('promotes a record that clears both the count and the p', () => {
+    expect(promotes({won: 12, lost: 2, p: 0.013}, 8, 0.2)).toBe(true);
+  });
+
+  it('refuses a losing record whatever its size', () => {
+    expect(promotes({won: 4, lost: 20, p: 0.001}, 8, 0.2)).toBe(false);
   });
 });
 

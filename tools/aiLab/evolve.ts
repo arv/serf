@@ -179,16 +179,72 @@ export function halvingPlan(
 export function survivors(
   scores: ReadonlyMap<string, Score>,
   keep: number,
+  protectedIds: ReadonlySet<string> = new Set(),
 ): string[] {
-  return [...scores.entries()]
+  const ranked = [...scores.entries()]
     .sort((a, b) => {
       if (b[1].rate !== a[1].rate) return b[1].rate - a[1].rate;
       if (a[1].undecided !== b[1].undecided)
         return a[1].undecided - b[1].undecided;
       return a[0] < b[0] ? -1 : 1;
     })
-    .slice(0, Math.max(1, keep))
     .map(([id]) => id);
+  // The controls ride to the end whatever they score. The first shakedown
+  // cut the incumbent in round one on twelve trials and then compared the
+  // generation's winner against it anyway — a reference measured at a
+  // twentieth of the challenger's budget. Worse, the promotion test reads
+  // only the trials both sides played, so an early-cut incumbent starves
+  // the very comparison that decides the generation: it promoted on a
+  // single discordant trial.
+  const chosen = new Set(ranked.filter(id => protectedIds.has(id)));
+  for (const id of ranked) {
+    if (protectedIds.has(id)) continue;
+    if (chosen.size - protectedIds.size >= Math.max(1, keep)) break;
+    chosen.add(id);
+  }
+  return ranked.filter(id => chosen.has(id));
+}
+
+/**
+ * The generation's challenger: the best candidate that is ELIGIBLE to
+ * wear the crown, which the controls are not.
+ *
+ * `dice` is in the population to say whether the search beat redrawing
+ * the knobs at random, and a control that can be promoted stops being
+ * one — the first shakedown crowned the dice in generation 1, and from
+ * generation 2 the incumbent WAS a random draw, so every "incumbent vs
+ * dice" line after it compared one lottery ticket against another. A
+ * generation the dice wins is a finding about the search, and the report
+ * says so rather than banking it.
+ */
+export function bestChallenger(
+  scores: ReadonlyMap<string, Score>,
+  ineligible: ReadonlySet<string>,
+): string | null {
+  const ranked = survivors(scores, scores.size);
+  return ranked.find(id => !ineligible.has(id)) ?? null;
+}
+
+/**
+ * Is a challenger's paired record enough to take the crown?
+ *
+ * `won > lost` alone is not: the first shakedown promoted on 3-versus-1
+ * and then on 1-versus-0, which is noise wearing a champion's hat, and a
+ * league that fills with noise is worse than no league — every later
+ * generation then spends its budget beating ghosts. So a promotion also
+ * needs enough discordant pairs to have said anything (`minPairs`) and a
+ * two-sided p at or under `maxP`.
+ */
+export function promotes(
+  paired: {won: number; lost: number; p: number},
+  minPairs: number,
+  maxP: number,
+): boolean {
+  return (
+    paired.won > paired.lost &&
+    paired.won + paired.lost >= minPairs &&
+    paired.p <= maxP
+  );
 }
 
 /** The league, bounded: every shipped playbook always, plus the most
@@ -277,6 +333,10 @@ export interface RunOptions {
   leagueChampions: number;
   exploiter: boolean;
   exploiterBar: number;
+  /** Discordant pairs a promotion needs before it means anything. */
+  minPairs: number;
+  /** Two-sided p a promotion has to clear. */
+  maxP: number;
   trainSeeds: readonly number[];
   holdoutSeeds: readonly number[];
   mapSize: number;
@@ -477,8 +537,16 @@ export async function run(o: RunOptions): Promise<void> {
     const opponents = sample(league, o.opponentsPerGen, rng);
     const base = strategyFor(champion.lineage, champion.delta);
 
+    const CONTROLS = new Set(['inc', 'dice']);
     const pop: Individual[] = [
-      {...champion, id: 'inc'},
+      {
+        ...champion,
+        id: 'inc',
+        // Its own label, not the mutation that made it: an incumbent
+        // printing "redrawn at random" three generations later reads as
+        // if the control were the champion.
+        changes: g === 1 ? 'the printed line' : `the champion (${champion.id})`,
+      },
       {
         id: 'dice',
         lineage: o.lineage,
@@ -521,7 +589,7 @@ export async function run(o: RunOptions): Promise<void> {
         alive.map(c => [c.id, scoreOf(seen.get(c.id)!)] as const),
       );
       const cut = plan[i + 1]?.contenders ?? alive.length;
-      const keep = new Set(survivors(scores, cut));
+      const keep = new Set(survivors(scores, cut, CONTROLS));
       log({
         kind: 'round',
         generation: g,
@@ -539,14 +607,16 @@ export async function run(o: RunOptions): Promise<void> {
         .filter(c => seen.get(c.id)!.length > 0)
         .map(c => [c.id, scoreOf(seen.get(c.id)!)] as const),
     );
-    const bestId = survivors(
-      new Map([...finalScores].filter(([id]) => alive.some(a => a.id === id))),
-      1,
-    )[0]!;
-    const best = byId.get(bestId)!;
+    const contended = new Map(
+      [...finalScores].filter(([id]) => alive.some(a => a.id === id)),
+    );
+    const bestId = bestChallenger(contended, CONTROLS);
     const incScore = finalScores.get('inc')!;
     const diceScore = finalScores.get('dice')!;
-    const paired = pairedFlips(seen.get(bestId)!, seen.get('inc')!);
+    const paired = bestId
+      ? pairedFlips(seen.get(bestId)!, seen.get('inc')!)
+      : {won: 0, lost: 0, p: 1};
+    const best = bestId ? byId.get(bestId)! : null;
 
     console.log(
       `GENERATION ${g}  vs ${opponents.map(x => x.label).join(', ')}`,
@@ -564,12 +634,26 @@ export async function run(o: RunOptions): Promise<void> {
       );
     }
 
-    const better = paired.won > paired.lost && bestId !== 'inc';
+    const better = best !== null && promotes(paired, o.minPairs, o.maxP);
     console.log(
       `  incumbent ${pct(incScore.rate)} · dice ${pct(diceScore.rate)} · ` +
-        `challenger paired ${paired.won}/${paired.lost} (p = ${paired.p.toFixed(3)}) — ` +
-        `${better ? 'PROMOTED' : 'no promotion'}\n`,
+        `challenger ${bestId ?? '—'} paired ${paired.won}/${paired.lost} ` +
+        `(p = ${paired.p.toFixed(3)}, needs ${o.minPairs} pairs at p ≤ ${o.maxP}) — ` +
+        `${better ? 'PROMOTED' : 'no promotion'}`,
     );
+    if (
+      diceScore.rate > incScore.rate &&
+      (!best || diceScore.rate >= finalScores.get(best.id)!.rate)
+    ) {
+      // Not a champion — a verdict on the generation. The bake-off's whole
+      // discipline is that an advisor which cannot beat dice is not an
+      // advisor; the same goes for a search.
+      console.log(
+        `  NOTE: the dice outscored every candidate this generation — ` +
+          `that is a result about the search, not a playbook.`,
+      );
+    }
+    console.log('');
     log({
       kind: 'generation',
       generation: g,
@@ -579,7 +663,7 @@ export async function run(o: RunOptions): Promise<void> {
       scores: [...finalScores].map(([id, s]) => ({id, ...s})),
     });
 
-    if (better) {
+    if (better && best) {
       champion = {...best, id: `champ-g${g}`};
       league = trimLeague(
         [
@@ -722,6 +806,8 @@ const HELP = `serf-valley playbook search
                         (default: 2)
   --league <n>          champions kept in the league besides the shipped
                         playbooks (default: 4)
+  --min-pairs <n>       discordant pairs a promotion needs (default: 8)
+  --max-p <f>           two-sided p a promotion must clear (default: 0.2)
   --no-exploiter        skip the per-generation exploiter
   --exploiter-bar <f>   win rate an exploiter needs against the champion
                         to join the league (default: 0.6)
@@ -795,6 +881,8 @@ export function optionsFromArgv(): RunOptions {
     leagueChampions: num('--league', 4),
     exploiter: !process.argv.includes('--no-exploiter'),
     exploiterBar: num('--exploiter-bar', 0.6),
+    minPairs: num('--min-pairs', 8),
+    maxP: num('--max-p', 0.2),
     trainSeeds: train,
     holdoutSeeds: holdout,
     mapSize: num('--map', 96),
