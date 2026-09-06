@@ -39,8 +39,9 @@ type BuildingState = Enum<typeof BuildingState>;
 type GoodId = Enum<typeof GoodId>;
 
 /** A built fishery's pier, in world space: the deck line from its landward
- * end to the fishing spot near the tip, plank height, and the yaw that
- * faces the water. Shared with sceneSync, which walks the fisherman out
+ * end to the fishing spot near the tip, plank height, and the yaw the deck
+ * runs at — which is where the water is, not merely where the hut faces
+ * (#measurePier). Shared with sceneSync, which walks the fisherman out
  * along it. */
 export interface PierInfo {
   /** Building center, the anchor a fisherman is matched to his pier by. */
@@ -84,6 +85,90 @@ export interface FieldInfo {
  * units — enough that the tallest swim circle and the fish bodies stay
  * submerged rather than breaking the surface. */
 const SHOAL_DRAFT = 0.14;
+
+/**
+ * How far short of the deck's tip the fisherman stands, world units: his
+ * toes stay on the planks and the line drops off the end. The fit search
+ * below wants this stretch of deck over water too — the rod hangs its line
+ * near plumb (characters.ts fishingPoleProp), so a hook that clears the
+ * shoreline by a plank's width is a hook in the grass.
+ */
+const PIER_SPOT_BACK = 0.4;
+
+/**
+ * The docks model's plank top over the building's own ground, in world
+ * units at the authored deck length. Read off the model (0.04 of its own
+ * units, ~0.05 after the decor scale) rather than measured: the pier's
+ * bbox can't say, because its mooring posts top out well above the deck.
+ */
+const PIER_DECK_Y = 0.05;
+
+/**
+ * How far under the water plane the deck's far end wants to sit, world
+ * units.
+ *
+ * Wetness is asked of the height field rather than of the sim's water
+ * tiles, because the question is what the player sees: the terrain mesh
+ * draws that field vertex for vertex (terrainMesh.ts), so the shoreline on
+ * screen is exactly where it crosses WATER_LEVEL. A tile-grid answer is
+ * coarser than the thing it is answering about — the first water tile's
+ * landward half can still be dry ground on screen — and a deck that clears
+ * the line by a hair reads as planks on the bank. A plank's depth of margin
+ * is what makes it read as planks over water.
+ *
+ * On the handful of shores where nothing the fit can reach is this deep
+ * (a shallow pond, a marshy notch), the search runs again asking only to
+ * be under the surface at all: touching the water beats standing off it.
+ */
+const PIER_DRAFT = 0.15;
+
+/** One step of the deck's aim, radians. */
+const PIER_TURN_STEP = Math.PI / 12;
+/** How far either way the aim may swing: four steps, so 60 degrees. */
+const PIER_TURN_STEPS = 4;
+/** One step off the deck's authored length, world units. */
+const PIER_TRIM_STEP = 0.25;
+/** How much of the deck may be given up: four steps, so a whole tile. */
+const PIER_TRIM_STEPS = 4;
+
+/**
+ * The deck fits `#measurePier` tries, least intrusive first: `turn` in
+ * 15-degree steps off the building's facing, `trim` in quarter-tile steps
+ * off the deck's authored length.
+ *
+ * Both are needed because neither the sim's facing nor the model's reach is
+ * a promise about water. `Building.facing` is a quarter turn (world.ts
+ * waterFacing) — on a shore that runs anywhere but square to the grid, the
+ * nearest water is off that axis and the authored deck ends on grass. And
+ * placement only promises water within a tile of the footprint
+ * (`nearWater`), while the authored deck runs nearly two tiles past it, so
+ * a narrow inlet or a pond edge is something the deck can stride clean over
+ * and land dry on the far bank.
+ *
+ * One step of either counts the same, so the search gives up a quarter tile
+ * of planking as readily as it turns the deck 15 degrees. The authored
+ * placement is first in the list and wins whenever it already reaches
+ * water, which on generated maps is a little under three sites in five;
+ * past a 60-degree turn the deck stops reading as one that belongs to the
+ * hut, and the sites that far off the facing are the ones a trim answers.
+ * (tools/modelLab/_pier.html renders the result on generated shoreline —
+ * it is where these numbers come from and where a change to them is
+ * judged.)
+ */
+const PIER_FITS: readonly {turn: number; trim: number}[] = (() => {
+  const fits: {turn: number; trim: number}[] = [];
+  for (let turn = -PIER_TURN_STEPS; turn <= PIER_TURN_STEPS; turn++)
+    for (let trim = 0; trim <= PIER_TRIM_STEPS; trim++) fits.push({turn, trim});
+  // Total distortion first, then the turn (a deck that still points where
+  // the hut faces reads better than a stubby one), then a stable sign so
+  // every client with the same terrain lands on the same deck.
+  return fits.sort(
+    (a, b) =>
+      Math.abs(a.turn) + a.trim - (Math.abs(b.turn) + b.trim) ||
+      Math.abs(a.turn) - Math.abs(b.turn) ||
+      b.turn - a.turn,
+  );
+})();
 
 /**
  * The scale a ghost site starts at, when there is no GLB to clip and the
@@ -799,14 +884,6 @@ export class BuildingSync {
     return out;
   }
 
-  /** Terrain lookup (tile ints -> is water?), fed from main's map mirror.
-   * The pier measurement uses it to tell a wet tip from a dry one. */
-  #water: ((tx: number, tz: number) => boolean) | null = null;
-
-  setWater(query: (tx: number, tz: number) => boolean): void {
-    this.#water = query;
-  }
-
   /** Built fisheries' piers, in world space: where the deck line runs
    * (landward end -> fishing spot near the tip), the height of the planks,
    * and the yaw that faces the water. sceneSync walks the resident
@@ -882,71 +959,87 @@ export class BuildingSync {
     // ticks world matrices — settle them before measuring.
     v.root.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(v.pier!);
-    let yaw = (v.facing * Math.PI) / 2;
-    let dirX = Math.sin(yaw);
-    let dirZ = Math.cos(yaw);
+    const facingYaw = (v.facing * Math.PI) / 2;
     const cx = (box.min.x + box.max.x) / 2;
     const cz = (box.min.z + box.max.z) / 2;
-    // Facing is a quarter turn, so the deck line lies along one axis.
-    const half =
-      (Math.abs(dirX) > 0.5 ? box.max.x - box.min.x : box.max.z - box.min.z) /
-      2;
-    const baseX = cx - dirX * half;
-    const baseZ = cz - dirZ * half;
-    let tipX = cx + dirX * half;
-    let tipZ = cz + dirZ * half;
-    // Corner-only shores: placement guarantees water touching the
-    // footprint, but facing is a quarter turn — when the water sits on
-    // the diagonal, a straight pier ends on grass. Swing the deck 45°
-    // about its landward end toward whichever diagonal is wet. Without a
-    // terrain feed (tests, or before main wires it) the tip counts as
-    // wet and the pier stays straight.
-    const wet = (x: number, z: number): boolean =>
-      this.#water?.(Math.floor(x), Math.floor(z)) ?? true;
-    if (!wet(tipX, tipZ)) {
-      for (const theta of [Math.PI / 4, -Math.PI / 4]) {
-        const c = Math.cos(theta);
-        const s = Math.sin(theta);
-        const rx = tipX - baseX;
-        const rz = tipZ - baseZ;
-        const tx = baseX + rx * c + rz * s;
-        const tz = baseZ - rx * s + rz * c;
-        if (!wet(tx, tz)) continue;
-        this.#swingDecor(v, baseX, baseZ, theta);
-        yaw += theta;
-        dirX = Math.sin(yaw);
-        dirZ = Math.cos(yaw);
-        tipX = tx;
-        tipZ = tz;
-        break;
-      }
+    // Facing is a quarter turn, so the authored deck line lies along one
+    // axis.
+    const along = Math.abs(Math.sin(facingYaw)) > 0.5;
+    const len = along ? box.max.x - box.min.x : box.max.z - box.min.z;
+    // The landward end, where the deck meets the hut. The fit below turns
+    // and shortens the deck about this point, so it never comes loose.
+    const baseX = cx - Math.sin(facingYaw) * (len / 2);
+    const baseZ = cz - Math.cos(facingYaw) * (len / 2);
+    let yaw = facingYaw;
+    let scale = 1;
+    let spotX = baseX + Math.sin(yaw) * (len - PIER_SPOT_BACK);
+    let spotZ = baseZ + Math.cos(yaw) * (len - PIER_SPOT_BACK);
+    // Aim the deck at the water: the least intrusive fit whose tip AND
+    // whose fishing spot both stand over it (see PIER_FITS for why the
+    // authored placement so often does not, and PIER_DRAFT for what
+    // standing over water means here). Deep enough to read as water if any
+    // fit can manage it, wet at all if none can; a shore that no fit
+    // reaches at all keeps the authored deck, which is no worse than what
+    // the model shipped with.
+    for (const draft of [PIER_DRAFT, 0]) {
+      const wet = (x: number, z: number): boolean =>
+        this.#heights.at(x, z) < WATER_LEVEL - draft;
+      const fit = PIER_FITS.find(f => {
+        const fitYaw = facingYaw + f.turn * PIER_TURN_STEP;
+        const fitLen = len - f.trim * PIER_TRIM_STEP;
+        const dirX = Math.sin(fitYaw);
+        const dirZ = Math.cos(fitYaw);
+        return (
+          wet(baseX + dirX * fitLen, baseZ + dirZ * fitLen) &&
+          wet(
+            baseX + dirX * (fitLen - PIER_SPOT_BACK),
+            baseZ + dirZ * (fitLen - PIER_SPOT_BACK),
+          )
+        );
+      });
+      if (!fit) continue;
+      const fitLen = len - fit.trim * PIER_TRIM_STEP;
+      yaw = facingYaw + fit.turn * PIER_TURN_STEP;
+      scale = fitLen / len;
+      spotX = baseX + Math.sin(yaw) * (fitLen - PIER_SPOT_BACK);
+      spotZ = baseZ + Math.cos(yaw) * (fitLen - PIER_SPOT_BACK);
+      break;
     }
+    if (yaw !== facingYaw || scale !== 1)
+      this.#fitDecor(v, baseX, baseZ, yaw - facingYaw, scale);
     return {
       bx: v.root.position.x,
       bz: v.root.position.z,
       baseX,
       baseZ,
-      // A step short of the tip, so the toes stay on the planks.
-      spotX: tipX - dirX * 0.4,
-      spotZ: tipZ - dirZ * 0.4,
+      spotX,
+      spotZ,
       yaw,
-      // The docks model's plank top sits at 0.04 of its own units; after
-      // the decor scale that is ~0.05 over the building's ground. The
-      // pier bbox can't say (its mooring posts top out well above the
-      // deck), so the constant it is.
-      deckY: v.root.position.y + 0.05,
+      // A trimmed deck is a smaller dock, planks and all, so its top comes
+      // down with it.
+      deckY: v.root.position.y + PIER_DECK_Y * scale,
     };
   }
 
-  /** Rotate the pier — and the shoal working the water off its end — about
-   * the vertical line through the deck's landward end. The parent chain is
-   * Y-rotation plus uniform scale, so a world-space angle carries into the
-   * local frame unchanged. */
-  #swingDecor(
+  /**
+   * Re-seat the pier — and the shoal working the water off its end — for
+   * the fit `#measurePier` chose: turn both by `theta` about the vertical
+   * line through the deck's landward end, and pull them in to `scale` of
+   * their reach from it. The parent chain is Y-rotation plus uniform scale,
+   * so a world-space angle and a ratio both carry into the local frame
+   * unchanged.
+   *
+   * The deck shrinks with its reach (the pier's own scale), which keeps the
+   * dock a dock: a short deck at full width, with its pilings still stepped
+   * along it, rather than a squashed one. The fish only swim in closer —
+   * a trim is the pier's, not theirs.
+   */
+  #fitDecor(
     v: BuildingVisual,
     baseX: number,
     baseZ: number,
     theta: number,
+    scale: number,
   ): void {
     const c = Math.cos(theta);
     const s = Math.sin(theta);
@@ -956,10 +1049,11 @@ export class BuildingSync {
       obj.parent.worldToLocal(p.set(baseX, 0, baseZ));
       const rx = obj.position.x - p.x;
       const rz = obj.position.z - p.z;
-      obj.position.x = p.x + rx * c + rz * s;
-      obj.position.z = p.z - rx * s + rz * c;
+      obj.position.x = p.x + (rx * c + rz * s) * scale;
+      obj.position.z = p.z + (rz * c - rx * s) * scale;
       obj.rotation.y += theta;
     }
+    v.pier?.scale.multiplyScalar(scale);
   }
 
   /** Per render frame: the decor that moves. dt in seconds (pass 0 while

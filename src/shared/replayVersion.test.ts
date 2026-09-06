@@ -330,8 +330,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // same 49 the shove was; the shove landed first, so this took the next
 // number rather than sharing one. Two builds in the wild hold older rules
 // now, which is exactly what the numbers are for.
+// Still 51 after waterFacing was exported for the model lab's pier page
+// (sim/world.ts): a keyword, a doc note, and a parameter widened from
+// World['map'] to the MapView it only ever reads. Nothing calls it that
+// did not before, and it returns the same quarter turn for the same
+// footprint. The hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 51;
-const EXPECTED_HASH = '8e700ce6cb26c8485efd42a16b268857';
+const EXPECTED_HASH = '3432aa258e6d279b858c7a9e8f3d804a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

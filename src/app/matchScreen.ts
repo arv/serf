@@ -32,14 +32,13 @@ import {SceneSync} from '../render/sceneSync';
 import {SelectionFx} from '../render/selectionFx';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
-import {inBounds, tileCount, tileIdx} from '../shared/grid';
+import {tileCount} from '../shared/grid';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
 import * as GameEventKind from '../sim/gameEventKindEnum.ts';
 import * as HeraldNote from '../sim/heraldNoteEnum.ts';
 import * as MatchState from '../sim/matchStateEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
-import * as Terrain from '../sim/terrainEnum.ts';
 import {markMissionComplete} from '../ui/campaign';
 import {mountHud} from '../ui/mount';
 import {seatName} from '../ui/names';
@@ -462,13 +461,6 @@ export async function runMatch(
   renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights);
-  // Terrain feed for the pier measurement: on a corner-only shore the
-  // fishery's deck swings 45 degrees toward the wet diagonal.
-  buildingSync.setWater(
-    (tx, tz) =>
-      inBounds(tx, tz, init.map.size) &&
-      mirror.map.terrain[tileIdx(tx, tz, init.map.size)] === Terrain.Water,
-  );
   // Presentation cues flow render -> audio, injected like the fog: the
   // sync knows when and where, the audio layer knows whether and how loud.
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);

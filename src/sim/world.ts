@@ -777,9 +777,14 @@ export function spawnUnitNearby(
  * two hosts placing the same fishery must turn it the same way or their
  * renders — and their save hashes — diverge. Scan order is what makes that
  * true, so the loop bounds below are load-bearing, not incidental.
+ *
+ * Exported for the model lab's pier page (tools/modelLab/_pier.ts), which
+ * stands fisheries on generated shoreline to see where their decks land:
+ * the answer only means anything if the deck starts out turned the way a
+ * real one is.
  */
-function waterFacing(
-  map: World['map'],
+export function waterFacing(
+  map: MapView,
   x: number,
   y: number,
   w: number,

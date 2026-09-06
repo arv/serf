@@ -82,6 +82,34 @@ pnpm dev   # then /tools/modelLab/_spoil.html
 `?spoil=0` paints with the lookup disabled, which is the before shot;
 `?yaw` and `w`/`h` behave as they do on `_mines.html`.
 
+## The fishery's pier
+
+`_pier.html` is where the deck is judged against real shoreline. Every other
+page here stands its building on a plate of turf with a painted chord of
+water behind it — the right stage for a silhouette and the wrong one for
+"does this deck end in the lake", because that shoreline is authored to suit
+the model. So this page generates a real world, asks `canPlace` for every
+legal fishery site, and renders `BuildingSync`'s own deck fit
+(`#measurePier`) on the ones where the deck AS AUTHORED ends on grass —
+against the real terrain mesh, the real water plane and the real scatter.
+
+```sh
+pnpm dev   # then /tools/modelLab/_pier.html
+```
+
+It prints the tally to the console (`379 legal sites, 161 dry as authored, 0
+dry after the fit` on seed 1), which is the number a change to the fit's
+turn and trim limits has to be measured by. `?fit=none` fits against ground
+whose lakes are filled to the waterline — the huts still stand at their
+true height, no fit is found anywhere, and the deck comes out as the model
+places it, which is the before shot. `?worst=1` picks the sites the fit has to distort
+most instead of the first ones it finds, `?all=1` includes the sites that
+were already wet, `?at=x,y` blows one site up, `?seed=<n>` trawls a
+different world, and `?n`/`?cell`/`?view`/`?yaw` set how many, how big,
+how close and from where. Turn the camera before calling a deck wrong: at
+some yaws a deck that runs behind its hut is mostly occluded by the roof
+and reads as a staircase.
+
 ## The farmstead
 
 `_farm.html` is where the wheat farm's field was composed and the farmer's
