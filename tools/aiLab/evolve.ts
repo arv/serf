@@ -71,6 +71,15 @@ import {wonByMonument} from './probe.ts';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const WORKER = `${HERE}evolveWorker.ts`;
 
+/**
+ * The two individuals in every population that are not mutants: the
+ * incumbent champion unchanged, and a candidate redrawn at random. Neither
+ * can be raced out and neither can be crowned — they are the generation's
+ * two reference points, and a reference that can be eliminated or promoted
+ * is not one.
+ */
+export const CONTROL_IDS: ReadonlySet<string> = new Set(['inc', 'dice']);
+
 /** Knobs laid over a lineage — a candidate, in the only terms that vary. */
 export type Delta = Record<string, unknown>;
 
@@ -174,22 +183,29 @@ export function scoreOf(outcomes: readonly Outcome[]): Score {
 }
 
 /**
- * The race schedule: how many contenders each round carries and how many
- * NEW seeds it adds. The field halves as the budget doubles, so every
- * round costs about the same and the last one is spent entirely on
- * candidates that have already survived something.
+ * The race schedule: how many MUTANTS each round carries and how many NEW
+ * seeds it adds. The field halves as the budget doubles, so every round
+ * costs about the same and the last one is spent entirely on candidates
+ * that have already survived something.
+ *
+ * Mutants, not candidates: the controls ride every round whatever they
+ * score (see `survivors`), so they are not a field that can be halved and
+ * counting them here would halve the wrong number. The first draft passed
+ * the whole population in and, because `keep` means non-protected, cut a
+ * field of eight to six and then to four instead of to four and then two —
+ * a schedule that printed one cost and paid another.
  */
 export function halvingPlan(
-  population: number,
+  mutants: number,
   rounds: number,
   firstSeeds: number,
-): {contenders: number; newSeeds: number}[] {
-  const plan: {contenders: number; newSeeds: number}[] = [];
-  let alive = Math.max(2, population);
+): {mutants: number; newSeeds: number}[] {
+  const plan: {mutants: number; newSeeds: number}[] = [];
+  let alive = Math.max(1, mutants);
   let seeds = Math.max(1, firstSeeds);
   for (let i = 0; i < Math.max(1, rounds); i++) {
-    plan.push({contenders: alive, newSeeds: seeds});
-    alive = Math.max(2, Math.ceil(alive / 2));
+    plan.push({mutants: alive, newSeeds: seeds});
+    alive = Math.max(1, Math.ceil(alive / 2));
     seeds *= 2;
   }
   return plan;
@@ -536,21 +552,23 @@ export async function run(o: RunOptions): Promise<void> {
     delta: {},
   }));
 
-  const plan = halvingPlan(o.population, o.rounds, o.firstSeeds);
+  const plan = halvingPlan(
+    o.population - CONTROL_IDS.size,
+    o.rounds,
+    o.firstSeeds,
+  );
+  // The controls play every round too, so the estimate has to count them
+  // or the header promises a cheaper sweep than the loop runs.
   const perGen = plan.reduce(
-    (n, step, i) =>
+    (n, step) =>
       n +
-      step.contenders *
-        o.opponentsPerGen *
-        step.newSeeds *
-        2 *
-        (i >= 0 ? 1 : 1),
+      (step.mutants + CONTROL_IDS.size) * o.opponentsPerGen * step.newSeeds * 2,
     0,
   );
   console.log(
     `evolve — lineage ${AI_STRATEGY_KEYS[o.lineage]}, ${o.generations} ` +
       `generations of ${o.population}, race ${plan
-        .map(s => `${s.contenders}×${s.newSeeds}`)
+        .map(s => `${s.mutants + CONTROL_IDS.size}×${s.newSeeds}`)
         .join(' → ')}, ${o.opponentsPerGen} opponents\n` +
       `  ~${perGen} matches per generation, ~${perGen * o.generations} total ` +
       `plus holdout, jobs ${o.jobs}\n`,
@@ -562,7 +580,6 @@ export async function run(o: RunOptions): Promise<void> {
     const opponents = sample(league, o.opponentsPerGen, rng);
     const base = strategyFor(champion.lineage, champion.delta);
 
-    const CONTROLS = new Set(['inc', 'dice']);
     const pop: Individual[] = [
       {
         ...champion,
@@ -613,8 +630,8 @@ export async function run(o: RunOptions): Promise<void> {
       const scores = new Map(
         alive.map(c => [c.id, scoreOf(seen.get(c.id)!)] as const),
       );
-      const cut = plan[i + 1]?.contenders ?? alive.length;
-      const keep = new Set(survivors(scores, cut, CONTROLS));
+      const cut = plan[i + 1]?.mutants ?? alive.length;
+      const keep = new Set(survivors(scores, cut, CONTROL_IDS));
       log({
         kind: 'round',
         generation: g,
@@ -635,7 +652,7 @@ export async function run(o: RunOptions): Promise<void> {
     const contended = new Map(
       [...finalScores].filter(([id]) => alive.some(a => a.id === id)),
     );
-    const bestId = bestChallenger(contended, CONTROLS);
+    const bestId = bestChallenger(contended, CONTROL_IDS);
     const incScore = finalScores.get('inc')!;
     const diceScore = finalScores.get('dice')!;
     const paired = bestId

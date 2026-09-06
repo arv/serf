@@ -5,6 +5,7 @@ import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
 import {
   bestChallenger,
+  CONTROL_IDS,
   deltaOf,
   halvingPlan,
   pairedFlips,
@@ -66,17 +67,40 @@ describe('the round schedule', () => {
   });
 
   it('halves the field while doubling the seeds', () => {
-    expect(halvingPlan(8, 3, 4)).toEqual([
-      {contenders: 8, newSeeds: 4},
-      {contenders: 4, newSeeds: 8},
-      {contenders: 2, newSeeds: 16},
+    // In MUTANT slots. A population of eight is six mutants and the two
+    // controls, and the controls are not a field that can be halved —
+    // counting them here cut eight to six and then to four instead of to
+    // four and then two, because `survivors` keeps `keep` NON-protected.
+    expect(halvingPlan(6, 3, 4)).toEqual([
+      {mutants: 6, newSeeds: 4},
+      {mutants: 3, newSeeds: 8},
+      {mutants: 2, newSeeds: 16},
     ]);
   });
 
-  it('never races fewer than two, however deep the plan', () => {
+  it('never races fewer than one mutant, however deep the plan', () => {
     for (const step of halvingPlan(3, 6, 1)) {
-      expect(step.contenders).toBeGreaterThanOrEqual(2);
+      expect(step.mutants).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it('cuts the field to what the plan says once controls are protected', () => {
+    // The schedule and the selection have to agree: a plan step of three
+    // mutants must leave three mutants standing, plus the two controls.
+    const scores = new Map([
+      ['inc', score(1, 10)],
+      ['dice', score(2, 10)],
+      ['m1', score(9, 10)],
+      ['m2', score(8, 10)],
+      ['m3', score(7, 10)],
+      ['m4', score(6, 10)],
+      ['m5', score(5, 10)],
+      ['m6', score(4, 10)],
+    ]);
+    const plan = halvingPlan(6, 2, 2);
+    const kept = survivors(scores, plan[1]!.mutants, CONTROL_IDS);
+    expect(kept.filter(id => !CONTROL_IDS.has(id))).toEqual(['m1', 'm2', 'm3']);
+    expect(kept).toHaveLength(5);
   });
 });
 
