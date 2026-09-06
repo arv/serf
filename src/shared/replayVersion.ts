@@ -592,6 +592,18 @@
  *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
+ * 50: a building raised over somebody moves him out instead of sealing him
+ * in. occupyFootprint now shoves anyone standing inside a new footprint to
+ * the nearest walkable tile (sim/world.ts), and re-plans the walk of anyone
+ * it interrupted under a plain move order rather than leaving him with a
+ * task no system drives. The same command on the same tick therefore leaves
+ * units standing somewhere else, and everything downstream of where a serf
+ * is — who claims which haul first, which tile a path runs through — moves
+ * with it. Unlike 49's run of "still 49" notes there is a build in the wild
+ * holding the old rule, because 49 shipped with the Monument.
+ *
+ * 49's note follows.
+ *
  * 49: the Monument, and the economy's own way to win. A new building type
  * (buildingTypeIdEnum, defs/buildings) with a placement rule no other
  * building has — it must stand within reach of a gold seam — and a victory
@@ -648,4 +660,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 49;
+export const REPLAY_VERSION = 50;

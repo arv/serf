@@ -315,8 +315,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 49 after `holdsGround` (systems/ai.ts, defs/aiStrategies.ts): a seat
 // that sets it never marches, which changes what the brain decides — but no
 // shipped playbook sets it, so every dealt seat plays exactly as it did.
-const EXPECTED_VERSION = 49;
-const EXPECTED_HASH = '10d6fc0fbc6445e92470d27d18153157';
+// 50 for the footprint shove: a building raised over somebody now moves him
+// to the nearest walkable tile instead of sealing him inside its walls
+// (occupyFootprint, sim/world.ts). Plainly sim behavior — the same command
+// on the same tick leaves units standing somewhere else — and unlike the
+// Monument's run of 49s there IS a build in the wild holding the old rule,
+// since 49 shipped with the Monument. 49 was claimed by that work and by
+// this independently, both off 48; this is the one that landed second.
+const EXPECTED_VERSION = 50;
+const EXPECTED_HASH = '6d704b3b96db45d86651668c1735ea20';
 
 /**
  * Everything a replay's playback depends on, as raw source:
