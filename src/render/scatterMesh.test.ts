@@ -219,6 +219,33 @@ function posesOn(
   return out;
 }
 
+/**
+ * Every instance buffer's upload counter, as the baseline a "wrote
+ * nothing" assertion is read against. `needsUpdate` is a setter with no
+ * getter — reading it back gives `undefined`, which is a cheerful way to
+ * write a test that can never fail — so what is watched here is the
+ * `version` that setting it bumps.
+ */
+function uploads(scatter: ScatterMesh): Map<THREE.InstancedMesh, number> {
+  const out = new Map<THREE.InstancedMesh, number>();
+  scatter.group.traverse(o => {
+    if (o instanceof THREE.InstancedMesh) out.set(o, o.instanceMatrix.version);
+  });
+  return out;
+}
+
+/** How many instance buffers have been re-uploaded since that baseline. */
+function reuploaded(
+  scatter: ScatterMesh,
+  before: Map<THREE.InstancedMesh, number>,
+): number {
+  let n = 0;
+  for (const [mesh, version] of uploads(scatter)) {
+    if (version !== before.get(mesh)) n++;
+  }
+  return n;
+}
+
 /** Which way an instance's trunk points. Trees are planted with a lean of
  * their own (#placeGrove hashes one in), so a shake is only ever read
  * here as a change from the rest pose, never as absolute tilt. */
@@ -352,6 +379,47 @@ describe('ScatterMesh chop', () => {
     scatter.chop(TX + 8, TZ + 8);
     scatter.update(1 / (4 * 6));
     expect(swing(scatter, rest, TX, TZ).angle).toBeLessThan(1e-6);
+  });
+
+  it('writes no instance matrix while the axe is still falling', () => {
+    const scatter = build(loneGroveMap());
+    scatter.chop(TX + 0.5, TZ + 0.5, 0.25);
+    // Dirtying one instance re-uploads its whole chunk — up to a
+    // thousand trees — so the frames before the bite must not touch it.
+    const before = uploads(scatter);
+    expect(before.size).toBeGreaterThan(0);
+    scatter.update(0.2);
+    expect(reuploaded(scatter, before)).toBe(0);
+    // And the frame the axe lands on does write.
+    scatter.update(0.05 + 1 / (4 * 6));
+    expect(reuploaded(scatter, before)).toBeGreaterThan(0);
+  });
+
+  it('re-uploads nothing while the game is paused', () => {
+    const scatter = build(loneGroveMap());
+    scatter.chop(TX + 0.5, TZ + 0.5);
+    scatter.update(1 / (4 * 6));
+    const leaning = posesOn(scatter, TX, TZ);
+    const before = uploads(scatter);
+    // A pause catching a trunk mid-ring holds it exactly where it is;
+    // rewriting the same lean every frame would re-upload the chunk for
+    // as long as the player stayed paused.
+    for (let i = 0; i < 10; i++) scatter.update(0);
+    expect(reuploaded(scatter, before)).toBe(0);
+    for (const [i, m] of posesOn(scatter, TX, TZ).entries()) {
+      expect(m.elements).toEqual(leaning[i]!.elements);
+    }
+  });
+
+  it('stands a finished trunk up once, not every frame after', () => {
+    const scatter = build(loneGroveMap());
+    scatter.chop(TX + 0.5, TZ + 0.5);
+    for (let i = 0; i < 60; i++) scatter.update(1 / 60);
+    const before = uploads(scatter);
+    // The ring is out and the trunk is back on its rest pose: nothing
+    // left to write, and nothing left on the shaking list to walk.
+    for (let i = 0; i < 10; i++) scatter.update(1 / 60);
+    expect(reuploaded(scatter, before)).toBe(0);
   });
 
   it('drops a felled tree mid-shiver', () => {

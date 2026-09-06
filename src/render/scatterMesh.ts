@@ -203,6 +203,9 @@ interface Trunk {
   axis: THREE.Vector3;
   /** Seconds since the bite; negative while the axe is still falling. */
   t: number;
+  /** Is the matrix on the GPU a leaning one? What says whether standing
+   * this trunk straight is a write or a no-op. */
+  leaning: boolean;
 }
 
 const shakeMatrix = new THREE.Matrix4();
@@ -696,16 +699,34 @@ export class ScatterMesh {
   /**
    * Advance the trunks an axe set moving. Frames when the woods are still
    * — nearly all of them — walk nothing at all.
+   *
+   * Two frames' worth of nothing are worth naming, because an instance
+   * matrix is not a cheap thing to write: flagging one dirties the whole
+   * chunk's buffer, and a chunk is up to a thousand trees re-uploaded.
+   * A frozen frame advances no clock, so every trunk still leans exactly
+   * as the GPU already has it — a pause caught mid-ring would otherwise
+   * re-upload that buffer every frame until the player pressed play. And
+   * a trunk standing straight (waiting out the axe's lead, or just
+   * finished ringing) is only written back if we are the ones who moved
+   * it.
    */
   update(dt: number): void {
-    if (this.#shaking.length === 0) return;
+    if (dt === 0 || this.#shaking.length === 0) return;
     let kept = 0;
     for (const trunk of this.#shaking) {
       trunk.t += dt;
-      if (trunk.t >= SHAKE_SECS) {
-        trunk.chunk.mesh.setMatrixAt(trunk.id, trunk.rest);
+      const done = trunk.t >= SHAKE_SECS;
+      const angle = done ? 0 : trunk.amp * shakeCurve(trunk.t, trunk.hz);
+      if (angle === 0) {
+        if (trunk.leaning) {
+          // From the placed matrix, never a recomposition of it: the
+          // decomposition round-trips to about 2e-15, which is nothing
+          // to look at and still not where worldgen put the tree.
+          trunk.chunk.mesh.setMatrixAt(trunk.id, trunk.rest);
+          trunk.chunk.mesh.instanceMatrix.needsUpdate = true;
+          trunk.leaning = false;
+        }
       } else {
-        const angle = trunk.amp * shakeCurve(trunk.t, trunk.hz);
         shakeQuat.setFromAxisAngle(trunk.axis, angle);
         shakeMatrix.compose(
           trunk.pos,
@@ -713,11 +734,12 @@ export class ScatterMesh {
           trunk.scale,
         );
         trunk.chunk.mesh.setMatrixAt(trunk.id, shakeMatrix);
-        // Kept until the ring runs out, so the frame that drops it is the
-        // one that stood the tree back up.
-        this.#shaking[kept++] = trunk;
+        trunk.chunk.mesh.instanceMatrix.needsUpdate = true;
+        trunk.leaning = true;
       }
-      trunk.chunk.mesh.instanceMatrix.needsUpdate = true;
+      // Kept until the ring runs out, so the frame that drops it is the
+      // one that stood the tree back up.
+      if (!done) this.#shaking[kept++] = trunk;
     }
     this.#shaking.length = kept;
   }
@@ -777,6 +799,7 @@ export class ScatterMesh {
           hz: SHAKE_HZ,
           axis: new THREE.Vector3(1, 0, 0),
           t: SHAKE_SECS,
+          leaning: false,
         };
         chunk.mesh.getMatrixAt(id, trunk.rest);
         trunk.rest.decompose(trunk.pos, trunk.quat, trunk.scale);
