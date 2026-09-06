@@ -20,6 +20,30 @@
  * directly.
  */
 /**
+ * 51: a site rises as it is paid for.
+ *
+ * Construction used to be all or nothing: `constructionSystem` refused a
+ * single tick of progress until every good on the bill had landed, so a
+ * building was a long silence followed by a sudden roof. Now a frame may be
+ * raised as far as its bill has been settled — two thirds of the planks buys
+ * two thirds of the frame — with the borrowed hammer a precondition rather
+ * than a share of it, since it is a loan the site hands back rather than
+ * something the building is made of.
+ *
+ * Completion still needs the whole bill and nothing is banked: a site that
+ * falls is gone, part-raised or not. What moved is WHEN the work happens,
+ * and that is enough. Every building in the game tops out on a different
+ * tick now, hit points climb from the first delivery rather than from the
+ * last, and the staffing system recruits a builder as soon as there is work
+ * the deliveries have bought — a hand out of the haul pool at a different
+ * moment, which re-times every haul behind it. A log recorded before this
+ * re-runs into a different valley inside the first minute.
+ *
+ * 50's note is further down rather than here: the footprint shove claimed
+ * that number while this was in review. Both were cut from 49, and this is
+ * the one that landed second.
+ */
+/**
  * 47: a seam you can find.
  *
  * A home seam is drawn from a center with a clearing around it now
@@ -660,4 +684,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 50;
+export const REPLAY_VERSION = 51;

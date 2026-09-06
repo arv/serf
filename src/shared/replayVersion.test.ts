@@ -322,8 +322,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // Monument's run of 49s there IS a build in the wild holding the old rule,
 // since 49 shipped with the Monument. 49 was claimed by that work and by
 // this independently, both off 48; this is the one that landed second.
-const EXPECTED_VERSION = 50;
-const EXPECTED_HASH = '6d704b3b96db45d86651668c1735ea20';
+// 51 for a site rising as it is paid for: construction no longer waits for
+// the whole bill before the first tick of work, so every building in every
+// match tops out on a different tick, hit points climb from the first
+// delivery, and the builder is recruited at a different moment — which moves
+// the hand that would have carried the next load. This was cut as 50 off the
+// same 49 the shove was; the shove landed first, so this took the next
+// number rather than sharing one. Two builds in the wild hold older rules
+// now, which is exactly what the numbers are for.
+const EXPECTED_VERSION = 51;
+const EXPECTED_HASH = '8e700ce6cb26c8485efd42a16b268857';
 
 /**
  * Everything a replay's playback depends on, as raw source:

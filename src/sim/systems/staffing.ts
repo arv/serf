@@ -12,6 +12,7 @@ import {findPathToAdjacent} from '../path.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import type {World} from '../world.ts';
+import {paidBuildTicks} from './construction.ts';
 import {bindWorker, consumePostTool, unbindWorker} from './production.ts';
 import {evictGarrison} from './training.ts';
 
@@ -346,11 +347,25 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       }
     }
 
-    // Builders are recruited only once the site is nearly supplied AND the
-    // remainder is in assigned hands — any earlier and they'd stand idle at
-    // the frame while the haul pool starves (or worse, *be* the hand the
-    // last haul needed, see assignedInbound above). The walk overlaps the
-    // last delivery.
+    // A builder is recruited when there is work the deliveries have already
+    // bought and nobody at the frame to do it — the site rises as it is paid
+    // for (constructionSystem), so "bought" is `paidBuildTicks` above what
+    // has been raised, with the borrowed hammer in hand to raise it with.
+    //
+    // The old trigger stays as the second door, and it earns its keep: a
+    // site whose last good is already in an assigned hand wants its builder
+    // WALKING now, so the walk overlaps that last delivery rather than
+    // following it. On a two-good hut the share buys nothing until that
+    // delivery lands, so without this door the recruit would set off a beat
+    // late on every small building in the game.
+    //
+    // The hazard the first door has to respect is the one this comment used
+    // to be about in full: a builder recruited early is a hand out of the
+    // haul pool, and the haul pool is what carries the rest of the bill. It
+    // is answered by what the door asks for rather than by waiting — a
+    // builder is only wanted while there is bought work standing undone, so
+    // he is recruited to do something, not to watch.
+    //
     // Sites only. Every consumer of needsLeft below is already gated on
     // `state === 'site'`, so summing it for the settlement's built
     // buildings — twenty optional lookups and a closure apiece, every
@@ -358,11 +373,14 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     const isSite = b.state === BuildingState.site;
     let needsLeft = 0;
     if (isSite) for (const g of GOODS) needsLeft += b.siteNeeds?.[g] ?? 0;
+    const bought =
+      isSite &&
+      (b.inputs[GoodId.hammer] ?? 0) > 0 &&
+      paidBuildTicks(b, def) > (b.buildProgress ?? 0);
     const wantsBuilder =
       isSite &&
-      needsLeft <= 1 &&
-      needsLeft <= assignedTo(b.id) &&
-      !liveWorker(world, b);
+      !liveWorker(world, b) &&
+      (bought || (needsLeft <= 1 && needsLeft <= assignedTo(b.id)));
     if (isSite) {
       // The starvation clock: starts on the first sweep that finds the site
       // builder-ready and unfilled, stops when it no longer is. (A site with
