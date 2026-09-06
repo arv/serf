@@ -96,25 +96,44 @@ export const LORD_AT_ARMS: StatuePose = {
 /**
  * The abbot, for the village that raises its monument to the studying
  * rather than the carrying: the Lorekeeper body (FIGURE_LOREKEEPER), staff
- * in hand, on the plain idle.
+ * planted, cut from the attack clip.
  *
- * The idle rather than the carry-idle the serf takes, because the argument
- * against it there does not hold here: an idle's empty hands make a
- * mannequin of a figure with nothing to hold, and this one is holding a
- * staff. It also leaves the stoop the body is modeled with intact, which
- * is the reading — a man bent over his books, not a lord at ease.
+ * The clip's name is the one awkward thing here and it is only a name. The
+ * Lorekeeper ships no clips of his own — he rides the shared Rig_Medium —
+ * so the statue can only be cut from the shared library, and the pose the
+ * pack's own art shows him in (staff stood on end, crook up beside the
+ * head) is not in it. Attack is the clip that plants the right forearm
+ * vertical, and a vertical forearm is a vertical staff. Nothing is being
+ * attacked; an old man is leaning on his stick.
+ *
+ * The earlier drafts and why they lost: idle, which the first version took,
+ * swings the crook down and out to his side, where it crosses nothing and
+ * reads as a dropped prop; carryIdle lays it flat across him; tend puts it
+ * across the chest, upright and open but a haft rather than a staff;
+ * hammer and pickaxe both duck the head, which is fatal for the one figure
+ * whose face is the whole point.
+ *
+ * Phase 0.4 is the middle of the window that works. 0.35 and 0.45 both read
+ * the same, 0.25 still has the staff tilted back on the wind-up, and the
+ * ends of the swing throw it entirely.
+ *
+ * A vertical staff also buys height. makeMonument scales the figure by
+ * `Math.min(MON_FIGURE, MON_BASE / reach)`, so a prop held out to one side
+ * shrinks the man to keep it over the step; stood on end it costs almost no
+ * reach, and he stands at his full MON_FIGURE instead of being clamped down
+ * to fit a stick.
  *
  * No load and no tool: a bundle of timber in a scholar's arms is a joke,
- * and the pack's own staff is already in his right hand.
+ * and the pack's own staff is already in his right hand — the clip only
+ * regrips it.
  *
- * The chin comes up least of the three. The serf's is lifted 22 degrees
- * and the lord's 26 to get a face out from under hair and a helmet brow;
- * this one wears glasses on a bare head, which hide nothing, and lifting
- * him further straightens the very stoop that makes him legible.
+ * The chin still comes up least of the three. The serf's is lifted 22
+ * degrees and the lord's 26 to get a face out from under hair and a helmet
+ * brow; this one wears glasses on a bare head, which hide nothing.
  */
 export const ABBOT_AT_STUDY: StatuePose = {
-  clip: AnimKeyNs.idle,
-  phase: 0.5,
+  clip: AnimKeyNs.attack,
+  phase: 0.4,
   load: 0,
   lift: (14 * Math.PI) / 180,
 };
