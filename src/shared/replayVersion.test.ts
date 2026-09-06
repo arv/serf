@@ -24,6 +24,13 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// 50 for a site rising as it is paid for: construction no longer waits for
+// the whole bill before the first tick of work, so every building in every
+// match tops out on a different tick, hit points climb from the first
+// delivery, and the builder is recruited at a different moment — which moves
+// the hand that would have carried the next load. Sim behavior through and
+// through (replayVersion.ts says it at length), and the first bump since 49
+// shipped, so this one is a real break rather than a re-pin.
 // Still 49 after the Mason: a fifth playbook, an economy rule that stands a
 // full garrison's barracks down, and a build-order anchor that counts spoil.
 // Playbook data and the rule layer that reads it are brain-side, and
@@ -315,8 +322,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 49 after `holdsGround` (systems/ai.ts, defs/aiStrategies.ts): a seat
 // that sets it never marches, which changes what the brain decides — but no
 // shipped playbook sets it, so every dealt seat plays exactly as it did.
-const EXPECTED_VERSION = 49;
-const EXPECTED_HASH = '10d6fc0fbc6445e92470d27d18153157';
+const EXPECTED_VERSION = 50;
+const EXPECTED_HASH = '1d6b27951f9b207d72eb7725546167e0';
 
 /**
  * Everything a replay's playback depends on, as raw source:

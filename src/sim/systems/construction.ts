@@ -1,7 +1,7 @@
 import {tileIdx} from '../../shared/grid.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {REPAIR_MEND_TICKS} from '../defs/balance.ts';
-import {buildingDef, repairBill} from '../defs/buildings.ts';
+import {buildingDef, repairBill, type BuildingDef} from '../defs/buildings.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {GOODS, goodKeys} from '../defs/goods.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
@@ -17,9 +17,27 @@ import {abortJob, availableOut} from './logistics.ts';
 import {consumePostTool} from './production.ts';
 
 /**
- * Sites whose materials are fully delivered tick a build timer, then become
- * real buildings (no builder units — Settlers-style materials + time).
- * Staffing them is the staffing system's job.
+ * Sites rise as they are paid for, then become real buildings (no builder
+ * units of their own — Settlers-style materials + time). Staffing them is
+ * the staffing system's job.
+ *
+ * A site may be raised as far as its bill has been settled: two thirds of
+ * the planks delivered buys two thirds of the frame, and the last tick of
+ * work waits on the last plank. It used to be all or nothing — not one tick
+ * of progress until every good had landed — which made a big building a long
+ * silence followed by a sudden roof, and made the Monument in particular
+ * (sixty-odd goods hauled to the middle of the map) look broken while it was
+ * working perfectly.
+ *
+ * The hammer is a precondition rather than a share of the bill. It is a
+ * loan, not a cost — borrowed at placement and handed back at completion
+ * (placeSite, and the return below) — so it is the builder's tool, not part
+ * of what the building is made of, and no frame rises without one.
+ *
+ * Completion still needs the whole bill: a paid share of 1 is the only thing
+ * that lifts the cap to `buildTicks`. Nothing is bought cheaper this way,
+ * and nothing is banked either — a site that falls still loses everything,
+ * which is what keeps a half-built Monument worth marching on.
  */
 export function constructionSystem(world: World): void {
   for (const b of world.buildings.values()) {
@@ -40,22 +58,35 @@ export function constructionSystem(world: World): void {
       b.buildProgress = buildingDef(b.type).buildTicks;
     }
 
-    const needsLeft = GOODS.some(g => (b.siteNeeds![g] ?? 0) > 0);
-    if (needsLeft) continue;
-
     const def = buildingDef(b.type);
-    // Raising the frame needs hands: the staffing system's recruited
-    // builder must be on site (roads pave themselves; sandbox skips).
-    if (!def.isRoad && !world.admin.instantBuild) {
-      const builder =
-        b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
-      if (!builder || builder.dead) continue;
+    // A frame already at its full height is only waiting to be topped out,
+    // and nothing below may stand in the way of that — the sandbox sets the
+    // progress outright rather than working up to it, so a gate that read
+    // "no more work to do here" would hold an instant build open forever.
+    if ((b.buildProgress ?? 0) < def.buildTicks) {
+      // How far this frame has been paid up to. Roads and the sandbox pay
+      // nothing and are capped at the full height straight away.
+      const cap =
+        def.isRoad || world.admin.instantBuild
+          ? def.buildTicks
+          : paidBuildTicks(b, def);
+      if ((b.buildProgress ?? 0) >= cap) continue; // waiting on the next load
+
+      // Raising the frame needs hands and a hammer: the staffing system's
+      // recruited builder must be on site, with the borrowed tool in his
+      // hand (roads pave themselves; sandbox skips both).
+      if (!def.isRoad && !world.admin.instantBuild) {
+        const builder =
+          b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+        if (!builder || builder.dead) continue;
+        if ((b.inputs[GoodId.hammer] ?? 0) <= 0) continue;
+      }
+      b.buildProgress = (b.buildProgress ?? 0) + 1;
+      // The structure firms up as it rises — hp grows in step with progress
+      // (an increment, so raid damage taken meanwhile is not healed).
+      b.hp = Math.min(def.hp, b.hp + (def.hp * 0.85) / def.buildTicks);
+      if (b.buildProgress < def.buildTicks) continue;
     }
-    b.buildProgress = (b.buildProgress ?? 0) + 1;
-    // The structure firms up as it rises — hp grows in step with progress
-    // (an increment, so raid damage taken meanwhile is not healed).
-    b.hp = Math.min(def.hp, b.hp + (def.hp * 0.85) / def.buildTicks);
-    if (b.buildProgress < def.buildTicks) continue;
 
     if (def.isRoad) {
       // Road "sites" don't become buildings — they pave their tile and vanish.
@@ -102,6 +133,36 @@ export function constructionSystem(world: World): void {
       b.workerId = undefined;
     }
   }
+}
+
+/**
+ * How far this frame has been paid up to, in build ticks.
+ *
+ * The share is counted over the goods the building is MADE of — `def.cost` —
+ * and not over `siteNeeds`, which also carries the borrowed hammer
+ * (placeSite). Counting the hammer would let a site with nothing but a tool
+ * on the ground raise a fraction of itself, and would make the same fraction
+ * mean different things to a two-good hut and a three-good Monument.
+ *
+ * By units of goods rather than by kind: thirty stone owed out of a
+ * thirty-stone-and-twelve-gold bill is most of the building still to pay
+ * for, not half of it.
+ *
+ * Floored, so a part-paid frame never reaches its last tick by rounding —
+ * only a settled bill lifts the cap to `buildTicks`. Exported because the
+ * staffing system asks the same question to decide when a builder is worth
+ * recruiting, and two answers that could drift would be a builder standing
+ * at a frame he is not allowed to raise.
+ */
+export function paidBuildTicks(b: Building, def: BuildingDef): number {
+  let total = 0;
+  let owed = 0;
+  for (const g of goodKeys(def.cost)) {
+    total += def.cost[g] ?? 0;
+    owed += Math.min(b.siteNeeds?.[g] ?? 0, def.cost[g] ?? 0);
+  }
+  if (total <= 0) return def.buildTicks; // costs nothing: nothing to wait for
+  return Math.floor((def.buildTicks * (total - owed)) / total);
 }
 
 // --- Repairs ---------------------------------------------------------------
