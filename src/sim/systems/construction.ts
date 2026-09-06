@@ -64,12 +64,19 @@ export function constructionSystem(world: World): void {
     // progress outright rather than working up to it, so a gate that read
     // "no more work to do here" would hold an instant build open forever.
     if ((b.buildProgress ?? 0) < def.buildTicks) {
-      // How far this frame has been paid up to. Roads and the sandbox pay
-      // nothing and are capped at the full height straight away.
-      const cap =
-        def.isRoad || world.admin.instantBuild
-          ? def.buildTicks
-          : paidBuildTicks(b, def);
+      // How far this frame has been paid up to. Only the sandbox is exempt:
+      // it pays nothing for anything and is capped at the full height.
+      //
+      // A road is NOT exempt, and the exemption it briefly had here was a
+      // bug: a road site costs a stone (defs/buildings.ts) and the rule this
+      // replaced made it wait for that stone like everything else, so
+      // shortcutting roads to full height paved them for free — and
+      // cancelled the stone already on its way, since a finished site's
+      // hauls are reconciled away. What roads skip is the BUILDER below,
+      // not the bill.
+      const cap = world.admin.instantBuild
+        ? def.buildTicks
+        : paidBuildTicks(b, def);
       if ((b.buildProgress ?? 0) >= cap) continue; // waiting on the next load
 
       // Raising the frame needs hands and a hammer: the staffing system's

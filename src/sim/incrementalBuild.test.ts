@@ -142,6 +142,29 @@ describe('the frame in the world', () => {
     expect(site.hp).toBeLessThan(def.hp);
   });
 
+  it('makes a road pay for its stone, though it lays itself', () => {
+    // Copilot caught this on #238, and it was real. A road pays no hammer
+    // loan and needs no builder — "roads pave themselves" — and an earlier
+    // cut of this change read those two exemptions as a third: it capped a
+    // road at its full height regardless of delivery, which paved every road
+    // in the game free and cancelled the stone already walking towards it
+    // (a finished site's hauls are reconciled away). The rule this replaced
+    // made roads wait for the stone like everything else.
+    const def = BUILDING_DEFS[BuildingTypeId.roadSite];
+    const world = bareWorld();
+    const site = placeSite(world, BuildingTypeId.roadSite, 0, 24, 30);
+    expect(site.siteNeeds?.[GoodId.stone]).toBe(def.cost[GoodId.stone]);
+
+    run(world, def.buildTicks * 3);
+    expect(site.dead, 'an unpaid road has not paved itself').toBe(false);
+    expect(site.buildProgress ?? 0).toBe(0);
+
+    deliverTo(site, GoodId.stone, def.cost[GoodId.stone]!);
+    run(world, def.buildTicks + 2);
+    // A finished road destroys its own site and paves the tile.
+    expect(site.dead).toBe(true);
+  });
+
   it('banks nothing: a frame that falls is gone, part-built or not', () => {
     // What keeps a half-raised Monument worth marching on. Progress is not
     // stored anywhere but the site, and the site is what the raiders break.

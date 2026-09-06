@@ -323,7 +323,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // that sets it never marches, which changes what the brain decides — but no
 // shipped playbook sets it, so every dealt seat plays exactly as it did.
 const EXPECTED_VERSION = 50;
-const EXPECTED_HASH = '1d6b27951f9b207d72eb7725546167e0';
+const EXPECTED_HASH = '81636f7cfdf168bbf5726a95678836a1';
 
 /**
  * Everything a replay's playback depends on, as raw source:
