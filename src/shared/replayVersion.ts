@@ -20,6 +20,25 @@
  * directly.
  */
 /**
+ * 53: the kite costs the archer something.
+ *
+ * A ranged unit backing away from a closing melee man used to loose an
+ * arrow and re-path in the same tick, every tick, for nothing. Since an
+ * archer (2.0 tiles/sec) outruns a knight (1.6), the chaser only ever
+ * gained ground while the archer stood still — and he never stood still,
+ * so the chaser never landed a blow. Eight archers beat eight knights
+ * without losing a man; sixteen knights lost to seven archers. Now a shot
+ * plants the man who fires it for KITE_PLANT_TICKS (systems/combat.ts),
+ * which is the leak that lets a chaser close, and the archer is down to 32
+ * hit points from 35.
+ *
+ * Every engagement in the game re-times off this: soldiers die on different
+ * ticks, in different places, and every serf whose haul was re-planned
+ * around a fight walks somewhere else. A log recorded before this diverges
+ * at the first arrow.
+ *
+ * 52's note follows.
+ *
  * 52: a haul is offered to the nearest idle serf who can actually reach the
  * pickup, not simply the nearest. A man who cannot path there is passed over
  * and the next is tried; the job is only backed off when nobody tried can
@@ -693,4 +712,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 52;
+export const REPLAY_VERSION = 53;

@@ -348,8 +348,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // World['map'] to the MapView it only ever reads. Nothing calls it that
 // did not before, and it returns the same quarter turn for the same
 // footprint. The hash is over raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 52;
-const EXPECTED_HASH = 'ddbf5afa6989dc94d11a3820ecb303f8';
+// 53 for the kite's price: a ranged unit is planted by his own shot
+// (KITE_PLANT_TICKS in systems/combat.ts) instead of firing and re-pathing
+// in the same free tick, and the archer is 32 hit points rather than 35.
+// Behavior in the plainest sense — every fight resolves on different ticks
+// with different men left standing, and the hauls re-planned around those
+// fights walk elsewhere. Old logs stop playing, which is the honest
+// outcome.
+const EXPECTED_VERSION = 53;
+const EXPECTED_HASH = '616fd137441b387918cfd88c4cb21a5e';
 
 /**
  * Everything a replay's playback depends on, as raw source:
