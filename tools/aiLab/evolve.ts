@@ -1,4 +1,3 @@
-import {spawn} from 'node:child_process';
 import {appendFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {Rng} from '../../src/shared/rng.ts';
@@ -12,8 +11,10 @@ import {
 
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
+import {parseSeeds} from './bakeoff.ts';
+import {runMatchChild} from './childRun.ts';
 import type {EvolveTask, SeatEntry} from './evolveWorker.ts';
-import type {MatchConfig, MatchRecord} from './match.ts';
+import type {MatchConfig} from './match.ts';
 import {
   describeMutation,
   MUTABLE_RANGES,
@@ -415,36 +416,17 @@ function play(
     config: baseConfig(p.seed, o),
     seats: p.candidateSeat === 0 ? [cand, opp] : [opp, cand],
   };
-  return new Promise<Outcome>(resolve => {
-    const child = spawn(
-      process.execPath,
-      ['--experimental-strip-types', WORKER],
-      {stdio: ['pipe', 'pipe', 'inherit']},
-    );
-    const chunks: Buffer[] = [];
-    const timer = setTimeout(() => child.kill('SIGKILL'), o.matchTimeoutMs);
-    child.stdout.on('data', (c: Buffer) => chunks.push(c));
-    child.on('close', code => {
-      clearTimeout(timer);
-      if (code !== 0)
-        return resolve({...p, winner: null, ticks: 0, decided: false});
-      try {
-        const rec = JSON.parse(
-          Buffer.concat(chunks).toString('utf8'),
-        ) as MatchRecord;
-        resolve({
+  return runMatchChild(WORKER, task, o.matchTimeoutMs).then(rec =>
+    rec === null
+      ? {...p, winner: null, ticks: 0, decided: false}
+      : {
           ...p,
           winner: rec.winner,
           ticks: rec.ticks,
           decided: rec.decided,
           byMonument: wonByMonument(rec),
-        });
-      } catch {
-        resolve({...p, winner: null, ticks: 0, decided: false});
-      }
-    });
-    child.stdin.end(JSON.stringify(task));
-  });
+        },
+  );
 }
 
 async function playAll(
@@ -881,20 +863,6 @@ function str(flag: string, fallback: string): string {
   return i < 0 ? fallback : (process.argv[i + 1] ?? fallback);
 }
 
-/** `1-200`, `1,4,9`, or a mix — the same shape --seeds takes elsewhere. */
-export function parseSeeds(spec: string): number[] {
-  const out: number[] = [];
-  for (const part of spec.split(',')) {
-    const range = /^(\d+)-(\d+)$/.exec(part.trim());
-    if (range) {
-      for (let i = Number(range[1]); i <= Number(range[2]); i++) out.push(i);
-    } else if (part.trim()) {
-      out.push(Number(part));
-    }
-  }
-  return out;
-}
-
 export function parseLineage(word: string): AiStrategyId {
   for (const id of AI_STRATEGY_ORDER) {
     if (AI_STRATEGY_KEYS[id] === word) return id;
@@ -907,7 +875,7 @@ export function parseLineage(word: string): AiStrategyId {
 export function optionsFromArgv(): RunOptions {
   const train = parseSeeds(str('--train', '1-200'));
   const holdout = parseSeeds(str('--holdout', '301-340'));
-  const overlap = train.filter(s => holdout.includes(s));
+  const overlap = train.filter((s: number) => holdout.includes(s));
   if (overlap.length > 0) {
     // A holdout the search has already been fitted to is not a holdout,
     // and the failure is silent — the number still prints.

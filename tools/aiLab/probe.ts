@@ -1,4 +1,3 @@
-import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import type {StrategyAdvice} from '../../src/ai/advice.ts';
 import {Rng} from '../../src/shared/rng.ts';
@@ -8,6 +7,7 @@ import {
 } from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyIdNs from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
+import {runMatchChild} from './childRun.ts';
 import type {EngineSpec} from './engines.ts';
 import type {MatchConfig, MatchRecord} from './match.ts';
 import {adviceOf, describeMutation, mutate} from './mutate.ts';
@@ -100,31 +100,10 @@ function playOne(
         ? [wears(cand), wears(parent)]
         : [wears(parent), wears(cand)],
   };
-  return new Promise<Done>(resolve => {
-    const child = spawn(
-      process.execPath,
-      ['--experimental-strip-types', WORKER],
-      {stdio: ['pipe', 'pipe', 'inherit']},
-    );
-    const out: Buffer[] = [];
-    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
-    child.stdout.on('data', (c: Buffer) => out.push(c));
-    child.on('close', code => {
-      clearTimeout(timer);
-      if (code !== 0) return resolve({...trial, record: null});
-      try {
-        resolve({
-          ...trial,
-          record: JSON.parse(
-            Buffer.concat(out).toString('utf8'),
-          ) as MatchRecord,
-        });
-      } catch {
-        resolve({...trial, record: null});
-      }
-    });
-    child.stdin.end(JSON.stringify(task));
-  });
+  return runMatchChild(WORKER, task, timeoutMs).then(record => ({
+    ...trial,
+    record,
+  }));
 }
 
 /**

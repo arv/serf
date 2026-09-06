@@ -196,7 +196,13 @@ export function parseStrategies(spec: string): SeatStrategies {
   return [ids[0]!, ids[1] ?? ids[0]!];
 }
 
-function parseSeeds(spec: string): number[] {
+/**
+ * `1-24`, `1,4,9`, or a mix. Exported because every tool in this directory
+ * takes seeds the same way and they must reject the same things: a
+ * backwards range, a non-integer, and a spec that selects nothing all have
+ * to fail loudly rather than hand a sweep a NaN to seed a world with.
+ */
+export function parseSeeds(spec: string): number[] {
   const seeds: number[] = [];
   for (const part of spec.split(',')) {
     const range = /^(\d+)-(\d+)$/.exec(part.trim());
@@ -207,7 +213,12 @@ function parseSeeds(spec: string): number[] {
       for (let s = lo; s <= hi; s++) seeds.push(s);
       continue;
     }
-    const one = Number(part.trim());
+    const text = part.trim();
+    // An empty entry is not seed zero. `Number('')` is 0 and passes the
+    // integer check below, so `--seeds ''` and `--seeds '1,,2'` both used
+    // to smuggle a seed nobody asked for past every guard here.
+    if (text === '') throw new Error(`--seeds has an empty entry: "${spec}"`);
+    const one = Number(text);
     if (!Number.isInteger(one))
       throw new Error(`--seeds wants integers, got "${part}"`);
     seeds.push(one);

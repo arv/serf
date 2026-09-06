@@ -3,6 +3,7 @@ import {Rng} from '../../src/shared/rng.ts';
 import {AI_STRATEGIES} from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
+import {parseSeeds} from './bakeoff.ts';
 import {
   bestChallenger,
   CONTROL_IDS,
@@ -10,7 +11,6 @@ import {
   halvingPlan,
   pairedFlips,
   pairingsFor,
-  parseSeeds,
   promotes,
   randomDelta,
   sample,
@@ -354,10 +354,18 @@ describe('seeds', () => {
     expect(dealer.take(4)).not.toEqual(dealer.take(4));
   });
 
-  it('parses ranges, lists and a mix of both', () => {
+  it('parses ranges, lists and a mix of both, and refuses the rest', () => {
+    // The bake-off's own parser, shared rather than reimplemented: the
+    // first draft here accepted `1,a` as [1, NaN] and swallowed a
+    // backwards range as an empty list, either of which seeds a world
+    // with nonsense or silently narrows a sweep.
     expect(parseSeeds('1-4')).toEqual([1, 2, 3, 4]);
     expect(parseSeeds('2,5')).toEqual([2, 5]);
     expect(parseSeeds('1-3,9')).toEqual([1, 2, 3, 9]);
+    expect(() => parseSeeds('1,a')).toThrow(/integers/);
+    expect(() => parseSeeds('4-1')).toThrow(/backwards/);
+    expect(() => parseSeeds('')).toThrow(/empty entry/);
+    expect(() => parseSeeds('1,,2')).toThrow(/empty entry/);
   });
 
   it('samples deterministically from one seeded stream', () => {
