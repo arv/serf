@@ -407,6 +407,11 @@ describe('seeds', () => {
     expect(parseSeeds('2,5')).toEqual([2, 5]);
     expect(parseSeeds('1-3,9')).toEqual([1, 2, 3, 9]);
     expect(() => parseSeeds('1,a')).toThrow(/integers/);
+    // The refusal names the flag it was called for, not the one the
+    // parser grew up in: a "--seeds" error shown to someone who typed
+    // --train sends them to the wrong flag.
+    expect(() => parseSeeds('4-1', '--train')).toThrow(/--train range/);
+    expect(() => parseSeeds('1,,2', '--holdout')).toThrow(/--holdout has/);
     expect(() => parseSeeds('4-1')).toThrow(/backwards/);
     expect(() => parseSeeds('')).toThrow(/empty entry/);
     expect(() => parseSeeds('1,,2')).toThrow(/empty entry/);

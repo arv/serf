@@ -644,7 +644,7 @@ export async function run(o: RunOptions): Promise<void> {
         alive.map(c => [c.id, scoreOf(seen.get(c.id)!)] as const),
       );
       const cut = plan[i + 1]?.mutants ?? alive.length;
-      const keep = new Set(survivors(scores, cut, CONTROL_IDS));
+      const ranked = survivors(scores, cut, CONTROL_IDS);
       log({
         kind: 'round',
         generation: g,
@@ -653,7 +653,11 @@ export async function run(o: RunOptions): Promise<void> {
         opponents: opponents.map(x => x.label),
         scores: [...scores].map(([id, s]) => ({id, ...s})),
       });
-      alive = alive.filter(c => keep.has(c.id));
+      // Best first, in the order `survivors` ranked them rather than the
+      // order the population happened to be built in. Both are
+      // deterministic, so this is legibility rather than correctness — a
+      // round's pairings and its log now read down from the leader.
+      alive = ranked.map(id => byId.get(id)!);
       if (i === plan.length - 1) break;
     }
 
@@ -954,8 +958,8 @@ export function parseLineage(word: string): AiStrategyId {
 }
 
 export function optionsFromArgv(): RunOptions {
-  const train = parseSeeds(str('--train', '1-200'));
-  const holdout = parseSeeds(str('--holdout', '301-340'));
+  const train = parseSeeds(str('--train', '1-200'), '--train');
+  const holdout = parseSeeds(str('--holdout', '301-340'), '--holdout');
   for (const [flag, list] of [
     ['--train', train],
     ['--holdout', holdout],

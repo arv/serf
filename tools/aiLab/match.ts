@@ -81,10 +81,14 @@ export interface MatchConfig {
   warBehaviors?: readonly WarBehaviorId[];
   /**
    * Seat-indexed base playbooks, for a search that is trying candidates
-   * rather than steering shipped ones. A seat with none plays the playbook
-   * named by its own entry in `strategies`, not by its seat index. Unlike advice, these compose UNDER the stance
-   * cascade and the difficulty tier (see AiSeats), so a candidate is
-   * measured in the configuration that ships.
+   * rather than steering shipped ones.
+   *
+   * A seat with no entry here plays the playbook named by its own entry in
+   * `strategies` — the id that seat was dealt, not its index in this array.
+   *
+   * Unlike advice, these compose UNDER the stance cascade and the
+   * difficulty tier (see AiSeats), so a candidate is measured in the
+   * configuration that ships rather than in a stanceless one.
    */
   playbooks?: readonly (AiStrategy | null)[];
   /** Give up and call it undecided past here. */
