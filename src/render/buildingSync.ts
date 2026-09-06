@@ -1032,10 +1032,19 @@ export class BuildingSync {
    * so a world-space angle and a ratio both carry into the local frame
    * unchanged.
    *
-   * The deck shrinks with its reach (the pier's own scale), which keeps the
-   * dock a dock: a short deck at full width, with its pilings still stepped
-   * along it, rather than a squashed one. The fish only swim in closer —
-   * a trim is the pier's, not theirs.
+   * The deck shrinks with its reach, and does so UNIFORMLY (the pier's own
+   * scale, all three axes): a trim leaves a smaller dock, narrower and
+   * lower in proportion, rather than a full-width deck squashed short.
+   * Uniform is also the only scale that needs no opinion about which of the
+   * prop's own axes its length runs along — decor is authored with a
+   * quarter-turn `rot` (assets.ts), and a length-only scale would silently
+   * pinch the width instead the day that rot changes. What it costs is
+   * piling depth, which is why the trim is bounded: the docks model's
+   * pilings hang ~1.27 under the deck, so even the deepest trim leaves
+   * ~0.76 against the ~0.4 they need to reach from the shore they stand on
+   * down past the waterline.
+   *
+   * The fish only swim in closer — a trim is the pier's, not theirs.
    */
   #fitDecor(
     v: BuildingVisual,
