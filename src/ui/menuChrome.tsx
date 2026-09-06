@@ -268,6 +268,68 @@ export const MENU_STYLE = `
 #menu select:disabled:hover { color: #7c7d74; border-color: rgba(255,255,255,0.11); }
 #menu select:disabled:active { transform: none; box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 1px 0 rgba(0,0,0,0.35); }
 
+/* ——— The list itself, where the browser will let us draw it ———
+   Everything above dresses the closed field. The drop-down it opens was
+   the operating system's: a white list in the system's own type, over a
+   dark brass card — the one place the menu handed the player somebody
+   else's paint. 'appearance: base-select' hands the parts back — the
+   arrow, the popup, the options and the tick beside the chosen one — and
+   they take ordinary CSS. Chrome and Edge for now, which is why the field
+   above is written to stand on its own and this block only adds: a
+   browser without it keeps the native list and loses nothing it had. */
+@supports (appearance: base-select) {
+  #menu select, #menu select::picker(select) { appearance: base-select; }
+  /* The same sunk face, laid out rather than padded around a picture: the
+     chevron is a real element here, so the right padding that used to
+     reserve room for the drawn one goes with it. Base mode sizes the
+     field to the value in it and not to the longest one, and a box that
+     breathes as the player walks the tiers is a box that moves under the
+     pointer. The floor is the widest row of the list below, so the field
+     and the list it opens stand on the same two edges — and no tier is
+     wide enough to push past it. */
+  #menu select { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-width: 90px; padding: 6px 9px 6px 10px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.44) 100%); }
+  /* The drawn chevron again, now as its own box so it can turn. */
+  #menu select::picker-icon { content: ''; flex: none; width: 10px; height: 6px;
+    background: var(--chevron) center / 10px 6px no-repeat;
+    transition: rotate var(--press-out); }
+  #menu select:open::picker-icon { rotate: 180deg; }
+  /* The press above is a translate, and the list hangs off the field it
+     translates — Chrome opens on the mousedown, so the picker was landing
+     a pixel low and hopping up on release. Held down instead of pushed
+     down: while the list is out the face stays sunk and stays put. */
+  #menu select:open { transform: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.45); }
+  /* The card's own glass, one notch more opaque: this one is read
+     through, and it sits over whatever the card was showing. */
+  #menu select::picker(select) { min-width: anchor-size(width); margin-top: 6px; padding: 5px;
+    font-size: 12.5px; background: rgba(14,16,15,0.92);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.11); border-radius: 11px;
+    box-shadow: var(--rim), 0 14px 34px rgba(0,0,0,0.55);
+    opacity: 0; translate: 0 -5px;
+    transition: opacity var(--press-out), translate var(--press-out),
+      display var(--press-out) allow-discrete, overlay var(--press-out) allow-discrete; }
+  /* Two states, and the third that only exists on the way in: without
+     @starting-style the browser has nothing to move the first frame from
+     and the list would appear rather than arrive. */
+  #menu select:open::picker(select) { opacity: 1; translate: none; }
+  @starting-style { #menu select:open::picker(select) { opacity: 0; translate: 0 -5px; } }
+  /* Rows in a menu, not slabs: the fallback's solid option face would
+     square off the picker's corners. */
+  #menu select option { display: flex; align-items: center; gap: 8px; padding: 6px 9px;
+    min-block-size: 0; color: #cfccc2; background: transparent; border-radius: 7px; cursor: pointer; }
+  #menu select option:hover, #menu select option:focus { color: #f0ede4; background: rgba(255,255,255,0.07); }
+  /* The row the keyboard is on wears the menu's ring rather than Chrome's
+     orange one, tucked inside its own corners: the picker's edge is five
+     pixels away, and a ring outside the row would sit on top of it. */
+  #menu select option:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: -2px; }
+  /* Weight as well as colour: the tick is the third telling, and none of
+     the three is asked to carry it alone. */
+  #menu select option:checked { color: var(--gold-lit); font-weight: 600; }
+  #menu select option::checkmark { color: var(--gold); }
+}
+
 #menu input { padding: 7px 10px; font: inherit; font-size: 13.5px; color: #f2efe4;
   background: linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.44) 100%);
   border: 1px solid rgba(255,255,255,0.11); border-radius: 9px;
@@ -501,7 +563,10 @@ export const MENU_STYLE = `
   #menu .cta { padding: 11px 18px; }
   #menu .footer { display: none; }
 }
-#menu button:focus-visible, #menu input:focus-visible, #menu a:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
+/* The select is in the list because the browser's own ring is an orange
+   the menu speaks nowhere else — and with the field's face now ours
+   (see the @supports block above), the ring around it should be too. */
+#menu button:focus-visible, #menu input:focus-visible, #menu select:focus-visible, #menu a:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
 
 /* ——— Reduced motion ———
    MUST stay last: a media query buys no specificity, so these only win by
@@ -513,6 +578,13 @@ export const MENU_STYLE = `
   #menu .glide { transition: none; }
   #menu .flies { display: none; }
   #menu .toggle span { transition: background 0.18s, box-shadow 0.18s; }
+  /* The customizable select's two moving parts (see the @supports block
+     by #menu select): the list still fades in and out, since a popup that
+     cannot animate at all cannot animate its own removal either. */
+  #menu select::picker(select) { transition: opacity var(--press-out),
+    display var(--press-out) allow-discrete, overlay var(--press-out) allow-discrete; translate: none; }
+  @starting-style { #menu select:open::picker(select) { translate: none; } }
+  #menu select::picker-icon { transition: none; }
 }
 
 `;
