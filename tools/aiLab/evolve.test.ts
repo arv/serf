@@ -24,7 +24,7 @@ import {
   type Score,
 } from './evolve.ts';
 import {playbookOf} from './evolveWorker.ts';
-import {MUTABLE_RANGES} from './mutate.ts';
+import {moveOne, MUTABLE_RANGES, mutate, stepCount} from './mutate.ts';
 
 const cand = (id: string): Individual => ({
   id,
@@ -370,6 +370,38 @@ describe('candidates', () => {
     expect(rebuilt.serfTarget).toBe(16);
   });
 
+  it('carries a moved opening into the delta, and back out unchanged', () => {
+    // The opening is only in the mutation space when --opening asks for
+    // it, and the moment it is, deltaOf has to SEE it: a delta that misses
+    // a change is not a smaller delta, it is a candidate played as
+    // something other than what mutate() produced.
+    const base = AI_STRATEGIES[AiStrategyId.mason];
+    const rng = new Rng(4);
+    let moved = mutate(base, rng, {knobs: 1, opening: true});
+    for (let i = 0; i < 60 && !moved.changes.some(c => c.knob === 'build'); i++)
+      moved = mutate(base, rng, {knobs: 1, opening: true});
+    expect(moved.changes.some(c => c.knob === 'build')).toBe(true);
+
+    const delta = deltaOf(base, moved.strategy);
+    expect(delta['build']).toBeDefined();
+    const rebuilt = playbookOf({
+      strategyId: AiStrategyId.mason,
+      delta,
+    });
+    expect(rebuilt.build).toEqual(moved.strategy.build);
+  });
+
+  it('leaves the opening alone unless it is asked for', () => {
+    // The default pool is what every recorded number was measured against.
+    const base = AI_STRATEGIES[AiStrategyId.mason];
+    const rng = new Rng(9);
+    for (let i = 0; i < 80; i++) {
+      const m = mutate(base, rng, {knobs: 3});
+      expect(m.strategy.build).toBe(base.build);
+      expect(m.strategy.researchOrder).toBe(base.researchOrder);
+    }
+  });
+
   it('rebuilds a candidate as its lineage plus the delta, opening intact', () => {
     const base = AI_STRATEGIES[AiStrategyId.steward];
     const built = playbookOf({
@@ -381,6 +413,39 @@ describe('candidates', () => {
     // rides by reference and is never a thing the wire can corrupt.
     expect(built.build).toBe(base.build);
     expect(built.researchOrder).toBe(base.researchOrder);
+  });
+});
+
+describe('the opening operators', () => {
+  it('moves an entry rather than dropping or inventing one', () => {
+    const rng = new Rng(2);
+    for (let i = 0; i < 50; i++) {
+      const out = moveOne([1, 2, 3, 4], rng)!;
+      expect(out).toHaveLength(4);
+      expect([...out].sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
+      expect(out).not.toEqual([1, 2, 3, 4]);
+    }
+  });
+
+  it('will not move a list too short to have an order', () => {
+    expect(moveOne([7], new Rng(1))).toBeNull();
+    expect(moveOne([], new Rng(1))).toBeNull();
+  });
+
+  it('nudges a count without ever reaching zero', () => {
+    // A count of zero is a deleted step in disguise, and deleting a step
+    // is not a neighbour of anything — it is a village with no bakery.
+    const base = AI_STRATEGIES[AiStrategyId.mason].build;
+    const rng = new Rng(6);
+    for (let i = 0; i < 200; i++) {
+      const out = stepCount(base, rng);
+      if (!out) continue;
+      expect(out).toHaveLength(base.length);
+      for (const step of out) expect(step.count).toBeGreaterThanOrEqual(1);
+      // Exactly one step differs, and only in its count.
+      const diff = out.filter((b, i2) => b.count !== base[i2]!.count);
+      expect(diff).toHaveLength(1);
+    }
   });
 });
 

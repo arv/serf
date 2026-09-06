@@ -334,6 +334,15 @@ export function deltaOf(base: AiStrategy, next: AiStrategy): Delta {
     delta['trainPreference'] = [...next.trainPreference];
   if (String(next.weaponMix) !== String(base.weaponMix))
     delta['weaponMix'] = [...next.weaponMix];
+  // The opening, when the search is allowed to move it. Compared by
+  // content rather than by reference: a delta that misses a change is not
+  // a smaller delta, it is a candidate that gets PLAYED as something other
+  // than what mutate() produced — the same failure the exploiter's stale
+  // base once had, and it is silent both times.
+  if (JSON.stringify(next.build) !== JSON.stringify(base.build))
+    delta['build'] = next.build;
+  if (String(next.researchOrder) !== String(base.researchOrder))
+    delta['researchOrder'] = next.researchOrder;
   return delta;
 }
 
@@ -375,6 +384,8 @@ export interface RunOptions {
   leagueChampions: number;
   exploiter: boolean;
   exploiterBar: number;
+  /** Let the search move the build and research orders too. */
+  opening: boolean;
   /** Discordant pairs a promotion needs before it means anything. */
   minPairs: number;
   /** Two-sided p a promotion has to clear. */
@@ -610,7 +621,7 @@ export async function run(o: RunOptions): Promise<void> {
       },
     ];
     for (let i = pop.length; i < o.population; i++) {
-      const m = mutate(base, rng, {knobs: 1 + (i % 2)});
+      const m = mutate(base, rng, {knobs: 1 + (i % 2), opening: o.opening});
       pop.push({
         id: `g${g}m${String(i).padStart(2, '0')}`,
         lineage: champion.lineage,
@@ -747,7 +758,7 @@ export async function run(o: RunOptions): Promise<void> {
         // keeps the 4 and the exploiter that gets played — and added to
         // the league — is not the one `mutate()` produced.
         const champBase = strategyFor(champion.lineage, champion.delta);
-        const ex = mutate(champBase, rng, {knobs: 2});
+        const ex = mutate(champBase, rng, {knobs: 2, opening: o.opening});
         const exId = `exploit-g${g}`;
         const exInd: Individual = {
           id: exId,
@@ -875,6 +886,10 @@ const HELP = `serf-valley playbook search
                         playbooks (default: 4)
   --min-pairs <n>       discordant pairs a promotion needs (default: 8)
   --max-p <f>           two-sided p a promotion must clear (default: 0.2)
+  --opening             let the build and research orders move too, not
+                        just the knobs. Off by default: every recorded
+                        number in the README was measured with the opening
+                        frozen, and a wider pool does not reproduce them
   --no-exploiter        skip the per-generation exploiter
   --exploiter-bar <f>   win rate an exploiter needs against the champion
                         to join the league (default: 0.6)
@@ -997,6 +1012,7 @@ export function optionsFromArgv(): RunOptions {
     firstSeeds: num('--first-seeds', 4),
     opponentsPerGen: num('--opponents', 2),
     leagueChampions: num('--league', 4, 0),
+    opening: process.argv.includes('--opening'),
     exploiter: !process.argv.includes('--no-exploiter'),
     exploiterBar: share('--exploiter-bar', 0.6),
     minPairs: num('--min-pairs', 8, 0),
