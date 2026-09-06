@@ -292,6 +292,17 @@ describe('the paired promotion test', () => {
     expect(pairedFlips(challenger, incumbent)).toMatchObject({won: 1, lost: 0});
   });
 
+  it('refuses the same trial twice rather than picking one', () => {
+    // A repeat would silently overwrite, and which trial survived would
+    // depend on the order a jobs pool happened to finish in — so the
+    // promotion decision would too.
+    const twice = [
+      at('inc', 1, 0 as Owner, 0 as Owner),
+      at('inc', 1, 0 as Owner, 1 as Owner),
+    ];
+    expect(() => pairedFlips([], twice)).toThrow(/same trial twice/);
+  });
+
   it('calls an even record no evidence', () => {
     const c = [
       at('c', 1, 0 as Owner, 0 as Owner),

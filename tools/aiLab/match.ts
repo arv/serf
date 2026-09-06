@@ -81,8 +81,8 @@ export interface MatchConfig {
   warBehaviors?: readonly WarBehaviorId[];
   /**
    * Seat-indexed base playbooks, for a search that is trying candidates
-   * rather than steering shipped ones. A seat with none plays the
-   * playbook its id names. Unlike advice, these compose UNDER the stance
+   * rather than steering shipped ones. A seat with none plays the playbook
+   * named by its own entry in `strategies`, not by its seat index. Unlike advice, these compose UNDER the stance
    * cascade and the difficulty tier (see AiSeats), so a candidate is
    * measured in the configuration that ships.
    */

@@ -392,14 +392,18 @@ export interface RunOptions {
 function baseConfig(
   seed: number,
   o: RunOptions,
+  seated: readonly [AiStrategyId, AiStrategyId],
 ): Omit<MatchConfig, 'engines' | 'playbooks'> {
   return {
     seed,
     mapSize: o.mapSize,
     bandits: true,
-    // Seat ids are what the sim plays; the playbook each seat actually
-    // wears is handed in beside them, so these two only have to be AI.
-    strategies: [o.lineage, o.lineage],
+    // The lineage each seat actually wears, not the run's own. Nothing in
+    // a headless match reads these — the brain plays the playbook handed
+    // in beside them, and the only other reader is the renderer — but the
+    // MatchRecord is evidence, and one that says both seats played the
+    // steward while a mason sat in seat 1 is evidence of the wrong match.
+    strategies: seated,
     maxTicks: o.maxTicks,
     advicePeriod: 1800,
     adviceStagger: 300,
@@ -413,9 +417,11 @@ function play(
   opp: SeatEntry,
   o: RunOptions,
 ): Promise<Outcome> {
+  const seats: [SeatEntry, SeatEntry] =
+    p.candidateSeat === 0 ? [cand, opp] : [opp, cand];
   const task: EvolveTask = {
-    config: baseConfig(p.seed, o),
-    seats: p.candidateSeat === 0 ? [cand, opp] : [opp, cand],
+    config: baseConfig(p.seed, o, [seats[0].strategyId, seats[1].strategyId]),
+    seats,
   };
   return runMatchChild(WORKER, task, o.matchTimeoutMs).then(rec =>
     rec === null
@@ -462,8 +468,18 @@ export function pairedFlips(
   incumbent: readonly Outcome[],
 ): {won: number; lost: number; p: number} {
   const mine = new Map<string, Outcome>();
-  for (const o of incumbent)
-    mine.set(`${o.opponent}|${o.seed}|${o.candidateSeat}`, o);
+  for (const o of incumbent) {
+    const key = `${o.opponent}|${o.seed}|${o.candidateSeat}`;
+    if (mine.has(key)) {
+      // A repeated (opponent, seed, seating) would silently overwrite, and
+      // which trial survived would depend on the order a jobs pool
+      // happened to finish in — so the promotion decision would too.
+      // The dealer is supposed to make this impossible; if it ever does
+      // not, the run must stop rather than answer.
+      throw new Error(`pairedFlips got the same trial twice: ${key}`);
+    }
+    mine.set(key, o);
+  }
   let won = 0;
   let lost = 0;
   for (const c of challenger) {
@@ -557,6 +573,20 @@ export async function run(o: RunOptions): Promise<void> {
       `plus holdout, jobs ${o.jobs}\n`,
   );
   log({kind: 'run', options: {...o}});
+
+  // Every trial in a generation must be a distinct (opponent, seed,
+  // seating), or the paired test cannot pair. The dealer reshuffles when
+  // the pool runs dry, so a generation that needs more seeds than the pool
+  // holds would deal one twice — caught here, before 1200 matches.
+  const seedsPerGen =
+    plan.reduce((n, step) => n + step.newSeeds, 0) +
+    (o.exploiter ? o.firstSeeds : 0);
+  if (seedsPerGen > o.trainSeeds.length) {
+    throw new Error(
+      `a generation needs ${seedsPerGen} distinct seeds but --train holds ` +
+        `${o.trainSeeds.length}; widen --train or shorten the race`,
+    );
+  }
 
   const started = Date.now();
   for (let g = 1; g <= o.generations; g++) {
@@ -926,6 +956,16 @@ export function parseLineage(word: string): AiStrategyId {
 export function optionsFromArgv(): RunOptions {
   const train = parseSeeds(str('--train', '1-200'));
   const holdout = parseSeeds(str('--holdout', '301-340'));
+  for (const [flag, list] of [
+    ['--train', train],
+    ['--holdout', holdout],
+  ] as const) {
+    // A seed named twice is a typo, and it would put two trials on one
+    // (opponent, seed, seating) — the pairing key the promotion test needs
+    // to be unique.
+    if (new Set(list).size !== list.length)
+      throw new Error(`${flag} names the same seed twice`);
+  }
   const overlap = train.filter((s: number) => holdout.includes(s));
   if (overlap.length > 0) {
     // A holdout the search has already been fitted to is not a holdout,
