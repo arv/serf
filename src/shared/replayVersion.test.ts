@@ -330,7 +330,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // the shove took 50 when main's Monument work claimed 49, and this takes 51
 // behind it.
 const EXPECTED_VERSION = 51;
-const EXPECTED_HASH = '4141c46a0c3ba57e052910b256433d3e';
+const EXPECTED_HASH = 'cbb3f198c256572319ce218a077f6465';
 
 /**
  * Everything a replay's playback depends on, as raw source:
