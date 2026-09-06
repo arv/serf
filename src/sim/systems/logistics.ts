@@ -730,9 +730,17 @@ function dispatch(world: World): void {
       // twenty-five idle men who could all have walked there.
       //
       // So step outward: take the nearest, and if the ground says no, pass
-      // him over and take the next. The job is only blocked when nobody
-      // tried can reach the source, which is the case the backoff was
-      // written for.
+      // him over and take the next.
+      //
+      // The stepping is bounded at PATH_TRIES, so this is not the same as
+      // "blocked only when the source is truly unreachable": a job whose
+      // PATH_TRIES nearest are all walled in still backs off while somebody
+      // further out could have walked it. What keeps that from being the
+      // old bug is the refusal memo below — the next job from the same
+      // source skips the men already found wanting, so the search does
+      // reach past them, just across jobs rather than within one. A source
+      // that no idle serf can reach still lands on the backoff, which is
+      // what it was written for.
       const c = centerOf(from);
       let serf: Unit | undefined;
       let path: number[] | null = null;

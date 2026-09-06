@@ -5,10 +5,21 @@ import {addSerf, addSite, addStorehouse, bareWorld} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import type {World} from './world.ts';
 
-/** Wall a serf in where he stands, without building anything on him. */
+/**
+ * Wall a serf in where he stands, without building anything on him.
+ *
+ * The ring is asserted to be on the map. A blocked[] write past the end of
+ * the array is silently dropped — TypedArrays ignore out-of-range indices —
+ * so a caller who put a serf on the edge would get a man who is not walled
+ * in at all and a test that passes for the wrong reason.
+ */
 function stranded(world: World, x: number, y: number): number {
-  const serf = addSerf(world, x, y);
   const size = world.map.size;
+  expect(x).toBeGreaterThan(0);
+  expect(y).toBeGreaterThan(0);
+  expect(x).toBeLessThan(size - 1);
+  expect(y).toBeLessThan(size - 1);
+  const serf = addSerf(world, x, y);
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       if (dx === 0 && dy === 0) continue;

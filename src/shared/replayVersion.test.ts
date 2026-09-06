@@ -329,8 +329,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // immediately. This and the shove both went out off 48 and both wanted 49;
 // the shove took 50 when main's Monument work claimed 49, and this takes 51
 // behind it.
+// Still 51 after dispatch's comment stopped claiming the search reaches
+// every idle serf — it is bounded at PATH_TRIES and the refusal memo is
+// what carries it further, across jobs rather than within one. Words; the
+// loop is unchanged. (Copilot's finding on #234.)
 const EXPECTED_VERSION = 51;
-const EXPECTED_HASH = 'cbb3f198c256572319ce218a077f6465';
+const EXPECTED_HASH = '9045168cc105307570e9a95391432e13';
 
 /**
  * Everything a replay's playback depends on, as raw source:
