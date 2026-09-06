@@ -11,7 +11,7 @@ import {Controls} from '../input/controls';
 import {installMouseCapture} from '../input/mouseCapture';
 import type {NetInfo} from '../protocol/messages';
 import {Arrows} from '../render/arrows';
-import {loadGlbAssets} from '../render/assets';
+import {loadGlbAssets, setSeatFigures} from '../render/assets';
 import {BuildingSync} from '../render/buildingSync';
 import {Butterflies} from '../render/butterflies';
 import {loadCharacterAssets, serfSole} from '../render/characters';
@@ -472,6 +472,14 @@ export async function runMatch(
   // Presentation cues flow render -> audio, injected like the fog: the
   // sync knows when and where, the audio layer knows whether and how loud.
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);
+  // Whose likeness each seat raises is module state in the renderer, and it
+  // outlives a match: the roster that fills it arrives on the first frame,
+  // which is after the line below has already put this match's buildings —
+  // monuments included, on a resync or a loaded save — on the board. Left
+  // alone, a second match would raise its first monuments wearing the
+  // previous match's deal. Clearing here means they start on the serf and
+  // are rebuilt the moment the real roster lands.
+  setSeatFigures([]);
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights);
@@ -655,6 +663,13 @@ export async function runMatch(
       // One batch with the roster: the seat chip reads playersMeta and
       // the strip reads the readouts, and the two must not disagree for
       // an update pass between the writes.
+      // Whose likeness each seat's monument wears travels with the deal,
+      // so the renderer learns it from the same roster the HUD names seats
+      // from. Monuments already on the board were built before this was
+      // known — a loaded save or a resync puts them there — so they are
+      // dropped and rebuilt with the right face on the next update.
+      setSeatFigures(msg.players);
+      buildingSync.forgetMonuments();
       batch(() => {
         setPlayersMeta(msg.players!);
         const seat = msg.players![viewerId()];

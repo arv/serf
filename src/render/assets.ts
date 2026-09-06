@@ -16,7 +16,12 @@ import {
 } from './procMines';
 import {makeFishSign, makeShoal} from './procParts';
 import * as ScatterPackNs from './scatterPackEnum.ts';
-import {makeStatueGeometry} from './statue';
+import {
+  DEFAULT_FIGURE,
+  figureForStrategy,
+  makeStatueGeometry,
+  type MonumentFigure,
+} from './statue';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 export type ScatterPack = Enum<typeof ScatterPackNs>;
@@ -1136,16 +1141,53 @@ function teamMaterial(color: number): THREE.MeshLambertMaterial {
  * lands early raises the pedestal alone that once and the next one gets the
  * whole thing.
  */
-function lazyTemplate(type: BuildingTypeId): THREE.Group | undefined {
+/**
+ * Which likeness each seat's monument wears, by owner. Set from the roster
+ * (matchScreen), which is where the playbooks arrive; empty until then, and
+ * an owner with no entry raises the serf like the human seat does.
+ *
+ * A module-level map rather than an argument threaded through buildingSync:
+ * makeGlbBuilding already takes the owner and already varies by it (the
+ * team-colour slot), so the owner is the key the renderer has, and the
+ * render layer does not read ui/store.
+ */
+const seatFigures = new Map<number, MonumentFigure>();
+
+/**
+ * Tell the renderer who each seat raises. Safe to call again — a re-deal or
+ * a reconnect re-sends the roster — and it drops the templates it had cached
+ * for the old deal, since a seat may now wear a different face.
+ */
+export function setSeatFigures(
+  players: readonly {id: number; strategy?: number}[],
+): void {
+  seatFigures.clear();
+  for (const p of players) seatFigures.set(p.id, figureForStrategy(p.strategy));
+  monumentTemplates.clear();
+  assets?.buildings.delete(BuildingTypeId.monument);
+}
+
+/** Templates already built, one per distinct figure in the deal. */
+const monumentTemplates = new Map<MonumentFigure, THREE.Group>();
+
+function lazyTemplate(
+  type: BuildingTypeId,
+  figure: MonumentFigure,
+): THREE.Group | undefined {
   if (type !== BuildingTypeId.monument || !assets) return undefined;
-  const statue = makeStatueGeometry();
+  const cached = monumentTemplates.get(figure);
+  if (cached) return cached;
+  const statue = makeStatueGeometry(figure.pose, figure.kind);
   const group = normalize(makeMonument(assets.packMaterial, statue));
   // No `dress` pass: that closure lives inside loadGlbAssets, and the only
   // thing it does is hang BUILDING_DECOR on a template. The monument has no
   // decor entry — the figure IS its dressing — so there is nothing here for
   // it to do and no reason to lift it out of the loader for one caller.
   splitTeamColorGroups(group);
-  if (statue) assets.buildings.set(type, group);
+  // Cached per figure, not per type: two seats with different playbooks
+  // raise different monuments, and the old single-slot cache would have
+  // handed whichever was built first to both.
+  if (statue) monumentTemplates.set(figure, group);
   return group;
 }
 
@@ -1153,7 +1195,10 @@ export function makeGlbBuilding(
   type: BuildingTypeId,
   owner = 0,
 ): THREE.Group | null {
-  const template = assets?.buildings.get(type) ?? lazyTemplate(type);
+  const template =
+    type === BuildingTypeId.monument
+      ? lazyTemplate(type, seatFigures.get(owner) ?? DEFAULT_FIGURE)
+      : assets?.buildings.get(type);
   if (!template) return null;
   const def = BUILDING_DEFS[type];
   const group = template.clone();
