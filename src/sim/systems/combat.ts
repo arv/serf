@@ -61,8 +61,26 @@ const KITE_TRIGGER = 2.4;
  * man is planted while `cooldownLeft` is still within this many ticks of a
  * full cooldown, which is exactly the window after a release. Nothing to
  * serialize, and no way for the two to drift apart.
+ *
+ * Read through `plantedUntil` rather than subtracted at the use site, so
+ * that a bow which cycles faster than the plant stays well defined: both
+ * ranged units shoot every 24 ticks today, but at a cooldown under this the
+ * bare subtraction goes negative, and `cooldownLeft` floors at 0 — the gate
+ * would then never open and the man would stand rooted for good instead of
+ * kiting a little less.
  */
 const KITE_PLANT_TICKS = 8;
+
+/**
+ * The `cooldownLeft` at or below which a ranged unit has recovered from his
+ * shot and may break away — a full cooldown less the plant, and never below
+ * zero. At zero he is planted for the whole cycle bar the tick he is ready
+ * on, which is the honest reading of a weapon that fires faster than a man
+ * can plant and recover.
+ */
+function plantedUntil(combat: CombatStats): number {
+  return Math.max(0, combat.cooldownTicks - KITE_PLANT_TICKS);
+}
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
@@ -277,7 +295,7 @@ export function combatSystem(world: World): void {
         // ground that costs. See KITE_PLANT_TICKS. Dropping the path is
         // what plants him — a scoot already in hand would otherwise carry
         // him through the recovery it is supposed to cost.
-        if (unit.cooldownLeft <= combat.cooldownTicks - KITE_PLANT_TICKS)
+        if (unit.cooldownLeft <= plantedUntil(combat))
           kiteAway(world, unit, targetUnit);
         else unit.path = null;
       } else if (dist <= combat.range) {

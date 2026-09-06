@@ -355,8 +355,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // with different men left standing, and the hauls re-planned around those
 // fights walk elsewhere. Old logs stop playing, which is the honest
 // outcome.
+// Still 53 after the plant window was clamped through `plantedUntil`: the
+// guard only bites on a cooldown shorter than the plant, and both bows in
+// the game cycle at 24 against a plant of 8, so every unit that exists
+// resolves to the same tick it did a moment ago. The hash is over raw
+// bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 53;
-const EXPECTED_HASH = '616fd137441b387918cfd88c4cb21a5e';
+const EXPECTED_HASH = '8280a795fd494fd86ea228964faf805f';
 
 /**
  * Everything a replay's playback depends on, as raw source:
