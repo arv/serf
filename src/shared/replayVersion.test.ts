@@ -24,6 +24,26 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// Still 49 after the Mason: a fifth playbook, an economy rule that stands a
+// full garrison's barracks down, and a build-order anchor that counts spoil.
+// Playbook data and the rule layer that reads it are brain-side, and
+// playback never runs a brain — a replay stores the seats' commands rather
+// than re-deriving them (app/replay.ts), so a seat that would decide
+// differently today replays as it decided then. The same reasoning the
+// "Still 32 after the Warlord's gold line" and "Still 33 after the stance
+// engine" entries below record. `nearestSeamGround` is in map.ts and so
+// hashes with the sim, but nothing in a tick calls it: the build order does,
+// once a beat, and the build order is the brain.
+// Still 49 after the worked-out gold seam (TileResource.GoldSpoil): a byte
+// in map.resource no earlier build ever wrote, which is format as much as
+// behavior — but 49 is this build's own bump and has never shipped, so
+// again there is nothing older to break.
+// Still 49 after the mission checklist latches before either win is
+// declared (systems/victory.ts): 49 is this build's own bump and has
+// never shipped, so there is nothing older to break. The change is real
+// sim behavior all the same — a commission that asks for a Monument now
+// ends with its last line ticked instead of unticked, because the
+// monument win used to return before the latch ran.
 // 32 for the campaign's ground being composed rather than rolled: every
 // tile of every mission map moved, so a mission log re-run on an older
 // build is a log played on different ground (see replayVersion.ts).
@@ -247,8 +267,89 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 47 after placeSeam's narrative moved back above placeSeam, where
 // extracting seamRoom had left it stranded a function early (map.ts,
 // comment placement only). Same statements, same draws, same valleys.
-const EXPECTED_VERSION = 47;
-const EXPECTED_HASH = '42f3fa4e84931e97ad21ad8fd36587c6';
+// Still 47 after canPlace grew a reason (world.ts, placementRefusal): the
+// rules and their order are untouched — each refusal that returned false
+// now returns the name of the rule that fired, and canPlace is that
+// function asked whether the name is null. Every site legal yesterday is
+// legal today, so a log's placements re-run tile for tile.
+// 48 for the miners' ration: a gather recipe may now carry one (defs/
+// buildings.ts), the three mines do, production charges it and logistics
+// hauls it (systems/), and a mine with an empty pantry stops. That is
+// sim behavior in the plainest sense — the same commands on the same
+// ground produce a different valley — so the version moves with the hash.
+// Still 48 after the four playbooks stopped gating the mill and the bakery
+// behind the barracks (defs/aiStrategies.ts): playbook data, and playback
+// never runs a brain — a replay stores the seats' commands rather than
+// re-deriving them (app/replay.ts), so a seat that would build in a
+// different order today replays as it built then. The hash is over raw
+// bytes, which is why it moved anyway.
+// Still 48 after the opening peace stretched 540s -> 610s (defs/balance.ts
+// FIRST_RAID_TICK): the first wave spawns on a different tick, which is
+// sim behavior of the plainest kind — but it ships in the same unreleased
+// build as the ration that made it necessary, and one build is one
+// version. There is no build in the wild that has the ration and the old
+// clock, so there is nothing for a 49 to tell apart.
+// Still 48 after RATION_STOCK's comment stopped calling the pantry a shelf
+// (defs/balance.ts, words only): a shelf is `stock` everywhere else in the
+// sim, and the loaves were never there. Same bytes hashed, same behavior.
+// Still 48 after the second half of that same correction (systems/
+// logistics.ts) and after FIRST_RAID_TICK's note said which side of the
+// stretch its 13.4% was measured on. Comments both times.
+// Still 48 after rationLeft's doc stopped saying a meal tops the counter
+// up to `per` (sim/entities.ts): chargeRation sets `per - 1`, because the
+// load that found the pantry empty is the first of the `per` its loaf
+// buys. Words; the counter always did this.
+// 49 for the Monument: a building type, a placement rule keyed on the gold
+// seam, a hold clock in the victory system, and a reveal that puts a
+// finished one on every rival's map. The last two are the sharp end — a
+// match can now end on a tick and for a reason no earlier build had, and
+// the AI's target picture reads the explored grid the reveal writes to, so
+// a replay recorded before this diverges in outcome and not just in scenery.
+// Still 49 after the Monument's win moved from holding it to finishing it,
+// and its reveal from completion to the site's first delivery (systems/
+// victory.ts, visibility.ts, defs/balance.ts, entities.ts). Both are sim
+// behavior of the plainest kind — a different tick ends the match, and a
+// different tick tells rivals where to march — but they ship in the same
+// unreleased build as the Monument itself, so there is no build in the wild
+// holding the old rule for a 50 to tell apart.
+// Still 49 after `holdsGround` (systems/ai.ts, defs/aiStrategies.ts): a seat
+// that sets it never marches, which changes what the brain decides — but no
+// shipped playbook sets it, so every dealt seat plays exactly as it did.
+// 50 for the footprint shove: a building raised over somebody now moves him
+// to the nearest walkable tile instead of sealing him inside its walls
+// (occupyFootprint, sim/world.ts). Plainly sim behavior — the same command
+// on the same tick leaves units standing somewhere else — and unlike the
+// Monument's run of 49s there IS a build in the wild holding the old rule,
+// since 49 shipped with the Monument. 49 was claimed by that work and by
+// this independently, both off 48; this is the one that landed second.
+// 52 for passing over a serf who cannot reach the pickup (dispatch,
+// systems/logistics.ts). Which serf claims which haul is sim behavior of
+// the plainest kind: the same world one tick later has different men
+// walking to different buildings, and a replay recorded before it diverges
+// immediately.
+//
+// This number has moved twice under it. The change was cut as 49 off 48,
+// went to 50 when the Monument work took 49, to 51 when the footprint shove
+// took 50, and to 52 now that paying a site as it rises has taken 51. It has
+// been the last one in the queue every time.
+//
+// 51's note follows.
+//
+// 51 for a site rising as it is paid for: construction no longer waits for
+// the whole bill before the first tick of work, so every building in every
+// match tops out on a different tick, hit points climb from the first
+// delivery, and the builder is recruited at a different moment — which moves
+// the hand that would have carried the next load. This was cut as 50 off the
+// same 49 the shove was; the shove landed first, so this took the next
+// number rather than sharing one. Two builds in the wild hold older rules
+// now, which is exactly what the numbers are for.
+// Still 52 after waterFacing was exported for the model lab's pier page
+// (sim/world.ts): a keyword, a doc note, and a parameter widened from
+// World['map'] to the MapView it only ever reads. Nothing calls it that
+// did not before, and it returns the same quarter turn for the same
+// footprint. The hash is over raw bytes, which is why it moved anyway.
+const EXPECTED_VERSION = 52;
+const EXPECTED_HASH = 'ddbf5afa6989dc94d11a3820ecb303f8';
 
 /**
  * Everything a replay's playback depends on, as raw source:

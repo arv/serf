@@ -1,5 +1,9 @@
 import type {Enum} from '../../shared/enum.ts';
-import {REPAIR_COST_SHARE, type HaulPriority} from './balance.ts';
+import {
+  MINE_RATION_PER,
+  REPAIR_COST_SHARE,
+  type HaulPriority,
+} from './balance.ts';
 import * as BuildingTypeIdNs from './buildingTypeIdEnum.ts';
 
 export type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
@@ -44,6 +48,22 @@ export type Recipe =
       radius: number;
       /** Ticks spent working a tile before yielding 1 good. */
       workTicks: number;
+      /**
+       * The worker's ration: one `good` eaten for every `per` loads he
+       * brings home, drawn from the building's input buffer like a
+       * converter's ingredients (see MINE_RATION_PER for why the mines
+       * eat at all).
+       *
+       * A trip that finds nothing still spends nothing: the ration is
+       * charged when a load is won, not when a worker sets out, so a
+       * seam walled in by its own rock cannot eat the granary.
+       *
+       * Absent on the surface gatherers — the woodcutter and the quarry
+       * are where a starved village restarts from, and a village that
+       * must eat to cut the wood that becomes the rod that catches the
+       * fish has no way back at all.
+       */
+      ration?: {good: GoodId; per: number};
     }
   | {
       kind: RecipeKindNs.convert;
@@ -111,6 +131,21 @@ export interface BuildingDef {
    * check that sites every other resource building cannot speak for it.
    */
   nearWater?: {radius: number};
+  /**
+   * Placement: requires a tile of `kind` within `radius` of the footprint.
+   * Like `nearWater` it is a rule the sim enforces rather than a fact about
+   * the building — the gather-radius check that sites a woodcutter reads a
+   * gather recipe, and a building that works no resource has none to read.
+   *
+   * The monument's rule, and the reason it is a rule at all: worldgen puts
+   * the gold in one central cluster with the bandit camp standing over it
+   * (mapFairness.test.ts), so anchoring to the seam is what makes a
+   * monument a claim on contested ground rather than a thing you wall in
+   * beside the keep. It costs nothing in solo, where the middle is home and
+   * the gold rings it at 9-21 tiles — still outside the defended core, on
+   * the flank the raiders walk.
+   */
+  nearResource?: {kind: TileResourceKind; radius: number};
   /** Site demand priority (construction defaults to 1; road paving uses 3). */
   sitePriority?: HaulPriority;
   /** Footprint does not block movement (road sites). */
@@ -459,6 +494,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       resource: TileResource.IronDep,
       output: GoodId.iron,
       radius: 4,
+      ration: {good: GoodId.food, per: MINE_RATION_PER},
       workTicks: 4 * S,
     },
     mine: true,
@@ -479,6 +515,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       resource: TileResource.SilverDep,
       output: GoodId.silver,
       radius: 4,
+      ration: {good: GoodId.food, per: MINE_RATION_PER},
       workTicks: 4 * S,
     },
     mine: true,
@@ -500,6 +537,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       resource: TileResource.GoldDep,
       output: GoodId.gold,
       radius: 4,
+      ration: {good: GoodId.food, per: MINE_RATION_PER},
       workTicks: 5 * S,
     },
     mine: true,
@@ -698,6 +736,41 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
     },
   },
+  [B.monument]: {
+    id: B.monument,
+    name: 'Monument',
+    // Three by three, the castle's own footprint and the barracks': this is
+    // the largest thing a village ever raises on purpose, and the ground it
+    // takes is part of the price.
+    w: 3,
+    h: 3,
+    // Gold for the gilding, stone for the pedestal — and bread, because a
+    // price paid only in gold is not a price. Gold's one other sink is a
+    // single warfare tech, so a gold-only monument would be bought with a
+    // resource nothing else wants: every nugget mined would go to it and
+    // the cost would be a clock, not a choice. The loaves are what make it
+    // hurt, now that the mines eat them too (MINE_RATION_PER) — every one
+    // laid in the plinth is one not in a shaft or a barracks.
+    cost: {[GoodId.gold]: 12, [GoodId.stone]: 30, [GoodId.food]: 20},
+    // The longest raising in the game by a factor of three. The build is
+    // the point: a monument that goes up in a barracks' twenty-five seconds
+    // is a purchase, and this has to be a thing rivals can see coming and
+    // ride out to stop.
+    buildTicks: 90 * S,
+    // Deliberately soft for what it costs — nearer a barracks than the
+    // castle's 750. Expensive to raise and cheap to break is what forces a
+    // garrison onto the ground it stands on; a monument that defends itself
+    // is a timer nobody can contest.
+    hp: 240,
+    // It watches, but it is not a watchtower: the workshop default rather
+    // than the tower's 8, so planting one over the map's most contested
+    // seam does not also hand its owner an eye on it.
+    sight: 5.5,
+    requiresTech: TechId.deepMining,
+    // The gold is why it stands where it stands. Four tiles of slack so a
+    // seam under the camp's own footprint is still buildable beside.
+    nearResource: {kind: TileResource.GoldDep, radius: 4},
+  },
   [B.roadSite]: {
     id: B.roadSite,
     name: 'Road',
@@ -804,6 +877,18 @@ export function gatherRecipeOf(
   return def.recipe?.kind === RecipeKindNs.gather ? def.recipe : undefined;
 }
 
+/**
+ * What this building feeds its worker, if anything: the ration on its
+ * gather recipe. The one spelling of "does this post eat" — production
+ * charges it, logistics stocks it, and the two must agree or a mine
+ * calls for bread it will never swallow.
+ */
+export function rationOf(
+  def: BuildingDef,
+): {good: GoodId; per: number} | undefined {
+  return gatherRecipeOf(def)?.ration;
+}
+
 /** The tile a gatherer searches outward from: its footprint center, floored.
  * Takes the origin rather than the building so a ghost under the cursor
  * measures its reach from exactly where the built hut would. */
@@ -888,6 +973,7 @@ export const BUILDING_TYPES: readonly BuildingTypeId[] = [
   B.guardTower,
   B.roadSite,
   B.salvage,
+  B.monument,
 ];
 
 /** The spelling of each id, for docs URLs and the strategist's prompt. */
@@ -912,6 +998,7 @@ export const BUILDING_KEYS: Readonly<Record<BuildingTypeId, string>> = {
   [B.guardTower]: 'guardTower',
   [B.roadSite]: 'roadSite',
   [B.salvage]: 'salvage',
+  [B.monument]: 'monument',
 };
 
 const BUILDING_BY_KEY = new Map<string, BuildingTypeId>(

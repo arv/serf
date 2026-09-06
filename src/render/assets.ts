@@ -5,7 +5,7 @@ import type {Enum} from '../shared/enum.ts';
 import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
-import {makeBakehouse, makeFarmstead} from './procBuildings';
+import {makeBakehouse, makeFarmstead, makeMonument} from './procBuildings';
 import {
   makeAshlar,
   makeHeadframe,
@@ -16,6 +16,12 @@ import {
 } from './procMines';
 import {makeFishSign, makeShoal} from './procParts';
 import * as ScatterPackNs from './scatterPackEnum.ts';
+import {
+  DEFAULT_FIGURE,
+  figureForStrategy,
+  makeStatueGeometry,
+  type MonumentFigure,
+} from './statue';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 export type ScatterPack = Enum<typeof ScatterPackNs>;
@@ -224,12 +230,14 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
     // it toward the water (see Building.facing). Long enough to overhang the
-    // footprint on purpose. It reaches *toward* the nearest water rather than
-    // provably into it: placement guarantees water within a tile of the
-    // footprint somewhere, and the facing points at the nearest such tile,
-    // but on a corner-only shore the pier's own tile can still be dry. It
-    // reads right at village zoom either way, which is the bar decor has to
-    // clear.
+    // footprint on purpose — nearly two tiles past it, where placement only
+    // promises water within one, so the reach here is an aim rather than a
+    // guarantee. Neither is the facing: it is a quarter turn, and most
+    // shorelines do not run square to the grid. So this is the deck's
+    // AUTHORED placement, and buildingSync turns and trims it about its
+    // landward end until it stands over water the player can see
+    // (#measurePier). Change the length or the standoff and the fit shifts
+    // with it — tools/modelLab/_pier.html is where that gets looked at.
     {
       prop: 'extra/building_docks_green',
       at: [0, 0.68],
@@ -350,6 +358,13 @@ interface Assets {
   forestMaterial: THREE.Material;
   /** Loaded pack prop scenes (wheelbarrow, resource piles...). */
   props: Map<string, THREE.Group>;
+  /**
+   * The pack's own building material, kept for the templates built after
+   * loading rather than during it (see lazyTemplate). Every built building
+   * draws with this one so there is no second material in the scene
+   * pretending to match the pack's.
+   */
+  packMaterial: THREE.Material | null;
 }
 
 let assets: Assets | null = null;
@@ -1056,6 +1071,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       natureMaterial,
       forestMaterial,
       props,
+      packMaterial,
     };
     return true;
   }
@@ -1112,11 +1128,79 @@ function teamMaterial(color: number): THREE.MeshLambertMaterial {
   return m;
 }
 
+/**
+ * The monument's template, built on first use rather than with the rest.
+ *
+ * Every other built building is baked inside loadGlbAssets, which must not
+ * wait on the character pack (see the note on makeMonument) — and the
+ * monument's figure comes out of exactly that pack. The two loads race in
+ * one Promise.all (matchScreen.ts), so baking it with the others would
+ * leave a permanently headless plinth on whichever runs first.
+ *
+ * Deferring costs nothing: both loads are awaited before a frame is drawn,
+ * so by the time anything asks for this the characters are up. Cached the
+ * moment it succeeds; a null figure is NOT cached, so a call that somehow
+ * lands early raises the pedestal alone that once and the next one gets the
+ * whole thing.
+ */
+/**
+ * Which likeness each seat's monument wears, by owner. Set from the roster
+ * (matchScreen), which is where the playbooks arrive; empty until then, and
+ * an owner with no entry raises the serf like the human seat does.
+ *
+ * A module-level map rather than an argument threaded through buildingSync:
+ * makeGlbBuilding already takes the owner and already varies by it (the
+ * team-colour slot), so the owner is the key the renderer has, and the
+ * render layer does not read ui/store.
+ */
+const seatFigures = new Map<number, MonumentFigure>();
+
+/**
+ * Tell the renderer who each seat raises. Safe to call again — a re-deal or
+ * a reconnect re-sends the roster — and it drops the templates it had cached
+ * for the old deal, since a seat may now wear a different face.
+ */
+export function setSeatFigures(
+  players: readonly {id: number; strategy?: number}[],
+): void {
+  seatFigures.clear();
+  for (const p of players) seatFigures.set(p.id, figureForStrategy(p.strategy));
+  monumentTemplates.clear();
+  assets?.buildings.delete(BuildingTypeId.monument);
+}
+
+/** Templates already built, one per distinct figure in the deal. */
+const monumentTemplates = new Map<MonumentFigure, THREE.Group>();
+
+function lazyTemplate(
+  type: BuildingTypeId,
+  figure: MonumentFigure,
+): THREE.Group | undefined {
+  if (type !== BuildingTypeId.monument || !assets) return undefined;
+  const cached = monumentTemplates.get(figure);
+  if (cached) return cached;
+  const statue = makeStatueGeometry(figure.pose, figure.kind);
+  const group = normalize(makeMonument(assets.packMaterial, statue));
+  // No `dress` pass: that closure lives inside loadGlbAssets, and the only
+  // thing it does is hang BUILDING_DECOR on a template. The monument has no
+  // decor entry — the figure IS its dressing — so there is nothing here for
+  // it to do and no reason to lift it out of the loader for one caller.
+  splitTeamColorGroups(group);
+  // Cached per figure, not per type: two seats with different playbooks
+  // raise different monuments, and the old single-slot cache would have
+  // handed whichever was built first to both.
+  if (statue) monumentTemplates.set(figure, group);
+  return group;
+}
+
 export function makeGlbBuilding(
   type: BuildingTypeId,
   owner = 0,
 ): THREE.Group | null {
-  const template = assets?.buildings.get(type);
+  const template =
+    type === BuildingTypeId.monument
+      ? lazyTemplate(type, seatFigures.get(owner) ?? DEFAULT_FIGURE)
+      : assets?.buildings.get(type);
   if (!template) return null;
   const def = BUILDING_DEFS[type];
   const group = template.clone();

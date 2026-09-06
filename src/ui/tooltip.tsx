@@ -18,6 +18,7 @@ import {TICKS_PER_SECOND} from '../sim/defs/balance';
 import {
   BUILDING_DEFS,
   gatherRecipeOf,
+  rationOf,
   type Recipe,
 } from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
@@ -29,10 +30,15 @@ import {TECH_DEFS, type TechId} from '../sim/defs/techs';
 import * as UnitClass from '../sim/defs/unitClassEnum.ts';
 import {COUNTER_TABLE, UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
-import type {TileResourceKind} from '../sim/map';
-import * as TileResource from '../sim/tileResourceEnum.ts';
 import {GoodIcon} from './icons';
-import {buildingName, goodName, techDesc, techName, unitName} from './names';
+import {
+  buildingName,
+  goodName,
+  RESOURCE_NAMES,
+  techDesc,
+  techName,
+  unitName,
+} from './names';
 import {stock, techs} from './store';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -348,14 +354,6 @@ export function GoodTip(props: {good: GoodId}) {
   );
 }
 
-const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
-  [TileResource.Wood]: 'woods',
-  [TileResource.Rock]: 'rock outcrops',
-  [TileResource.IronDep]: 'iron seams',
-  [TileResource.SilverDep]: 'silver seams',
-  [TileResource.GoldDep]: 'gold seams',
-};
-
 function goodsList(amounts: GoodAmounts): string {
   return goodEntries(amounts)
     .filter(([, n]) => n > 0)
@@ -422,6 +420,19 @@ export function BuildingTip(props: {type: BuildingTypeId}) {
             Must be built within {gather().radius} tiles of{' '}
             {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is
             as far as its worker will walk.
+          </div>
+        )}
+      </Show>
+      {/* The ration, said before the wood is spent rather than after the
+          shaft goes quiet: a mine is the one gatherer that costs something
+          every day it runs, and that is a thing to know while choosing
+          where — and whether — to put it. */}
+      <Show when={rationOf(def())}>
+        {ration => (
+          <div class="tip-line">
+            Its miner eats 1 {goodName(ration().good).toLowerCase()} for every{' '}
+            {ration().per} loads, carried out to him like any other delivery.
+            None waiting and the shaft stands idle.
           </div>
         )}
       </Show>

@@ -19,6 +19,23 @@ import {latchObjectives} from './objectives.ts';
  * — the storehouse is still the elimination token — and a mission with no
  * checklist (the rival-banner bonus) falls through to the ordinary
  * elimination rules.
+ *
+ * The monument is the second way to win in every mode, and the only one the
+ * economy reaches on its own: finish it and the valley is yours.
+ *
+ * Finishing it, rather than holding it for a while afterwards, because the
+ * contest belongs BEFORE the last stone and not after. Every rival is told
+ * the moment a monument site takes its first delivery (visibility.ts), so
+ * what they get is the whole raising — the hauling of sixty-odd goods to
+ * the middle of the map and ninety seconds of masonry — to march on a frame
+ * standing at a fifth of its hit points. A hold instead put the contest
+ * after completion, which is the worst of both: the builder had the entire
+ * raising unobserved to garrison the ground, and the thing rivals finally
+ * heard about was finished and at full health.
+ *
+ * Checked before the elimination rules, so a monument topping out on the
+ * same tick a rival's last castle falls still reads as the monument's win.
+ * That is what its owner was playing for.
  */
 export function victorySystem(world: World): void {
   if (world.outcome.state !== MatchState.playing) return;
@@ -45,10 +62,36 @@ export function victorySystem(world: World): void {
     }
   }
 
-  // Mission checklist first: all objectives latched at once is the win.
-  // Only while the human seat still stands — a castle lost on the same
-  // tick is a loss, not a photo finish.
-  if (world.players[0]?.alive && latchObjectives(world)) {
+  // The checklist is evaluated before either win is declared, because the
+  // two overlap: a monument topping out on a commission that asks for one
+  // is ALSO that commission's last line, and an end card showing it unticked
+  // would be lying about the thing the player just did. Latching first costs
+  // nothing — it is the same predicate pass either way — and the monument
+  // still takes precedence below over the checklist's own win.
+  const allObjectivesDone =
+    world.players[0]?.alive === true && latchObjectives(world);
+
+  // A finished monument wins, for an owner who is still standing — a keep
+  // lost on the same tick is a loss, the way the mission checklist below is
+  // also gated on being alive.
+  for (const b of world.buildings.values()) {
+    if (
+      b.dead ||
+      b.type !== BuildingTypeId.monument ||
+      b.state !== BuildingState.built
+    ) {
+      continue;
+    }
+    if (!world.players[b.owner]?.alive) continue;
+    endMatch(world, b.owner);
+    return;
+  }
+
+  // Mission checklist: all objectives latched at once is the win. Only
+  // while the human seat still stands — a castle lost on the same tick is
+  // a loss, not a photo finish (the `alive` half is folded into the latch
+  // above).
+  if (allObjectivesDone) {
     endMatch(world, 0);
     return;
   }

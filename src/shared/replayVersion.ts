@@ -20,6 +20,39 @@
  * directly.
  */
 /**
+ * 52: a haul is offered to the nearest idle serf who can actually reach the
+ * pickup, not simply the nearest. A man who cannot path there is passed over
+ * and the next is tried; the job is only backed off when nobody tried can
+ * walk it. Which serf claims which haul decides where every man in the
+ * village is a tick later, so a log recorded before this re-runs into a
+ * different valley almost at once.
+ *
+ * 51's note follows.
+ *
+ * 51: a site rises as it is paid for.
+ *
+ * Construction used to be all or nothing: `constructionSystem` refused a
+ * single tick of progress until every good on the bill had landed, so a
+ * building was a long silence followed by a sudden roof. Now a frame may be
+ * raised as far as its bill has been settled — two thirds of the planks buys
+ * two thirds of the frame — with the borrowed hammer a precondition rather
+ * than a share of it, since it is a loan the site hands back rather than
+ * something the building is made of.
+ *
+ * Completion still needs the whole bill and nothing is banked: a site that
+ * falls is gone, part-raised or not. What moved is WHEN the work happens,
+ * and that is enough. Every building in the game tops out on a different
+ * tick now, hit points climb from the first delivery rather than from the
+ * last, and the staffing system recruits a builder as soon as there is work
+ * the deliveries have bought — a hand out of the haul pool at a different
+ * moment, which re-times every haul behind it. A log recorded before this
+ * re-runs into a different valley inside the first minute.
+ *
+ * 50's note is further down rather than here: the footprint shove claimed
+ * that number while this was in review. Both were cut from 49, and this is
+ * the one that landed second.
+ */
+/**
  * 47: a seam you can find.
  *
  * A home seam is drawn from a center with a clearing around it now
@@ -592,6 +625,59 @@
  *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
+ * 50: a building raised over somebody moves him out instead of sealing him
+ * in. occupyFootprint now shoves anyone standing inside a new footprint to
+ * the nearest walkable tile (sim/world.ts), and re-plans the walk of anyone
+ * it interrupted under a plain move order rather than leaving him with a
+ * task no system drives. The same command on the same tick therefore leaves
+ * units standing somewhere else, and everything downstream of where a serf
+ * is — who claims which haul first, which tile a path runs through — moves
+ * with it. Unlike 49's run of "still 49" notes there is a build in the wild
+ * holding the old rule, because 49 shipped with the Monument.
+ *
+ * 49's note follows.
+ *
+ * 49: the Monument, and the economy's own way to win. A new building type
+ * (buildingTypeIdEnum, defs/buildings) with a placement rule no other
+ * building has — it must stand within reach of a gold seam — and a victory
+ * rule to match: finish it and the match ends in its owner's favour. The
+ * contest is the raising, not anything after it, so a monument SITE stamps
+ * its footprint into every rival's explored grid the moment it takes its
+ * first delivery (visibility.ts) — which changes what the AI brain knows
+ * and therefore what it does. A match can now end on a tick and for a
+ * reason no earlier build had, so a log recorded before this re-runs into a
+ * different outcome, not merely a different valley.
+ *
+ * The checklist latches before either win is declared, so a commission
+ * that asks for a Monument ends with its last line ticked rather than
+ * unticked — the monument win used to return out of victorySystem before
+ * the objective pass ran.
+ *
+ * And the ground remembers a seam it no longer holds: a gold tile worked
+ * dry becomes TileResource.GoldSpoil rather than None (depleteResourceTile),
+ * spoil takes a footprint the way bare ground does (map.ts resourceOccupies),
+ * and the monument's rule counts it. Without that, digging the gold — the
+ * thing the mission asks for — deleted every legal monument site on the map,
+ * permanently and with nothing on screen to say so. It is a byte in
+ * map.resource that no earlier build ever wrote, which is format as well as
+ * behavior; authored map files still may not carry one (TILE_RESOURCE_KINDS).
+ *
+ * 48's note follows.
+ *
+ * 48: the mines eat. Every gather recipe may now carry a ration (the iron,
+ * silver and gold mines each spend one food per MINE_RATION_PER loads), the
+ * mines raise a standing demand for it, and a mine with an empty pantry
+ * stops producing until bread reaches it. Ore rates, haul boards and every
+ * downstream clock move with it, so a log recorded before this build re-runs
+ * into a different valley within the first minute. Two things ride along in
+ * the same build because the ration is what made them true: the playbooks no
+ * longer gate the mill and the bakery behind the barracks (bread has a
+ * second customer now, so the gate's own reason is gone), and the opening
+ * peace stretches 540s -> 610s to give the slower ramp back the share of
+ * quiet the housing gate was given in its turn.
+ *
+ * 47's note follows.
+ *
  * buffer holds five instead of four, and the guard tower exists: a new
  * building that swallows archers and shoots with them. Two playbooks then
  * learned to use it (the Abbot took up the bow line for it), which moves
@@ -607,4 +693,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 47;
+export const REPLAY_VERSION = 52;

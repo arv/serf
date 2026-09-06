@@ -29,6 +29,7 @@ const MISSION_MAPS: Record<MissionId, () => Promise<{default: MapFile}>> = {
   [MissionId.hammerAndHaft]: () => import('./maps/hammerAndHaft.ts'),
   [MissionId.levy]: () => import('./maps/levy.ts'),
   [MissionId.holdTheValley]: () => import('./maps/holdTheValley.ts'),
+  [MissionId.gildedValley]: () => import('./maps/gildedValley.ts'),
   [MissionId.rivalBanner]: () => import('./maps/rivalBanner.ts'),
 };
 

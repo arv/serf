@@ -27,6 +27,7 @@ import {
   canPlace,
   depleteResourceTile,
   placeBuiltBuilding,
+  placementRefusal,
   spawnUnit,
   type World,
 } from './world.ts';
@@ -226,6 +227,46 @@ describe('gatherer placement', () => {
     expect(canPlace(world.map, BuildingTypeId.silverMine, 30, 30)).toBe(false);
   });
 
+  it('says which rule refused the site, not just that one did', () => {
+    // The reason is what the toast under the cursor reads out, and the
+    // cases ask for different moves from the player: ground in the way is
+    // ground to clear, a seam out of reach is a spot to abandon.
+    const world = bareWorld();
+    expect(placementRefusal(world.map, BuildingTypeId.ironMine, 30, 30)).toBe(
+      'resource',
+    );
+
+    const dep = tileIdx(33, 31, world.map.size);
+    world.map.resource[dep] = TileResource.IronDep;
+    world.map.resourceAmt[dep] = 10;
+    expect(
+      placementRefusal(world.map, BuildingTypeId.ironMine, 30, 30),
+    ).toBeNull();
+
+    // Seam still in reach, but somebody else is standing on the site: the
+    // ground is the complaint now, not the ore.
+    addStorehouse(world, 30, 30, {});
+    expect(placementRefusal(world.map, BuildingTypeId.ironMine, 30, 30)).toBe(
+      'occupied',
+    );
+
+    // A fishery inland is short of water, not of room.
+    expect(placementRefusal(world.map, BuildingTypeId.fishery, 40, 40)).toBe(
+      'water',
+    );
+
+    // ...and a mill on a hillside is short of level ground. (A mine is
+    // exempt from the slope rule — it is cut into the hill.)
+    for (let ty = 38; ty < 46; ty++) {
+      for (let tx = 42; tx < 46; tx++) {
+        world.map.height[tileIdx(tx, ty, world.map.size)] = 4;
+      }
+    }
+    expect(placementRefusal(world.map, BuildingTypeId.mill, 40, 40)).toBe(
+      'slope',
+    );
+  });
+
   it('refuses a woodcutter with no trees in reach, and a quarry with no rock', () => {
     const world = bareWorld();
     expect(canPlace(world.map, BuildingTypeId.woodcutter, 30, 30)).toBe(false);
@@ -280,6 +321,10 @@ describe('gatherer placement', () => {
     const mine = placeBuiltBuilding(world, BuildingTypeId.ironMine, 0, 30, 30);
     const miner = spawnUnit(world, UnitTypeId.worker, 0, 30.5, 33.5);
     bindWorker(mine, miner);
+    // Bread in the pantry: a mine is the one gatherer that eats (see
+    // MINE_RATION_PER), and this test is about the seam, not the ration —
+    // the ration has mineRations.test.ts to itself.
+    mine.inputs[GoodId.food] = 5;
     run(world, 20 * 60);
 
     expect(mine.stock[GoodId.iron] ?? 0).toBeGreaterThan(0);

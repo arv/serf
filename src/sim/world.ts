@@ -47,15 +47,17 @@ import {
   findResourceNear,
   generateMap,
   rectClear,
+  seamSpoil,
   tileBlocks,
   type GameMap,
   type MapView,
   type StartSpot,
 } from './map.ts';
 import {parseMapData, type MapFile} from './mapFile.ts';
-import {nearestWalkable} from './path.ts';
+import {findPath, nearestWalkable} from './path.ts';
 import {makePlayer, type PlayerState} from './player.ts';
 import {makeUnit, type Unit} from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 
 export type GameEventKind = Enum<typeof GameEventKindNs>;
 import * as BuildingState from './buildingStateEnum.ts';
@@ -775,9 +777,14 @@ export function spawnUnitNearby(
  * two hosts placing the same fishery must turn it the same way or their
  * renders — and their save hashes — diverge. Scan order is what makes that
  * true, so the loop bounds below are load-bearing, not incidental.
+ *
+ * Exported for the model lab's pier page (tools/modelLab/_pier.ts), which
+ * stands fisheries on generated shoreline to see where their decks land:
+ * the answer only means anything if the deck starts out turned the way a
+ * real one is.
  */
-function waterFacing(
-  map: World['map'],
+export function waterFacing(
+  map: MapView,
   x: number,
   y: number,
   w: number,
@@ -852,6 +859,80 @@ function occupyFootprint(world: World, b: Building): void {
       pushDelta(world, i);
     }
   }
+  if (blocks) shoveClear(world, b);
+}
+
+/**
+ * Anyone standing where the walls just went up gets moved outside them.
+ *
+ * Placement does not refuse a footprint with people in it — the ground is
+ * the player's to build on, and a serf who happens to be crossing it is not
+ * a reason to say no. But the tiles are blocked now, and a unit left inside
+ * them is sealed in: every path out is through a wall, so it can reach
+ * nothing and nothing can reach it.
+ *
+ * That is not merely a stuck serf. `dispatch` offers each haul to the
+ * nearest idle serf and, when he cannot path to the pickup, penalises the
+ * *job* rather than passing him over — so one walled-in serf standing in the
+ * middle of a village is the nearest candidate for haul after haul, blocks
+ * each one four times, and every one of them is finally aborted as
+ * unreachable with a demand backoff on its destination. Two serfs caught
+ * under a wheat farm stalled a whole village's logistics this way while the
+ * goods they were meant to carry sat in the castle.
+ *
+ * Deterministic: `world.units` iterates in insertion order and
+ * `nearestWalkable` scans fixed rings, so every client shoves the same units
+ * to the same tiles. A unit with nowhere walkable within the scan is left
+ * where it is — there is nothing better to do with it, and it is no worse
+ * off than before.
+ */
+function shoveClear(world: World, b: Building): void {
+  const size = world.map.size;
+  for (const u of world.units.values()) {
+    if (u.dead) continue;
+    const tx = Math.floor(u.x);
+    const ty = Math.floor(u.y);
+    if (tx < b.x || tx >= b.x + b.w || ty < b.y || ty >= b.y + b.h) continue;
+    const idx = nearestWalkable(world.map, tx, ty, 8);
+    if (idx < 0) continue;
+    u.x = (idx % size) + 0.5;
+    u.y = Math.floor(idx / size) + 0.5;
+    u.lastTile = idx;
+
+    // The route he was walking started inside the wall and is worthless
+    // now. For every task with a system behind it, dropping it is enough:
+    // that system notices the empty hands and re-plans from where he
+    // actually stands — logistics walks a hauler back to his source, and
+    // his job is untouched.
+    //
+    // A plain move is the exception, and the one case that must not be got
+    // wrong. Nothing owns it: movement skips a unit with no route and every
+    // other system filters for idle, so `move` with `path === null` is a man
+    // who stands there for the rest of the match — checkInvariants says so
+    // in as many words. So re-plan his walk from the new tile, and if the
+    // ground says there is no walk left, end the errand rather than leave
+    // him holding it. Same shape as routeAround in systems/movement.ts,
+    // which cannot be reached from here without world.ts importing a
+    // system.
+    const goal = u.path?.[u.path.length - 1];
+    u.path = null;
+    u.pathIdx = 0;
+    if (u.task.t !== UnitTaskKind.move) continue;
+    if (goal !== undefined) {
+      const p = findPath(
+        world.map,
+        Math.floor(u.x),
+        Math.floor(u.y),
+        goal % size,
+        Math.floor(goal / size),
+      );
+      if (p && p.length > 0) {
+        u.path = p;
+        continue;
+      }
+    }
+    u.task = {t: UnitTaskKind.idle, until: world.tick};
+  }
 }
 
 /** Pre-placed, already-complete buildings (worldgen). */
@@ -925,6 +1006,19 @@ export function placeSite(
 }
 
 /**
+ * Why a spot refuses a building. The site rules each have their own reason
+ * so the refusal can be said out loud: "no room" is a lie under a mine
+ * standing four tiles from the nearest seam, and a player who reads it goes
+ * looking for the wrong fix — clearing ground that was never in the way.
+ */
+export type PlacementRefusal =
+  | 'occupied'
+  | 'slope'
+  | 'resource'
+  | 'water'
+  | 'seam';
+
+/**
  * Placement validity: footprint on clear grass, and at least one walkable
  * ring tile so the door isn't sealed. Shared by the worker (authoritative)
  * and mirrored logic on the main thread for instant ghost feedback.
@@ -935,12 +1029,28 @@ export function canPlace(
   x: number,
   y: number,
 ): boolean {
+  return placementRefusal(map, type, x, y) === null;
+}
+
+/**
+ * The same rules as canPlace, answering which one said no — null when the
+ * spot takes the building. One function underneath both, so the answer and
+ * the reason given for it can never drift apart.
+ */
+export function placementRefusal(
+  map: MapView,
+  type: BuildingTypeId,
+  x: number,
+  y: number,
+): PlacementRefusal | null {
   const def = buildingDef(type);
   const size = map.size;
-  if (!rectClear(map, x, y, def.w, def.h)) return false;
+  if (!rectClear(map, x, y, def.w, def.h)) return 'occupied';
   for (let ty = y; ty < y + def.h; ty++) {
     for (let tx = x; tx < x + def.w; tx++) {
-      if (map.terrain[tileIdx(tx, ty, size)] !== Terrain.Grass) return false;
+      if (map.terrain[tileIdx(tx, ty, size)] !== Terrain.Grass) {
+        return 'occupied';
+      }
     }
   }
 
@@ -977,7 +1087,7 @@ export function canPlace(
       if (h < lo) lo = h;
       if (h > hi) hi = h;
     }
-    if (hi - lo > 0.5) return false;
+    if (hi - lo > 0.5) return 'slope';
   }
   let hasDoor = false;
   for (let tx = x - 1; tx <= x + def.w && !hasDoor; tx++) {
@@ -988,7 +1098,7 @@ export function canPlace(
       if (!map.blocked[tileIdx(tx, ty, size)]) hasDoor = true;
     }
   }
-  if (!hasDoor) return false;
+  if (!hasDoor) return 'occupied';
 
   // A gatherer has to be within reach of something to gather. The mine's
   // seam is the obvious case, but the woodcutter and the quarry answer to
@@ -1001,7 +1111,7 @@ export function canPlace(
   if (gather) {
     const c = gatherOrigin(def, x, y);
     if (findResourceNear(map, c.x, c.y, gather.resource, gather.radius) < 0) {
-      return false;
+      return 'resource';
     }
   }
 
@@ -1022,9 +1132,37 @@ export function canPlace(
         if (map.terrain[tileIdx(tx, ty, size)] === Terrain.Water) found = true;
       }
     }
-    if (!found) return false;
+    if (!found) return 'water';
   }
-  return true;
+
+  // A monument stands over the seam it is gilded from. Its own rule rather
+  // than the gatherer's above, because it works nothing: the check is that
+  // the ground is the right ground, not that a worker has somewhere to
+  // walk. Same box as the fishery's — the footprint grown by `radius` —
+  // and the same playable-only screen, so a seam drawn out in the scenery
+  // margin cannot anchor one.
+  //
+  // A worked-out seam still counts, and that is the whole point of spoil
+  // (TileResource.GoldSpoil): the seam and the monument want the same
+  // ground, and a rule that read live ore alone made digging the gold —
+  // the thing the mission tells you to do — quietly delete every legal
+  // site on the map. What the ground has to remember is that gold was
+  // here, not that some is left.
+  if (def.nearResource) {
+    const {kind, radius: r} = def.nearResource;
+    const spoil = seamSpoil(kind);
+    let found = false;
+    for (let ty = y - r; ty < y + def.h + r && !found; ty++) {
+      for (let tx = x - r; tx < x + def.w + r && !found; tx++) {
+        if (!inPlayArea(map, tx, ty)) continue;
+        const res = map.resource[tileIdx(tx, ty, size)];
+        if (res === kind || (spoil !== undefined && res === spoil))
+          found = true;
+      }
+    }
+    if (!found) return 'seam';
+  }
+  return null;
 }
 
 /**
@@ -1213,11 +1351,23 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
   for (const g of bill) delete b.demandSince[g];
 }
 
-/** Deplete one unit of a tile resource; clears + unblocks the tile at zero. */
+/**
+ * Deplete one unit of a tile resource; clears + unblocks the tile at zero.
+ *
+ * Gold is the exception: a worked-out gold seam becomes SPOIL rather than
+ * bare ground, because the Monument's placement rule reads the seam it is
+ * gilded from and a seam that vanished took every legal site with it (see
+ * TileResource.GoldSpoil). Spoil is not ore — `findResourceNear` looks for
+ * an exact code, so no mine will ever work it, and a gold mine's ghost
+ * refuses the ground exactly as it does today.
+ */
 export function depleteResourceTile(world: World, idx: number): void {
   const amt = world.map.resourceAmt[idx]!;
   if (amt <= 1) {
-    world.map.resource[idx] = TileResource.None;
+    world.map.resource[idx] =
+      world.map.resource[idx] === TileResource.GoldDep
+        ? TileResource.GoldSpoil
+        : TileResource.None;
     world.map.resourceAmt[idx] = 0;
     if (
       world.map.buildingAt[idx]! < 0 &&

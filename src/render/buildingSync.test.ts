@@ -3,7 +3,7 @@ import {describe, expect, it, vi} from 'vitest';
 import type {BuildingSnap} from '../protocol/messages';
 import * as StaffingState from '../protocol/staffingStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
-import {DEFAULT_MAP_SIZE, tileCount} from '../shared/grid';
+import {DEFAULT_MAP_SIZE, tileCount, tileIdx} from '../shared/grid';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
@@ -113,19 +113,40 @@ function snap(over: Partial<BuildingSnap>): BuildingSnap {
   };
 }
 
-function makeSync(): {
+function makeSync(heights?: HeightField): {
   sync: InstanceType<typeof BuildingSync>;
   scene: THREE.Scene;
 } {
   const scene = new THREE.Scene();
   const sync = new BuildingSync(
     scene,
-    new HeightField(
-      new Float32Array(tileCount(DEFAULT_MAP_SIZE)),
-      DEFAULT_MAP_SIZE,
-    ),
+    heights ??
+      new HeightField(
+        new Float32Array(tileCount(DEFAULT_MAP_SIZE)),
+        DEFAULT_MAP_SIZE,
+      ),
   );
   return {sync, scene};
+}
+
+/**
+ * Dry ground at 0.1 and a bed at -1.0 wherever `water` says so.
+ *
+ * The pier fit asks the height field, not a tile grid, whether a spot is
+ * over water — so these fixtures describe a shore by its bed. The numbers
+ * are picked so the line the fit wants (WATER_LEVEL less its draft, -0.45)
+ * falls exactly on the tile boundary under the field's bilinear sampling,
+ * which is what lets a fixture be read in whole tiles.
+ */
+function shoreHeights(
+  water: (tx: number, tz: number) => boolean,
+  bed = -1,
+): HeightField {
+  const h = new Float32Array(tileCount(DEFAULT_MAP_SIZE)).fill(0.1);
+  for (let tz = 0; tz < DEFAULT_MAP_SIZE; tz++)
+    for (let tx = 0; tx < DEFAULT_MAP_SIZE; tx++)
+      if (water(tx, tz)) h[tileIdx(tx, tz, DEFAULT_MAP_SIZE)] = bed;
+  return new HeightField(h, DEFAULT_MAP_SIZE);
 }
 
 describe('a construction site with multi-material meshes', () => {
@@ -154,6 +175,32 @@ describe('a construction site with multi-material meshes', () => {
     expect(scene.children.length).toBe(0);
   });
 
+  it('draws both sides, so the clipped shell is not see-through', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0.5, siteNeeds: {}}),
+    ]);
+
+    // The clip plane cuts a closed shell open. Front-faced, that cut is a
+    // hole — the faces that would be behind the near wall all point away
+    // and are never drawn. Every material the plane touches has to be
+    // two-sided, shadow included, or a half-raised building reads as a
+    // facade with nothing behind it.
+    const clipped: THREE.Material[] = [];
+    scene.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (m.clippingPlanes?.length) clipped.push(m);
+      }
+    });
+
+    expect(clipped.length).toBeGreaterThan(0);
+    for (const m of clipped) {
+      expect(m.side).toBe(THREE.DoubleSide);
+      expect(m.shadowSide).toBe(THREE.DoubleSide);
+    }
+  });
+
   it('a poisoned frame does not orphan later buildings', () => {
     const {sync, scene} = makeSync();
     sync.update([
@@ -180,6 +227,8 @@ describe("the fishery's pier", () => {
   it('reports a deck line turned with the building, landward end first', () => {
     const {sync} = makeSync();
     // Facing 2: the pier turns half a circle, out of the north face (-z).
+    // Flat dry ground everywhere, so no fit can better the authored deck
+    // and the line comes back exactly as the model places it.
     sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
     const piers = sync.fisheryPiers();
     expect(piers.length).toBe(1);
@@ -198,24 +247,89 @@ describe("the fishery's pier", () => {
     expect(p.deckY).toBeLessThan(0.2);
   });
 
-  it('swings 45 degrees toward the wet diagonal on a corner-only shore', () => {
-    const {sync, scene} = makeSync();
-    // Facing 2 sends the pier north, but only the north-WEST diagonal is
-    // water — the corner-pegged placement the quarter-turn facing can't
-    // express.
+  it('leaves the authored deck alone when it already reaches water', () => {
+    // Facing 2 sends the deck north out of a 3x3 at (10,10): landward end
+    // at z 10.65, tip at 8.15, fishing spot at 8.55. Open water from z 9
+    // north, so the authored placement stands over it.
+    const {sync, scene} = makeSync(shoreHeights((_tx, tz) => tz <= 8));
     sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
-    sync.setWater(tx => tx <= 9);
     const p = sync.fisheryPiers()[0]!;
-    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 4);
-    // The fishing spot moved out along the diagonal, west of the deck line.
-    expect(p.spotX).toBeLessThan(11);
+    expect(p.yaw).toBeCloseTo(Math.PI);
+    expect(p.spotX).toBeCloseTo(11.5);
+    expect(p.spotZ).toBeCloseTo(8.55);
+    const pier = scene.getObjectByName('fisheryPier')!;
+    expect(pier.rotation.y).toBeCloseTo(0);
+    expect(pier.scale.x).toBeCloseTo(1);
+    expect(p.deckY).toBeCloseTo(0.15);
+  });
+
+  it('turns toward the water on a shore the facing points away from', () => {
+    // Facing 2 sends the deck north, but the water is the single tile
+    // column at tx 9, WEST of the hut — so the wet band runs from world
+    // x 9 to x 10. That is the shore a quarter-turn facing cannot express,
+    // and the reason the authored deck so often ends on grass.
+    const {sync, scene} = makeSync(shoreHeights(tx => tx === 9));
+    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    const p = sync.fisheryPiers()[0]!;
+    // 60 degrees, not the 45 that gets the tip wet (x 9.73): at 45 the spot
+    // the fisherman casts from is still over grass a plank behind it
+    // (x 10.19), which is a rod hanging its line in the meadow.
+    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 3);
+    expect(p.spotX).toBeCloseTo(9.68);
     expect(p.spotZ).toBeLessThan(p.baseZ);
     // The decor itself turned with it, pivoting on the landward end...
     const pier = scene.getObjectByName('fisheryPier')!;
-    expect(pier.rotation.y).toBeCloseTo(Math.PI / 4);
-    // ...and the measurement is cached: asking again must not swing twice.
+    expect(pier.rotation.y).toBeCloseTo(Math.PI / 3);
+    expect(pier.scale.x).toBeCloseTo(1);
+    // ...and the measurement is cached: asking again must not turn twice.
     expect(sync.fisheryPiers()[0]!.yaw).toBeCloseTo(p.yaw);
-    expect(pier.rotation.y).toBeCloseTo(Math.PI / 4);
+    expect(pier.rotation.y).toBeCloseTo(Math.PI / 3);
+  });
+
+  it('trims the deck rather than stride over a narrow channel', () => {
+    // The single tile row at tz 9, straight off the front face, so the wet
+    // band runs from world z 9 to z 10: the authored deck reaches z 8.15,
+    // clean over it and dry on the far bank.
+    // Placement only promises water within a tile of the footprint, so a
+    // deck running two tiles past it can do exactly this.
+    const {sync, scene} = makeSync(shoreHeights((_tx, tz) => tz === 9));
+    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    const p = sync.fisheryPiers()[0]!;
+    // Still pointing where the hut faces — a whole tile shorter instead.
+    expect(p.yaw).toBeCloseTo(Math.PI);
+    expect(p.baseZ).toBeCloseTo(10.65);
+    expect(p.spotZ).toBeCloseTo(9.55);
+    const pier = scene.getObjectByName('fisheryPier')!;
+    expect(pier.rotation.y).toBeCloseTo(0);
+    expect(pier.scale.x).toBeCloseTo(0.6);
+    // A smaller dock, planks and all, so the standing height comes down.
+    expect(p.deckY).toBeCloseTo(0.13);
+  });
+
+  it('settles for touching water where nothing it can reach is deep', () => {
+    // A shallow flat at z 8-9: under the water plane, but nowhere near the
+    // plank's depth the fit asks for first. The strict pass finds nothing,
+    // so a trim off the second — which is the only reason this deck moves
+    // at all — pulls the tip back off the far bank and into it.
+    const {sync, scene} = makeSync(
+      shoreHeights((_tx, tz) => tz === 8 || tz === 9, -0.4),
+    );
+    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    const p = sync.fisheryPiers()[0]!;
+    expect(p.yaw).toBeCloseTo(Math.PI);
+    expect(p.spotZ).toBeCloseTo(8.8);
+    expect(scene.getObjectByName('fisheryPier')!.scale.x).toBeCloseTo(0.9);
+  });
+
+  it('keeps the authored deck when no fit reaches water at all', () => {
+    const {sync, scene} = makeSync(shoreHeights(() => false));
+    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    const p = sync.fisheryPiers()[0]!;
+    expect(p.yaw).toBeCloseTo(Math.PI);
+    expect(p.spotZ).toBeCloseTo(8.55);
+    const pier = scene.getObjectByName('fisheryPier')!;
+    expect(pier.rotation.y).toBeCloseTo(0);
+    expect(pier.scale.x).toBeCloseTo(1);
   });
 
   it('is absent while the fishery is still a site', () => {

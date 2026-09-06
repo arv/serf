@@ -128,6 +128,11 @@ export function hashWorld(world: World): number {
       // hp above; a save that lost the order must not hash as the same world.
       mix(b.repairNeeds?.[good] ?? 0);
     }
+    // The miners' bread: loads still covered by what the post has already
+    // eaten. It steers whether the shaft runs for the next few trips, so a
+    // save that dropped it would play on as the same world until the pantry
+    // ran out a ration early.
+    mix(b.rationLeft ?? 0);
     mixF64(b.repairHpPerGood ?? 0);
     // ...and the masonry it has bought but not yet put on the walls.
     mixF64(b.repairPending ?? 0);

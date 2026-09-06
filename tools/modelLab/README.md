@@ -82,6 +82,42 @@ pnpm dev   # then /tools/modelLab/_spoil.html
 `?spoil=0` paints with the lookup disabled, which is the before shot;
 `?yaw` and `w`/`h` behave as they do on `_mines.html`.
 
+## The fishery's pier
+
+`_pier.html` is where the deck is judged against real shoreline. Every other
+page here stands its building on a plate of turf with a painted chord of
+water behind it — the right stage for a silhouette and the wrong one for
+"does this deck end in the lake", because that shoreline is authored to suit
+the model. So this page generates a real world, asks `canPlace` for every
+legal fishery site, and renders `BuildingSync`'s own deck fit
+(`#measurePier`) on the ones where the deck AS AUTHORED ends on grass —
+against the real terrain mesh, the real water plane and the real scatter.
+
+```sh
+pnpm dev   # then /tools/modelLab/_pier.html
+```
+
+It prints the tally to the console (`379 legal sites, 161 dry as authored, 0
+dry after the fit` on seed 1), which is the number a change to the fit's
+turn and trim limits has to be measured by. "Dry" there means what the fit
+means by it, at both of the points it judges: a deck counts as wet only if
+its tip AND the spot the fisherman casts from are both under the waterline.
+Scoring the spot alone would let a deck that strides a narrow channel and
+lands on the far bank pass, which is one of the two things the fit exists
+to correct. `?fit=none` fits against ground
+whose lake beds are filled to just OVER the waterline — the huts still
+stand at their true height, no fit is found anywhere, and the deck comes
+out as the model places it, which is the before shot. Just over, and not
+level with it, because the field is float32: `WATER_LEVEL` rounds into it a
+hair low, and a bed filled to exactly that reads back as a puddle deep
+enough to fit a deck to. `?worst=1` picks the sites the fit has to distort
+most instead of the first ones it finds, `?all=1` includes the sites that
+were already wet, `?at=x,y` blows one site up, `?seed=<n>` trawls a
+different world, and `?n`/`?cell`/`?view`/`?yaw` set how many, how big,
+how close and from where. Turn the camera before calling a deck wrong: at
+some yaws a deck that runs behind its hut is mostly occluded by the roof
+and reads as a staircase.
+
 ## The farmstead
 
 `_farm.html` is where the wheat farm's field was composed and the farmer's
@@ -98,6 +134,44 @@ out left to right instead, scythe in hand, which is how the stroke and the
 carry were tuned. `?marks=1` beads every walk mark to check the circuit
 against the rows; `?rival=1` turns the seat red for the team roof.
 `w`/`h`/`zoom`/`fy` frame the shot as everywhere else.
+
+## The monument
+
+`_monument.html` is where the wonder was composed: a serf cast in gold on a
+battered stone pedestal, the one building here that is a person rather than
+a workplace. It calls the real builder (`makeMonument`, in
+`src/render/procBuildings.ts`) with the real figure — `makeStatueGeometry`
+bakes one frame of the rig down to plain geometry (`src/render/statue.ts`)
+— and sizes the result the way `makeGlbBuilding` sizes a building of that
+footprint, with a live serf standing at the foot of it so the only question
+that matters (how big is this next to the people who built it?) is on the
+screen rather than in the head.
+
+```sh
+pnpm dev   # then /tools/modelLab/_monument.html
+```
+
+`?figure=<lord|abbot>` swaps the whole preset — body and pose travel
+together, since neither the knight's nor the abbot's is the serf's. The
+abbot is the **Lorekeeper** (KayKit Monthly Mystery Series 6, CC0 like every
+other pack here — `public/models/kaykit/lorekeeper/LICENSE.txt`), which no
+unit wears: he is addressed by a figure key rather than a unit kind
+(`FIGURE_LOREKEEPER` in `src/render/characters.ts`), because the character
+pipeline reads one number and the sim must never learn of him. He rides the
+same Rig_Medium as the Adventurers bodies — same 23 joints, handslots
+included, no clips of his own — so the shared animation library drives him
+unchanged.
+
+`?fp=<2|3>` sets the footprint it is sized for — 4.0 tall at 2x2, against a
+house's 2.3 and the castle's 5.6. `?pose=<anim key>`, `?phase=<0..1>`,
+`?load=<carry code>`, `?tool=<WORK kind>` and `?lift=<degrees>` cut the
+figure from a different clip, moment, load, tool and chin angle; the
+defaults are `SERF_AT_REST`, and the note on it says which alternatives were
+looked at here and why they lost. `?serf=0` sends the man beside it home,
+`?yaw` walks the camera round, `w`/`h`/`zoom`/`fy` frame the shot as
+everywhere else. The page also prints the model's height and how many of its
+triangles land in the team-colour slot — a monument nobody's colour reaches
+is a monument every seat builds identically.
 
 ## Publishing the gallery
 

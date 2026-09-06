@@ -186,4 +186,35 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
       objective: 2,
     },
   ],
+
+  [MissionId.gildedValley]: [
+    {
+      text:
+        'This one does not end at a camp. Gold buys nothing you can eat or ' +
+        'fight with — it buys the Monument, and a finished Monument wins ' +
+        'outright. The seam is at the far end of the valley; everything ' +
+        'else you need is close to home.',
+    },
+    {
+      text:
+        'Deep Mining opens the Gold Mine. Select the abbey and study it — ' +
+        'iron and silver are the price, and both are in the near hills.',
+      objective: 0,
+    },
+    {
+      text:
+        'Cut the mine on the knap. Mines eat: keep bread walking out there ' +
+        'or the pick stops, and bring a spare pickaxe — an unstaffed mine ' +
+        'looks exactly like a working one.',
+      objective: 1,
+    },
+    {
+      text:
+        'Now the Monument, on the levelled shelf beside the seam. The ' +
+        'bandits learn of it the moment the first cartload lands, not when ' +
+        'it is done — a frame stands at a fifth of its finished hit points, ' +
+        'so what you have to defend is the raising.',
+      objective: 2,
+    },
+  ],
 };

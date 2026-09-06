@@ -28,6 +28,8 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {BANDIT} from '../sim/entities';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 import * as OrderMode from '../ui/orderModeEnum.ts';
 import {
   buildAim,
@@ -48,8 +50,10 @@ import {
   setSelection,
   setStock,
   setTechs,
+  setToasts,
   speed,
   stock,
+  toasts,
   viewerId,
 } from '../ui/store';
 import {Controls} from './controls';
@@ -300,7 +304,21 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
     // A 56-tile play square inside the 64 grid, the way a real map is
     // built: tiles 4..59 are walkable and the rest is margin. The chart's
     // orders are clamped into it.
-    map: {size: 64, play: 56, buildingAt: new Int32Array(64 * 64).fill(-1)},
+    //
+    // Bare grass all the way across, with the rest of the mirrored arrays
+    // present and empty: the placement rules read every one of them, and a
+    // build that gets as far as asking whether a site is legal reads them
+    // through the same functions the sim does.
+    map: {
+      size: 64,
+      play: 56,
+      buildingAt: new Int32Array(64 * 64).fill(-1),
+      terrain: new Uint8Array(64 * 64),
+      resource: new Uint8Array(64 * 64),
+      blocked: new Uint8Array(64 * 64),
+      pathLevel: new Uint8Array(64 * 64),
+      height: new Float32Array(64 * 64),
+    },
     buildings: new Map<number, BuildingSnap>(),
   };
   /** Where the camera was last sent — the second press of a number. */
@@ -1237,6 +1255,95 @@ describe('build chord', () => {
 
     expect(placing()).toBeNull();
     expect(buildAim()).toBeNull();
+  });
+});
+
+/**
+ * A refused site says which rule refused it. Every one of them used to
+ * come out as "no room", which is the wrong answer for a mine standing on
+ * open ground with no seam under it: nothing is in the way, and the player
+ * who goes looking for the thing in the way finds nothing to move.
+ */
+describe('refusing a building site', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setPlacing(null);
+    setToasts([]);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setPlacing(null);
+    setToasts([]);
+    vi.unstubAllGlobals();
+  });
+
+  /** The text of the toast the click left behind, if it left one. */
+  const lastToast = (): string | undefined => toasts().at(-1)?.text;
+
+  it('names the ore a mine came looking for', () => {
+    const h = harness();
+    controls = h.controls;
+    const site = h.at(8, 0, 8); // origin tile (7, 7), open grass
+    setPlacing(BuildingTypeId.ironMine);
+
+    h.canvas.fire('pointerdown', ptr(site.x, site.y));
+
+    expect(h.commands).toEqual([]);
+    expect(lastToast()).toBe('Nothing to work there — no iron within 4 tiles.');
+
+    // A seam inside the mine's reach, and the same click builds.
+    h.mirror.map.resource[9 * 64 + 10] = TileResource.IronDep;
+    h.canvas.fire('pointerdown', ptr(site.x, site.y));
+
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.placeBuilding,
+      building: BuildingTypeId.ironMine,
+      x: 7,
+      y: 7,
+    });
+  });
+
+  it('still says no room when the ground is what is missing', () => {
+    const h = harness();
+    controls = h.controls;
+    const site = h.at(8, 0, 8);
+    h.mirror.map.resource[9 * 64 + 10] = TileResource.IronDep; // seam in reach
+    h.mirror.map.terrain[8 * 64 + 8] = Terrain.Water; // ...and a pond on the site
+    setPlacing(BuildingTypeId.ironMine);
+
+    h.canvas.fire('pointerdown', ptr(site.x, site.y));
+
+    expect(h.commands).toEqual([]);
+    expect(lastToast()).toBe('No room to build there.');
+  });
+
+  it('blames the dark before anything else, on ground nobody has walked', () => {
+    const h = harness();
+    controls = h.controls;
+    controls.setFog({
+      owner: ME,
+      exploredAt: () => false,
+      visibleAt: () => false,
+      litAt: () => 0,
+    });
+    setPlacing(BuildingTypeId.ironMine);
+
+    h.canvas.fire('pointerdown', ptr(h.at(8, 0, 8).x, h.at(8, 0, 8).y));
+
+    expect(h.commands).toEqual([]);
+    expect(lastToast()).toBe(
+      'Too dark to build — nobody has scouted that ground.',
+    );
   });
 });
 

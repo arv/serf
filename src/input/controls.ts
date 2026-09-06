@@ -13,13 +13,13 @@ import {clamp} from '../shared/math';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
 import {HIRE_SERF_COST} from '../sim/defs/balance';
-import {buildingDef} from '../sim/defs/buildings';
+import {buildingDef, gatherRecipeOf} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
 import {isPlayerOwner} from '../sim/entities';
-import {playMax, playMin} from '../sim/map';
-import {canPlace} from '../sim/world';
+import {playMax, playMin, seamSpoil} from '../sim/map';
+import {canPlace, placementRefusal} from '../sim/world';
 import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
 import {
   HIRE_KEY,
@@ -34,7 +34,13 @@ import {
   unitTechGate,
 } from '../ui/commands';
 import {fullscreen, guardEsc} from '../ui/fullscreen';
-import {techName, unitName} from '../ui/names';
+import {
+  buildingName,
+  goodName,
+  RESOURCE_NAMES,
+  techName,
+  unitName,
+} from '../ui/names';
 import * as OrderMode from '../ui/orderModeEnum.ts';
 import {rosterOf, sameRoster, type SelectedUnit} from '../ui/roster';
 import {nudgeSpeed} from '../ui/speedControl';
@@ -1141,14 +1147,55 @@ export class Controls {
     if (origin) {
       this.#ghost.show(type);
       this.#ghost.moveTo(origin.x, origin.y, false);
-      const def = buildingDef(type);
-      pushToast(
-        this.#explored(origin.x, origin.y, def.w, def.h)
-          ? 'No room to build there.'
-          : 'Too dark to build — nobody has scouted that ground.',
-      );
+      pushToast(this.#refusal(type, origin.x, origin.y));
       navigator.vibrate?.(30);
       play('uiRefused');
+    }
+  }
+
+  /**
+   * Why that spot said no, in the player's words.
+   *
+   * Each rule gets its own sentence because they ask for different moves:
+   * "no room" sends the player looking for something in the way, and under
+   * a mine four tiles from the nearest seam there is nothing in the way at
+   * all — the fix is to build somewhere else entirely. The reasons come
+   * from the same function that refused the site (placementRefusal), so
+   * the sentence can never describe a rule other than the one that fired.
+   */
+  #refusal(type: BuildingTypeId, x: number, y: number): string {
+    const def = buildingDef(type);
+    if (!this.#explored(x, y, def.w, def.h)) {
+      return 'Too dark to build — nobody has scouted that ground.';
+    }
+    switch (placementRefusal(this.#mirror.map, type, x, y)) {
+      case 'resource': {
+        // Named for the good it would carry home, which is how the
+        // selection card already talks about the ground ("iron in reach").
+        const gather = gatherRecipeOf(def);
+        return gather
+          ? `Nothing to work there — no ${goodName(gather.output).toLowerCase()} within ${gather.radius} tiles.`
+          : 'Nothing to work there.';
+      }
+      case 'water':
+        return 'Too far from the water to fish.';
+      case 'seam': {
+        // The one rule that names ground rather than a worker's reach, so
+        // it gets the resource's own word rather than the gatherer's.
+        const near = def.nearResource;
+        if (!near) return 'The ground there is wrong for it.';
+        // A seam that leaves spoil behind counts once it is worked out, so
+        // the message has to say so — a player who has just mined the gold
+        // out would otherwise read this as "you have lost your chance".
+        const worked =
+          seamSpoil(near.kind) !== undefined ? ', worked out or not' : '';
+        return `${buildingName(type)} must stand within ${near.radius} tiles of ${RESOURCE_NAMES[near.kind] ?? 'the seam'}${worked}.`;
+      }
+      case 'slope':
+        return 'The ground is too steep to build there.';
+      case 'occupied':
+      default:
+        return 'No room to build there.';
     }
   }
 

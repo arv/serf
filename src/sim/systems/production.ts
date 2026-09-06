@@ -218,6 +218,33 @@ function recipeInputs(
 }
 
 /**
+ * Eat one load's worth. The meal is bought in whole loaves — one food
+ * opens a ration covering `per` loads — so the charge lands on the first
+ * load after the last one ran out and the rest of the seam is walked on
+ * credit already paid.
+ *
+ * A ration handed to a post that has somehow lost its bread between the
+ * pantry check and the face is not conjured: the load still lands (it is
+ * already on the worker's shoulders and in the ledger) and the counter
+ * stays at zero, so the NEXT trip is the one that waits.
+ */
+function chargeRation(
+  world: World,
+  b: Building,
+  ration: {good: GoodId; per: number},
+): void {
+  if (b.rationLeft) {
+    b.rationLeft--;
+    return;
+  }
+  if ((b.inputs[ration.good] ?? 0) < 1) return;
+  b.inputs[ration.good] = (b.inputs[ration.good] ?? 0) - 1;
+  world.ledger.consumed[ration.good] =
+    (world.ledger.consumed[ration.good] ?? 0) + 1;
+  b.rationLeft = ration.per - 1;
+}
+
+/**
  * Could ANY of this building's recipe options light the fire right now?
  *
  * convertStep bails on exactly this test ("waiting on ingredients") a few
@@ -424,6 +451,20 @@ function gatherStep(
         worker.task = {t: UnitTaskKind.idle, until: world.tick + 20};
         return;
       }
+      // Nothing in the pantry, nobody down the shaft. The meal is checked
+      // here and paid for at the face (below): a miner is not sent out on
+      // a ration the village cannot cover, and a trip that comes back
+      // empty has not eaten one. Idle rather than dismissed — the post
+      // keeps its worker and its pick, and picks straight back up when
+      // the bread arrives.
+      if (
+        recipe.ration &&
+        !b.rationLeft &&
+        (b.inputs[recipe.ration.good] ?? 0) < 1
+      ) {
+        worker.task = {t: UnitTaskKind.idle, until: world.tick + 20};
+        return;
+      }
       const c = gatherOrigin(buildingDef(b.type), b.x, b.y);
       // Nearest first, but never nearest only. The nearest tile can be
       // permanently unreachable — a tree walled in by its own grove was
@@ -506,6 +547,11 @@ function gatherStep(
         // shoulders and countable) — ledger it here, not at deposit.
         world.ledger.produced[recipe.output] =
           (world.ledger.produced[recipe.output] ?? 0) + 1;
+        // ...and the ration is spent against the load it bought. A fresh
+        // meal is swallowed whole and covers the next `per` loads; the
+        // pantry was checked before he set out, and nothing else eats a
+        // mine's input buffer, so it is still there.
+        if (recipe.ration) chargeRation(world, b, recipe.ration);
       }
       const path = findPathToAdjacent(
         world.map,
