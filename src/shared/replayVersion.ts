@@ -20,6 +20,15 @@
  * directly.
  */
 /**
+ * 52: a haul is offered to the nearest idle serf who can actually reach the
+ * pickup, not simply the nearest. A man who cannot path there is passed over
+ * and the next is tried; the job is only backed off when nobody tried can
+ * walk it. Which serf claims which haul decides where every man in the
+ * village is a tick later, so a log recorded before this re-runs into a
+ * different valley almost at once.
+ *
+ * 51's note follows.
+ *
  * 51: a site rises as it is paid for.
  *
  * Construction used to be all or nothing: `constructionSystem` refused a
@@ -684,4 +693,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 51;
+export const REPLAY_VERSION = 52;
