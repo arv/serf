@@ -232,6 +232,13 @@ export function buildAffordable(
   type: BuildingTypeId,
   stock: GoodAmounts,
 ): boolean {
+  // A building raised on credit is never unaffordable: its site goes down
+  // empty and rises as goods reach it, so the button that places it is a
+  // decision about ground and timing rather than about the shelf. The flag
+  // lives on the def because the AI's build order reads it too, and a
+  // player and a lord placing under different rules is exactly the drift
+  // worth spending a field to prevent.
+  if (BUILDING_DEFS[type].raisedOnCredit) return true;
   const cost = goodEntries(BUILDING_DEFS[type].cost);
   return cost.every(([good, n]) => (stock[good] ?? 0) >= n);
 }

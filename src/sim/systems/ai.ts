@@ -1351,7 +1351,12 @@ export class AiBrain {
       // list, every beat, only to throw the answer away. The reserve costs
       // that search back at most once a beat: on the first gatherer the
       // shelf cannot cover, to find out whether there is ground to save for.
-      if (!affordable(def.cost, stock, held)) {
+      // A building raised on credit is placed empty and gilded as the
+      // carts arrive (defs/buildings.ts `raisedOnCredit`, which the build
+      // menu reads too so a lord and a player place under one rule). For
+      // everything else the reserve below is right: a gatherer placed on
+      // credit is a scaffold standing idle on ground the plan needed.
+      if (!def.raisedOnCredit && !affordable(def.cost, stock, held)) {
         if (
           !held &&
           gatherRecipeOf(def) &&

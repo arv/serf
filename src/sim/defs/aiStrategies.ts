@@ -1028,6 +1028,15 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         anchor: BuildAnchorNs.gold,
         radius: 6,
         after: TechId.deepMining,
+        // The mine before the plinth. The Monument is the one building
+        // raised on credit (see the build loop in systems/ai.ts), which
+        // means it costs nothing to PLACE and can therefore overtake the
+        // gold mine above — which still has to bank its own timber and
+        // stone. A site laid first would pull haulers toward a plinth that
+        // cannot finish, because the gold it is waiting on is under a mine
+        // nobody has built yet. Measured on seed 41: the site went up at
+        // 18,365 and the mine at 19,540.
+        needs: BuildingTypeId.goldMine,
       },
     ],
     // Deep Mining is the whole line, and it is the only playbook that names
