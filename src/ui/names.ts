@@ -6,6 +6,8 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {TECH_DEFS, type TechId} from '../sim/defs/techs';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {isPlayerOwner} from '../sim/entities.ts';
+import type {TileResourceKind} from '../sim/map.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 type GoodId = Enum<typeof GoodId>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
@@ -121,3 +123,23 @@ export function seatName(
   const twins = players.some(p => p.id !== owner && p.strategy === strategy);
   return twins ? `${name} (seat ${owner + 1})` : name;
 }
+
+/**
+ * What a seam is called on screen. Plural, because every sentence that
+ * reaches for one is talking about ground rather than a single tile ("no
+ * iron seams within 4 tiles").
+ *
+ * Here rather than beside its first caller because it has two now: the
+ * build tooltip, which says what a gatherer needs to reach, and the
+ * refusal a placement gives when a monument is put down off the gold.
+ */
+export const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
+  [TileResource.Wood]: 'woods',
+  [TileResource.Rock]: 'rock outcrops',
+  [TileResource.IronDep]: 'iron seams',
+  [TileResource.SilverDep]: 'silver seams',
+  [TileResource.GoldDep]: 'gold seams',
+  // Tailings — a gold seam that has been worked out. Named because the
+  // Monument still stands on it (TileResource.GoldSpoil).
+  [TileResource.GoldSpoil]: 'worked-out gold seams',
+};

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {Enum} from '../shared/enum.ts';
 import {inBounds, tileCount, tileIdx, tileX, tileY} from '../shared/grid.ts';
-import {BUILDING_DEFS} from './defs/buildings.ts';
+import {BUILDING_DEFS, gatherRecipeOf} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as MissionId from './defs/missionIdEnum.ts';
 import {loadMissionMap} from './defs/missionMaps.ts';
@@ -281,14 +281,40 @@ describe('the campaign’s authored ground', () => {
         if (o.spec.kind === ObjectiveKind.building) wanted.add(o.spec.type);
       for (const spec of def.prebuilt ?? []) wanted.add(spec.type);
       for (const type of wanted) {
-        if (!BUILDING_DEFS[type].mine) continue;
-        // Reachable in the sense the mission's own tests reach for it: the
-        // scripted playthroughs spiral out from the castle looking for a
-        // legal spot, and give up at sixteen rings.
+        const def0 = BUILDING_DEFS[type];
+        if (!def0.mine) continue;
+        // Asked at the ore rather than at the castle. It used to be asked
+        // at the castle within sixteen rings, on the reasoning that the
+        // scripted playthroughs spiral out from there — true of every
+        // commission whose mines are the town's own trades, and false of
+        // the Gilded Valley, where the walk to the gold IS the mission and
+        // its playthrough spirals from the seam. What the mine actually
+        // needs is ground beside its ore, which is the same question
+        // wherever the ore lies.
+        const res = gatherRecipeOf(def0)!.resource;
+        const c = keepCenter(starts[0]!);
+        let nearest: {x: number; y: number; d: number} | undefined;
+        for (let i = 0; i < tileCount(map.size); i++) {
+          if (map.resource[i] !== res) continue;
+          const x = tileX(i, map.size);
+          const y = tileY(i, map.size);
+          if (!inPlayArea(map, x, y)) continue;
+          const d = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
+          if (!nearest || d < nearest.d) nearest = {x, y, d};
+        }
+        expect(nearest, `${id}: no ore at all for a ${type}`).toBeDefined();
+        // Beside the ore: six rings is a mine sited by eye at the seam.
         expect(
-          siteRing(map, type, keepCenter(starts[0]!), 16),
-          `${id}: nowhere to dig a ${type}`,
-        ).toBeLessThanOrEqual(16);
+          siteRing(map, type, nearest!, 6),
+          `${id}: nowhere to dig a ${type} at its own seam`,
+        ).toBeLessThanOrEqual(6);
+        // ...and the seam within a haul the valley can actually make. The
+        // playfield is 96 across; ore past forty tiles is ore on somebody
+        // else's map.
+        expect(
+          nearest!.d,
+          `${id}: the ore a ${type} wants is ${nearest!.d.toFixed(1)} tiles out`,
+        ).toBeLessThanOrEqual(40);
       }
     },
   );

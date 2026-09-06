@@ -30,10 +30,15 @@ import {TECH_DEFS, type TechId} from '../sim/defs/techs';
 import * as UnitClass from '../sim/defs/unitClassEnum.ts';
 import {COUNTER_TABLE, UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
-import type {TileResourceKind} from '../sim/map';
-import * as TileResource from '../sim/tileResourceEnum.ts';
 import {GoodIcon} from './icons';
-import {buildingName, goodName, techDesc, techName, unitName} from './names';
+import {
+  buildingName,
+  goodName,
+  RESOURCE_NAMES,
+  techDesc,
+  techName,
+  unitName,
+} from './names';
 import {stock, techs} from './store';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -348,14 +353,6 @@ export function GoodTip(props: {good: GoodId}) {
     </>
   );
 }
-
-const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
-  [TileResource.Wood]: 'woods',
-  [TileResource.Rock]: 'rock outcrops',
-  [TileResource.IronDep]: 'iron seams',
-  [TileResource.SilverDep]: 'silver seams',
-  [TileResource.GoldDep]: 'gold seams',
-};
 
 function goodsList(amounts: GoodAmounts): string {
   return goodEntries(amounts)

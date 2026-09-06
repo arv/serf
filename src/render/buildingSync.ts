@@ -650,6 +650,20 @@ export class BuildingSync {
           const c = m.clone();
           c.clippingPlanes = [plane];
           c.clipShadows = true;
+          // The plane cuts a closed shell open, and a front-faced shell
+          // cut open is a hole: you see past the near wall to nothing,
+          // because the faces that would be behind it all point away.
+          // Drawing both sides puts the far wall's inside back on the
+          // screen, so a half-raised building reads as a building with
+          // its top off rather than as a facade. It is not a capped cut
+          // — the slice is still hollow, not solid stone — but hollow
+          // and roofed beats transparent. Safe here and only here: these
+          // materials are already per-site clones, so nothing finished
+          // and no shared template sees this.
+          c.side = THREE.DoubleSide;
+          // Without this the shadow keeps the old one-sided read and the
+          // building casts a shadow with a hole in it.
+          c.shadowSide = THREE.DoubleSide;
           return c;
         };
         model.traverse(o => {

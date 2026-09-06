@@ -49,3 +49,5 @@ export const roadSite = 19 as const;
 export type roadSite = typeof roadSite;
 export const salvage = 20 as const;
 export type salvage = typeof salvage;
+export const monument = 21 as const;
+export type monument = typeof monument;
