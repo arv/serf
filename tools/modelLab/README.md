@@ -100,9 +100,12 @@ pnpm dev   # then /tools/modelLab/_pier.html
 It prints the tally to the console (`379 legal sites, 161 dry as authored, 0
 dry after the fit` on seed 1), which is the number a change to the fit's
 turn and trim limits has to be measured by. `?fit=none` fits against ground
-whose lakes are filled to the waterline — the huts still stand at their
-true height, no fit is found anywhere, and the deck comes out as the model
-places it, which is the before shot. `?worst=1` picks the sites the fit has to distort
+whose lake beds are filled to just OVER the waterline — the huts still
+stand at their true height, no fit is found anywhere, and the deck comes
+out as the model places it, which is the before shot. Just over, and not
+level with it, because the field is float32: `WATER_LEVEL` rounds into it a
+hair low, and a bed filled to exactly that reads back as a puddle deep
+enough to fit a deck to. `?worst=1` picks the sites the fit has to distort
 most instead of the first ones it finds, `?all=1` includes the sites that
 were already wet, `?at=x,y` blows one site up, `?seed=<n>` trawls a
 different world, and `?n`/`?cell`/`?view`/`?yaw` set how many, how big,

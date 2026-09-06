@@ -322,6 +322,19 @@ import {REPLAY_VERSION} from './replayVersion';
 // Monument's run of 49s there IS a build in the wild holding the old rule,
 // since 49 shipped with the Monument. 49 was claimed by that work and by
 // this independently, both off 48; this is the one that landed second.
+// 52 for passing over a serf who cannot reach the pickup (dispatch,
+// systems/logistics.ts). Which serf claims which haul is sim behavior of
+// the plainest kind: the same world one tick later has different men
+// walking to different buildings, and a replay recorded before it diverges
+// immediately.
+//
+// This number has moved twice under it. The change was cut as 49 off 48,
+// went to 50 when the Monument work took 49, to 51 when the footprint shove
+// took 50, and to 52 now that paying a site as it rises has taken 51. It has
+// been the last one in the queue every time.
+//
+// 51's note follows.
+//
 // 51 for a site rising as it is paid for: construction no longer waits for
 // the whole bill before the first tick of work, so every building in every
 // match tops out on a different tick, hit points climb from the first
@@ -330,13 +343,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // same 49 the shove was; the shove landed first, so this took the next
 // number rather than sharing one. Two builds in the wild hold older rules
 // now, which is exactly what the numbers are for.
-// Still 51 after waterFacing was exported for the model lab's pier page
+// Still 52 after waterFacing was exported for the model lab's pier page
 // (sim/world.ts): a keyword, a doc note, and a parameter widened from
 // World['map'] to the MapView it only ever reads. Nothing calls it that
 // did not before, and it returns the same quarter turn for the same
 // footprint. The hash is over raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 51;
-const EXPECTED_HASH = '3432aa258e6d279b858c7a9e8f3d804a';
+const EXPECTED_VERSION = 52;
+const EXPECTED_HASH = 'ddbf5afa6989dc94d11a3820ecb303f8';
 
 /**
  * Everything a replay's playback depends on, as raw source:

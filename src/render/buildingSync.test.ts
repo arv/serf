@@ -264,9 +264,10 @@ describe("the fishery's pier", () => {
   });
 
   it('turns toward the water on a shore the facing points away from', () => {
-    // Facing 2 sends the deck north, but the water is a channel WEST of the
-    // hut, from x 9 to x 10 — the shore a quarter-turn facing cannot
-    // express, and the reason the authored deck so often ends on grass.
+    // Facing 2 sends the deck north, but the water is the single tile
+    // column at tx 9, WEST of the hut — so the wet band runs from world
+    // x 9 to x 10. That is the shore a quarter-turn facing cannot express,
+    // and the reason the authored deck so often ends on grass.
     const {sync, scene} = makeSync(shoreHeights(tx => tx === 9));
     sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
@@ -286,8 +287,9 @@ describe("the fishery's pier", () => {
   });
 
   it('trims the deck rather than stride over a narrow channel', () => {
-    // A channel from z 9 to z 10, straight off the front face: the authored
-    // deck reaches z 8.15, clean over it and dry on the far bank.
+    // The single tile row at tz 9, straight off the front face, so the wet
+    // band runs from world z 9 to z 10: the authored deck reaches z 8.15,
+    // clean over it and dry on the far bank.
     // Placement only promises water within a tile of the footprint, so a
     // deck running two tiles past it can do exactly this.
     const {sync, scene} = makeSync(shoreHeights((_tx, tz) => tz === 9));

@@ -9,7 +9,8 @@
  * height, because the only question that matters is how the thing reads
  * next to the people who built it.
  *
- * ?figure=lord swaps the serf for the knight preset; ?kind=<unit kind> puts
+ * ?figure=<lord|abbot|fletcher|steward> swaps the preset — one per AI
+ * playbook, the serf being the human seat's and the Mason's; ?kind=<unit kind> puts
  * any other body on the plinth (1 serf, 2 worker, 3 knight, 4 spearman,
  * 5 archer, 6-8 the bandits). ?fp=<2|3> sets the footprint it is sized for.
  * ?pose=<anim key name> and
@@ -32,9 +33,11 @@ import {TEAM_SWATCH_UV} from '../../src/render/factionPalette';
 import {makeMonument} from '../../src/render/procBuildings';
 import {
   ABBOT_AT_STUDY,
+  FLETCHER_AT_REST,
   LORD_AT_ARMS,
   makeStatueGeometry,
   SERF_AT_REST,
+  STEWARD_AT_STORES,
 } from '../../src/render/statue';
 import type {StatuePose} from '../../src/render/statue';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
@@ -86,6 +89,8 @@ const DEG = (rad: number): number => (rad * 180) / Math.PI;
 const FIGURES: Record<string, {pose: StatuePose; kind: number}> = {
   lord: {pose: LORD_AT_ARMS, kind: UnitTypeId.knight},
   abbot: {pose: ABBOT_AT_STUDY, kind: FIGURE_LOREKEEPER},
+  fletcher: {pose: FLETCHER_AT_REST, kind: UnitTypeId.archer},
+  steward: {pose: STEWARD_AT_STORES, kind: UnitTypeId.worker},
 };
 const FIGURE = FIGURES[params.get('figure') ?? ''];
 const PRESET = FIGURE?.pose ?? SERF_AT_REST;

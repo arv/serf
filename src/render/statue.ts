@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import type {Enum} from '../shared/enum.ts';
+import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as AnimKeyNs from './animKeyEnum.ts';
 import {
   type AnimKey,
+  FIGURE_LOREKEEPER,
   makeCharacter,
   playAnimation,
   setWorkTool,
@@ -96,28 +100,154 @@ export const LORD_AT_ARMS: StatuePose = {
 /**
  * The abbot, for the village that raises its monument to the studying
  * rather than the carrying: the Lorekeeper body (FIGURE_LOREKEEPER), staff
- * in hand, on the plain idle.
+ * planted, cut from the attack clip.
  *
- * The idle rather than the carry-idle the serf takes, because the argument
- * against it there does not hold here: an idle's empty hands make a
- * mannequin of a figure with nothing to hold, and this one is holding a
- * staff. It also leaves the stoop the body is modeled with intact, which
- * is the reading — a man bent over his books, not a lord at ease.
+ * The clip's name is the one awkward thing here and it is only a name. The
+ * Lorekeeper ships no clips of his own — he rides the shared Rig_Medium —
+ * so the statue can only be cut from the shared library, and the pose the
+ * pack's own art shows him in (staff stood on end, crook up beside the
+ * head) is not in it. Attack is the clip that plants the right forearm
+ * vertical, and a vertical forearm is a vertical staff. Nothing is being
+ * attacked; an old man is leaning on his stick.
+ *
+ * The earlier drafts and why they lost: idle, which the first version took,
+ * swings the crook down and out to his side, where it crosses nothing and
+ * reads as a dropped prop; carryIdle lays it flat across him; tend puts it
+ * across the chest, upright and open but a haft rather than a staff;
+ * hammer and pickaxe both duck the head, which is fatal for the one figure
+ * whose face is the whole point.
+ *
+ * Phase 0.4 is the middle of the window that works. 0.35 and 0.45 both read
+ * the same, 0.25 still has the staff tilted back on the wind-up, and the
+ * ends of the swing throw it entirely.
+ *
+ * A vertical staff also buys height. makeMonument scales the figure by
+ * `Math.min(MON_FIGURE, MON_BASE / reach)`, so a prop held out to one side
+ * shrinks the man to keep it over the step; stood on end it costs almost no
+ * reach, and he stands at his full MON_FIGURE instead of being clamped down
+ * to fit a stick.
  *
  * No load and no tool: a bundle of timber in a scholar's arms is a joke,
- * and the pack's own staff is already in his right hand.
+ * and the pack's own staff is already in his right hand — the clip only
+ * regrips it.
  *
- * The chin comes up least of the three. The serf's is lifted 22 degrees
- * and the lord's 26 to get a face out from under hair and a helmet brow;
- * this one wears glasses on a bare head, which hide nothing, and lifting
- * him further straightens the very stoop that makes him legible.
+ * The chin still comes up least of the three. The serf's is lifted 22
+ * degrees and the lord's 26 to get a face out from under hair and a helmet
+ * brow; this one wears glasses on a bare head, which hide nothing.
  */
 export const ABBOT_AT_STUDY: StatuePose = {
-  clip: AnimKeyNs.idle,
-  phase: 0.5,
+  clip: AnimKeyNs.attack,
+  phase: 0.4,
   load: 0,
   lift: (14 * Math.PI) / 180,
 };
+
+/**
+ * The Fletcher's monument: an archer at rest, cut from the plain idle.
+ *
+ * The idle rather than draw or shoot, and this is the one figure where the
+ * weapon argues for it. Both shooting clips bring the bow arm up across the
+ * face and fold him forward over it — from the game's camera you are behind
+ * an archer more often than in front, and a drawn bow at that angle is a
+ * bundle of limbs with a head somewhere inside it. At rest the bow hangs
+ * low across his body where the whole curve of it reads, and his face is
+ * clear above it. His hands are not empty either, which is the objection
+ * that sends the abbot and the serf to clips of their own: he is holding
+ * the thing he is known by.
+ */
+export const FLETCHER_AT_REST: StatuePose = {
+  clip: AnimKeyNs.idle,
+  phase: 0.5,
+  load: 0,
+  lift: (20 * Math.PI) / 180,
+};
+
+/**
+ * The Steward's monument: a worker with the stores in his arms.
+ *
+ * The same carry the serf takes, deliberately — this seat's claim is that
+ * the village is fed and counted, and a man holding what the village keeps
+ * says it in the same breath the serf's timber says building. What
+ * separates them is the load and the wardrobe: flour rather than the
+ * woodcutter's log bundle, so the silhouette is a sack held to the chest
+ * against an armful of timber laid across it, and a worker's clothes rather
+ * than a serf's.
+ *
+ * They are the closest pair on the plinth and it is worth saying so: at a
+ * distance the two read as "somebody carrying something", and only the
+ * shape in his arms tells them apart. Anything else was worse. An idle
+ * makes a mannequin of him, and every working clip the tools allow —
+ * hammer, dig, work — ducks the head.
+ */
+export const STEWARD_AT_STORES: StatuePose = {
+  clip: AnimKeyNs.carryIdle,
+  phase: 0.5,
+  load: GoodId.flour,
+  lift: (22 * Math.PI) / 180,
+};
+
+/** A pose and the body that wears it: what a monument is made of. */
+export interface MonumentFigure {
+  pose: StatuePose;
+  /** A UnitTypeId, or FIGURE_LOREKEEPER for a body no unit wears. */
+  kind: number;
+}
+
+/**
+ * Whose likeness a seat raises. Each playbook gets its own, so a monument
+ * on the far side of the valley says who built it before the banner on it
+ * is legible — the point of the thing being that rivals can see it coming.
+ *
+ * The human seat is not in here and takes the serf: it is the figure this
+ * game opens on, and a player's own monument should not change shape
+ * because of who else was dealt into the match.
+ */
+let figures:
+  | Readonly<Record<Enum<typeof AiStrategyId>, MonumentFigure>>
+  | undefined;
+
+/**
+ * The table, built once on first use.
+ *
+ * Lazy because FIGURE_LOREKEEPER lives in characters.ts, which is not
+ * initialized by the time this module's top level runs — a table built up
+ * there had the abbot's body as `undefined`, and every abbot would have
+ * raised a headless plinth.
+ *
+ * Memoized because the objects are cache keys. The monument templates are
+ * held in a Map keyed by the figure itself, so a table rebuilt per call
+ * would hand two seats on the same playbook two different keys and build
+ * the identical statue twice.
+ */
+function figureTable(): Readonly<
+  Record<Enum<typeof AiStrategyId>, MonumentFigure>
+> {
+  return (figures ??= {
+    // The builder, and the only playbook that sets out to raise one of these.
+    [AiStrategyId.mason]: {pose: SERF_AT_REST, kind: UnitTypeId.serf},
+    [AiStrategyId.warlord]: {pose: LORD_AT_ARMS, kind: UnitTypeId.knight},
+    [AiStrategyId.abbot]: {pose: ABBOT_AT_STUDY, kind: FIGURE_LOREKEEPER},
+    [AiStrategyId.fletcher]: {pose: FLETCHER_AT_REST, kind: UnitTypeId.archer},
+    [AiStrategyId.steward]: {pose: STEWARD_AT_STORES, kind: UnitTypeId.worker},
+  });
+}
+
+/** The serf, for the human seat and for anything with no playbook. */
+export const DEFAULT_FIGURE: MonumentFigure = {
+  pose: SERF_AT_REST,
+  kind: UnitTypeId.serf,
+};
+
+/**
+ * The figure a seat's monument wears, by its playbook. The same playbook
+ * always returns the same object — see figureTable.
+ */
+export function figureForStrategy(
+  strategy: number | undefined,
+): MonumentFigure {
+  if (strategy === undefined) return DEFAULT_FIGURE;
+  return figureTable()[strategy as Enum<typeof AiStrategyId>] ?? DEFAULT_FIGURE;
+}
 
 /**
  * Bake one pose of a villager into a single static geometry, feet on y=0,

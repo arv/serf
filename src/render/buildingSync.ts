@@ -267,6 +267,8 @@ function freeLane(taken: Set<number>): number {
 interface BuildingVisual {
   root: THREE.Group;
   state: BuildingState;
+  /** What it is, so a visual can be dropped by kind — see forgetMonuments. */
+  type: BuildingSnap['type'];
   frame?: THREE.Group;
   model: THREE.Group;
   /** Warcraft-style rise: a world-space clip plane reveals the model
@@ -822,6 +824,7 @@ export class BuildingSync {
     this.#scene.add(root);
     return {
       root,
+      type: b.type,
       state: b.state,
       frame,
       model,
@@ -1692,6 +1695,25 @@ export class BuildingSync {
     this.#hoverId = hover;
     this.#selectedId = selected;
     this.#rebuildHpBars();
+  }
+
+  /**
+   * Drop every monument visual so the next update builds them again.
+   *
+   * The figure on a plinth comes from the seat's playbook, and the roster
+   * that carries the playbooks arrives on the first frame — after a resync
+   * or a loaded save has already put monuments on the board. Without this
+   * they would keep the default serf for the rest of the match.
+   *
+   * Immediate, not the razing teardown: nothing is being destroyed, the
+   * same building is about to be rebuilt with the right face.
+   */
+  forgetMonuments(): void {
+    // Deleting the entry the loop is standing on is defined behaviour for
+    // a Map, so this needs no copy.
+    for (const [id, v] of this.#visuals) {
+      if (v.type === BuildingTypeId.monument) this.#dispose(id);
+    }
   }
 
   #dispose(id: number): void {
