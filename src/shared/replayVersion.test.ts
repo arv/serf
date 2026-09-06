@@ -24,13 +24,6 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-// 50 for a site rising as it is paid for: construction no longer waits for
-// the whole bill before the first tick of work, so every building in every
-// match tops out on a different tick, hit points climb from the first
-// delivery, and the builder is recruited at a different moment — which moves
-// the hand that would have carried the next load. Sim behavior through and
-// through (replayVersion.ts says it at length), and the first bump since 49
-// shipped, so this one is a real break rather than a re-pin.
 // Still 49 after the Mason: a fifth playbook, an economy rule that stands a
 // full garrison's barracks down, and a build-order anchor that counts spoil.
 // Playbook data and the rule layer that reads it are brain-side, and

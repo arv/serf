@@ -45,8 +45,16 @@ function deliverTo(site: Building, good: GoodId, n: number): void {
   }
 }
 
-/** A quarry site with a builder standing on it and the hammer in hand — the
- * state a site reaches the moment its first load and its recruit arrive. */
+/**
+ * A quarry site holding its borrowed hammer, with a serf free beside it.
+ *
+ * Not a builder already bound: the staffing system recruits and walks one
+ * over the ticks each test then runs, which is the path the real game takes
+ * and the one worth exercising. What this guarantees is only that a builder
+ * CAN arrive — the tool is there for him and a hand is free — so a test that
+ * stalls is stalling on the rule under test rather than on an empty village.
+ * Materials are the caller's to deliver.
+ */
 function manned(world: World): Building {
   const site = placeSite(world, BuildingTypeId.quarry, 0, 24, 30);
   deliverTo(site, GoodId.hammer, 1);
