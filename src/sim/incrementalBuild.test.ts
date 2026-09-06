@@ -27,20 +27,31 @@ function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
 }
 
+/**
+ * Hand a site `n` of a good, the way `deliver` does (systems/logistics.ts).
+ *
+ * A construction material is consumed into the frame — `siteNeeds` comes
+ * down and the good is ledgered away — and does NOT sit in `inputs`. Only
+ * the borrowed hammer stays in the site's hands, because it is a loan the
+ * site gives back. Modelling it any other way would leave these tests
+ * asserting against a delivery the game never makes.
+ */
+function deliverTo(site: Building, good: GoodId, n: number): void {
+  for (let i = 0; i < n; i++) {
+    site.siteNeeds![good] = Math.max(0, (site.siteNeeds![good] ?? 0) - 1);
+    if (good === GoodId.hammer) {
+      site.inputs[good] = (site.inputs[good] ?? 0) + 1;
+    }
+  }
+}
+
 /** A quarry site with a builder standing on it and the hammer in hand — the
  * state a site reaches the moment its first load and its recruit arrive. */
 function manned(world: World): Building {
   const site = placeSite(world, BuildingTypeId.quarry, 0, 24, 30);
-  site.inputs[GoodId.hammer] = 1;
-  delete site.siteNeeds![GoodId.hammer];
+  deliverTo(site, GoodId.hammer, 1);
   addSerf(world, 25, 31);
   return site;
-}
-
-/** Hand a site `n` of a good, the way a delivery does. */
-function deliverTo(site: Building, good: GoodId, n: number): void {
-  site.inputs[good] = (site.inputs[good] ?? 0) + n;
-  site.siteNeeds![good] = Math.max(0, (site.siteNeeds![good] ?? 0) - n);
 }
 
 describe('a frame rises as far as it is paid for', () => {
@@ -79,8 +90,7 @@ describe('a frame rises as far as it is paid for', () => {
     const def = BUILDING_DEFS[BuildingTypeId.quarry];
     const world = bareWorld();
     const site = placeSite(world, BuildingTypeId.quarry, 0, 24, 30);
-    site.inputs[GoodId.hammer] = 1;
-    site.siteNeeds![GoodId.hammer] = 0;
+    deliverTo(site, GoodId.hammer, 1);
     expect(paidBuildTicks(site, def)).toBe(0);
   });
 });
@@ -120,8 +130,7 @@ describe('the frame in the world', () => {
     run(world, def.buildTicks * 2);
     expect(site.buildProgress ?? 0).toBe(0);
 
-    site.inputs[GoodId.hammer] = 1;
-    site.siteNeeds![GoodId.hammer] = 0;
+    deliverTo(site, GoodId.hammer, 1);
     // Twice the build time, because the recruit was never sent while there
     // was no tool for him: a builder is wanted only where there is bought
     // work he can actually do (staffing.ts), so the walk starts here.
