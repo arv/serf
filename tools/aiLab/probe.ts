@@ -3,7 +3,10 @@ import type {StrategyAdvice} from '../../src/ai/advice.ts';
 import {Rng} from '../../src/shared/rng.ts';
 import {
   AI_STRATEGIES,
+  AI_STRATEGY_KEYS,
+  AI_STRATEGY_ORDER,
   type AiStrategy,
+  type AiStrategyId,
 } from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyIdNs from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
@@ -69,13 +72,13 @@ interface Done extends Trial {
 function baseConfig(
   seed: number,
   mapSize: number,
+  seated: readonly [AiStrategyId, AiStrategyId],
 ): Omit<MatchConfig, 'engines'> {
-  const steward = AiStrategyIdNs.steward;
   return {
     seed,
     mapSize,
     bandits: true,
-    strategies: [steward, steward],
+    strategies: seated,
     maxTicks: 120_000,
     advicePeriod: 1800,
     adviceStagger: 300,
@@ -89,17 +92,27 @@ function playOne(
   parent: Candidate,
   mapSize: number,
   timeoutMs: number,
+  lineage: AiStrategyId,
+  /** A DIFFERENT playbook in the other seat, played as printed. Null is
+   * the mirror: the parent restated, so advice is the only asymmetry. */
+  vs: AiStrategyId | null,
 ): Promise<Done> {
   const wears = (c: Candidate): EngineSpec => ({
     kind: 'script',
     reply: c.advice,
   });
+  // A foreign opponent plays its own printed line — unadvised. Handing it
+  // the parent's knobs would be handing a mason the steward's serfTarget,
+  // which is not the opponent anybody wants to measure against.
+  const other: EngineSpec = vs === null ? wears(parent) : {kind: 'none'};
+  const seated: [AiStrategyId, AiStrategyId] =
+    trial.candidateSeat === 0
+      ? [lineage, vs ?? lineage]
+      : [vs ?? lineage, lineage];
   const task: ProbeTask = {
-    config: baseConfig(trial.seed, mapSize),
+    config: baseConfig(trial.seed, mapSize, seated),
     specs:
-      trial.candidateSeat === 0
-        ? [wears(cand), wears(parent)]
-        : [wears(parent), wears(cand)],
+      trial.candidateSeat === 0 ? [wears(cand), other] : [other, wears(cand)],
   };
   return runMatchChild(WORKER, task, timeoutMs).then(record => ({
     ...trial,
@@ -150,6 +163,16 @@ function binomP(k: number, n: number): number {
   let p = 0;
   for (let i = 0; i <= n; i++) if (pmf(i) <= obs) p += pmf(i);
   return Math.min(1, p);
+}
+
+/** A playbook by the key the CLI and the reports use. */
+export function byKey(word: string): AiStrategyId {
+  for (const id of AI_STRATEGY_ORDER) {
+    if (AI_STRATEGY_KEYS[id] === word) return id;
+  }
+  throw new Error(
+    `unknown playbook "${word}" (want ${AI_STRATEGY_ORDER.map(i => AI_STRATEGY_KEYS[i]).join(', ')})`,
+  );
 }
 
 function pct(x: number): string {
@@ -277,9 +300,14 @@ async function main(): Promise<void> {
   const sweepRaw = valueOf(process.argv, '--sweep');
   const sweep = sweepRaw === null ? null : parseSweep(sweepRaw, MUTABLE_RANGES);
   const keysRaw = valueOf(process.argv, '--keys');
+  const vsRaw = valueOf(process.argv, '--vs');
+  const parentRaw = valueOf(process.argv, '--parent');
   const timeoutMs = arg('--match-timeout-ms', 300_000);
 
-  const parent: AiStrategy = AI_STRATEGIES[AiStrategyIdNs.steward];
+  const lineage =
+    parentRaw === null ? AiStrategyIdNs.steward : byKey(parentRaw);
+  const vs = vsRaw === null ? null : byKey(vsRaw);
+  const parent: AiStrategy = AI_STRATEGIES[lineage];
   const rng = new Rng(mutSeed);
 
   const candidates: Candidate[] = [
@@ -393,8 +421,14 @@ async function main(): Promise<void> {
   const seeds = Array.from({length: seedCount}, (_, i) => i + seedStart);
   const trials: Trial[] = [];
   // The control is the parent against itself — one match per seed, shared.
-  for (const seed of seeds)
+  for (const seed of seeds) {
     trials.push({candidate: -1, seed, candidateSeat: 0 as Owner});
+    // The mirror's control is one match: the parent against itself plays
+    // the same game from either chair. Against a FOREIGN opponent it does
+    // not, so that control owes both seatings too.
+    if (vs !== null)
+      trials.push({candidate: -1, seed, candidateSeat: 1 as Owner});
+  }
   // `identity` is that same match twice over; skip it and read the control
   // as its result, so the calibration costs nothing but still prints.
   for (let c = 1; c < candidates.length; c++) {
@@ -406,7 +440,8 @@ async function main(): Promise<void> {
 
   process.stderr.write(
     `probe: ${candidates.length} candidates × ${seeds.length} seeds ` +
-      `+ ${seeds.length} shared controls = ${trials.length} matches, ` +
+      `+ ${vs === null ? seeds.length : seeds.length * 2} shared controls ` +
+      `= ${trials.length} matches, ` +
       `jobs ${jobs}\n`,
   );
 
@@ -427,6 +462,8 @@ async function main(): Promise<void> {
             parent0,
             mapSize,
             timeoutMs,
+            lineage,
+            vs,
           ),
         );
         finished++;
@@ -442,24 +479,52 @@ async function main(): Promise<void> {
     }),
   );
 
-  const controls = new Map<number, MatchRecord | null>();
+  const ctlKey = (seed: number, seat: Owner): string =>
+    vs === null ? `${seed}` : `${seed}|${seat}`;
+  const controls = new Map<string, MatchRecord | null>();
   for (const r of results) {
-    if (r.candidate < 0) controls.set(r.seed, r.record);
+    if (r.candidate < 0)
+      controls.set(ctlKey(r.seed, r.candidateSeat), r.record);
   }
   // The calibration reads off the controls: identity in both seatings is
   // the control match itself, so it must be 100% identical, 0 flips, and
   // exactly the control's own seat split.
   for (const seed of seeds) {
-    const ctl = controls.get(seed) ?? null;
-    results.push({candidate: 0, seed, candidateSeat: 0 as Owner, record: ctl});
-    results.push({candidate: 0, seed, candidateSeat: 1 as Owner, record: ctl});
+    for (const seat of [0, 1] as Owner[]) {
+      results.push({
+        candidate: 0,
+        seed,
+        candidateSeat: seat,
+        record: controls.get(ctlKey(seed, seat)) ?? null,
+      });
+    }
   }
 
   console.log('');
   console.log(
-    `KNOB-SPACE PROBE — parent ${parent.name}, both seats, ` +
+    `KNOB-SPACE PROBE — ${parent.name} ` +
+      `${vs === null ? 'in both seats' : `vs ${AI_STRATEGIES[vs].name}`}, ` +
       `map ${mapSize}, seeds ${seeds[0]}-${seeds.at(-1)}`,
   );
+  console.log('');
+  if (vs !== null) {
+    // The mirror nulls at 50% because both seats play the same playbook.
+    // Against a foreign one it does not: the steward and the mason are not
+    // equally strong, and the seating mirror cancels the MAP's bias, never
+    // the playbooks'. So the rate here is a level, not a verdict — the
+    // paired flips against the control are the result.
+    console.log('');
+    console.log(
+      '  NOTE: two different playbooks, so the rate below is NOT nulled at',
+    );
+    console.log(
+      '  50% — it also carries whatever gap there is between the two lines.',
+    );
+    console.log(
+      '  Read the flips: they are the same seed and the same chair, with the',
+    );
+    console.log('  candidate the only thing that changed.');
+  }
   console.log('');
   console.log(
     '  cand      wins/trials    rate    95% CI            ' +
@@ -481,7 +546,7 @@ async function main(): Promise<void> {
         crashed++;
         continue;
       }
-      const ctl = controls.get(r.seed);
+      const ctl = controls.get(ctlKey(r.seed, r.candidateSeat));
       if (ctl && ctl.winner === r.record.winner && ctl.ticks === r.record.ticks)
         identical++;
       if (r.record.winner === null) {
@@ -523,7 +588,7 @@ async function main(): Promise<void> {
     let won = 0;
     let lost = 0;
     for (const r of mine) {
-      const ctl = controls.get(r.seed);
+      const ctl = controls.get(ctlKey(r.seed, r.candidateSeat));
       if (!ctl || ctl.winner === null) continue;
       const advisedWon = r.record!.winner === r.candidateSeat;
       const ctlWon = ctl.winner === r.candidateSeat;
