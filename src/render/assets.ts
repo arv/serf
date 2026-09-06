@@ -230,12 +230,14 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
     // it toward the water (see Building.facing). Long enough to overhang the
-    // footprint on purpose. It reaches *toward* the nearest water rather than
-    // provably into it: placement guarantees water within a tile of the
-    // footprint somewhere, and the facing points at the nearest such tile,
-    // but on a corner-only shore the pier's own tile can still be dry. It
-    // reads right at village zoom either way, which is the bar decor has to
-    // clear.
+    // footprint on purpose — nearly two tiles past it, where placement only
+    // promises water within one, so the reach here is an aim rather than a
+    // guarantee. Neither is the facing: it is a quarter turn, and most
+    // shorelines do not run square to the grid. So this is the deck's
+    // AUTHORED placement, and buildingSync turns and trims it about its
+    // landward end until it stands over water the player can see
+    // (#measurePier). Change the length or the standoff and the fit shifts
+    // with it — tools/modelLab/_pier.html is where that gets looked at.
     {
       prop: 'extra/building_docks_green',
       at: [0, 0.68],
