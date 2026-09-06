@@ -824,7 +824,7 @@ const HELP = `serf-valley playbook search
   --lineage <id>        playbook to descend from (default: steward)
   --generations <n>     generations to run (default: 3)
   --population <n>      candidates per generation, incumbent and dice
-                        included (default: 8)
+                        included, so at least 3 (default: 8)
   --rounds <n>          racing rounds; the field halves and the seed
                         budget doubles each one (default: 3)
   --first-seeds <n>     seeds in the first racing round (default: 4)
@@ -883,10 +883,21 @@ export function optionsFromArgv(): RunOptions {
       `--train and --holdout share ${overlap.length} seed(s): ${overlap.slice(0, 5).join(', ')}`,
     );
   }
+  const population = num('--population', 8);
+  if (population <= CONTROL_IDS.size) {
+    // The population counts the incumbent and the dice, so anything at or
+    // under two is a run with no mutants in it — a search that can only
+    // ever re-elect what it started with, while halvingPlan's floor of one
+    // mutant slot makes the printed schedule claim otherwise.
+    throw new Error(
+      `--population ${population} leaves no mutants: it counts the ` +
+        `${CONTROL_IDS.size} controls, so it must be at least ${CONTROL_IDS.size + 1}`,
+    );
+  }
   return {
     lineage: parseLineage(str('--lineage', 'steward')),
     generations: num('--generations', 3),
-    population: num('--population', 8),
+    population,
     rounds: num('--rounds', 3),
     firstSeeds: num('--first-seeds', 4),
     opponentsPerGen: num('--opponents', 2),

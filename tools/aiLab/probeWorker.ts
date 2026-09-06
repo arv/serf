@@ -41,9 +41,16 @@ async function main(): Promise<void> {
   process.stdout.write(JSON.stringify(record));
 }
 
-main().catch((err: unknown) => {
-  process.stderr.write(
-    err instanceof Error ? (err.stack ?? err.message) : String(err),
-  );
-  process.exitCode = 1;
-});
+// Guarded like evolveWorker.ts and every other entry point here. Today
+// this module is only reached by `import type`, so an unguarded main is
+// harmless — but probe.ts was in exactly that position until evolve.ts
+// imported one function from it, and then an unguarded main would have run
+// a whole sweep on import. The trap is cheaper to close than to remember.
+if (process.argv[1]?.endsWith('probeWorker.ts')) {
+  main().catch((err: unknown) => {
+    process.stderr.write(
+      err instanceof Error ? (err.stack ?? err.message) : String(err),
+    );
+    process.exitCode = 1;
+  });
+}

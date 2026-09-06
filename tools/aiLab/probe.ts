@@ -10,7 +10,7 @@ import type {Owner} from '../../src/sim/entities.ts';
 import {runMatchChild} from './childRun.ts';
 import type {EngineSpec} from './engines.ts';
 import type {MatchConfig, MatchRecord} from './match.ts';
-import {adviceOf, describeMutation, mutate} from './mutate.ts';
+import {adviceOf, describeMutation, MUTABLE_RANGES, mutate} from './mutate.ts';
 import type {ProbeTask} from './probeWorker.ts';
 
 /**
@@ -162,6 +162,83 @@ function arg(flag: string, fallback: number): number {
   return Number.isFinite(v) ? v : fallback;
 }
 
+/** A flag's value, refusing a flag written without one. `--keys --jobs 4`
+ * is a typo, not a request for a key called "--jobs". */
+export function valueOf(argv: readonly string[], flag: string): string | null {
+  const i = argv.indexOf(flag);
+  if (i < 0) return null;
+  const raw = argv[i + 1];
+  if (raw === undefined || raw.startsWith('--'))
+    throw new Error(`${flag} wants a value`);
+  return raw;
+}
+
+/**
+ * `--keys serfTarget, houseLimit` → the knobs advice may name.
+ *
+ * Trimmed, because a space after a comma is not a different knob, and
+ * checked against the advice shape, because the whole point of the flag is
+ * to narrow advice to knobs no posture sets. A typo silently narrows it to
+ * NOTHING instead — every candidate becomes the identity, every row prints
+ * 50%, and the run looks like a clean null rather than a broken one.
+ */
+export function parseKeys(raw: string, valid: readonly string[]): Set<string> {
+  const parts = raw
+    .split(',')
+    .map(k => k.trim())
+    .filter(k => k !== '');
+  if (parts.length === 0) throw new Error(`--keys selected nothing: "${raw}"`);
+  for (const k of parts) {
+    if (!valid.includes(k))
+      throw new Error(`--keys does not know "${k}" (want ${valid.join(', ')})`);
+  }
+  return new Set(parts);
+}
+
+/**
+ * `--sweep serfTarget:11,12,16` → one candidate per value.
+ *
+ * Every part is validated because none of the failures announce
+ * themselves: an unknown knob sweeps nothing, an empty list is
+ * `Number('') === 0`, a non-numeric value becomes NaN which serializes to
+ * JSON null which `parseAdvice` drops, and a value outside the knob's
+ * published range is silently CLAMPED — so the report would print a dose
+ * of 25 for a run that actually played 20. Each of those produces a
+ * plausible-looking table measuring something other than what it says.
+ */
+export function parseSweep(
+  raw: string,
+  ranges: Readonly<Record<string, readonly [number, number]>>,
+): {knob: string; values: number[]} {
+  const at = raw.indexOf(':');
+  if (at < 0) throw new Error(`--sweep wants <knob>:<v1,v2,...>, got "${raw}"`);
+  const knob = raw.slice(0, at).trim();
+  const range = ranges[knob];
+  if (!range) {
+    throw new Error(
+      `--sweep does not know "${knob}" (want ${Object.keys(ranges).join(', ')})`,
+    );
+  }
+  const values: number[] = [];
+  for (const part of raw.slice(at + 1).split(',')) {
+    const text = part.trim();
+    if (text === '') throw new Error(`--sweep has an empty value: "${raw}"`);
+    const v = Number(text);
+    if (!Number.isInteger(v))
+      throw new Error(`--sweep wants integers, got "${text}"`);
+    if (v < range[0] || v > range[1]) {
+      throw new Error(
+        `--sweep value ${v} is outside ${knob}'s range ${range[0]}-${range[1]}, ` +
+          `and advice would clamp it silently`,
+      );
+    }
+    values.push(v);
+  }
+  if (values.length === 0)
+    throw new Error(`--sweep selected nothing: "${raw}"`);
+  return {knob, values};
+}
+
 async function main(): Promise<void> {
   const seedCount = arg('--seeds', 24);
   const mutantCount = arg('--mutants', 8);
@@ -169,16 +246,20 @@ async function main(): Promise<void> {
   const mapSize = arg('--map', 96);
   const mutSeed = arg('--mut-seed', 1);
   const seedStart = arg('--seed-start', 1);
-  const onlyAt = process.argv.indexOf('--only');
+  const onlyRaw = valueOf(process.argv, '--only');
   const only =
-    onlyAt < 0 ? null : new Set(process.argv[onlyAt + 1]!.split(','));
-  const ablateAt = process.argv.indexOf('--ablate');
-  const ablate = ablateAt < 0 ? null : process.argv[ablateAt + 1]!;
-  const sweepAt = process.argv.indexOf('--sweep');
-  const sweep = sweepAt < 0 ? null : process.argv[sweepAt + 1]!;
-  const keysAt = process.argv.indexOf('--keys');
-  const keys =
-    keysAt < 0 ? null : new Set(process.argv[keysAt + 1]!.split(','));
+    onlyRaw === null
+      ? null
+      : new Set(
+          onlyRaw
+            .split(',')
+            .map(x => x.trim())
+            .filter(x => x !== ''),
+        );
+  const ablate = valueOf(process.argv, '--ablate');
+  const sweepRaw = valueOf(process.argv, '--sweep');
+  const sweep = sweepRaw === null ? null : parseSweep(sweepRaw, MUTABLE_RANGES);
+  const keysRaw = valueOf(process.argv, '--keys');
   const timeoutMs = arg('--match-timeout-ms', 300_000);
 
   const parent: AiStrategy = AI_STRATEGIES[AiStrategyIdNs.steward];
@@ -217,14 +298,12 @@ async function main(): Promise<void> {
   // says whether the printed value sits on a slope or at a peak, and only
   // the second tells you what to write in the playbook.
   if (sweep) {
-    const [knob, list] = sweep.split(':');
-    for (const raw of (list ?? '').split(',')) {
-      const value = Number(raw);
+    for (const value of sweep.values) {
       const one: AiStrategy = {...parent};
-      Object.assign(one, {[knob!]: value});
+      Object.assign(one, {[sweep.knob]: value});
       candidates.push({
-        label: `${knob}=${raw}`,
-        what: `dose · ${knob} ${String((parent as never)[knob!])}→${raw}`,
+        label: `${sweep.knob}=${value}`,
+        what: `dose · ${sweep.knob} ${String((parent as never)[sweep.knob])}→${value}`,
         advice: adviceOf(one),
       });
     }
@@ -280,6 +359,8 @@ async function main(): Promise<void> {
   // the printed playbook would do. For the five a posture does set, it is
   // not: pinning homeGuard also stops `fortify` raising it under a raid,
   // which no playbook edit would.
+  const keys =
+    keysRaw === null ? null : parseKeys(keysRaw, Object.keys(adviceOf(parent)));
   if (keys) {
     for (const c of candidates) {
       const narrowed: Record<string, unknown> = {};
