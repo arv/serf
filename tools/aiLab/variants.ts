@@ -38,6 +38,16 @@ const mason = AI_STRATEGIES[AiStrategyId.mason];
 const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
   {label: 'printed', what: 'the mason as shipped', play: mason},
   {
+    // What `evolve --lineage mason` promoted: +12.5 points against the
+    // whole league on a holdout (31.7% vs 19.2%, 23 flips toward and 8
+    // away, p = 0.011). Whether any of that lands against the STEWARD
+    // specifically is a different question — the league is five playbooks
+    // and the steward is the one the mason loses 158 in 160 to.
+    label: 'champion',
+    what: 'evolve champion — serfTarget 12→15, researchReserve 10→6',
+    play: {...mason, serfTarget: 15, researchReserve: 6},
+  },
+  {
     label: 'contest',
     what: 'found: fortify → muster (build an army instead of recalling one)',
     play: {
