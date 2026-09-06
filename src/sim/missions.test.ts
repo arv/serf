@@ -29,6 +29,7 @@ import {deserializeWorld, serializeWorld} from './save.ts';
 import {AiBrain} from './systems/ai.ts';
 import {cmds} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
+import * as TileResource from './tileResourceEnum.ts';
 import {
   canPlace,
   createWorld,
@@ -560,7 +561,105 @@ describe('the campaign missions', () => {
     expect(world.objectivesDone).toEqual([true]);
   }, 240_000);
 
-  it('mission 7 (The Rival Banner) reaches an ending under the elimination rules', async () => {
+  it('mission 7 (The Gilded Valley) is won by the taught line: open the seam, cut the mine, raise the Monument', async () => {
+    // The brain in the human's chair for the town — serfs, bread, soldiers,
+    // the answer to the raids — and a scripted hand for the three clicks the
+    // commission is actually about. It has to be scripted: no playbook ever
+    // sites a Monument (see aiHoldsGround.test.ts), and this mission's
+    // checklist replaces the raze-the-camp win outright, so a purely
+    // AI-driven seat would raze the camp and then play on forever.
+    const config = missionWorldConfig(MissionId.gildedValley);
+    config.players = config.players.map((p, i) =>
+      i === 0 ? {kind: PlayerKind.ai} : p,
+    );
+    const world = await createWorldAsync(config);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+
+    // The seam, found the way a player finds it: by looking at the map.
+    const seam = {x: 0, y: 0, n: 0};
+    for (let i = 0; i < world.map.resource.length; i++) {
+      if (world.map.resource[i] !== TileResource.GoldDep) continue;
+      seam.x += i % world.map.size;
+      seam.y += (i / world.map.size) | 0;
+      seam.n++;
+    }
+    expect(seam.n, 'the map has gold at all').toBeGreaterThan(0);
+    const knap = {
+      x: Math.round(seam.x / seam.n),
+      y: Math.round(seam.y / seam.n),
+    };
+
+    const researched = (tech: TechId): boolean =>
+      world.players[0]!.techs.researched.includes(tech);
+    let minePlaced = false;
+    let monumentPlaced = false;
+
+    const MAX = 90_000;
+    for (
+      let t = 0;
+      t < MAX && world.outcome.state === MatchState.playing;
+      t++
+    ) {
+      const commands = (
+        brain.shouldDecide(world.tick) ? brain.decide(world) : []
+      ).map(cmd => ({playerId: 0, cmd}));
+      // A player clicks when the button lights up.
+      if (world.tick % 50 === 0) {
+        if (!world.players[0]!.techs.active && !researched(TechId.deepMining)) {
+          commands.push(
+            ...cmds({kind: CommandKind.research, tech: TechId.deepMining}),
+          );
+        } else if (researched(TechId.deepMining)) {
+          if (!minePlaced) {
+            const spot = findSpot(
+              world,
+              BuildingTypeId.goldMine,
+              knap.x,
+              knap.y,
+            );
+            commands.push(
+              ...cmds({
+                kind: CommandKind.placeBuilding,
+                building: BuildingTypeId.goldMine,
+                x: spot.x,
+                y: spot.y,
+              }),
+            );
+            minePlaced = true;
+          } else if (!monumentPlaced) {
+            const spot = findSpot(
+              world,
+              BuildingTypeId.monument,
+              knap.x,
+              knap.y,
+            );
+            commands.push(
+              ...cmds({
+                kind: CommandKind.placeBuilding,
+                building: BuildingTypeId.monument,
+                x: spot.x,
+                y: spot.y,
+              }),
+            );
+            monumentPlaced = true;
+          }
+        }
+      }
+      tickWorld(world, commands);
+    }
+
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
+    expect(world.objectivesDone).toEqual([true, true, true]);
+  }, 480_000);
+
+  it('mission 8 (The Rival Banner) reaches an ending under the elimination rules', async () => {
     const config = missionWorldConfig(MissionId.rivalBanner);
     config.players = config.players.map((p, i) =>
       i === 0 ? {kind: PlayerKind.ai} : p,

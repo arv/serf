@@ -56,6 +56,7 @@ import {
 import * as HeraldNote from '../heraldNoteEnum.ts';
 import {
   type GameMap,
+  nearestSeamGround,
   playMin,
   playMax,
   tileBlocks,
@@ -1450,9 +1451,13 @@ export class AiBrain {
 
     // --- Population: keep loose serfs around ---------------------------------
     let serfCount = 0;
+    // Soldiers ride along in the same sweep: garrisonIsEnough needs the
+    // count and a scan of its own per beat would be the whole cost of it.
+    let soldierCount = 0;
     for (const u of world.units.values()) {
-      if (!u.dead && u.owner === this.playerId && u.kind === UnitTypeId.serf)
-        serfCount++;
+      if (u.dead || u.owner !== this.playerId) continue;
+      if (u.kind === UnitTypeId.serf) serfCount++;
+      else if (UNIT_DEFS[u.kind].combat) soldierCount++;
     }
     const researchPending = s.researchOrder.some(
       id => !techs.researched.includes(id),
@@ -1522,6 +1527,7 @@ export class AiBrain {
       mine: sortedById(mine),
       stock,
       serfCount,
+      soldierCount,
       stalled,
       placed,
       strategy: s,
@@ -1656,8 +1662,18 @@ export class AiBrain {
     // army that has stopped growing is as big as it is getting, so waiting
     // for the playbook's full size only feeds soldiers to the raids one at
     // a time (see AI_PACING.growthStallAfter).
-    let bar = mustersNeeded(s.armyAttackSize, idleFor);
-    if (world.tick - this.#armyGrewTick > AI_PACING.growthStallAfter) {
+    // A seat that holds ground prints a bar that means what it says: none
+    // of the three erosions below apply to it. See AiStrategy.holdsGround
+    // for why this cannot be a number — impatience walks any bar down to
+    // one soldier eventually, which is right for every seat whose plan ends
+    // at a rival's castle and wrong for the one whose plan is a clock.
+    let bar = s.holdsGround
+      ? s.armyAttackSize
+      : mustersNeeded(s.armyAttackSize, idleFor);
+    if (
+      !s.holdsGround &&
+      world.tick - this.#armyGrewTick > AI_PACING.growthStallAfter
+    ) {
       bar = Math.min(bar, Math.max(army.length, AI_PACING.staleFloor));
     }
     // ...and the wiped march's lesson over both (AI_WAR.wipeLesson): the
@@ -1695,11 +1711,26 @@ export class AiBrain {
     // does: it re-reads the rival's yard on the refresh clock, so the
     // garrison stays inside the trust window and the veto renews itself
     // forever. The clock, not the picture, is what breaks the standoff.
-    const heeded = idleFor > AI_PACING.forlornAfter ? null : odds;
+    // ...and for a holding seat the odds never speak at all: a favourable
+    // reading only ever STARTS a march the headcount bar was still waiting
+    // on, which is the one thing this seat must not do.
+    const heeded = s.holdsGround
+      ? null
+      : idleFor > AI_PACING.forlornAfter
+        ? null
+        : odds;
+    // A holding seat never musters, full stop — not "musters at a bar it is
+    // unlikely to reach". Leaving the printed bar honest was not enough:
+    // measured, a Mason with a healthy economy simply grew past its own 16,
+    // marched once, and razed the camp in 27 of 32 campaigns without ever
+    // laying a monument. `armyAttackSize` on such a seat describes the
+    // garrison it wants standing, and CLAMP (defs/difficulty.ts) caps every
+    // playbook's bar at 16 anyway, so there is no number that means never.
     const mustered =
-      heeded === null
+      !s.holdsGround &&
+      (heeded === null
         ? headcountReady
-        : heeded && cooled && army.length >= Math.max(MIN_SORTIE, wipedBar);
+        : heeded && cooled && army.length >= Math.max(MIN_SORTIE, wipedBar));
     // A hold has to reach the sweep as well: falling through to it would send
     // the army walking into unexplored ground instead, which is the one
     // outcome worse than the march it just refused. Only an actual hold
@@ -3740,7 +3771,23 @@ function spotFor(
   }
   const code = ANCHOR_RESOURCE[step.anchor];
   if (code === undefined) return null; // the keep anchor sites off the castle, not a seam
-  const tile = nearestClaimableResource(world, owner, code, baseX, baseY);
+  // A building with a ground rule of its own anchors on the ground THAT rule
+  // accepts, not on what a mine could dig. For the Monument the two differ:
+  // its rule counts a worked-out seam (map.ts `seamSpoil`) and a mine's
+  // search does not, so a seat that banked its gold before it could pay for
+  // the monument would find no anchor at all and never place one. Measured:
+  // the anchor went dark the tick the seam ran dry, on every seed that
+  // reached the step at all.
+  //
+  // It also drops the rival-ground screen `nearestClaimableResource` applies,
+  // which for the Monument changes nothing: gold is the one metal that screen
+  // already exempts (worldgen deals it to nobody, in the middle of the map).
+  // A future `nearResource` building on iron or silver would want that screen
+  // back, and would have to say so here.
+  const ground = BUILDING_DEFS[step.type].nearResource;
+  const tile = ground
+    ? nearestSeamGround(world.map, ground.kind, baseX, baseY)
+    : nearestClaimableResource(world, owner, code, baseX, baseY);
   if (tile < 0) return null;
   return outpost(
     findSpot(

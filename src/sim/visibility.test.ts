@@ -2,11 +2,12 @@ import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid';
 import {buildingDef} from './defs/buildings';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
 import {UNIT_DEFS} from './defs/units';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {addStorehouse, bareWorld} from './testUtils';
 import {SeatVision} from './visibility';
-import {spawnUnit} from './world';
+import {placeBuiltBuilding, placeSite, spawnUnit} from './world';
 
 describe('seat vision', () => {
   it('lights ground around your own units and not around anyone else', () => {
@@ -109,5 +110,77 @@ describe('seat vision', () => {
     v.recompute(world, 0);
     expect(v.visible[tileIdx(25, 25, world.map.size)]).toBe(1);
     expect(v.visible[tileIdx(0, 0, world.map.size)]).toBe(0);
+  });
+
+  it('puts a rival monument on your map without lighting the ground', () => {
+    const world = bareWorld(1, 2);
+    const m = placeBuiltBuilding(world, BuildingTypeId.monument, 1, 40, 40);
+    const v = new SeatVision(world.map.size);
+    v.recompute(world, 0);
+
+    // Explored, so the stone is remembered and the seat knows where to
+    // march...
+    expect(v.hasExplored(m.x + 0.5, m.y + 0.5)).toBe(true);
+    // ...but not lit, which is what keeps the garrison a thing you have to
+    // scout for: sync.ts sends a full building snapshot only on canSee.
+    expect(v.canSee(m.x + 0.5, m.y + 0.5)).toBe(false);
+    // And the reveal is the footprint, not a radius around it — a monument
+    // is not a watchtower for the men marching on it.
+    expect(v.hasExplored(m.x - 2.5, m.y + 0.5)).toBe(false);
+  });
+
+  it('ships the revealed tiles once, so the client sees stone not grass', () => {
+    const world = bareWorld(1, 2);
+    const m = placeBuiltBuilding(world, BuildingTypeId.monument, 1, 40, 40);
+    const v = new SeatVision(world.map.size);
+    v.recompute(world, 0);
+
+    // `revealed` is what actually carries tile CONTENTS to a client
+    // (sync.ts); explored ground with stale contents would draw remembered
+    // grass where the monument stands.
+    const foot = tileIdx(m.x, m.y, world.map.size);
+    expect(v.revealed).toContain(foot);
+    // Once. A tile already explored is not re-shipped every recompute.
+    v.recompute(world, 0);
+    expect(v.revealed).not.toContain(foot);
+  });
+
+  it('keeps a rival monument secret until somebody actually spends on it', () => {
+    const world = bareWorld(1, 2);
+    const site = placeSite(world, BuildingTypeId.monument, 1, 40, 40);
+    const v = new SeatVision(world.map.size);
+    v.recompute(world, 0);
+
+    // A site is free to put down — placeSite leaves the whole cost owed in
+    // siteNeeds — so a reveal on placement would be a costless way to bait
+    // every rival on the map into marching at nothing.
+    expect(v.hasExplored(site.x + 0.5, site.y + 0.5)).toBe(false);
+
+    // One load landed is somebody spending, and that is the tell.
+    site.siteNeeds![GoodId.stone] = (site.siteNeeds![GoodId.stone] ?? 1) - 1;
+    v.recompute(world, 0);
+    expect(v.hasExplored(site.x + 0.5, site.y + 0.5)).toBe(true);
+  });
+
+  it('does not count the borrowed hammer as spending on it', () => {
+    const world = bareWorld(1, 2);
+    const site = placeSite(world, BuildingTypeId.monument, 1, 40, 40);
+    // Every site borrows a hammer and gives it back; one landing says a
+    // builder turned up, not that anyone is committed to this.
+    site.siteNeeds![GoodId.hammer] = 0;
+    const v = new SeatVision(world.map.size);
+    v.recompute(world, 0);
+    expect(v.hasExplored(site.x + 0.5, site.y + 0.5)).toBe(false);
+  });
+
+  it('does not reveal your own monument to you (you can already see it)', () => {
+    const world = bareWorld(1, 2);
+    const m = placeBuiltBuilding(world, BuildingTypeId.monument, 0, 40, 40);
+    const v = new SeatVision(world.map.size);
+    v.recompute(world, 0);
+
+    // Its own sight lights it; the reveal pass skips the owner, so this is
+    // the ordinary building stamp rather than the beacon.
+    expect(v.canSee(m.x + 0.5, m.y + 0.5)).toBe(true);
   });
 });
