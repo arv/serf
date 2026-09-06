@@ -54,9 +54,10 @@ import {
   type StartSpot,
 } from './map.ts';
 import {parseMapData, type MapFile} from './mapFile.ts';
-import {nearestWalkable} from './path.ts';
+import {findPath, nearestWalkable} from './path.ts';
 import {makePlayer, type PlayerState} from './player.ts';
 import {makeUnit, type Unit} from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 
 export type GameEventKind = Enum<typeof GameEventKindNs>;
 import * as BuildingState from './buildingStateEnum.ts';
@@ -892,12 +893,40 @@ function shoveClear(world: World, b: Building): void {
     u.x = (idx % size) + 0.5;
     u.y = Math.floor(idx / size) + 0.5;
     u.lastTile = idx;
+
     // The route he was walking started inside the wall and is worthless
-    // now. Dropping it sends him back through the movement system, which
-    // re-paths from where he actually stands; his job, if he has one, is
-    // untouched and picks up again from there.
+    // now. For every task with a system behind it, dropping it is enough:
+    // that system notices the empty hands and re-plans from where he
+    // actually stands — logistics walks a hauler back to his source, and
+    // his job is untouched.
+    //
+    // A plain move is the exception, and the one case that must not be got
+    // wrong. Nothing owns it: movement skips a unit with no route and every
+    // other system filters for idle, so `move` with `path === null` is a man
+    // who stands there for the rest of the match — checkInvariants says so
+    // in as many words. So re-plan his walk from the new tile, and if the
+    // ground says there is no walk left, end the errand rather than leave
+    // him holding it. Same shape as routeAround in systems/movement.ts,
+    // which cannot be reached from here without world.ts importing a
+    // system.
+    const goal = u.path?.[u.path.length - 1];
     u.path = null;
     u.pathIdx = 0;
+    if (u.task.t !== UnitTaskKind.move) continue;
+    if (goal !== undefined) {
+      const p = findPath(
+        world.map,
+        Math.floor(u.x),
+        Math.floor(u.y),
+        goal % size,
+        Math.floor(goal / size),
+      );
+      if (p && p.length > 0) {
+        u.path = p;
+        continue;
+      }
+    }
+    u.task = {t: UnitTaskKind.idle, until: world.tick};
   }
 }
 

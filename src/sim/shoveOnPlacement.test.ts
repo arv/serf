@@ -1,8 +1,10 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
+import {checkInvariants} from './debug/invariants.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
-import {findPathToAdjacent} from './path.ts';
+import {findPath, findPathToAdjacent} from './path.ts';
 import {addSerf, addStorehouse, bareWorld} from './testUtils.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {placeSite} from './world.ts';
 
 /**
@@ -65,5 +67,44 @@ describe('a building raised on top of somebody', () => {
     placeSite(world, BuildingTypeId.barracks, 0, 30, 30);
     expect(bystander.x).toBe(x);
     expect(bystander.y).toBe(y);
+  });
+
+  /**
+   * The one task with nothing behind it. movement skips a unit with no
+   * route and every other system filters for idle, so a shove that left a
+   * `move` order pathless would strand him for the rest of the match —
+   * checkInvariants calls it out by name. Copilot caught this on #233.
+   */
+  it('re-plans a walk it interrupted rather than stranding it', () => {
+    const world = bareWorld();
+    const serf = addSerf(world, 31, 31);
+    // Under his own orders, walking somewhere across the map.
+    const path = findPath(world.map, 31, 31, 40, 40)!;
+    expect(path.length).toBeGreaterThan(0);
+    serf.path = path;
+    serf.pathIdx = 0;
+    serf.task = {t: UnitTaskKind.move};
+
+    placeSite(world, BuildingTypeId.barracks, 0, 30, 30);
+
+    expect(checkInvariants(world).violations).toEqual([]);
+    // He is still walking, from where the shove put him.
+    expect(serf.task.t).toBe(UnitTaskKind.move);
+    expect(serf.path).not.toBeNull();
+  });
+
+  it('ends the errand when the shove leaves nowhere to walk', () => {
+    const world = bareWorld();
+    const serf = addSerf(world, 31, 31);
+    // His destination is a tile the new building is about to stand on.
+    serf.path = [tileIdx(30, 30, world.map.size)];
+    serf.pathIdx = 0;
+    serf.task = {t: UnitTaskKind.move};
+
+    placeSite(world, BuildingTypeId.barracks, 0, 30, 30);
+
+    // Idle, not a pathless move — something else can claim him now.
+    expect(checkInvariants(world).violations).toEqual([]);
+    expect(serf.task.t).toBe(UnitTaskKind.idle);
   });
 });

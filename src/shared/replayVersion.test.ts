@@ -323,7 +323,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // since 49 shipped with the Monument. 49 was claimed by that work and by
 // this independently, both off 48; this is the one that landed second.
 const EXPECTED_VERSION = 50;
-const EXPECTED_HASH = 'c15161e8150ed26c31749103a961ccf3';
+const EXPECTED_HASH = '6d704b3b96db45d86651668c1735ea20';
 
 /**
  * Everything a replay's playback depends on, as raw source:
