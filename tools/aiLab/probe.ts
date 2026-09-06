@@ -7,6 +7,7 @@ import {
 } from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyIdNs from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
+import {intArg} from './args.ts';
 import {runMatchChild} from './childRun.ts';
 import type {EngineSpec} from './engines.ts';
 import type {MatchConfig, MatchRecord} from './match.ts';
@@ -155,11 +156,27 @@ function pct(x: number): string {
   return `${(100 * x).toFixed(1)}%`;
 }
 
-function arg(flag: string, fallback: number): number {
+/**
+ * A whole-number flag, validated rather than coerced — `args.ts` already
+ * makes this argument and balance.ts and tiers.ts already take it: a
+ * mistyped argument must stop the run, not answer it. The first draft here
+ * fell back to the default on anything unparseable, so `--seeds x` quietly
+ * played the default twenty-four and printed a table nobody could tell
+ * from the one they asked for.
+ */
+function arg(flag: string, fallback: number, min = 1): number {
   const i = process.argv.indexOf(flag);
   if (i < 0) return fallback;
-  const v = Number(process.argv[i + 1]);
-  return Number.isFinite(v) ? v : fallback;
+  const raw = process.argv[i + 1];
+  if (raw === undefined || raw.startsWith('--'))
+    throw new Error(`${flag} wants a value`);
+  const n = intArg(raw, fallback, min);
+  if (n === null) {
+    throw new Error(
+      `${flag} wants a whole number >= ${min}, got ${JSON.stringify(raw)}`,
+    );
+  }
+  return n;
 }
 
 /** A flag's value, refusing a flag written without one. `--keys --jobs 4`
@@ -241,11 +258,11 @@ export function parseSweep(
 
 async function main(): Promise<void> {
   const seedCount = arg('--seeds', 24);
-  const mutantCount = arg('--mutants', 8);
+  const mutantCount = arg('--mutants', 8, 0);
   const jobs = arg('--jobs', 4);
   const mapSize = arg('--map', 96);
-  const mutSeed = arg('--mut-seed', 1);
-  const seedStart = arg('--seed-start', 1);
+  const mutSeed = arg('--mut-seed', 1, 0);
+  const seedStart = arg('--seed-start', 1, 0);
   const onlyRaw = valueOf(process.argv, '--only');
   const only =
     onlyRaw === null

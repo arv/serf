@@ -11,6 +11,7 @@ import {
 
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
+import {intArg} from './args.ts';
 import {parseSeeds} from './bakeoff.ts';
 import {runMatchChild} from './childRun.ts';
 import type {EvolveTask, SeatEntry} from './evolveWorker.ts';
@@ -844,23 +845,67 @@ const HELP = `serf-valley playbook search
   --max-ticks <n>       undecided past here (default: 120000)
   --jobs <n>            matches in parallel (default: 4)
   --seed <n>            the run's own dice (default: 1)
-  --out <file>          JSONL record of every round
+  --out [file]          JSONL record of every round; bare, it writes
+                        runs/evolve.jsonl
   --match-timeout-ms <n>  wall-clock ceiling per match (default: 300000)
 
   Cost is (contenders × opponents × seeds × 2) summed over the rounds,
   per generation. The header prints it before anything is played.
 `;
 
-function num(flag: string, fallback: number): number {
+/** The token after a flag, refusing a flag written without one — so
+ * `--jobs --seed 3` is a typo rather than a request for a job count of
+ * "--seed". */
+function rawOf(flag: string): string | null {
   const i = process.argv.indexOf(flag);
-  if (i < 0) return fallback;
-  const v = Number(process.argv[i + 1]);
-  return Number.isFinite(v) ? v : fallback;
+  if (i < 0) return null;
+  const raw = process.argv[i + 1];
+  if (raw === undefined || raw.startsWith('--'))
+    throw new Error(`${flag} wants a value`);
+  return raw;
+}
+
+/** A whole-number flag, validated by args.ts rather than coerced. Falling
+ * back to the default on an unparseable value answers a mistyped run
+ * instead of stopping it. */
+function num(flag: string, fallback: number, min = 1): number {
+  const raw = rawOf(flag);
+  if (raw === null) return fallback;
+  const n = intArg(raw, fallback, min);
+  if (n === null) {
+    throw new Error(
+      `${flag} wants a whole number >= ${min}, got ${JSON.stringify(raw)}`,
+    );
+  }
+  return n;
+}
+
+/** A share in [0, 1] — the two knobs here that are not whole numbers. */
+function share(flag: string, fallback: number): number {
+  const raw = rawOf(flag);
+  if (raw === null) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) {
+    throw new Error(`${flag} wants a share in 0-1, got ${JSON.stringify(raw)}`);
+  }
+  return n;
 }
 
 function str(flag: string, fallback: string): string {
-  const i = process.argv.indexOf(flag);
-  return i < 0 ? fallback : (process.argv[i + 1] ?? fallback);
+  return rawOf(flag) ?? fallback;
+}
+
+/**
+ * `--out` is a toggle that takes an optional path. Bare, it writes the
+ * default; given a path, it writes there — but a path is only a path if it
+ * does not look like the next flag, or `--out --jobs 4` writes a file
+ * literally called "--jobs".
+ */
+function outPath(fallback: string): string | null {
+  const i = process.argv.indexOf('--out');
+  if (i < 0) return null;
+  const raw = process.argv[i + 1];
+  return raw === undefined || raw.startsWith('--') ? fallback : raw;
 }
 
 export function parseLineage(word: string): AiStrategyId {
@@ -901,20 +946,18 @@ export function optionsFromArgv(): RunOptions {
     rounds: num('--rounds', 3),
     firstSeeds: num('--first-seeds', 4),
     opponentsPerGen: num('--opponents', 2),
-    leagueChampions: num('--league', 4),
+    leagueChampions: num('--league', 4, 0),
     exploiter: !process.argv.includes('--no-exploiter'),
-    exploiterBar: num('--exploiter-bar', 0.6),
-    minPairs: num('--min-pairs', 8),
-    maxP: num('--max-p', 0.2),
+    exploiterBar: share('--exploiter-bar', 0.6),
+    minPairs: num('--min-pairs', 8, 0),
+    maxP: share('--max-p', 0.2),
     trainSeeds: train,
     holdoutSeeds: holdout,
     mapSize: num('--map', 96),
     maxTicks: num('--max-ticks', 120_000),
     jobs: num('--jobs', 4),
-    seed: num('--seed', 1),
-    out: process.argv.includes('--out')
-      ? str('--out', 'runs/evolve.jsonl')
-      : null,
+    seed: num('--seed', 1, 0),
+    out: outPath('runs/evolve.jsonl'),
     matchTimeoutMs: num('--match-timeout-ms', 300_000),
   };
 }

@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {intArg} from './args.ts';
 import {MUTABLE_RANGES} from './mutate.ts';
 import {parseKeys, parseSweep, valueOf} from './probe.ts';
 
@@ -82,5 +83,25 @@ describe('probe flags', () => {
         /wants <knob>/,
       );
     });
+  });
+});
+
+describe('numeric flags', () => {
+  // The lab already had this rule and a file arguing for it (args.ts, used
+  // by balance.ts and tiers.ts): a mistyped argument must stop the run,
+  // not answer it. probe and evolve were coercing instead, so `--seeds x`
+  // quietly played the default and printed a table nobody could tell from
+  // the one they asked for.
+  it('refuses a value that is not a whole number', () => {
+    expect(intArg('x', 24, 1)).toBeNull();
+    expect(intArg('1.5', 24, 1)).toBeNull();
+    expect(intArg('0', 24, 1)).toBeNull();
+    expect(intArg('80', 24, 1)).toBe(80);
+    expect(intArg(undefined, 24, 1)).toBe(24);
+  });
+
+  it('allows zero where zero is meaningful', () => {
+    // --mutants 0 is how a pure --sweep run is asked for.
+    expect(intArg('0', 8, 0)).toBe(0);
   });
 });
