@@ -54,9 +54,10 @@ import {
   type StartSpot,
 } from './map.ts';
 import {parseMapData, type MapFile} from './mapFile.ts';
-import {nearestWalkable} from './path.ts';
+import {findPath, nearestWalkable} from './path.ts';
 import {makePlayer, type PlayerState} from './player.ts';
 import {makeUnit, type Unit} from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 
 export type GameEventKind = Enum<typeof GameEventKindNs>;
 import * as BuildingState from './buildingStateEnum.ts';
@@ -852,6 +853,80 @@ function occupyFootprint(world: World, b: Building): void {
       if (blocks) world.map.blocked[i] = 1;
       pushDelta(world, i);
     }
+  }
+  if (blocks) shoveClear(world, b);
+}
+
+/**
+ * Anyone standing where the walls just went up gets moved outside them.
+ *
+ * Placement does not refuse a footprint with people in it — the ground is
+ * the player's to build on, and a serf who happens to be crossing it is not
+ * a reason to say no. But the tiles are blocked now, and a unit left inside
+ * them is sealed in: every path out is through a wall, so it can reach
+ * nothing and nothing can reach it.
+ *
+ * That is not merely a stuck serf. `dispatch` offers each haul to the
+ * nearest idle serf and, when he cannot path to the pickup, penalises the
+ * *job* rather than passing him over — so one walled-in serf standing in the
+ * middle of a village is the nearest candidate for haul after haul, blocks
+ * each one four times, and every one of them is finally aborted as
+ * unreachable with a demand backoff on its destination. Two serfs caught
+ * under a wheat farm stalled a whole village's logistics this way while the
+ * goods they were meant to carry sat in the castle.
+ *
+ * Deterministic: `world.units` iterates in insertion order and
+ * `nearestWalkable` scans fixed rings, so every client shoves the same units
+ * to the same tiles. A unit with nowhere walkable within the scan is left
+ * where it is — there is nothing better to do with it, and it is no worse
+ * off than before.
+ */
+function shoveClear(world: World, b: Building): void {
+  const size = world.map.size;
+  for (const u of world.units.values()) {
+    if (u.dead) continue;
+    const tx = Math.floor(u.x);
+    const ty = Math.floor(u.y);
+    if (tx < b.x || tx >= b.x + b.w || ty < b.y || ty >= b.y + b.h) continue;
+    const idx = nearestWalkable(world.map, tx, ty, 8);
+    if (idx < 0) continue;
+    u.x = (idx % size) + 0.5;
+    u.y = Math.floor(idx / size) + 0.5;
+    u.lastTile = idx;
+
+    // The route he was walking started inside the wall and is worthless
+    // now. For every task with a system behind it, dropping it is enough:
+    // that system notices the empty hands and re-plans from where he
+    // actually stands — logistics walks a hauler back to his source, and
+    // his job is untouched.
+    //
+    // A plain move is the exception, and the one case that must not be got
+    // wrong. Nothing owns it: movement skips a unit with no route and every
+    // other system filters for idle, so `move` with `path === null` is a man
+    // who stands there for the rest of the match — checkInvariants says so
+    // in as many words. So re-plan his walk from the new tile, and if the
+    // ground says there is no walk left, end the errand rather than leave
+    // him holding it. Same shape as routeAround in systems/movement.ts,
+    // which cannot be reached from here without world.ts importing a
+    // system.
+    const goal = u.path?.[u.path.length - 1];
+    u.path = null;
+    u.pathIdx = 0;
+    if (u.task.t !== UnitTaskKind.move) continue;
+    if (goal !== undefined) {
+      const p = findPath(
+        world.map,
+        Math.floor(u.x),
+        Math.floor(u.y),
+        goal % size,
+        Math.floor(goal / size),
+      );
+      if (p && p.length > 0) {
+        u.path = p;
+        continue;
+      }
+    }
+    u.task = {t: UnitTaskKind.idle, until: world.tick};
   }
 }
 
