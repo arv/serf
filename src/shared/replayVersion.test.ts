@@ -322,8 +322,29 @@ import {REPLAY_VERSION} from './replayVersion';
 // Monument's run of 49s there IS a build in the wild holding the old rule,
 // since 49 shipped with the Monument. 49 was claimed by that work and by
 // this independently, both off 48; this is the one that landed second.
-const EXPECTED_VERSION = 50;
-const EXPECTED_HASH = '6d704b3b96db45d86651668c1735ea20';
+// 52 for passing over a serf who cannot reach the pickup (dispatch,
+// systems/logistics.ts). Which serf claims which haul is sim behavior of
+// the plainest kind: the same world one tick later has different men
+// walking to different buildings, and a replay recorded before it diverges
+// immediately.
+//
+// This number has moved twice under it. The change was cut as 49 off 48,
+// went to 50 when the Monument work took 49, to 51 when the footprint shove
+// took 50, and to 52 now that paying a site as it rises has taken 51. It has
+// been the last one in the queue every time.
+//
+// 51's note follows.
+//
+// 51 for a site rising as it is paid for: construction no longer waits for
+// the whole bill before the first tick of work, so every building in every
+// match tops out on a different tick, hit points climb from the first
+// delivery, and the builder is recruited at a different moment — which moves
+// the hand that would have carried the next load. This was cut as 50 off the
+// same 49 the shove was; the shove landed first, so this took the next
+// number rather than sharing one. Two builds in the wild hold older rules
+// now, which is exactly what the numbers are for.
+const EXPECTED_VERSION = 52;
+const EXPECTED_HASH = '95ac438e49022dcf9d52f7e5ee727580';
 
 /**
  * Everything a replay's playback depends on, as raw source:

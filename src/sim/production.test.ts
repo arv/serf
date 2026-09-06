@@ -97,7 +97,14 @@ describe('gather production', () => {
     const world = bareWorld();
     addSerf(world, 26, 34); // the future builder-then-worker
     const site = addSite(world, 24, 30);
-    site.siteNeeds = {}; // materials "already delivered" (hammer loan included)
+    site.siteNeeds = {}; // materials "already delivered"
+    // ...including the borrowed hammer, which has to be ON the site rather
+    // than merely paid for: a frame rises with a tool in hand, and since
+    // sites rise as they are paid for (constructionSystem) the hammer can
+    // now be the one thing still on the road while the planks are stacked.
+    // `deliver` puts it here, so the fiction of an empty siteNeeds has to
+    // put it here too.
+    site.inputs[GoodId.hammer] = 1;
     site.inputs[GoodId.axe] = 1; // the post's pre-ordered tool, waiting on the rack
 
     // Nothing happens until the recruited builder arrives...
