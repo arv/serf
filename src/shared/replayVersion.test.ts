@@ -370,17 +370,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
-// Still 53 after the Monument was allowed to rise on credit
-// (defs/buildings.ts `raisedOnCredit`, read by the build order in
-// systems/ai.ts and by the build menu): the sim's placement guard never
-// asked a site to be paid for — `placeBuilding` checks the ground and the
-// tech and nothing else — so no tick behaves differently and no serialized
-// shape moved. What changed is two POLICIES about when to send the
-// command: a lord's build order, which is brain-side and replays as it
-// decided then, and a player's button, which is an input rather than the
-// sim. A logged command still executes exactly as it did.
-const EXPECTED_VERSION = 53;
-const EXPECTED_HASH = '9814acc9507aa3090a425dcafdcfbfa7';
+// 54 for the Monument's bread, halved from twenty loaves to ten: a
+// building's cost is consumed as its site rises, so every tick after the
+// first delivery carries different stores. The placement change that
+// shipped beside it did NOT need the number — nothing in the sim asks a
+// placement to be paid for, so what moved was when two policies send a
+// command a logged replay already contains.
+const EXPECTED_VERSION = 54;
+const EXPECTED_HASH = 'a7377c7085d47463305897d0ccc44d30';
 
 /**
  * Everything a replay's playback depends on, as raw source:

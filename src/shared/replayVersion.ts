@@ -712,4 +712,18 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 53;
+/**
+ * 54: the Monument's bread halved, twenty loaves to ten
+ * (defs/buildings.ts). A building's cost is consumed as its site rises, so
+ * every tick after the first delivery carries different stores — a balance
+ * number in the plainest sense, and a replay recorded before this build
+ * spends a larder it no longer has.
+ *
+ * The same commit lets the Monument be PLACED before its price is banked,
+ * and that half needed no number: nothing in the sim ever asked a
+ * placement to be paid for, so what moved there was two policies deciding
+ * when to send a command — a lord's build order and a player's button —
+ * and a logged command still executes as it did. The bread is why this is
+ * 54.
+ */
+export const REPLAY_VERSION = 54;

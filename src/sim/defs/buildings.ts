@@ -771,7 +771,16 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // the cost would be a clock, not a choice. The loaves are what make it
     // hurt, now that the mines eat them too (MINE_RATION_PER) — every one
     // laid in the plinth is one not in a shaft or a barracks.
-    cost: {[GoodId.gold]: 12, [GoodId.stone]: 30, [GoodId.food]: 20},
+    //
+    // Ten, halved from twenty, because twenty was not the cost it reads
+    // as. Tracking a mason's shelf: 30 stone banked by tick 15k, 12 gold
+    // by 33k, and then nothing but waiting on the twentieth loaf until
+    // 42.8k — its larder sits between nought and six for forty thousand
+    // ticks, because its own mines eat the rations. The bread was not a
+    // price among three, it was the only price, and it bought a delay
+    // rather than a decision. Halved it still hurts and no longer decides
+    // alone.
+    cost: {[GoodId.gold]: 12, [GoodId.stone]: 30, [GoodId.food]: 10},
     // The longest raising in the game by a factor of three. The build is
     // the point: a monument that goes up in a barracks' twenty-five seconds
     // is a purchase, and this has to be a thing rivals can see coming and
