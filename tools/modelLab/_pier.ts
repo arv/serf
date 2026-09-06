@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import type {BuildingSnap} from '../../src/protocol/messages';
 import {loadGlbAssets} from '../../src/render/assets';
-import {BuildingSync, type PierInfo} from '../../src/render/buildingSync';
+import {
+  BuildingSync,
+  PIER_SPOT_BACK,
+  type PierInfo,
+} from '../../src/render/buildingSync';
 import {CAMERA_YAW} from '../../src/render/cameraRig';
 import {HeightField} from '../../src/render/heightField';
 import {ScatterMesh} from '../../src/render/scatterMesh';
@@ -63,11 +67,32 @@ const filledIn = new HeightField(
   map.height.map(h => Math.max(h, WATER_LEVEL + 0.05)),
   map.size,
 );
-/** Is the deck's far end over water the player can see? The terrain mesh
- * draws the height field vertex for vertex, so this is the same question
- * the fit asks — just without its draft. */
-const spotWet = (p: PierInfo): boolean =>
-  heights.at(p.spotX, p.spotZ) < WATER_LEVEL;
+/**
+ * Is the deck's far end over water the player can see?
+ *
+ * Both points the fit judges, not just one: the fishing spot AND the tip a
+ * step beyond it (`PIER_SPOT_BACK` along the yaw — the spot is the only
+ * deck point `PierInfo` carries). Scoring the spot alone would call a deck
+ * that strides a narrow channel and lands on the far bank "in the water",
+ * because the spot behind the tip is over the channel — and that overshoot
+ * is one of the two things the fit exists to correct, so the page would be
+ * flattering the very change it is meant to check.
+ *
+ * The terrain mesh draws the height field vertex for vertex, so this is the
+ * fit's own question — just without its draft, since what the page reports
+ * is whether a deck ended up wet at all, not whether it cleared the
+ * waterline by a plank.
+ */
+const pierWet = (p: PierInfo): boolean => {
+  const wet = (x: number, z: number): boolean => heights.at(x, z) < WATER_LEVEL;
+  return (
+    wet(p.spotX, p.spotZ) &&
+    wet(
+      p.spotX + Math.sin(p.yaw) * PIER_SPOT_BACK,
+      p.spotZ + Math.cos(p.yaw) * PIER_SPOT_BACK,
+    )
+  );
+};
 
 await loadGlbAssets();
 
@@ -131,8 +156,8 @@ const rows = sites.map(s => {
     ...s,
     turn,
     trim: reach(a) - reach(f),
-    dryAsAuthored: !spotWet(a),
-    dryFitted: !spotWet(f),
+    dryAsAuthored: !pierWet(a),
+    dryFitted: !pierWet(f),
   };
 });
 

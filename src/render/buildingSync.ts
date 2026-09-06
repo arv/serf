@@ -92,8 +92,13 @@ const SHOAL_DRAFT = 0.14;
  * below wants this stretch of deck over water too — the rod hangs its line
  * near plumb (characters.ts fishingPoleProp), so a hook that clears the
  * shoreline by a plank's width is a hook in the grass.
+ *
+ * Exported because it is what closes `PierInfo`: the spot is the only point
+ * on the deck the struct carries, and the tip — the thing that must not end
+ * on grass — is this much further along the yaw. The model lab's pier page
+ * (tools/modelLab/_pier.ts) scores decks on both.
  */
-const PIER_SPOT_BACK = 0.4;
+export const PIER_SPOT_BACK = 0.4;
 
 /**
  * The docks model's plank top over the building's own ground, in world
