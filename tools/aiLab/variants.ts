@@ -4,8 +4,10 @@ import {
   type AiStrategy,
 } from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
-import * as PostureId from '../../src/sim/defs/postureIdEnum.ts';
+import * as BuildAnchorNs from '../../src/sim/defs/buildAnchorEnum.ts';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import * as TechId from '../../src/sim/defs/techIdEnum.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
 import {intArg} from './args.ts';
 import {runMatchChild} from './childRun.ts';
@@ -47,53 +49,93 @@ const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
     what: 'evolve champion — serfTarget 12→15, researchReserve 10→6',
     play: {...mason, serfTarget: 15, researchReserve: 6},
   },
-  {
-    label: 'contest',
-    what: 'found: fortify → muster (build an army instead of recalling one)',
-    play: {
-      ...mason,
-      stances: {...mason.stances, found: {posture: PostureId.muster}},
-    },
-  },
-  {
-    // `found` is required by the playbook format — a seat must have a mood
-    // for "a rival castle is on the map" — so the nearest thing to not
-    // reacting is to keep growing rather than to recall the army.
-    label: 'keep-growing',
-    what: 'found: fortify → expand (build on rather than recall)',
-    play: {
-      ...mason,
-      stances: {...mason.stances, found: {posture: PostureId.expand}},
-    },
-  },
-  {
-    label: 'deep-first',
-    what: 'deepMining 4th → 3rd, ahead of cobbledBoots',
-    play: {
-      ...mason,
-      researchOrder: [
-        TechId.soldiery,
-        TechId.ironworking,
-        TechId.deepMining,
-        TechId.cobbledBoots,
-      ],
-    },
-  },
-  {
-    label: 'contest+deep',
-    what: 'both of the above',
-    play: {
-      ...mason,
-      stances: {...mason.stances, found: {posture: PostureId.muster}},
-      researchOrder: [
-        TechId.soldiery,
-        TechId.ironworking,
-        TechId.deepMining,
-        TechId.cobbledBoots,
-      ],
-    },
-  },
+  // Towers, and the bow line they need. The Abbot is the template: two
+  // guard towers gated on archery and needing a barracks, `weaponMix`
+  // carrying the bow, archers in the train preference. `#manTowers` in
+  // systems/ai.ts already climbs them.
+  //
+  // Worth saying why the search could not have found this. `weaponMix`
+  // and `trainPreference` ARE in the mutation space, and three
+  // generations never moved them — because an archer with no bow tech and
+  // no tower to stand in is strictly worse than a spearman. The tech, the
+  // building and the arms only pay TOGETHER, and a hill-climb that must
+  // improve at every single step cannot cross a valley three knobs wide.
+  ...towerVariants(),
 ];
+
+/** The mason, taught the bow. Two orderings, because archery has to come
+ * out of the same research budget the monument's deepMining does: one
+ * puts the towers first and the plinth late, the other the reverse. */
+function towerVariants(): {label: string; what: string; play: AiStrategy}[] {
+  const towerStep = {
+    type: BuildingTypeId.guardTower,
+    count: 2,
+    anchor: BuildAnchorNs.base,
+    after: TechId.archery,
+    needs: BuildingTypeId.barracks,
+  };
+  // In front of the gold line: the two steps the mason exists for stay
+  // last, so a tower can never starve the plinth it is there to protect.
+  const at = mason.build.findIndex(b => b.type === BuildingTypeId.goldMine);
+  const build = [
+    ...mason.build.slice(0, at),
+    towerStep,
+    ...mason.build.slice(at),
+  ];
+  const arms = {
+    weaponMix: [0, 2],
+    trainPreference: [UnitTypeId.archer, UnitTypeId.spearman],
+    trainFallback: UnitTypeId.spearman,
+  };
+  return [
+    {
+      label: 'towers-late',
+      what: 'guard towers + bow, archery AFTER deepMining (plinth first)',
+      play: {
+        ...mason,
+        ...arms,
+        build,
+        researchOrder: [
+          TechId.soldiery,
+          TechId.ironworking,
+          TechId.deepMining,
+          TechId.archery,
+        ],
+      },
+    },
+    {
+      label: 'towers-first',
+      what: 'guard towers + bow, archery BEFORE deepMining (survive first)',
+      play: {
+        ...mason,
+        ...arms,
+        build,
+        researchOrder: [
+          TechId.soldiery,
+          TechId.ironworking,
+          TechId.archery,
+          TechId.deepMining,
+        ],
+      },
+    },
+    {
+      label: 'towers+serfs',
+      what: 'towers-first, plus the champion serfTarget 15',
+      play: {
+        ...mason,
+        ...arms,
+        build,
+        serfTarget: 15,
+        researchOrder: [
+          TechId.soldiery,
+          TechId.ironworking,
+          TechId.archery,
+          TechId.deepMining,
+        ],
+      },
+    },
+  ];
+}
 
 function arg(flag: string, fallback: number, min = 1): number {
   const i = process.argv.indexOf(flag);
