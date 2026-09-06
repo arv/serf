@@ -11,7 +11,7 @@ import {Controls} from '../input/controls';
 import {installMouseCapture} from '../input/mouseCapture';
 import type {NetInfo} from '../protocol/messages';
 import {Arrows} from '../render/arrows';
-import {loadGlbAssets} from '../render/assets';
+import {loadGlbAssets, setSeatFigures} from '../render/assets';
 import {BuildingSync} from '../render/buildingSync';
 import {Butterflies} from '../render/butterflies';
 import {loadCharacterAssets, serfSole} from '../render/characters';
@@ -655,6 +655,13 @@ export async function runMatch(
       // One batch with the roster: the seat chip reads playersMeta and
       // the strip reads the readouts, and the two must not disagree for
       // an update pass between the writes.
+      // Whose likeness each seat's monument wears travels with the deal,
+      // so the renderer learns it from the same roster the HUD names seats
+      // from. Monuments already on the board were built before this was
+      // known — a loaded save or a resync puts them there — so they are
+      // dropped and rebuilt with the right face on the next update.
+      setSeatFigures(msg.players);
+      buildingSync.forgetMonuments();
       batch(() => {
         setPlayersMeta(msg.players!);
         const seat = msg.players![viewerId()];
