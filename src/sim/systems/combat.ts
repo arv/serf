@@ -21,6 +21,68 @@ import {destroyBuilding, killUnit, type World} from '../world.ts';
 import {heldByEnemy} from './separation.ts';
 
 /**
+ * How close a melee man has to get before a ranged one breaks away, in tiles.
+ *
+ * Comfortably outside every melee reach (1.3), which is the point: the
+ * scoot starts before the sword does, not after.
+ */
+const KITE_TRIGGER = 2.4;
+
+/**
+ * The kite's price: ticks an archer is planted by his own shot.
+ *
+ * Drawing, loosing and turning to run are not one motion, and until this
+ * they were: the kite branch fired and re-pathed in the same tick, every
+ * tick, for free. That made the shoot-and-scoot absolute rather than
+ * merely good. An archer (speed 2.0) outruns a knight (1.6), so a chaser
+ * closed on him only while he stood still — and he never stood still, so
+ * the chaser never closed at all. Measured before this: eight archers beat
+ * eight knights without losing a man, and SIXTEEN knights lost to seven —
+ * against the nine-to-seven that combatOdds.ts had fitted KITE_EFFICIENCY
+ * to. The predictor was not wrong about what the balance should be; the sim
+ * was simply not implementing it, so the sim moved. (The fixed sim measures
+ * out at eleven knights to seven archers, and KITE_EFFICIENCY is re-fitted
+ * to that rather than to the old guess.)
+ *
+ * The plant is what makes the treadmill leak. Over one 24-tick shot cycle a
+ * chaser gains 0.08 tiles/tick while the archer is planted and loses 0.02 of
+ * it back while the archer runs, so he closes iff the plant is longer than
+ * about a fifth of the cycle. At 8 ticks he nets roughly a third of a tile a
+ * cycle — three or four shots to cross the gap between KITE_TRIGGER and his
+ * own reach, which is a real chance to land blows without ever making the
+ * kite pointless. Ranged still takes heavy at equal numbers from two a side
+ * up, as the counter table says; it just stops taking three times its own
+ * number for free. The bare 1v1 goes to the knight now, by eight hit points
+ * — the one place the triangle reads backwards, and the place where it
+ * matters least: a knight is two iron and an archer is none, so a duel
+ * between one of each was never a fight between equals.
+ *
+ * Spent against the shot's own clock rather than a new field on Unit: the
+ * man is planted while `cooldownLeft` is still within this many ticks of a
+ * full cooldown, which is exactly the window after a release. Nothing to
+ * serialize, and no way for the two to drift apart.
+ *
+ * Read through `plantedUntil` rather than subtracted at the use site, so
+ * that a bow which cycles faster than the plant stays well defined: both
+ * ranged units shoot every 24 ticks today, but at a cooldown under this the
+ * bare subtraction goes negative, and `cooldownLeft` floors at 0 — the gate
+ * would then never open and the man would stand rooted for good instead of
+ * kiting a little less.
+ */
+const KITE_PLANT_TICKS = 8;
+
+/**
+ * The `cooldownLeft` at or below which a ranged unit has recovered from his
+ * shot and may break away — a full cooldown less the plant, and never below
+ * zero. At zero he is planted for the whole cycle bar the tick he is ready
+ * on, which is the honest reading of a weapon that fires faster than a man
+ * can plant and recover.
+ */
+function plantedUntil(combat: CombatStats): number {
+  return Math.max(0, combat.cooldownTicks - KITE_PLANT_TICKS);
+}
+
+/**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
  * The economy learns about combat solely through deaths flowing into
  * removeDead + logistics reconcile. The whole RPS system is COUNTER_TABLE
@@ -223,12 +285,19 @@ export function combatSystem(world: World): void {
     if (targetUnit) {
       const dist = exactDist(targetUnit.x - unit.x, targetUnit.y - unit.y);
       const isRanged = combat.range > 2;
-      if (isRanged && dist < 2.4) {
+      if (isRanged && dist < KITE_TRIGGER) {
         if (dist <= combat.range && unit.cooldownLeft <= 0) {
           strikeUnit(world, unit, targetUnit);
           unit.cooldownLeft = combat.cooldownTicks;
         }
-        kiteAway(world, unit, targetUnit);
+        // He breaks away only once he has recovered from the shot; until
+        // then he is planted by it, and the man closing on him gains the
+        // ground that costs. See KITE_PLANT_TICKS. Dropping the path is
+        // what plants him — a scoot already in hand would otherwise carry
+        // him through the recovery it is supposed to cost.
+        if (unit.cooldownLeft <= plantedUntil(combat))
+          kiteAway(world, unit, targetUnit);
+        else unit.path = null;
       } else if (dist <= combat.range) {
         unit.path = null; // stand and fight
         if (unit.cooldownLeft <= 0) {

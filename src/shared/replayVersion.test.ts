@@ -356,8 +356,22 @@ import {REPLAY_VERSION} from './replayVersion';
 // the same object it was on every shipped path. A handed-in playbook is not
 // registered in AI_STRATEGIES either, so it cannot ride a save into a
 // replay. The hash is over raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 52;
-const EXPECTED_HASH = '3870deec4e0247a704e5aca455e004ab';
+// 53 for the kite's price: a ranged unit is planted by his own shot
+// (KITE_PLANT_TICKS in systems/combat.ts) instead of firing and re-pathing
+// in the same free tick, and the archer is 32 hit points rather than 35.
+// Behavior in the plainest sense — every fight resolves on different ticks
+// with different men left standing, and the hauls re-planned around those
+// fights walk elsewhere. Old logs stop playing, which is the honest
+// outcome. It takes 53 rather than sharing the 52 above because that one
+// is a shipped number and this changes how a tick resolves; the AiSeats
+// seam rode 52 precisely because it does not.
+// Still 53 after the plant window was clamped through `plantedUntil`: the
+// guard only bites on a cooldown shorter than the plant, and both bows in
+// the game cycle at 24 against a plant of 8, so every unit that exists
+// resolves to the same tick it did a moment ago. The hash is over raw
+// bytes, which is why it moved anyway.
+const EXPECTED_VERSION = 53;
+const EXPECTED_HASH = '543269a185f1ac2c8a0a6504d2117a1a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

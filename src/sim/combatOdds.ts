@@ -127,13 +127,27 @@ function countOf(force: Force, cls: UnitClass): number {
  * A model without it gets ranged-versus-heavy exactly backwards, reading the
  * heavy side's fatter hp pool as decisive.
  *
- * Not derived — fitted. Low enough that equal numbers go to the archers as the
- * duel says, high enough that numbers still tell and a big enough heavy force
- * still runs ranged down (roughly nine knights to seven archers). Real fights
- * happen among buildings and blocked tiles where the kite eventually snags, so
- * the honest value is neither 1 nor 0.
+ * Not derived — measured. It used to be fitted by eye at 0.35, and that was
+ * a guess about a sim that did not behave that way: the kite branch in
+ * systems/combat.ts fired and re-pathed in the same tick for free, so a
+ * chaser landed nothing whatsoever and sixteen knights lost to seven
+ * archers. The predictor was the honest half of that disagreement and the
+ * sim was the wrong half, so the sim was fixed (KITE_PLANT_TICKS) rather
+ * than this number bent to match it.
+ *
+ * 0.2 is what the fixed sim actually does. Reading it off is a matter of
+ * running the duel: `n` archers against a rising wall of knights until the
+ * archers are wiped gives the crossover, and the square law turns that into
+ * this constant. Across four to twelve archers the crossovers imply 0.16 to
+ * 0.23 with no trend in the scale — which is itself the check that the
+ * square law is the right model here — and 0.2 is the middle of that. The
+ * heavy force that runs seven archers down is now about eleven knights.
+ *
+ * Real fights happen among buildings and blocked tiles where the kite snags
+ * harder than it does on the open ground that number was taken on, so the
+ * honest value is neither 1 nor 0, and if anything is a little above this.
  */
-const KITE_EFFICIENCY = 0.35;
+const KITE_EFFICIENCY = 0.2;
 
 function reach(attacker: UnitClass, defender: UnitClass): number {
   const atk = UNIT_DEFS[CLASS_UNIT[attacker]];
