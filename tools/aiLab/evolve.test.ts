@@ -36,10 +36,16 @@ const opp = (label: string): Opponent => ({
   lineage: AiStrategyId.steward,
   delta: {},
 });
-const score = (wins: number, decided: number, undecided = 0): Score => ({
+const score = (
+  wins: number,
+  decided: number,
+  undecided = 0,
+  monument = 0,
+): Score => ({
   wins,
   decided,
   undecided,
+  monument,
   rate: decided ? wins / decided : 0,
 });
 
@@ -93,6 +99,23 @@ describe('scoring', () => {
       outcome({candidateSeat: 1 as Owner, winner: 0 as Owner}),
     ]);
     expect(s).toMatchObject({wins: 2, decided: 3});
+  });
+
+  it('counts a monument ending whoever won it', () => {
+    // Two ways to win, one percentage. The split has to be visible or a
+    // champion good at the war and bad at the race prints the same number
+    // as one good at both — and it is a property of the MATCH, not of the
+    // candidate, so a monument the candidate lost to counts too.
+    const s = scoreOf([
+      outcome({byMonument: false}),
+      outcome({winner: 1 as Owner, byMonument: true}),
+      outcome({
+        candidateSeat: 1 as Owner,
+        winner: 1 as Owner,
+        byMonument: true,
+      }),
+    ]);
+    expect(s).toMatchObject({wins: 2, decided: 3, monument: 2});
   });
 
   it('excludes undecided matches rather than awarding them', () => {

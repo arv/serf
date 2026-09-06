@@ -127,6 +127,25 @@ function playOne(
   });
 }
 
+/**
+ * Did this match end on a monument rather than on a razed castle?
+ *
+ * The monument is the second way to win in every mode (systems/victory.ts)
+ * and it is checked BEFORE the elimination rules, so a win rate now pools
+ * two different games: the war, and the race to haul sixty-odd goods to
+ * the middle of the map. A knob that helps one need not help the other,
+ * and a single percentage cannot say which it moved.
+ *
+ * Read off the loser: elimination only fires once a rival is no longer
+ * standing, so a decided match whose LOSER still has a castle was won some
+ * other way, and the monument is the only other way outside a commission.
+ */
+export function wonByMonument(rec: MatchRecord): boolean {
+  if (!rec.decided || rec.winner === null) return false;
+  const loser = rec.standings.find(s => s.playerId !== rec.winner);
+  return loser?.castleStanding === true;
+}
+
 /** Wilson 95% interval on k/n. */
 function wilson(k: number, n: number): [number, number] {
   if (n === 0) return [0, 1];
@@ -367,7 +386,7 @@ async function main(): Promise<void> {
   console.log('');
   console.log(
     '  cand      wins/trials    rate    95% CI            ' +
-      'flips ->/<-  same  undec  what',
+      'flips ->/<-  same  undec  mon  what',
   );
 
   for (let c = 0; c < candidates.length; c++) {
@@ -379,6 +398,7 @@ async function main(): Promise<void> {
     let toward = 0;
     let away = 0;
     let identical = 0;
+    let monument = 0;
     for (const r of mine) {
       if (!r.record) {
         crashed++;
@@ -392,6 +412,7 @@ async function main(): Promise<void> {
         continue;
       }
       decided++;
+      if (wonByMonument(r.record)) monument++;
       const won = r.record.winner === r.candidateSeat;
       if (won) wins++;
       if (ctl && ctl.winner !== null) {
@@ -409,6 +430,7 @@ async function main(): Promise<void> {
         `[${pct(lo).padStart(6)}, ${pct(hi).padStart(6)}]   ` +
         `${String(toward).padStart(3)}/${String(away).padEnd(3)}     ` +
         `${String(identical).padStart(3)}   ${String(undecided).padStart(3)}` +
+        `  ${String(monument).padStart(3)}` +
         `${crashed ? `  CRASHED ${crashed}` : ''}  ${cand.what}`,
     );
   }
@@ -450,4 +472,9 @@ async function main(): Promise<void> {
   console.log(`  ${((Date.now() - started) / 1000).toFixed(0)}s wall.`);
 }
 
-await main();
+// Guarded like every other CLI in this directory, and now load-bearing:
+// evolve.ts imports `wonByMonument` from here, and an unguarded main would
+// run a whole probe sweep on import.
+if (process.argv[1]?.endsWith('probe.ts')) {
+  await main();
+}

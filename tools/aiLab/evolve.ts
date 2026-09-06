@@ -20,6 +20,7 @@ import {
   mutate,
   type MutableKnob,
 } from './mutate.ts';
+import {wonByMonument} from './probe.ts';
 
 /**
  * The playbook search: a population, a league, and a race.
@@ -103,6 +104,19 @@ export interface Outcome extends Pairing {
   winner: Owner | null;
   ticks: number;
   decided: boolean;
+  /**
+   * Won on a finished monument rather than a razed castle. The monument is
+   * the second way to win in every mode (systems/victory.ts) and is checked
+   * BEFORE the elimination rules, so a win rate pools two different games —
+   * the war, and the race to haul sixty-odd goods to the middle of the map.
+   * A champion that wins one and loses the other prints the same rate as
+   * one that is good at both, and the search would promote either.
+   *
+   * Recorded, not optimized: what a search can reach here is the economy
+   * that FUNDS a monument, never the monument itself — `build` is frozen
+   * out of the mutation space, and the monument is a build step.
+   */
+  byMonument?: boolean;
 }
 
 export interface Score {
@@ -110,6 +124,8 @@ export interface Score {
   decided: number;
   undecided: number;
   rate: number;
+  /** Of the decided matches, how many ended on a monument. */
+  monument: number;
 }
 
 /** Every match a round owes: each candidate against each opponent, both
@@ -138,15 +154,23 @@ export function scoreOf(outcomes: readonly Outcome[]): Score {
   let wins = 0;
   let decided = 0;
   let undecided = 0;
+  let monument = 0;
   for (const o of outcomes) {
     if (!o.decided || o.winner === null) {
       undecided++;
       continue;
     }
     decided++;
+    if (o.byMonument) monument++;
     if (o.winner === o.candidateSeat) wins++;
   }
-  return {wins, decided, undecided, rate: decided ? wins / decided : 0};
+  return {
+    wins,
+    decided,
+    undecided,
+    monument,
+    rate: decided ? wins / decided : 0,
+  };
 }
 
 /**
@@ -397,6 +421,7 @@ function play(
           winner: rec.winner,
           ticks: rec.ticks,
           decided: rec.decided,
+          byMonument: wonByMonument(rec),
         });
       } catch {
         resolve({...p, winner: null, ticks: 0, decided: false});
@@ -630,6 +655,7 @@ export async function run(o: RunOptions): Promise<void> {
         `  ${id.padEnd(7)} ${String(s.wins).padStart(3)}/${String(s.decided).padEnd(3)}` +
           ` ${pct(s.rate).padStart(6)} [${pct(lo)}, ${pct(hi)}]` +
           `${s.undecided ? ` undec ${s.undecided}` : ''}` +
+          `${s.monument ? ` mon ${s.monument}` : ''}` +
           `${id === bestId ? '  ←' : '   '} ${c.changes}`,
       );
     }
@@ -769,7 +795,8 @@ export async function run(o: RunOptions): Promise<void> {
     const [lo, hi] = wilson(s.wins, s.decided);
     console.log(
       `  ${label}  ${s.wins}/${s.decided}  ${pct(s.rate)} [${pct(lo)}, ${pct(hi)}]` +
-        `${s.undecided ? ` · undecided ${s.undecided}` : ''}`,
+        `${s.undecided ? ` · undecided ${s.undecided}` : ''}` +
+        ` · won on a monument ${s.monument}`,
     );
   }
   const hp = pairedFlips(champOuts, printOuts);
