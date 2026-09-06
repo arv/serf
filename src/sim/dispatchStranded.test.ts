@@ -1,7 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
-import * as HaulPhase from './haulPhaseEnum.ts';
 import {addSerf, addSite, addStorehouse, bareWorld} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import type {World} from './world.ts';
