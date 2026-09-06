@@ -421,16 +421,19 @@ export async function runMatch(
   renderer.scene.add(terrain.group);
   const roads = new RoadDecal(init.map, heights);
   renderer.scene.add(roads.mesh);
+  const scatter = new ScatterMesh(init.map, heights);
+  renderer.scene.add(scatter.group);
   if (import.meta.env.DEV) {
     // Ground-paint experiments: poke __mirror.map.pathLevel, then
     // __terrain.repaintAll() and __roads.rebuild(__mirror.map).
+    // Shake experiments without a woodcutter: __scatter.chop(x, z) at a
+    // wooded tile is exactly the call the chop cue makes.
     Object.assign(window as unknown as Record<string, unknown>, {
       __terrain: terrain,
       __roads: roads,
+      __scatter: scatter,
     });
   }
-  const scatter = new ScatterMesh(init.map, heights);
-  renderer.scene.add(scatter.group);
   const grass = new GrassField(init.map, heights);
   renderer.scene.add(grass.mesh);
   const water = new WaterMesh(init.map);
@@ -475,7 +478,15 @@ export async function runMatch(
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights);
-  sync.onCue = (cue, x, z, delaySec) => playAt(cue, x, z, 1, delaySec);
+  sync.onCue = (cue, x, z, delaySec) => {
+    playAt(cue, x, z, 1, delaySec);
+    // The axe that files the sound also moves the tree. Riding the one
+    // cue — same instant, same lead — is what keeps the shudder on the
+    // bite: the animation's measured impact phase already places this
+    // call, so the sound and the shake cannot drift from the swing or
+    // from each other.
+    if (cue === 'chop') scatter.chop(x, z, delaySec);
+  };
   // Arrows fly render -> render: the sync says when a bow looses and at
   // what, the arrows layer owns the flight. Same injection shape as the
   // cues above.
@@ -1011,6 +1022,9 @@ export async function runMatch(
     water.update(now);
     mist.update(now);
     butterflies.update(now);
+    // Trees the woodcutters are hitting. 0 while paused, like the
+    // arrows: an axe frozen mid-swing leaves its tree frozen mid-shiver.
+    scatter.update(speed() === 0 ? 0 : dt);
     // After sync.update: the stamps read the publish it just polled.
     footprints.update(now, speed() === 0);
     // Same view rect the unit sync culls against — sails and roof watches

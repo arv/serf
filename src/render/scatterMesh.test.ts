@@ -5,10 +5,30 @@ import type {MapView} from '../sim/map';
 import * as Terrain from '../sim/terrainEnum.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import {HeightField} from './heightField';
-import {CHUNK_TILES, ScatterMesh} from './scatterMesh';
+import {CHUNK_TILES, ScatterMesh, SHAKE_SECS, shakeCurve} from './scatterMesh';
 
 // Every sprite in here is painted on a 2D canvas, which node has none of.
 // None of them reaches the instance matrices this file reads.
+// The model pack never loads in node, and its fallbacks plant bamboo
+// where the groves would be — but a shaking trunk is a GLB tree, so the
+// chop tests need real tree archetypes. Three boxes stand in for them:
+// what those tests read is the instance matrix, not the mesh.
+vi.mock('./assets', () => ({
+  glbTrees: (): {
+    geometries: THREE.BufferGeometry[];
+    material: THREE.Material;
+  } => ({
+    geometries: [
+      new THREE.BoxGeometry(0.4, 1, 0.4),
+      new THREE.BoxGeometry(0.5, 1, 0.5),
+    ],
+    material: new THREE.MeshBasicMaterial(),
+  }),
+  glbRocks: (): null => null,
+  glbDoodads: (): null => null,
+  glbForest: (): null => null,
+}));
+
 vi.mock('./spriteTextures', () => ({
   foliageMaterial: (): THREE.Material => new THREE.MeshBasicMaterial(),
   makeBushSprite: (): THREE.Texture => new THREE.Texture(),
@@ -174,5 +194,173 @@ describe('ScatterMesh chunking', () => {
         map.resource[tileIdx(Math.floor(p.x), Math.floor(p.z), SIZE)],
       ).not.toBe(TileResource.Wood);
     }
+  });
+});
+
+/** The pose of every instance a tile is drawing right now. */
+function posesOn(
+  scatter: ScatterMesh,
+  tx: number,
+  tz: number,
+): THREE.Matrix4[] {
+  const out: THREE.Matrix4[] = [];
+  const m = new THREE.Matrix4();
+  const p = new THREE.Vector3();
+  scatter.group.traverse(o => {
+    if (!(o instanceof THREE.InstancedMesh)) return;
+    for (let i = 0; i < o.count; i++) {
+      o.getMatrixAt(i, m);
+      p.setFromMatrixPosition(m);
+      if (Math.floor(p.x) === tx && Math.floor(p.z) === tz && p.y > -50) {
+        out.push(m.clone());
+      }
+    }
+  });
+  return out;
+}
+
+/** Which way an instance's trunk points. Trees are planted with a lean of
+ * their own (#placeGrove hashes one in), so a shake is only ever read
+ * here as a change from the rest pose, never as absolute tilt. */
+function trunkUp(m: THREE.Matrix4): THREE.Vector3 {
+  return new THREE.Vector3(0, 1, 0)
+    .applyQuaternion(new THREE.Quaternion().setFromRotationMatrix(m))
+    .normalize();
+}
+
+/** How far the tile's trees have swung from `rest`, in radians, and which
+ * one moved most. Instance order is the traversal's, which is stable. */
+function swing(
+  scatter: ScatterMesh,
+  rest: THREE.Matrix4[],
+  tx: number,
+  tz: number,
+): {angle: number; from: THREE.Vector3; to: THREE.Vector3} {
+  let out = {
+    angle: 0,
+    from: new THREE.Vector3(0, 1, 0),
+    to: new THREE.Vector3(0, 1, 0),
+  };
+  for (const [i, m] of posesOn(scatter, tx, tz).entries()) {
+    const from = trunkUp(rest[i]!);
+    const to = trunkUp(m);
+    const angle = from.angleTo(to);
+    if (angle > out.angle) out = {angle, from, to};
+  }
+  return out;
+}
+
+describe('shakeCurve', () => {
+  it('is still while the axe is falling and once the ring dies', () => {
+    expect(shakeCurve(-0.2, 6)).toBe(0);
+    expect(shakeCurve(0, 6)).toBe(0);
+    expect(shakeCurve(SHAKE_SECS, 6)).toBe(0);
+    expect(shakeCurve(SHAKE_SECS + 1, 6)).toBe(0);
+  });
+
+  it('swings hardest early and decays', () => {
+    // A quarter period in is the first swing's peak.
+    const first = Math.abs(shakeCurve(1 / (4 * 6), 6));
+    const later = Math.abs(shakeCurve(1 / (4 * 6) + 3 / 6, 6));
+    expect(first).toBeGreaterThan(0.5);
+    expect(later).toBeLessThan(first / 2);
+  });
+});
+
+/**
+ * One tile of wood in the middle of a meadow. The chop tests need to know
+ * which tree the axe found: in a six-by-six grove the nearest trunk to a
+ * given spot depends on the placement hashes, and here it can only be one
+ * of the two standing on this tile.
+ */
+function loneGroveMap(): MapView {
+  const n = SIZE * SIZE;
+  return {
+    size: SIZE,
+    play: PLAY,
+    terrain: new Uint8Array(n).fill(Terrain.Grass),
+    resource: (() => {
+      const r = new Uint8Array(n);
+      r[tileIdx(TX, TZ, SIZE)] = TileResource.Wood;
+      return r;
+    })(),
+    blocked: new Uint8Array(n),
+    buildingAt: new Int16Array(n).fill(-1),
+    pathLevel: new Uint8Array(n),
+    height: new Float32Array(n).fill(0.6),
+  };
+}
+
+const TX = 40;
+const TZ = 24;
+
+describe('ScatterMesh chop', () => {
+  it('leaves the woods standing until an axe lands', () => {
+    const scatter = build(loneGroveMap());
+    const rest = posesOn(scatter, TX, TZ);
+    expect(rest.length).toBeGreaterThan(0);
+    scatter.update(0.1);
+    expect(swing(scatter, rest, TX, TZ).angle).toBeLessThan(1e-6);
+  });
+
+  it('shakes the struck tree and stands it back up', () => {
+    const scatter = build(loneGroveMap());
+    const rest = posesOn(scatter, TX, TZ);
+    scatter.chop(TX + 0.5, TZ + 0.5);
+    // A quarter period into the ring: near the first swing's peak.
+    scatter.update(1 / (4 * 6));
+    expect(swing(scatter, rest, TX, TZ).angle).toBeGreaterThan(0.005);
+    // Ring it out; the last write puts the rest pose back exactly.
+    for (let i = 0; i < 60; i++) scatter.update(1 / 60);
+    const after = posesOn(scatter, TX, TZ);
+    expect(after).toHaveLength(rest.length);
+    for (const [i, m] of after.entries()) {
+      expect(m.elements).toEqual(rest[i]!.elements);
+    }
+  });
+
+  it('holds the tree still for the lead the sound was given', () => {
+    const scatter = build(loneGroveMap());
+    const rest = posesOn(scatter, TX, TZ);
+    scatter.chop(TX + 0.5, TZ + 0.5, 0.25);
+    // Mid-swing: the cue is booked, the axe has not arrived.
+    scatter.update(0.2);
+    expect(swing(scatter, rest, TX, TZ).angle).toBeLessThan(1e-6);
+    // Past the bite, on the same clock the delay was counted in.
+    scatter.update(0.05 + 1 / (4 * 6));
+    expect(swing(scatter, rest, TX, TZ).angle).toBeGreaterThan(0.005);
+  });
+
+  it('tips the trunk away from the woodcutter', () => {
+    const scatter = build(loneGroveMap());
+    const rest = posesOn(scatter, TX, TZ);
+    // Swung from due south of the tile: the canopy must rock north.
+    scatter.chop(TX + 0.5, TZ - 0.4);
+    scatter.update(1 / (4 * 6));
+    const {angle, from, to} = swing(scatter, rest, TX, TZ);
+    expect(angle).toBeGreaterThan(0.005);
+    // Where the treetop went, against where it was resting.
+    const moved = to.clone().sub(from);
+    expect(moved.z).toBeGreaterThan(0);
+    expect(Math.abs(moved.x)).toBeLessThan(Math.abs(moved.z));
+  });
+
+  it('swings at nothing in a clearing', () => {
+    const scatter = build(loneGroveMap());
+    const rest = posesOn(scatter, TX, TZ);
+    // Open meadow, tiles away from the wood: no trunk, nothing to advance.
+    scatter.chop(TX + 8, TZ + 8);
+    scatter.update(1 / (4 * 6));
+    expect(swing(scatter, rest, TX, TZ).angle).toBeLessThan(1e-6);
+  });
+
+  it('drops a felled tree mid-shiver', () => {
+    const scatter = build(loneGroveMap());
+    scatter.chop(TX + 0.5, TZ + 0.5);
+    scatter.update(1 / (4 * 6));
+    scatter.removeTile(tileIdx(TX, TZ, SIZE));
+    // The last blow must not put a felled trunk back on the map.
+    scatter.update(1 / 60);
+    expect(posesOn(scatter, TX, TZ)).toHaveLength(0);
   });
 });
