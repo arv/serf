@@ -348,8 +348,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // World['map'] to the MapView it only ever reads. Nothing calls it that
 // did not before, and it returns the same quarter turn for the same
 // footprint. The hash is over raw bytes, which is why it moved anyway.
+// Still 52 after AiSeats took an optional playbook per seat (sim/aiSeats.ts):
+// the search seam, and the same reasoning as every brain-side entry above —
+// playback never runs a brain, so a seat that would DECIDE differently
+// replays as it decided then. This one is a step milder still: the argument
+// is optional and nothing in the game passes it, so the constructed brain is
+// the same object it was on every shipped path. A handed-in playbook is not
+// registered in AI_STRATEGIES either, so it cannot ride a save into a
+// replay. The hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 52;
-const EXPECTED_HASH = 'ddbf5afa6989dc94d11a3820ecb303f8';
+const EXPECTED_HASH = '3870deec4e0247a704e5aca455e004ab';
 
 /**
  * Everything a replay's playback depends on, as raw source:
