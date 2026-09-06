@@ -54,4 +54,22 @@ describe('a seat’s monument figure', () => {
   it('falls back rather than throwing on a playbook it does not know', () => {
     expect(figureForStrategy(999)).toBe(DEFAULT_FIGURE);
   });
+
+  /**
+   * The figures are cache keys: render/assets holds one monument template
+   * per figure in a Map keyed by the figure itself. Two seats on the same
+   * playbook must therefore get the same object, or the identical statue is
+   * built and kept twice. (Copilot's finding on #237.)
+   */
+  it('hands the same playbook the very same object', () => {
+    for (const id of ALL) {
+      expect(figureForStrategy(id)).toBe(figureForStrategy(id));
+    }
+    expect(figureForStrategy(undefined)).toBe(figureForStrategy(undefined));
+  });
+
+  it('hands different playbooks different objects', () => {
+    const objects = ALL.map(id => figureForStrategy(id));
+    expect(new Set(objects).size).toBe(ALL.length);
+  });
 });

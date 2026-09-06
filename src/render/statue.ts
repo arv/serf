@@ -202,16 +202,35 @@ export interface MonumentFigure {
  * game opens on, and a player's own monument should not change shape
  * because of who else was dealt into the match.
  */
-const FIGURE_OF = (): Readonly<
+let figures:
+  | Readonly<Record<Enum<typeof AiStrategyId>, MonumentFigure>>
+  | undefined;
+
+/**
+ * The table, built once on first use.
+ *
+ * Lazy because FIGURE_LOREKEEPER lives in characters.ts, which is not
+ * initialized by the time this module's top level runs — a table built up
+ * there had the abbot's body as `undefined`, and every abbot would have
+ * raised a headless plinth.
+ *
+ * Memoized because the objects are cache keys. The monument templates are
+ * held in a Map keyed by the figure itself, so a table rebuilt per call
+ * would hand two seats on the same playbook two different keys and build
+ * the identical statue twice.
+ */
+function figureTable(): Readonly<
   Record<Enum<typeof AiStrategyId>, MonumentFigure>
-> => ({
-  // The builder, and the only playbook that sets out to raise one of these.
-  [AiStrategyId.mason]: {pose: SERF_AT_REST, kind: UnitTypeId.serf},
-  [AiStrategyId.warlord]: {pose: LORD_AT_ARMS, kind: UnitTypeId.knight},
-  [AiStrategyId.abbot]: {pose: ABBOT_AT_STUDY, kind: FIGURE_LOREKEEPER},
-  [AiStrategyId.fletcher]: {pose: FLETCHER_AT_REST, kind: UnitTypeId.archer},
-  [AiStrategyId.steward]: {pose: STEWARD_AT_STORES, kind: UnitTypeId.worker},
-});
+> {
+  return (figures ??= {
+    // The builder, and the only playbook that sets out to raise one of these.
+    [AiStrategyId.mason]: {pose: SERF_AT_REST, kind: UnitTypeId.serf},
+    [AiStrategyId.warlord]: {pose: LORD_AT_ARMS, kind: UnitTypeId.knight},
+    [AiStrategyId.abbot]: {pose: ABBOT_AT_STUDY, kind: FIGURE_LOREKEEPER},
+    [AiStrategyId.fletcher]: {pose: FLETCHER_AT_REST, kind: UnitTypeId.archer},
+    [AiStrategyId.steward]: {pose: STEWARD_AT_STORES, kind: UnitTypeId.worker},
+  });
+}
 
 /** The serf, for the human seat and for anything with no playbook. */
 export const DEFAULT_FIGURE: MonumentFigure = {
@@ -220,20 +239,14 @@ export const DEFAULT_FIGURE: MonumentFigure = {
 };
 
 /**
- * The figure a seat's monument wears, by its playbook.
- *
- * Built per call rather than once at module scope, and that is load-bearing:
- * FIGURE_LOREKEEPER lives in characters.ts, which is not initialized by the
- * time this module's top level runs, so a table built up there had the
- * abbot's body as `undefined` and every abbot raised a headless plinth. A
- * test caught it; the shape of the bug would not have shown until a
- * Lorekeeper seat finished a monument.
+ * The figure a seat's monument wears, by its playbook. The same playbook
+ * always returns the same object — see figureTable.
  */
 export function figureForStrategy(
   strategy: number | undefined,
 ): MonumentFigure {
   if (strategy === undefined) return DEFAULT_FIGURE;
-  return FIGURE_OF()[strategy as Enum<typeof AiStrategyId>] ?? DEFAULT_FIGURE;
+  return figureTable()[strategy as Enum<typeof AiStrategyId>] ?? DEFAULT_FIGURE;
 }
 
 /**

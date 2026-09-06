@@ -472,6 +472,14 @@ export async function runMatch(
   // Presentation cues flow render -> audio, injected like the fog: the
   // sync knows when and where, the audio layer knows whether and how loud.
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);
+  // Whose likeness each seat raises is module state in the renderer, and it
+  // outlives a match: the roster that fills it arrives on the first frame,
+  // which is after the line below has already put this match's buildings —
+  // monuments included, on a resync or a loaded save — on the board. Left
+  // alone, a second match would raise its first monuments wearing the
+  // previous match's deal. Clearing here means they start on the serf and
+  // are rebuilt the moment the real roster lands.
+  setSeatFigures([]);
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights);
