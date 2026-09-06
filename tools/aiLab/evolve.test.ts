@@ -326,6 +326,39 @@ describe('candidates', () => {
     expect(deltaOf(base, {...base})).toEqual({});
   });
 
+  it('reports a revert to the printed value as a change', () => {
+    // The exploiter bug: its delta was read against the base captured
+    // BEFORE the generation promoted, so a mutation landing back on the
+    // pre-champion value vanished. The champion's 4 then survived the
+    // merge and the exploiter played was not the one mutate() produced —
+    // nor the one added to the league.
+    const printed = AI_STRATEGIES[AiStrategyId.steward];
+    const champBase = {...printed, homeGuard: printed.homeGuard + 4};
+    const reverted = {...champBase, homeGuard: printed.homeGuard};
+
+    // Read against the champion, the revert is a change, as it must be.
+    expect(deltaOf(champBase, reverted)).toEqual({
+      homeGuard: printed.homeGuard,
+    });
+    // Read against the stale printed base, it disappears — the bug.
+    expect(deltaOf(printed, reverted)).toEqual({});
+  });
+
+  it('reconstructs the mutated strategy from the champion delta it records', () => {
+    const printed = AI_STRATEGIES[AiStrategyId.steward];
+    const championDelta = {homeGuard: printed.homeGuard + 4, serfTarget: 16};
+    const champBase = {...printed, ...championDelta};
+    const mutated = {...champBase, homeGuard: printed.homeGuard};
+
+    const recorded = {...championDelta, ...deltaOf(champBase, mutated)};
+    const rebuilt = playbookOf({
+      strategyId: AiStrategyId.steward,
+      delta: recorded,
+    });
+    expect(rebuilt.homeGuard).toBe(mutated.homeGuard);
+    expect(rebuilt.serfTarget).toBe(16);
+  });
+
   it('rebuilds a candidate as its lineage plus the delta, opening intact', () => {
     const base = AI_STRATEGIES[AiStrategyId.steward];
     const built = playbookOf({

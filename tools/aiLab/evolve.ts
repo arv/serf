@@ -705,14 +705,20 @@ export async function run(o: RunOptions): Promise<void> {
       // piece of AlphaStar that has no cheaper substitute: without it a
       // population climbs until it is merely unbeaten by its own children.
       if (o.exploiter) {
-        const ex = mutate(strategyFor(champion.lineage, champion.delta), rng, {
-          knobs: 2,
-        });
+        // ONE base for both halves. `base` above was captured before this
+        // generation promoted, and a delta read against it silently drops
+        // any mutation that lands back on the pre-champion value: a
+        // champion carrying homeGuard 4 whose exploiter mutates it back to
+        // 0 reports no change at all, so `{...champion.delta, ...delta}`
+        // keeps the 4 and the exploiter that gets played — and added to
+        // the league — is not the one `mutate()` produced.
+        const champBase = strategyFor(champion.lineage, champion.delta);
+        const ex = mutate(champBase, rng, {knobs: 2});
         const exId = `exploit-g${g}`;
         const exInd: Individual = {
           id: exId,
           lineage: champion.lineage,
-          delta: {...champion.delta, ...deltaOf(base, ex.strategy)},
+          delta: {...champion.delta, ...deltaOf(champBase, ex.strategy)},
           changes: describeMutation(ex),
         };
         const champOpp: Opponent = {
