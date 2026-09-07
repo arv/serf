@@ -383,8 +383,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // as it decided then. The same reading the Warlord's gold line and the
 // Abbot's reordered ale got. The hash is over raw bytes, which is why it
 // moved anyway.
+// Still 54 after the lone anvil started forging the counter
+// (economyRules.ts `forgeTheCounter`, now firing for smith 0 when it is
+// the seat's only forge): the same reading again, one layer in. The rule
+// runs inside a brain and its output is a seat's commands — and playback
+// builds no seats at all (app/simWorker.ts: `ai = replay ? null : new
+// AiSeats(world)`), so a forge that would be re-tuned today re-tunes in a
+// logged replay exactly where the recording says it did. The hash is over
+// raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = 'bf53a7fab6a041803a02f0d058f07110';
+const EXPECTED_HASH = '3ab68a567bc89d38f6087270e83fe6d8';
 
 /**
  * Everything a replay's playback depends on, as raw source:
