@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'vitest';
+import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 import {intArg} from './args.ts';
 import {MUTABLE_RANGES} from './mutate.ts';
-import {parseKeys, parseSweep, valueOf} from './probe.ts';
+import {byKey, parseKeys, parseSweep, valueOf} from './probe.ts';
 
 /**
  * The probe's flags decide what a run MEASURES, so every one of these
@@ -9,6 +10,12 @@ import {parseKeys, parseSweep, valueOf} from './probe.ts';
  * different experiment than the one that was asked for.
  */
 describe('probe flags', () => {
+  it('resolves a playbook by the key the reports print', () => {
+    expect(byKey('mason')).toBe(AiStrategyId.mason);
+    expect(byKey('steward')).toBe(AiStrategyId.steward);
+    expect(() => byKey('masonn')).toThrow(/unknown playbook/);
+  });
+
   it('refuses a flag written without a value', () => {
     expect(() => valueOf(['--keys'], '--keys')).toThrow(/wants a value/);
     expect(() => valueOf(['--keys', '--jobs'], '--keys')).toThrow(
@@ -83,6 +90,21 @@ describe('probe flags', () => {
         /wants <knob>/,
       );
     });
+  });
+});
+
+describe('--parent and --vs', () => {
+  it('reads a playbook by the key the reports print', () => {
+    expect(byKey('steward')).toBe(AiStrategyId.steward);
+    expect(byKey('mason')).toBe(AiStrategyId.mason);
+  });
+
+  it('refuses a playbook it does not have', () => {
+    // Silently falling back to the steward would run a completely
+    // different experiment than the one asked for, and print the name
+    // that was asked for at the top of it.
+    expect(() => byKey('stewart')).toThrow(/unknown playbook/);
+    expect(() => byKey('')).toThrow(/unknown playbook/);
   });
 });
 

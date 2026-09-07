@@ -5,7 +5,7 @@ import {
   type StrategyAdvice,
 } from '../../src/ai/advice.ts';
 import type {Rng} from '../../src/shared/rng.ts';
-import type {AiStrategy} from '../../src/sim/defs/aiStrategies.ts';
+import type {AiStrategy, BuildStep} from '../../src/sim/defs/aiStrategies.ts';
 import type {UnitTypeId} from '../../src/sim/defs/units.ts';
 
 /**
@@ -87,7 +87,14 @@ export const MUTABLE_KNOBS = [
   'weaponMix',
 ] as const;
 
-export type MutableKnob = (typeof MUTABLE_KNOBS)[number];
+/** The opening, which moves only when `opening` is asked for. Kept out of
+ * MUTABLE_KNOBS so the default pool — and every recorded number measured
+ * against it — is exactly what it was. */
+export const OPENING_KNOBS = ['build', 'researchOrder'] as const;
+
+export type MutableKnob =
+  | (typeof MUTABLE_KNOBS)[number]
+  | (typeof OPENING_KNOBS)[number];
 
 export interface MutateOptions {
   /** How many knobs one mutation turns (default 1). A single knob keeps a
@@ -102,6 +109,27 @@ export interface MutateOptions {
   /** Knobs to leave alone — for ablations, and for a search that has
    * already decided one axis. */
   frozen?: readonly MutableKnob[];
+  /**
+   * Let the opening move too: the build order's priorities and counts, and
+   * the research order's.
+   *
+   * Off by default, and that default is load-bearing — every recorded
+   * result in tools/aiLab/README.md was measured with the opening frozen,
+   * and a mutation operator that draws from a wider pool does not
+   * reproduce them. On, this is the "riskier second step" the notes below
+   * defer, and it is only safe to take at all because a candidate no
+   * longer has to be sayable as advice: the search delivers whole
+   * playbooks through AiSeats' base-playbook seam, so the invariant that
+   * justified the freeze does not bind the search any more.
+   *
+   * What it may do is REORDER and re-count, never invent or delete. A
+   * dropped step is a village with no bakery and an inserted one is a
+   * building the plan has no ground for, and neither is a neighbour of
+   * anything — but order in a build list is priority rather than sequence
+   * (the loop skips a step whose `after` or `needs` is unmet), so moving
+   * one is a small, legal, reversible step.
+   */
+  opening?: boolean;
 }
 
 /** What one mutation changed, for the run log. A search that cannot say
@@ -246,6 +274,36 @@ function changed(before: unknown, after: unknown): boolean {
  * It keeps its lineage's id because that is what it is a step away from,
  * and it reaches a seat as an override, not as a name.
  */
+/** Move one entry of a list to a new index — priority, not sequence. */
+export function moveOne<T>(list: readonly T[], rng: Rng): T[] | null {
+  if (list.length < 2) return null;
+  const from = rng.int(list.length);
+  let to = rng.int(list.length - 1);
+  if (to >= from) to++;
+  const out = [...list];
+  const [item] = out.splice(from, 1);
+  out.splice(to, 0, item!);
+  return out;
+}
+
+/** One build step's count, up or down by one, floored at one. A count of
+ * zero is a deleted step wearing a disguise, and deleting is not a
+ * neighbour of anything. */
+export function stepCount(
+  build: readonly BuildStep[],
+  rng: Rng,
+): BuildStep[] | null {
+  if (build.length === 0) return null;
+  const at = rng.int(build.length);
+  const step = build[at]!;
+  const delta = rng.next() < 0.5 ? -1 : 1;
+  const count = Math.max(1, step.count + delta);
+  if (count === step.count) return null;
+  const out = [...build];
+  out[at] = {...step, count};
+  return out;
+}
+
 export function mutate(
   base: AiStrategy,
   rng: Rng,
@@ -254,7 +312,10 @@ export function mutate(
   const wanted = Math.max(1, opts.knobs ?? 1);
   const stepShare = opts.step ?? 0.2;
   const frozen = new Set<MutableKnob>(opts.frozen ?? []);
-  const pool = MUTABLE_KNOBS.filter(k => !frozen.has(k));
+  const pool: MutableKnob[] = [
+    ...MUTABLE_KNOBS.filter(k => !frozen.has(k)),
+    ...(opts.opening ? OPENING_KNOBS.filter(k => !frozen.has(k)) : []),
+  ];
 
   const next: AiStrategy = {...base};
   const changes: Mutation[] = [];
@@ -270,12 +331,19 @@ export function mutate(
     tried.add(knob);
     const before = next[knob];
     let after: unknown;
-    if (knob === 'prefersRivals') after = !next.prefersRivals;
+    if (knob === 'build') after = openingMove(next, rng);
+    else if (knob === 'researchOrder') after = moveOne(next.researchOrder, rng);
+    else if (knob === 'prefersRivals') after = !next.prefersRivals;
     else if (knob === 'trainPreference')
       after = stepPreference(next.trainPreference, rng);
     else if (knob === 'weaponMix') after = stepWeaponMix(next.weaponMix, rng);
     else after = stepNumber(next[knob], knob, rng, stepShare);
-    if (!changed(before, after)) continue;
+    // A null is the operator DECLINING — a list too short to reorder, a
+    // count already at its floor. `changed` reads that as a change (an
+    // array is not null), so without this the strategy gets a null build
+    // order and the log claims a mutation that never happened. Measured
+    // before the guard: 19 of 400 mutants came out with a null opening.
+    if (after === null || !changed(before, after)) continue;
     // Assign through a computed key: the union of knob types is wider than
     // any one field, and the branches above are what keeps it sound.
     Object.assign(next, {[knob]: after});
@@ -285,12 +353,26 @@ export function mutate(
   return {strategy: next, changes};
 }
 
+/** A build list one step away: a priority moved, or a count nudged. */
+function openingMove(s: AiStrategy, rng: Rng): BuildStep[] | null {
+  return rng.next() < 0.5 ? moveOne(s.build, rng) : stepCount(s.build, rng);
+}
+
 /** One line per knob that moved — what a run log wants beside the win rate,
  * because "generation 4 candidate 11" is not a finding. */
 export function describeMutation(m: Mutant): string {
   if (m.changes.length === 0) return `${m.strategy.id} (unchanged)`;
-  const show = (v: unknown): string =>
-    Array.isArray(v) ? `[${v.join(',')}]` : String(v);
+  const show = (v: unknown): string => {
+    // A build list is objects, and `[object Object]` names nothing. Say
+    // what it is by its shape — the types in priority order and their
+    // counts — so a run log can tell one reordering from another.
+    if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') {
+      return `[${(v as {type: number; count: number}[])
+        .map(b => `${b.type}×${b.count}`)
+        .join(' ')}]`;
+    }
+    return Array.isArray(v) ? `[${v.join(',')}]` : String(v);
+  };
   return m.changes
     .map(c => `${c.knob} ${show(c.from)}→${show(c.to)}`)
     .join(', ');

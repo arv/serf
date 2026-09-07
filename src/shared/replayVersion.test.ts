@@ -370,16 +370,45 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
-// Still 53 after the build order learned to borrow (AI_CREDIT in
-// systems/ai.ts): a seat may now lay a foundation whose bill the shelf is
-// a load short of, which changes what the seats DECIDE and nothing about
-// how a tick executes what they decided. Playback never runs a brain — a
-// replay stores the seats' commands rather than re-deriving them
-// (app/replay.ts) — so yesterday's logs play back exactly as they did, the
-// same reasoning the stance engine and the war behaviors are recorded
-// under above. The hash is over raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 53;
-const EXPECTED_HASH = 'f265b717f0e0f01cd0e91a47d4fc45a4';
+// 54 for the Monument's bread, halved from twenty loaves to ten: a
+// building's cost is consumed as its site rises, so every tick after the
+// first delivery carries different stores. The placement change that
+// shipped beside it did NOT need the number — nothing in the sim asks a
+// placement to be paid for, so what moved was when two policies send a
+// command a logged replay already contains.
+// Still 54 after the Mason took up the sword line (weaponMix [0] →
+// [1, 0], knights ahead of spearmen): playbook data, and playback never
+// runs a brain — a replay stores the seats' commands rather than
+// re-deriving them, so a seat that would decide differently today replays
+// as it decided then. The same reading the Warlord's gold line and the
+// Abbot's reordered ale got. The hash is over raw bytes, which is why it
+// moved anyway.
+// Still 54 after the lone anvil started forging the counter
+// (economyRules.ts `forgeTheCounter`, now firing for smith 0 when it is
+// the seat's only forge): the same reading again, one layer in. The rule
+// runs inside a brain and its output is a seat's commands — and playback
+// builds no seats at all (app/simWorker.ts: `ai = replay ? null : new
+// AiSeats(world)`), so a forge that would be re-tuned today re-tunes in a
+// logged replay exactly where the recording says it did. The hash is over
+// raw bytes, which is why it moved anyway.
+// Still 54 after playbooks gained `skipsRules`: the field is read once in
+// the AiBrain constructor to seed which economy rules that seat runs, and
+// playback constructs no brains (app/simWorker.ts). No shipped playbook
+// names one yet, so the sim is bit-identical today either way — the hash
+// is over raw bytes, which is why it moved.
+// Still 54 after the lone anvil's counter moved from the standing forge
+// count to the plan's (economyRules.ts `plannedSmiths`): a rule inside a
+// brain again, and playback builds no brains.
+// Still 54 after main's build order learned to borrow (AI_CREDIT in
+// systems/ai.ts, from the other branch): a seat may lay a foundation whose
+// bill the shelf is a load short of, which changes what the seats DECIDE
+// and nothing about how a tick executes what they decided. That note
+// arrived here saying "still 53" because it was written against a main
+// that had not seen the Monument's bread yet — the bread is a consumed
+// cost and did move the number, so the two meet at 54 rather than at
+// either one alone.
+const EXPECTED_VERSION = 54;
+const EXPECTED_HASH = '6f38808aa1d2cfe7275f1e3c6e163713';
 
 /**
  * Everything a replay's playback depends on, as raw source:

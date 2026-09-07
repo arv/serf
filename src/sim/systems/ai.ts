@@ -1066,15 +1066,23 @@ export class AiBrain {
   #stalledBeats = 0;
   #recoveries = 0;
   /**
-   * Which economy rules this seat runs (sim/economyRules.ts). Every rule by
-   * default, which is the behaviour that was measured and shipped; the lab
-   * narrows it to ablate one rule at a time, and an empty set turns the
-   * layer off entirely. Brain-local like every other field here.
+   * Which economy rules this seat runs (sim/economyRules.ts). Every rule
+   * less whatever the playbook declines (`AiStrategy.skipsRules`, set in
+   * the constructor); the lab narrows it further to ablate one rule at a
+   * time, and an empty set turns the layer off entirely. Brain-local like
+   * every other field here.
    */
   #rules: ReadonlySet<EconomyRuleId> = new Set(ALL_ECONOMY_RULES);
 
-  /** Run only these rules. The lab's ablation handle; the game never calls
-   * it, so a shipped seat always runs the whole table. */
+  /**
+   * Run only these rules. The lab's ablation handle; the game never calls
+   * it, so a shipped seat runs the table less its own `skipsRules`.
+   *
+   * Replaces rather than intersects, and deliberately: a sweep asking what
+   * one rule is worth has to get that rule, not that rule minus whatever
+   * the seated playbook dislikes, or the arms of the ablation would each
+   * mean something different depending on who sat down.
+   */
   setEconomyRules(ids: readonly EconomyRuleId[]): void {
     this.#rules = new Set(ids);
   }
@@ -1101,6 +1109,15 @@ export class AiBrain {
     this.strategy = strategy;
     this.difficulty = difficulty;
     this.#tiered = applyDifficulty(strategy, difficulty);
+    // The playbook's own opt-outs. Read off `strategy` rather than
+    // `#tiered` because a difficulty tier tunes numbers, not which rules a
+    // seat believes in — an easy Warlord declines exactly what a hard one
+    // does.
+    const skips = strategy.skipsRules;
+    if (skips?.length)
+      this.#rules = new Set(
+        ALL_ECONOMY_RULES.filter(id => !skips.includes(id)),
+      );
     this.#decisionInterval = scaleDecisionInterval(
       AI_PACING.decisionInterval,
       difficulty,
@@ -1494,7 +1511,22 @@ export class AiBrain {
       // list, every beat, only to throw the answer away. The reserve costs
       // that search back at most once a beat: on the first gatherer the
       // shelf cannot cover, to find out whether there is ground to save for.
-      if (!affordable(def.cost, stock, held)) {
+      // The Monument is not on credit in the sense below it. Credit is a
+      // margin and a clock — nine tenths of the bill banked
+      // (AI_CREDIT.paidShare), one tab at a time — for a village that
+      // would otherwise stand idle waiting on the last load. A building
+      // flagged `raisedOnCredit` (defs/buildings.ts) has no price gate on
+      // its PLACEMENT at all: the site goes down empty and is gilded as
+      // the carts arrive, because victory.ts means to tell a rival the
+      // moment a plinth takes its first delivery and give them the whole
+      // raising to ride out and stop it. Banking nine tenths first
+      // collapses that window nearly as far as banking all of it did.
+      //
+      // So the two do not compose — a flagged step skips this check
+      // outright rather than taking the credit path, which also keeps it
+      // clear of `openFrames`: a seat with a frame already up would never
+      // reach the plinth, and the Mason always has a frame up.
+      if (!def.raisedOnCredit && !affordable(def.cost, stock, held)) {
         // Two questions about a step the shelf cannot pay for, and one
         // search between them. Is it the plan's first choice that credit
         // could cover, and is it the gatherer the reserve is struck
