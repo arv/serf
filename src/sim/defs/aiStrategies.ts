@@ -1073,8 +1073,38 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     retreats: true,
     // Spears, and only spears. A knight costs three bread where a spearman
     // costs two, and bread is the currency this plan is saving in.
-    weaponMix: [0],
-    trainPreference: [UnitTypeId.spearman],
+    // Swords first, then spears — and knights ahead of spearmen at the
+    // barracks. This is the whole of the mason's answer to a rush, and it
+    // buys nothing new: the same one forge, the same hand, the same
+    // research. It only stops forging the weapon that loses worst to what
+    // is coming.
+    //
+    // The counter triangle (defs/units.ts COUNTER_TABLE) is why. Heavy
+    // beats light at 1.5, and the steward fields knights — so a mason
+    // fielding spearmen was not merely outnumbered, it was fielding the
+    // class that takes 0.67 into the one arriving. Knights make that a
+    // neutral 1.0.
+    //
+    // Measured against the printed steward, both seatings, two disjoint
+    // seed ranges: 1 win in 80 becomes 11, and on sixty seeds the search
+    // never touched, 3 in 120 becomes 19 — at least sixteen discordant
+    // pairs, p well under 0.001. The median death moves from 18,489 to
+    // 20,838, the first movement in that number across nine attempts.
+    //
+    // Monument wins go from 2 to 16 in the same trials, which is the
+    // point: the mason could always build the thing, it could not live
+    // long enough to finish it.
+    //
+    // Everything that ADDED capacity measured worse, and it is worth
+    // recording so nobody retries them: a wider bread chain with the
+    // wells (0 wins in 120), two guard towers with the bow line (1), and
+    // both classes at once (1). Each costs a hand to staff, stone to
+    // raise and hauls to feed, and all of it arrives after the steward's
+    // first march at ~17,500. The mason is racing a clock it cannot move,
+    // so the only affordable change is the one that spends nothing extra.
+    // Archers do counter knights at 1.5 — it cannot buy the detour.
+    weaponMix: [1, 0],
+    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
     trainFallback: UnitTypeId.spearman,
     barracksQueueDepth: 2,
     // Not a muster bar: the size of the garrison it keeps standing

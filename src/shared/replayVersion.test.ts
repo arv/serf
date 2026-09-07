@@ -376,8 +376,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // shipped beside it did NOT need the number — nothing in the sim asks a
 // placement to be paid for, so what moved was when two policies send a
 // command a logged replay already contains.
+// Still 54 after the Mason took up the sword line (weaponMix [0] →
+// [1, 0], knights ahead of spearmen): playbook data, and playback never
+// runs a brain — a replay stores the seats' commands rather than
+// re-deriving them, so a seat that would decide differently today replays
+// as it decided then. The same reading the Warlord's gold line and the
+// Abbot's reordered ale got. The hash is over raw bytes, which is why it
+// moved anyway.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = 'a7377c7085d47463305897d0ccc44d30';
+const EXPECTED_HASH = 'bf53a7fab6a041803a02f0d058f07110';
 
 /**
  * Everything a replay's playback depends on, as raw source:
