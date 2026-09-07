@@ -16,12 +16,7 @@ import {parseSeeds} from './bakeoff.ts';
 import {runMatchChild} from './childRun.ts';
 import type {EvolveTask, SeatEntry} from './evolveWorker.ts';
 import type {MatchConfig} from './match.ts';
-import {
-  describeMutation,
-  MUTABLE_RANGES,
-  mutate,
-  type MutableKnob,
-} from './mutate.ts';
+import {describeMutation, MUTABLE_RANGES, mutate} from './mutate.ts';
 import {wonByMonument} from './probe.ts';
 
 /**
@@ -325,7 +320,14 @@ export function randomDelta(rng: Rng): Delta {
 /** The knobs a candidate actually moved off its lineage, for the report. */
 export function deltaOf(base: AiStrategy, next: AiStrategy): Delta {
   const delta: Delta = {};
-  for (const knob of Object.keys(MUTABLE_RANGES) as MutableKnob[]) {
+  // Keyed off the ranges table rather than the whole knob union: these
+  // are the numeric knobs and only those, and each of the three lines
+  // below carries one of the rest. `MutableKnob` was always wider than
+  // this loop's key source and is wider still now that it names the
+  // opening, so the cast has to follow the table it reads.
+  for (const knob of Object.keys(
+    MUTABLE_RANGES,
+  ) as (keyof typeof MUTABLE_RANGES)[]) {
     if (next[knob] !== base[knob]) delta[knob] = next[knob];
   }
   if (next.prefersRivals !== base.prefersRivals)
