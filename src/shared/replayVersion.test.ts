@@ -408,7 +408,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
 const EXPECTED_VERSION = 55;
-const EXPECTED_HASH = '211c3fda39be8a2bb7ede468045d15ad';
+const EXPECTED_HASH = 'a186cce9de00cffec1b364ec11d5e9d9';
 
 /**
  * Everything a replay's playback depends on, as raw source:

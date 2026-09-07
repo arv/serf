@@ -256,18 +256,19 @@ describe('logistics matcher', () => {
 
 describe('the load home', () => {
   /**
-   * The trip the village kept failing to make. The mine's bread and the
-   * mine's silver are two halves of one round: a hauler who walks the
-   * loaf out and then walks back empty has made two crossings for one
-   * load, and the silver he stepped over waits for somebody to come out
-   * for it.
+   * The trip the village kept failing to make. A serf carries the miners'
+   * bread out, sets it down, and stands in the mine with silver on the
+   * shelf at his feet — and the board sends him back to the castle empty
+   * for an errand that outranks it, because it deals the job first and
+   * looks for the nearest man second. Two crossings for a load already in
+   * reach.
    */
   it('leaves the mine with its silver, not empty-handed', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 20, 30, {[GoodId.food]: 4});
-    // Unstaffed on purpose: a mine raises its ration demand and evacuates
-    // its shelf whether or not anyone is down the shaft, and a fixture
-    // that mines no ore is a fixture with nothing to time against.
+    const sh = addStorehouse(world, 20, 30, {[GoodId.wood]: 10});
+    // Unstaffed on purpose: a mine evacuates its shelf whether or not
+    // anyone is down the shaft, and a fixture that mines no ore is a
+    // fixture with nothing to time against.
     const mine = placeBuiltBuilding(
       world,
       BuildingTypeId.silverMine,
@@ -276,29 +277,22 @@ describe('the load home', () => {
       30,
     );
     mine.stock[GoodId.silver] = 2;
-    const serf = addSerf(world, 21, 32);
+    // The pull the other way, and the one that beats everything: a site's
+    // planks are tier 1, and take four hands in seven against the silver's
+    // two. With one serf free it is not a share at all — the site takes
+    // him, and it used to take him from where he was standing.
+    addSite(world, 24, 30);
+    const serf = addSerf(world, 34, 32); // just set the bread down inside
     const initial = countGoods(world);
 
-    // Out with the bread...
-    let guard = 0;
-    while (serf.carrying !== GoodId.food && guard++ < 400) tickWorld(world, []);
-    expect(serf.carrying).toBe(GoodId.food);
-
-    // ...and set it down in the mine.
-    guard = 0;
-    while (serf.carrying !== undefined && guard++ < 600) tickWorld(world, []);
-    expect(mine.inputs[GoodId.food]).toBe(1);
-
-    // He is standing on the silver, so the silver is his: the board hands
-    // him the job at his feet before it deals anything that needs a walk.
-    run(world, 2);
+    run(world, 1);
     const job = world.jobs.get(serf.jobId!);
     expect(job?.good).toBe(GoodId.silver);
     expect(job?.from).toBe(mine.id);
 
     // And it gets home, rather than riding back out on the next errand.
-    guard = 0;
-    while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 600)
+    let guard = 0;
+    while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 900)
       tickWorld(world, []);
     expect(sh.stock[GoodId.silver]).toBe(1);
     expectClean(world, initial);
