@@ -580,6 +580,17 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         after: TechId.ironworking,
         needs: BuildingTypeId.barracks,
       },
+      // The bow's own roof, and the first thing Archery buys now: the
+      // towers below swallow four archers outright and this plan's field
+      // line is knight-and-archer, so without a range this seat researches
+      // Archery and trains not one bowman. Ahead of the towers on purpose —
+      // stone laid in a parapet nobody can climb is stone wasted.
+      {
+        type: BuildingTypeId.archeryRange,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        after: TechId.archery,
+      },
       // The towers this plan is now built around, and the reason it learns
       // archery at all. Two of them, still gated on the bow now that the
       // levy means a tower is never merely wasted stone — because moving
@@ -781,6 +792,23 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         type: BuildingTypeId.bakery,
         count: 1,
         anchor: BuildAnchorNs.base,
+      },
+      // The range, and for this seat it is the plan: every soldier it means
+      // to field is a bowman, so the barracks above is now a spear hall it
+      // barely uses and this is where its army comes from.
+      //
+      // Listed ahead of the forges that cut its staves, which is where a
+      // seat's own army belongs on its own plan — but not a tuned position:
+      // moved up from below the iron mine it measured as a wash over 24
+      // seeds, 20/24 either way and the same median. The walker skips a
+      // step it cannot afford or place rather than stopping at it
+      // (systems/ai.ts), so order here is priority and not sequence, and
+      // Archery lands second in this seat's research either way.
+      {
+        type: BuildingTypeId.archeryRange,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        after: TechId.archery,
       },
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.

@@ -672,6 +672,10 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 220,
     sight: 5.5,
     requiresTech: TechId.soldiery,
+    // Steel only. The bow moved out to the Archery Range below, which is
+    // what makes the hall a choice instead of a menu: a village that wants
+    // both arms of the triangle now raises both roofs, and the two queues
+    // run side by side rather than one behind the other.
     trains: [
       // Soldiers march on bread, not on raw grain: the barracks is the far
       // end of mill -> bakery, and wheat is a crop again.
@@ -685,10 +689,46 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
         cost: {[GoodId.food]: 2, [GoodId.spear]: 1},
         durationTicks: 10 * S,
       },
+    ],
+  },
+  [B.archeryRange]: {
+    id: B.archeryRange,
+    name: 'Archery Range',
+    // Two by two where the barracks is three: a fenced lane, a shed for the
+    // staves and a butt at the end of it is not a drill hall.
+    w: 2,
+    h: 2,
+    // Timber and a token course of stone for the butt. Deliberately cheap in
+    // the one material the bow line is already short of: a guard tower is
+    // twelve stone, and the range now stands between Archery and the men who
+    // climb it. Making the range cost stone too would have priced the whole
+    // tower plan out of reach of the seat built around it (the Fletcher digs
+    // no iron and quarries only once).
+    cost: {[GoodId.wood]: 10, [GoodId.stone]: 2},
+    // Faster up than the barracks' twenty-five seconds, for the same reason
+    // it is cheaper: it is the second roof on the military line, not the
+    // first, and a second gate that also costs a barracks' worth of waiting
+    // would read as a toll rather than a choice.
+    buildTicks: 18 * S,
+    // Softer than the barracks' 220 — fence and shed against a drill hall.
+    // A raid that walks past the wall can burn the bows off the plan, which
+    // is the risk that pays for the range's speed.
+    hp: 150,
+    sight: 5.5,
+    // Archery rather than Soldiery: the tech that unlocks the archer unlocks
+    // the roof he is trained under, so the bow is still one research, not
+    // two. What it now also costs is a building.
+    requiresTech: TechId.archery,
+    trains: [
+      // Nine seconds against the barracks' twelve. The dedicated butt is
+      // what the extra roof buys: a plan that commits to the bow trains it
+      // a quarter faster than the mixed hall ever did, so the range is a
+      // trade rather than a tax. The bill itself is unchanged — two bread
+      // and a bow, exactly what the barracks charged.
       {
         unit: UnitTypeId.archer,
         cost: {[GoodId.food]: 2, [GoodId.bow]: 1},
-        durationTicks: 12 * S,
+        durationTicks: 9 * S,
       },
     ],
   },
@@ -970,6 +1010,7 @@ export const BUILDING_TYPES: readonly BuildingTypeId[] = [
   B.weaponsmith,
   B.abbey,
   B.barracks,
+  B.archeryRange,
   B.guardTower,
   B.roadSite,
   B.salvage,
@@ -995,6 +1036,7 @@ export const BUILDING_KEYS: Readonly<Record<BuildingTypeId, string>> = {
   [B.weaponsmith]: 'weaponsmith',
   [B.abbey]: 'abbey',
   [B.barracks]: 'barracks',
+  [B.archeryRange]: 'archeryRange',
   [B.guardTower]: 'guardTower',
   [B.roadSite]: 'roadSite',
   [B.salvage]: 'salvage',

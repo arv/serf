@@ -370,8 +370,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 53;
-const EXPECTED_HASH = '543269a185f1ac2c8a0a6504d2117a1a';
+// 54 for the Archery Range: the archer's training option moved off the
+// barracks' roster onto a building of its own, so a command an old log
+// records — `trainUnit archer` aimed at a barracks — is refused outright by
+// this build instead of filling a queue. That is command semantics, not
+// playbook data, and it is what earns the bump: the AI half of the same
+// change (keepTheQueueWarm reading every hall rather than the first
+// barracks, and two playbooks raising a range) is brain-side and would have
+// ridden 53 on its own, exactly as the Mason's rule did on 49.
+const EXPECTED_VERSION = 54;
+const EXPECTED_HASH = 'cf5bcf86ac8975523cf1bcc2531f6d40';
 
 /**
  * Everything a replay's playback depends on, as raw source:

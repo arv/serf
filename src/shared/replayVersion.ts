@@ -20,6 +20,33 @@
  * directly.
  */
 /**
+ * 54: the bow gets its own roof — the Archery Range.
+ *
+ * The archer left the barracks' roster for a building of his own (2x2, 10
+ * wood and 2 stone, unlocked by Archery rather than by a gate of its own)
+ * and trains there in nine seconds instead of twelve. Three things move at
+ * once because of it. A barracks that used to answer `trainUnit archer`
+ * now refuses it, which is a command whose meaning changed. The AI's
+ * `keepTheQueueWarm` reads every hall a seat owns instead of the first
+ * building whose type is `barracks`, and warms each against that hall's own
+ * roster — so the orders two of the five playbooks issue differ from the
+ * first beat their range stands, and their build orders carry a roof that
+ * did not exist. And the range itself is a building id no earlier build
+ * ever wrote, which is format as much as behavior.
+ *
+ * The rule layer is brain-side and a replay stores commands rather than
+ * re-deriving them, so on its own that half would not have bumped this
+ * (see the "Still 49 after the Mason" entry in replayVersion.test.ts). The
+ * roster change is not brain-side: a log recorded before this build carries
+ * archer orders aimed at a barracks, and this build drops every one of
+ * them — the army that log musters never exists here.
+ *
+ * The save format is untouched: a building id is already a number in a
+ * save, and no file written before this can contain a 22, so
+ * WORLD_SAVE_VERSION stays at 9 and old saves still open.
+ *
+ * 53's note follows.
+ *
  * 53: the kite costs the archer something.
  *
  * A ranged unit backing away from a closing melee man used to loose an
@@ -712,4 +739,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 53;
+export const REPLAY_VERSION = 54;

@@ -235,8 +235,14 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: [T.soldiery],
     cost: {[GoodId.wood]: 8, [GoodId.silver]: 6},
     durationTicks: 30 * S,
-    effects: [{kind: TechEffectKindNs.unlockUnit, unit: UnitTypeId.archer}],
-    desc: 'Unlocks bowmaking at the Smith, and Archers.',
+    effects: [
+      {
+        kind: TechEffectKindNs.unlockBuilding,
+        building: BuildingTypeId.archeryRange,
+      },
+      {kind: TechEffectKindNs.unlockUnit, unit: UnitTypeId.archer},
+    ],
+    desc: 'Unlocks bowmaking at the Smith, the Archery Range, and Archers.',
   },
   [T.mailArmor]: {
     id: T.mailArmor,
