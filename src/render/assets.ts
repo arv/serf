@@ -51,8 +51,11 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // scenery, not a workplace. The farmstead is ours now, BUILT_BUILDINGS.)
   [BuildingTypeId.mill]: 'building_windmill_green.gltf',
   // (No bakery: it is the one building we model ourselves — BUILT_BUILDINGS.)
-  // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
-  // quay. The one food building that needed nothing built by hand.
+  // Ours, modeled in the pack's own construction language rather than
+  // played by a pack model: a fisherman's hut with a boat by the gable, an
+  // anchor at the door and a net on its drying stand. (It wore the EXTRA
+  // shipyard before that, with the sailing ship cut off its roof.) Drawn
+  // under its 3x3 footprint — see fishery.modelScale.
   [BuildingTypeId.fishery]: 'building_fishery_green.gltf',
   [BuildingTypeId.brewery]: 'building_tavern_green.gltf',
   // The quarry and the three mines all play this one model — the pack's
@@ -172,6 +175,36 @@ const POST_R = 0.2;
 /** POST_R split across x and z, for the two posts on the diagonal. */
 const POST_D = POST_R / Math.SQRT2;
 
+/**
+ * Where the fishery's deck meets the hut, in the template's unit square.
+ *
+ * The landward end rides the hut's own front wall, so it is the one part of
+ * the jetty that SHOULD move with the hut's scale — authored in template
+ * units and left to shrink with it.
+ */
+const PIER_BASE = 0.2;
+
+/**
+ * How far that deck runs from there, in template units.
+ *
+ * The hut is drawn under its footprint (fishery.modelScale) and the deck
+ * must not come down with it: a jetty is sized by how far the water is, not
+ * by how big the house is, and placement only promises water within a tile
+ * of the footprint. Everything in this table is placed in the template
+ * space the hut's scale shrinks, so the run is authored as the WORLD length
+ * it has to keep (0.8 of an unshrunk template, which puts the tip half again
+ * a tile past the footprint) with the shrink divided back out. Halve the hut
+ * and the planks are the same planks over the same water; what the deck
+ * loses is the standoff the wall gave it, which is the shrink's own 0.16 of
+ * a tile.
+ *
+ * On seed 1 that is 379 legal sites, 161 whose deck ends on grass as
+ * authored, and 0 still dry once #measurePier has aimed them — the same
+ * tally as before the hut shrank. Change this and re-run
+ * tools/modelLab/_pier.html, which is where those numbers come from.
+ */
+const PIER_RUN = 0.8 / (BUILDING_DEFS[BuildingTypeId.fishery].modelScale ?? 1);
+
 const DECOR_PROP_FILES = [
   'wheelbarrow',
   'sack',
@@ -230,10 +263,10 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
     // it toward the water (see Building.facing). Long enough to overhang the
-    // footprint on purpose — nearly two tiles past it, where placement only
-    // promises water within one, so the reach here is an aim rather than a
-    // guarantee. Neither is the facing: it is a quarter turn, and most
-    // shorelines do not run square to the grid. So this is the deck's
+    // footprint on purpose — half again a tile past it (PIER_RUN), where
+    // placement only promises water within one, so the reach here is an aim
+    // rather than a guarantee. Neither is the facing: it is a quarter turn,
+    // and most shorelines do not run square to the grid. So this is the deck's
     // AUTHORED placement, and buildingSync fits it to the water from here
     // (#measurePier): a turn rotates the whole fishery about the footprint
     // center — hut and jetty stay square — while a trim shortens the deck
@@ -245,9 +278,9 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
       // The attach point abuts the hut's front wall, centered on the door.
       // It is derived from the MODEL's bounding box (normalize() centers by
       // bbox, and the boat off the gable skews it): door at template
-      // [0.025, 0.19], deck 0.8 long. Recompute if the model changes shape.
-      at: [0.03, 0.6],
-      span: 0.8,
+      // [0.025, 0.19]. Recompute if the model changes shape.
+      at: [0.03, PIER_BASE + PIER_RUN / 2],
+      span: PIER_RUN,
       size: 1,
       rot: -Math.PI / 2,
       // buildingSync finds the pier by name and tells sceneSync where it
@@ -271,7 +304,12 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // from it.) The y here is template-space only: the waterline is a world
     // plane below the shore, so buildingSync re-seats the group under it
     // once the building stands on real terrain.
-    {make: prop => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1},
+    {
+      make: prop => makeShoal(prop),
+      at: [0, PIER_BASE + PIER_RUN + 0.02],
+      y: 0.02,
+      size: 1,
+    },
   ],
   // Two marks on the tower's roof deck, and nothing to see: buildingSync
   // finds them by name and stands a live archer on each one for every man
@@ -1199,7 +1237,9 @@ export function makeGlbBuilding(
   // Templates are unit-square and origin-centered, matching the hand-built
   // models (buildingSync positions the root at the footprint center). Sizing
   // by footprint is what makes a squat model stay squat, so the few the pack
-  // authors too low to read carry a modelScale to lift them out of it.
+  // authors too low to read carry a modelScale to lift them out of it — and
+  // the fishery, whose three tiles are the jetty's and the shore's rather
+  // than the hut's, carries one under 1 to keep the hut a hut.
   group.scale.setScalar(Math.min(def.w, def.h) * 1.06 * (def.modelScale ?? 1));
   return group;
 }

@@ -186,6 +186,12 @@ export interface BuildingDef {
    * side. Fine for the mines, which are cut into a hillside and sit alone
    * out at the rock; it would be wrong for anything that stands shoulder to
    * shoulder in the village.
+   *
+   * Under 1 it does the opposite, for a building whose footprint is sized
+   * by something other than its walls (the fishery). Anything the model
+   * carries that is NOT the building — decor placed around it — shrinks
+   * with it, so a piece that has its own reason to be the size it is has
+   * to be authored back up (see PIER_RUN in assets.ts).
    */
   modelScale?: number;
   /** Must be researched before this building can be placed (an array
@@ -441,6 +447,15 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: {[GoodId.wood]: 12, [GoodId.stone]: 4},
     buildTicks: 20 * S,
     hp: 150,
+    // Three tiles of ground, one hut's worth of building. The footprint is
+    // what the jetty and the shore need, not what the house is — and drawn
+    // to it the hut stood some 2.4 tiles across, against the family house's
+    // 2.1, on the 3x3 the barracks and the castle get. That is not what
+    // "one hut and one hand" looks like; at 0.75 it reads under the house,
+    // where a fisherman's shack belongs. The jetty is not the hut and does
+    // not come down with it — assets.ts authors its run back up to the same
+    // planks over the same water (PIER_RUN).
+    modelScale: 0.75,
     sight: 6.5,
     workerKind: UnitTypeId.worker,
     // The early food, and the slow one. Nothing goes in: no field, no well,
