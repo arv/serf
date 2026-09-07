@@ -1103,6 +1103,13 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // first march at ~17,500. The mason is racing a clock it cannot move,
     // so the only affordable change is the one that spends nothing extra.
     // Archers do counter knights at 1.5 — it cannot buy the detour.
+    //
+    // What the sword line costs is the Fletcher, whose every forge is on
+    // bowstaves: ranged kites heavy at 1.5, so this trades a uniform loss
+    // for three good matchups and one bad one. The bad one is answered in
+    // the brain rather than here — `forgeTheCounter` in economyRules.ts
+    // now lets a seat's ONLY anvil take the counter, which is this seat,
+    // and which is why a constant belongs in a rule's reach.
     weaponMix: [1, 0],
     trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
     trainFallback: UnitTypeId.spearman,

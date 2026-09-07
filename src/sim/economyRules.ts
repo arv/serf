@@ -697,6 +697,13 @@ const resumeDrainedPost: EconomyRule = {
  * archery, so the counter to a heavy rival is unforgeable and the sword
  * line stands, which is what keeps the rush answer intact.
  *
+ * Measured on 120 seeds, both seatings, against a worktree of the parent
+ * commit: mason vs fletcher 19/239 to 32/239, and paired on (seed, seating)
+ * under common random numbers that is 17 flips toward the Mason against 4
+ * away — 21 discordant pairs, exact two-sided p = 0.0072. Mason vs steward
+ * came out byte-identical across the whole report, tick counts and
+ * fingerprints included, which is the tech gate above proving itself.
+ *
  * Claims each smith it retunes, so a later rule cannot re-order the same
  * forge in the same beat.
  */

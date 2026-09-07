@@ -392,7 +392,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // logged replay exactly where the recording says it did. The hash is over
 // raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '3ab68a567bc89d38f6087270e83fe6d8';
+const EXPECTED_HASH = 'b24720305317a11923fd59c12c22c6e6';
 
 /**
  * Everything a replay's playback depends on, as raw source:
