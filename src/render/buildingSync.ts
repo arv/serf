@@ -138,7 +138,8 @@ const PIER_TRIM_STEPS = 4;
 
 /**
  * The deck fits `#measurePier` tries, least intrusive first: `turn` in
- * 15-degree steps off the building's facing, `trim` in quarter-tile steps
+ * 15-degree steps off the building's facing (turning the WHOLE building —
+ * the deck stays square to the hut), `trim` in quarter-tile steps
  * off the deck's authored length.
  *
  * Both are needed because neither the sim's facing nor the model's reach is
@@ -164,12 +165,13 @@ const PIER_FITS: readonly {turn: number; trim: number}[] = (() => {
   const fits: {turn: number; trim: number}[] = [];
   for (let turn = -PIER_TURN_STEPS; turn <= PIER_TURN_STEPS; turn++)
     for (let trim = 0; trim <= PIER_TRIM_STEPS; trim++) fits.push({turn, trim});
-  // Total distortion first, then the turn (a deck that still points where
-  // the hut faces reads better than a stubby one), then a stable sign so
-  // every client with the same terrain lands on the same deck.
+  // Total distortion first — with a turn half again as heavy as a trim,
+  // because a turn swings the whole building while a trim only shortens
+  // planks — then the smaller turn (a hut that still points where the sim
+  // said is less surprising), east before west as the final tiebreak.
   return fits.sort(
     (a, b) =>
-      Math.abs(a.turn) + a.trim - (Math.abs(b.turn) + b.trim) ||
+      1.5 * Math.abs(a.turn) + a.trim - (1.5 * Math.abs(b.turn) + b.trim) ||
       Math.abs(a.turn) - Math.abs(b.turn) ||
       b.turn - a.turn,
   );
@@ -320,8 +322,8 @@ interface BuildingVisual {
   shoal?: THREE.Object3D;
   /** The fishery's pier decor — the deck the fisherman walks out on. */
   pier?: THREE.Object3D;
-  /** Measured deck line, cached: measuring may also swing the decor 45°
-   * on a corner-only shore, and that must happen exactly once. */
+  /** Measured deck line, cached: measuring may also swing the whole
+   * building toward the water, and that must happen exactly once. */
   pierLine?: PierInfo;
   /** The farm's authored walk marks: gate first, then the circuit in
    * visiting order. Empty for everything without a field. */
@@ -980,6 +982,21 @@ export class BuildingSync {
     const baseZ = cz - Math.cos(facingYaw) * (len / 2);
     let yaw = facingYaw;
     let scale = 1;
+    // The deck stays square to the hut: a turn rotates the WHOLE model
+    // (house, deck and all) about the footprint center, so the pair never
+    // come apart. The fit search therefore pivots the deck line about the
+    // building center rather than the deck's landward end.
+    const pvX = v.root.position.x;
+    const pvZ = v.root.position.z;
+    const spin = (x: number, z: number, th: number): [number, number] => {
+      const rx = x - pvX;
+      const rz = z - pvZ;
+      const c = Math.cos(th);
+      const sn = Math.sin(th);
+      return [pvX + rx * c + rz * sn, pvZ + rz * c - rx * sn];
+    };
+    let fitBaseX = baseX;
+    let fitBaseZ = baseZ;
     let spotX = baseX + Math.sin(yaw) * (len - PIER_SPOT_BACK);
     let spotZ = baseZ + Math.cos(yaw) * (len - PIER_SPOT_BACK);
     // Aim the deck at the water: the least intrusive fit whose tip AND
@@ -993,33 +1010,43 @@ export class BuildingSync {
       const wet = (x: number, z: number): boolean =>
         this.#heights.at(x, z) < WATER_LEVEL - draft;
       const fit = PIER_FITS.find(f => {
-        const fitYaw = facingYaw + f.turn * PIER_TURN_STEP;
+        const th = f.turn * PIER_TURN_STEP;
+        const [bX, bZ] = spin(baseX, baseZ, th);
+        const fitYaw = facingYaw + th;
         const fitLen = len - f.trim * PIER_TRIM_STEP;
         const dirX = Math.sin(fitYaw);
         const dirZ = Math.cos(fitYaw);
         return (
-          wet(baseX + dirX * fitLen, baseZ + dirZ * fitLen) &&
+          wet(bX + dirX * fitLen, bZ + dirZ * fitLen) &&
           wet(
-            baseX + dirX * (fitLen - PIER_SPOT_BACK),
-            baseZ + dirZ * (fitLen - PIER_SPOT_BACK),
+            bX + dirX * (fitLen - PIER_SPOT_BACK),
+            bZ + dirZ * (fitLen - PIER_SPOT_BACK),
           )
         );
       });
       if (!fit) continue;
+      const th = fit.turn * PIER_TURN_STEP;
       const fitLen = len - fit.trim * PIER_TRIM_STEP;
-      yaw = facingYaw + fit.turn * PIER_TURN_STEP;
+      yaw = facingYaw + th;
       scale = fitLen / len;
-      spotX = baseX + Math.sin(yaw) * (fitLen - PIER_SPOT_BACK);
-      spotZ = baseZ + Math.cos(yaw) * (fitLen - PIER_SPOT_BACK);
+      [fitBaseX, fitBaseZ] = spin(baseX, baseZ, th);
+      spotX = fitBaseX + Math.sin(yaw) * (fitLen - PIER_SPOT_BACK);
+      spotZ = fitBaseZ + Math.cos(yaw) * (fitLen - PIER_SPOT_BACK);
+      if (th !== 0) {
+        // The facing-rotated model is the pier's ancestor just under root.
+        let model: THREE.Object3D = v.pier!;
+        while (model.parent && model.parent !== v.root) model = model.parent;
+        model.rotation.y += th;
+        v.root.updateWorldMatrix(true, true);
+      }
       break;
     }
-    if (yaw !== facingYaw || scale !== 1)
-      this.#fitDecor(v, baseX, baseZ, yaw - facingYaw, scale);
+    if (scale !== 1) this.#fitDecor(v, fitBaseX, fitBaseZ, scale);
     return {
       bx: v.root.position.x,
       bz: v.root.position.z,
-      baseX,
-      baseZ,
+      baseX: fitBaseX,
+      baseZ: fitBaseZ,
       spotX,
       spotZ,
       yaw,
@@ -1031,11 +1058,9 @@ export class BuildingSync {
 
   /**
    * Re-seat the pier — and the shoal working the water off its end — for
-   * the fit `#measurePier` chose: turn both by `theta` about the vertical
-   * line through the deck's landward end, and pull them in to `scale` of
-   * their reach from it. The parent chain is Y-rotation plus uniform scale,
-   * so a world-space angle and a ratio both carry into the local frame
-   * unchanged.
+   * the trim `#measurePier` chose: pull both in to `scale` of their reach
+   * from the deck's landward end. (A turn is not handled here any more —
+   * it rotates the whole model, so the decor rides along for free.)
    *
    * The deck shrinks with its reach, and does so UNIFORMLY (the pier's own
    * scale, all three axes): a trim leaves a smaller dock, narrower and
@@ -1055,20 +1080,14 @@ export class BuildingSync {
     v: BuildingVisual,
     baseX: number,
     baseZ: number,
-    theta: number,
     scale: number,
   ): void {
-    const c = Math.cos(theta);
-    const s = Math.sin(theta);
     const p = new THREE.Vector3();
     for (const obj of [v.pier, v.shoal]) {
       if (!obj?.parent) continue;
       obj.parent.worldToLocal(p.set(baseX, 0, baseZ));
-      const rx = obj.position.x - p.x;
-      const rz = obj.position.z - p.z;
-      obj.position.x = p.x + (rx * c + rz * s) * scale;
-      obj.position.z = p.z + (rz * c - rx * s) * scale;
-      obj.rotation.y += theta;
+      obj.position.x = p.x + (obj.position.x - p.x) * scale;
+      obj.position.z = p.z + (obj.position.z - p.z) * scale;
     }
     v.pier?.scale.multiplyScalar(scale);
   }
