@@ -49,8 +49,113 @@ const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
     what: 'evolve champion — serfTarget 12→15, researchReserve 10→6',
     play: {...mason, serfTarget: 15, researchReserve: 6},
   },
-  ...feedTheForge(),
+  ...armAndFeed(),
 ];
+
+/**
+ * The mason, armed with what actually counters a steward, and fed enough
+ * to field it.
+ *
+ * Two measurements set this up. First, at tick 16,000 the mason holds
+ * FIVE swords and no food and fields two knights, while a steward holds
+ * two swords and fields six: a knight costs 3 food and 1 sword, so the
+ * sword line unblocked the forge and the larder became the ceiling. That
+ * same shortage gated its monument, so the mason has ONE bottleneck and
+ * it caps the army and the win condition together.
+ *
+ * Second, the counter triangle (defs/units.ts COUNTER_TABLE): heavy beats
+ * light 1.5, light catches ranged 1.5, ranged kites heavy 1.5. The
+ * steward fields knights — heavy. The mason fields spearmen — light,
+ * which takes 0.67 into heavy. It was not merely outnumbered; it was
+ * fielding the class that loses WORST to what was coming. Swords moved it
+ * to a neutral 1.0 and won ten times as often. Archers are 1.5 into
+ * knights, better still — but light catches ranged, so an unscreened
+ * archer is run down, and the mixed line is the one with an answer to
+ * both.
+ *
+ * An earlier tower arm measured nothing, and that null does not stand: it
+ * was run before the food ceiling was found, with no screen in front of
+ * the bows, and with archery competing against deepMining for the same
+ * research. Every military option was capped by the same shortage.
+ */
+function armAndFeed(): {label: string; what: string; play: AiStrategy}[] {
+  const swords = {
+    ...mason,
+    weaponMix: [1, 0],
+    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
+    trainFallback: UnitTypeId.spearman,
+  };
+  // The whole chain, the well included. Three farms behind one well is a
+  // bottleneck moved rather than opened — wells are what wheat drinks.
+  const fed = (build: typeof mason.build): typeof mason.build =>
+    build.map(b =>
+      b.type === BuildingTypeId.wheatFarm ||
+      b.type === BuildingTypeId.mill ||
+      b.type === BuildingTypeId.bakery ||
+      b.type === BuildingTypeId.well
+        ? {
+            ...b,
+            count: b.type === BuildingTypeId.well ? 2 : b.count,
+            more: {after: TechId.ironworking, count: 3},
+          }
+        : b,
+    );
+  const towerStep = {
+    type: BuildingTypeId.guardTower,
+    count: 2,
+    anchor: BuildAnchorNs.base,
+    after: TechId.archery,
+    needs: BuildingTypeId.barracks,
+  };
+  const at = mason.build.findIndex(b => b.type === BuildingTypeId.goldMine);
+  const withTowers = [
+    ...mason.build.slice(0, at),
+    towerStep,
+    ...mason.build.slice(at),
+  ];
+  const bowResearch = [
+    TechId.soldiery,
+    TechId.ironworking,
+    TechId.archery,
+    TechId.deepMining,
+  ];
+  return [
+    {
+      label: 'swords',
+      what: 'the sword line alone — 11/80 last run',
+      play: swords,
+    },
+    {
+      label: 'swords+fed',
+      what: 'swords, and the bread chain widened — wells included',
+      play: {...swords, build: fed(mason.build)},
+    },
+    {
+      label: 'bows+towers',
+      what: 'archers + 2 towers + bow research, fed',
+      play: {
+        ...mason,
+        weaponMix: [2, 0],
+        trainPreference: [UnitTypeId.archer, UnitTypeId.spearman],
+        trainFallback: UnitTypeId.spearman,
+        build: fed(withTowers),
+        researchOrder: bowResearch,
+      },
+    },
+    {
+      label: 'mixed+towers',
+      what: 'knights AND archers + 2 towers + bow research, fed',
+      play: {
+        ...mason,
+        weaponMix: [1, 2],
+        trainPreference: [UnitTypeId.knight, UnitTypeId.archer],
+        trainFallback: UnitTypeId.spearman,
+        build: fed(withTowers),
+        researchOrder: bowResearch,
+      },
+    },
+  ];
+}
 
 /**
  * The mason, fed.
