@@ -338,7 +338,12 @@ export function mutate(
       after = stepPreference(next.trainPreference, rng);
     else if (knob === 'weaponMix') after = stepWeaponMix(next.weaponMix, rng);
     else after = stepNumber(next[knob], knob, rng, stepShare);
-    if (!changed(before, after)) continue;
+    // A null is the operator DECLINING — a list too short to reorder, a
+    // count already at its floor. `changed` reads that as a change (an
+    // array is not null), so without this the strategy gets a null build
+    // order and the log claims a mutation that never happened. Measured
+    // before the guard: 19 of 400 mutants came out with a null opening.
+    if (after === null || !changed(before, after)) continue;
     // Assign through a computed key: the union of knob types is wider than
     // any one field, and the branches above are what keeps it sound.
     Object.assign(next, {[knob]: after});

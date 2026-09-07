@@ -8,7 +8,7 @@ import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
 import {intArg} from './args.ts';
 import {runMatchChild} from './childRun.ts';
-import {byKey, wonByMonument} from './probe.ts';
+import {byKey, valueOf, wonByMonument} from './probe.ts';
 import type {ProbeTask} from './probeWorker.ts';
 
 /**
@@ -97,9 +97,9 @@ async function main(): Promise<void> {
   const seedStart = arg('--seed-start', 41, 0);
   const jobs = arg('--jobs', 4);
   const seeds = Array.from({length: seedCount}, (_, i) => i + seedStart);
-  const vsAt = process.argv.indexOf('--vs');
-  const vsKey = vsAt < 0 ? 'steward' : process.argv[vsAt + 1]!;
-  const opponent = AI_STRATEGIES[byKey(vsKey)];
+  const vsRaw = valueOf(process.argv, '--vs');
+  const vsId = byKey(vsRaw ?? 'steward');
+  const opponent = AI_STRATEGIES[vsId];
 
   type Trial = {variant: number; seed: number; seat: Owner};
   const trials: Trial[] = [];
@@ -133,7 +133,15 @@ async function main(): Promise<void> {
             seed: t.seed,
             mapSize: 96,
             bandits: true,
-            strategies: [AiStrategyId.mason, AiStrategyId.steward],
+            // The lineage each seat actually wears. Hard-coding the
+            // opponent's id meant `--vs warlord` recorded a steward in
+            // seat 1 and handed anything keyed off `strategies` the wrong
+            // playbook — the same bug evolve.ts had in baseConfig, made
+            // twice.
+            strategies:
+              t.seat === 0
+                ? [AiStrategyId.mason, vsId]
+                : [vsId, AiStrategyId.mason],
             playbooks: t.seat === 0 ? [play, opponent] : [opponent, play],
             maxTicks: 120_000,
             advicePeriod: 1800,

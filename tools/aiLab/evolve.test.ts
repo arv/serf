@@ -391,6 +391,21 @@ describe('candidates', () => {
     expect(rebuilt.build).toEqual(moved.strategy.build);
   });
 
+  it('never writes a declined operator into the strategy', () => {
+    // moveOne and stepCount return null when they cannot move — a list too
+    // short to reorder, a count already at its floor. `changed` reads a
+    // null as a change, because an array is not null, so an unguarded
+    // assignment puts a NULL build order into a candidate and logs a
+    // mutation that never happened. 19 of these 400 did exactly that.
+    const base = AI_STRATEGIES[AiStrategyId.mason];
+    for (let i = 0; i < 400; i++) {
+      const m = mutate(base, new Rng(i), {knobs: 2, opening: true});
+      expect(Array.isArray(m.strategy.build)).toBe(true);
+      expect(Array.isArray(m.strategy.researchOrder)).toBe(true);
+      for (const c of m.changes) expect(c.to).not.toBeNull();
+    }
+  });
+
   it('leaves the opening alone unless it is asked for', () => {
     // The default pool is what every recorded number was measured against.
     const base = AI_STRATEGIES[AiStrategyId.mason];
