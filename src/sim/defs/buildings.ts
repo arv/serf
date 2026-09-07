@@ -745,10 +745,21 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // A tower is built to be looked out of. Short of the castle's nine,
     // well past the five and a half every workshop sees.
     sight: 8,
-    // Gated with the barracks rather than with the bow: raising the tower
-    // is the decision to defend a line, and it can stand empty and waiting
-    // while the archers who will man it are still a research away.
-    requiresTech: TechId.soldiery,
+    // Ungated. It was Soldiery's, on the reasoning that raising a tower is
+    // the decision to defend a line and may stand empty while the archers
+    // who will man it are still a research away — but Soldiery is one of
+    // two warfare roots now, and a village that opens on the bow was being
+    // asked to buy the OTHER arm's research to raise a wall its own arm
+    // mans. Left as it was, the one thing crossing between the two lines
+    // was the tower.
+    //
+    // Nothing is given away by opening it. The tower is expensive in the
+    // material a young village has least of (12 stone against the
+    // barracks' 8), and what stands in it before there are archers is the
+    // levy: villagers with stones off the parapet, at about a quarter of
+    // two bowmen's output. A tower raised on turn one is a quarry's worth
+    // of stone spent on that, and the men in it are hands not carrying
+    // anything.
     // Half again the damage and two tiles further than the same archer
     // standing in the field. Deliberately short of doubling either: two men
     // in a tower already beat two men on the grass by being unkillable

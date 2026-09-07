@@ -378,6 +378,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // change (keepTheQueueWarm reading every hall rather than the first
 // barracks, and two playbooks raising a range) is brain-side and would have
 // ridden 53 on its own, exactly as the Mason's rule did on 49.
+// Still 54 again after the guard tower lost its tech requirement entirely
+// and the Fletcher was rebuilt around the free bow root. The tower is real
+// sim behavior — a placement the sim used to refuse it now allows — and
+// the playbook half is brain-side as ever (a replay stores a seat's
+// commands rather than re-deriving them, app/replay.ts). Both ride 54 for
+// the same reason the prereq did: it is this build's own bump.
+//
 // Still 54 after Archery lost its Soldiery prereq: warfare has two roots
 // now and a village can open on the bow without ever unlocking the
 // barracks. That is sim behavior in the plainest sense — a research the
@@ -386,7 +393,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // nothing older to break. The same reasoning the "Still 49" entries below
 // record.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '8f813d134761a17669ebf2fcd88e814b';
+const EXPECTED_HASH = '130861e93655619605075e7bd315f61e';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -817,7 +817,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         count: 2,
         anchor: BuildAnchorNs.base,
         after: TechId.archery,
-        needs: BuildingTypeId.barracks,
+        // The range, not the barracks. The old gate was "weapons need
+        // somewhere to train their bearers", and for this seat's bowstaves
+        // that somewhere is the range — gating on a barracks it now buys
+        // second would hold the staves behind the other arm's research.
+        needs: BuildingTypeId.archeryRange,
       },
       // One seam, late, and not for weapons: the bows stay pure wood, but
       // axes, picks and scythes are ironwork, and a seat that cannot forge
@@ -840,12 +844,16 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // wall first — tens of ticks of villagers across a whole campaign,
       // and none at all on this seat. They are a human's answer to being
       // rushed, not the AI's.
+      // No `after` any more: the tower carries no tech requirement at all
+      // now, so what it waits for is the roof that supplies its garrison
+      // rather than a research. Same instant in practice — the range is
+      // this seat's first building past the bow — and honest about which
+      // fact it depends on.
       {
         type: BuildingTypeId.guardTower,
         count: 1,
         anchor: BuildAnchorNs.base,
-        after: TechId.archery,
-        needs: BuildingTypeId.barracks,
+        needs: BuildingTypeId.archeryRange,
       },
       // No fishery here, and none in the Abbot's plan either. Both run their
       // last step on a purse the iron seats never touch — the Fletcher pays
@@ -859,15 +867,32 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // researches it can staff nothing past the starter kit. Last, because
     // the opening kit carries the first posts and the bows cannot wait.
     researchOrder: [
-      TechId.soldiery,
+      // The bow first, which it could not be until Archery stopped hanging
+      // off Soldiery: a seat named for its archers was buying the spear
+      // line's research to reach its own. Not free — Soldiery is 6 wheat
+      // and 6 silver against a starting larder of 12 wheat nothing else
+      // wants that early, while Archery is 8 wood, the one material this
+      // opening is short of. First research lands around 10.5k rather than
+      // inside 9k (aiStrategies.test.ts pins it). Worth it: 21/24 against
+      // 20/24 over 24 seeds, +2 population and +0.6 army.
+      //
+      // Soldiery still second, and dropping it was tried. A Fletcher with
+      // no barracks at all — mono-archer, the pure reading of the two
+      // roots — takes 16/24 and dies in 8: it loses the opening spearmen
+      // its two armory spears were for, and with them every answer to the
+      // light column that eats bowmen. The barracks is a hedge this plan
+      // needs even though it is not what the plan is about.
       TechId.archery,
+      TechId.soldiery,
       TechId.cobbledBoots,
       TechId.ironworking,
     ],
     researchReserve: 8,
     serfTarget: 11,
     survivalFloor: 3,
-    growthAfter: TechId.soldiery,
+    // Archery, not Soldiery: growth waited on "the first research this seat
+    // buys", and which research that is has changed.
+    growthAfter: TechId.archery,
     housingHeadroom: 3,
     houseLimit: 4,
     // The skirmisher's cascade: the raid stance's short cooldown keeps the
