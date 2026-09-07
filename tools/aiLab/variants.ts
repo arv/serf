@@ -4,14 +4,11 @@ import {
   type AiStrategy,
 } from '../../src/sim/defs/aiStrategies.ts';
 import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
-import * as BuildAnchorNs from '../../src/sim/defs/buildAnchorEnum.ts';
-import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
-import * as TechId from '../../src/sim/defs/techIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {Owner} from '../../src/sim/entities.ts';
 import {intArg} from './args.ts';
 import {runMatchChild} from './childRun.ts';
-import {wonByMonument} from './probe.ts';
+import {byKey, wonByMonument} from './probe.ts';
 import type {ProbeTask} from './probeWorker.ts';
 
 /**
@@ -84,211 +81,6 @@ const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
  * research. Every military option was capped by the same shortage.
  */
 
-/**
- * The mason, fed.
- *
- * The sword line took it from 1 win in 80 to 11, and the next
- * measurement said why it stopped there: at tick 16,000 it holds FIVE
- * swords and no food, fielding two knights, while a steward on the same
- * tick holds two swords and fields six. A knight costs 3 food and 1
- * sword. The mason forges the sword now and cannot pay the bread.
- *
- * That is the same shortage that gated its monument — food at nought to
- * six for forty thousand ticks — so it has one bottleneck, not several,
- * and it caps the army and the win condition together. Its own mines eat
- * the rations, and it runs more mines than any other playbook: two
- * silver, an iron, and a gold.
- *
- * So: swords, and then bread to spend them. Counts up on the chain it
- * already has, a shore it does not use, and both.
- */
-function feedTheForge(): {label: string; what: string; play: AiStrategy}[] {
-  const arms = {
-    weaponMix: [1, 0],
-    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
-    trainFallback: UnitTypeId.spearman,
-  };
-  const swords = {...mason, ...arms};
-  // One more of each link, not just the ovens: a third bakery with two
-  // mills behind it grinds nothing.
-  const wider = mason.build.map(b =>
-    b.type === BuildingTypeId.wheatFarm ||
-    b.type === BuildingTypeId.mill ||
-    b.type === BuildingTypeId.bakery
-      ? {...b, more: {after: TechId.ironworking, count: 3}}
-      : b,
-  );
-  // The steward's own fishery step, which the mason has never had: last in
-  // the plan, so it is surplus rather than something bought ahead of the
-  // smiths.
-  const fishery = {
-    type: BuildingTypeId.fishery,
-    count: 1,
-    anchor: BuildAnchorNs.water,
-    radius: 8,
-    after: TechId.ironworking,
-    needs: BuildingTypeId.barracks,
-  };
-  return [
-    {
-      label: 'swords',
-      what: 'the sword line alone — 11/80 last run',
-      play: swords,
-    },
-    {
-      label: 'swords+farms',
-      what: 'swords, and a third farm, mill and bakery',
-      play: {...swords, build: wider},
-    },
-    {
-      label: 'swords+fish',
-      what: 'swords, and the shore the steward already fishes',
-      play: {...swords, build: [...mason.build, fishery]},
-    },
-    {
-      label: 'swords+both',
-      what: 'swords, wider bread chain, and the fishery',
-      play: {...swords, build: [...wider, fishery]},
-    },
-  ];
-}
-
-/**
- * The mason, given something to fight a rush WITH.
- *
- * The diagnosis, measured: at tick 17,000 against a steward the mason has
- * pop 31 to the steward's 33 and fields six spearmen against nine
- * knights, having fielded nothing at all when the steward had four. It is
- * not short of people. It converts almost none of them into soldiers, and
- * the ones it converts are the cheap unit.
- *
- * The reason is one line of its plan: a single weaponsmith, twelfth in
- * priority, with `weaponMix: [0]` — every forge on spears. It cannot
- * field a knight because it never forges a sword. The steward runs
- * [1, 0], sword first.
- *
- * These are the three moves that have to happen together, which is
- * exactly why the search could not find them: swords alone with one late
- * forge arms nobody, a second forge alone still makes spears, and a
- * knight preference with no sword to carry falls through to the
- * spearman fallback. Every single step scores worse than the parent.
- */
-function rushProof(): {label: string; what: string; play: AiStrategy}[] {
-  const arms = {
-    weaponMix: [1, 0],
-    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
-    trainFallback: UnitTypeId.spearman,
-  };
-  const twoForges = mason.build.map(b =>
-    b.type === BuildingTypeId.weaponsmith ? {...b, count: 2} : b,
-  );
-  // The forge moved up the priority list, to just behind the barracks it
-  // arms. Order is priority rather than sequence, so this only matters on
-  // the beats where both are affordable — which are the beats that decide
-  // whether a sword exists before the first march.
-  const at = twoForges.findIndex(b => b.type === BuildingTypeId.weaponsmith);
-  const bar = twoForges.findIndex(b => b.type === BuildingTypeId.barracks);
-  const early = [...twoForges];
-  const [forge] = early.splice(at, 1);
-  early.splice(bar + 1, 0, forge!);
-  return [
-    {
-      label: 'swords',
-      what: 'weaponMix [0]→[1,0], train knights — one forge still',
-      play: {...mason, ...arms},
-    },
-    {
-      label: 'swords+forge',
-      what: 'swords, and a second weaponsmith',
-      play: {...mason, ...arms, build: twoForges},
-    },
-    {
-      label: 'swords+early',
-      what: 'swords, two forges, and the forge up behind the barracks',
-      play: {...mason, ...arms, build: early},
-    },
-    {
-      label: 'the-lot',
-      what: 'swords + two forges + forge early + champion serfTarget 15',
-      play: {...mason, ...arms, build: early, serfTarget: 15},
-    },
-  ];
-}
-
-/** The mason, taught the bow. Two orderings, because archery has to come
- * out of the same research budget the monument's deepMining does: one
- * puts the towers first and the plinth late, the other the reverse. */
-function towerVariants(): {label: string; what: string; play: AiStrategy}[] {
-  const towerStep = {
-    type: BuildingTypeId.guardTower,
-    count: 2,
-    anchor: BuildAnchorNs.base,
-    after: TechId.archery,
-    needs: BuildingTypeId.barracks,
-  };
-  // In front of the gold line: the two steps the mason exists for stay
-  // last, so a tower can never starve the plinth it is there to protect.
-  const at = mason.build.findIndex(b => b.type === BuildingTypeId.goldMine);
-  const build = [
-    ...mason.build.slice(0, at),
-    towerStep,
-    ...mason.build.slice(at),
-  ];
-  const arms = {
-    weaponMix: [0, 2],
-    trainPreference: [UnitTypeId.archer, UnitTypeId.spearman],
-    trainFallback: UnitTypeId.spearman,
-  };
-  return [
-    {
-      label: 'towers-late',
-      what: 'guard towers + bow, archery AFTER deepMining (plinth first)',
-      play: {
-        ...mason,
-        ...arms,
-        build,
-        researchOrder: [
-          TechId.soldiery,
-          TechId.ironworking,
-          TechId.deepMining,
-          TechId.archery,
-        ],
-      },
-    },
-    {
-      label: 'towers-first',
-      what: 'guard towers + bow, archery BEFORE deepMining (survive first)',
-      play: {
-        ...mason,
-        ...arms,
-        build,
-        researchOrder: [
-          TechId.soldiery,
-          TechId.ironworking,
-          TechId.archery,
-          TechId.deepMining,
-        ],
-      },
-    },
-    {
-      label: 'towers+serfs',
-      what: 'towers-first, plus the champion serfTarget 15',
-      play: {
-        ...mason,
-        ...arms,
-        build,
-        serfTarget: 15,
-        researchOrder: [
-          TechId.soldiery,
-          TechId.ironworking,
-          TechId.archery,
-          TechId.deepMining,
-        ],
-      },
-    },
-  ];
-}
-
 function arg(flag: string, fallback: number, min = 1): number {
   const i = process.argv.indexOf(flag);
   if (i < 0) return fallback;
@@ -307,11 +99,7 @@ async function main(): Promise<void> {
   const seeds = Array.from({length: seedCount}, (_, i) => i + seedStart);
   const vsAt = process.argv.indexOf('--vs');
   const vsKey = vsAt < 0 ? 'steward' : process.argv[vsAt + 1]!;
-  const vsId = (
-    Object.keys(AiStrategyId) as (keyof typeof AiStrategyId)[]
-  ).find(k => k === vsKey);
-  if (!vsId) throw new Error(`--vs does not know "${vsKey}"`);
-  const opponent = AI_STRATEGIES[AiStrategyId[vsId]];
+  const opponent = AI_STRATEGIES[byKey(vsKey)];
 
   type Trial = {variant: number; seed: number; seat: Owner};
   const trials: Trial[] = [];
