@@ -27,6 +27,7 @@ import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import {findSpot} from './siting.ts';
 import {
+  AI_CREDIT,
   AI_PACING,
   AI_SITING,
   AI_STALL,
@@ -1619,6 +1620,108 @@ describe('a forge nobody is buying from', () => {
   });
 });
 
+/**
+ * Credit, on the AI's side of it (AI_CREDIT).
+ *
+ * The ribbon lets a player peg out a plan the stores cannot cover, and the
+ * plan does the same — but only at the margin the constant block describes:
+ * nine tenths of the bill already on the shelf, nothing else of the seat's
+ * own going up, one borrowing per cooldown, and last in the beat behind
+ * every rule that wanted the ground.
+ *
+ * The abbey carries these because a tenth of a bill is a whole load on
+ * anything cheaper: nine tenths of a six-plank woodcutter rounds back to
+ * six, so the huts a village opens with are never borrowed for at all, and
+ * that is the point of the number rather than an accident of it.
+ */
+describe('the plan that runs a little ahead of its shelf', () => {
+  const ABBEY = BUILDING_DEFS[BuildingTypeId.abbey].cost;
+
+  /**
+   * A village whose next unmet step is the abbey (10 wood, 4 stone), with
+   * every stone of it and `wood` planks on the shelf.
+   *
+   * The plan's cheap wants are already standing and the gatherers below it
+   * have no ground on this bare map, so the abbey is the only foundation a
+   * beat can lay — paid for, on credit, or not at all. The same shape the
+   * seam fixture below uses, and for the same reason.
+   */
+  function abbeyVillage(wood: number): {world: World; brain: AiBrain} {
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 10, 50, {}, 1); // a rival, so the match plays on
+    addStorehouse(world, 30, 30, {
+      [GoodId.wood]: wood,
+      [GoodId.stone]: ABBEY[GoodId.stone]!,
+    });
+    for (const [type, x, y] of [
+      [BuildingTypeId.house, 27, 30],
+      [BuildingTypeId.well, 27, 33],
+      [BuildingTypeId.wheatFarm, 24, 30],
+      [BuildingTypeId.mill, 24, 34],
+    ] as const) {
+      placeBuiltBuilding(world, type, 0, x, y);
+    }
+    return {
+      world,
+      brain: new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.steward],
+        world.map.size,
+      ),
+    };
+  }
+
+  function beat(brain: AiBrain, world: World): SimCommand[] {
+    world.tick += AI_PACING.decisionInterval;
+    return brain
+      .decide(world)
+      .filter(c => c.kind === CommandKind.placeBuilding);
+  }
+
+  const short = (n: number): number => ABBEY[GoodId.wood]! - n;
+
+  it('lays a foundation it is one load short of', () => {
+    // Thirteen of the abbey's fourteen goods. The frame goes up now and
+    // the last plank walks in behind it, which is the whole of what credit
+    // buys: the builder is recruited and walking while the load is still
+    // on the road.
+    const {world, brain} = abbeyVillage(short(1));
+    expect(beat(brain, world)).toMatchObject([
+      {building: BuildingTypeId.abbey},
+    ]);
+  });
+
+  it('will not lay one it is two loads short of', () => {
+    // Twelve of fourteen is under AI_CREDIT.paidShare, and the shelf stays
+    // liquid: goods hauled into a frame cannot be pulled back out for a
+    // hire, a repair, or the step that turns out to matter more.
+    const {world, brain} = abbeyVillage(short(2));
+    expect(beat(brain, world)).toEqual([]);
+  });
+
+  it('opens no tab while a frame of its own is standing', () => {
+    const {world, brain} = abbeyVillage(short(1));
+    placeSite(world, BuildingTypeId.house, 0, 34, 30);
+    expect(beat(brain, world)).toEqual([]);
+  });
+
+  it('waits out the cooldown before borrowing again', () => {
+    // Nothing here applies the commands, so the world never grows the
+    // frame the first beat ordered — which leaves the clock alone to
+    // answer. The seat stands with the same goods and the same ground, and
+    // says nothing until the cooldown is out.
+    const {world, brain} = abbeyVillage(short(1));
+    expect(beat(brain, world)).toMatchObject([
+      {building: BuildingTypeId.abbey},
+    ]);
+    expect(beat(brain, world)).toEqual([]);
+    world.tick += AI_CREDIT.cooldown;
+    expect(beat(brain, world)).toMatchObject([
+      {building: BuildingTypeId.abbey},
+    ]);
+  });
+});
+
 describe('the seat that sees its seam running out', () => {
   /**
    * A village whose silver mine is nearly through its home seam, with a
@@ -1630,12 +1733,23 @@ describe('the seat that sees its seam running out', () => {
    */
   function minedOut(
     leftInReach: number,
-    opts: {reserve?: boolean; successor?: boolean; rival?: boolean} = {},
+    opts: {
+      reserve?: boolean;
+      successor?: boolean;
+      rival?: boolean;
+      wood?: number;
+    } = {},
   ): {world: World; brain: AiBrain; mine: Building} {
     const world = bareWorld(1, opts.rival ? 2 : 1);
-    // Exactly one mine's worth of materials: enough for the successor,
-    // not enough for the abbey the plan wants next.
-    addStorehouse(world, 30, 30, {[GoodId.wood]: 8, [GoodId.stone]: 4});
+    // Exactly one mine's worth of materials: enough for the successor, and
+    // two goods short of the abbey the plan wants next — which is outside
+    // AI_CREDIT as well as outside the shelf, so the plan has nothing to
+    // say on the beat and the rule is what speaks. `wood` is for the one
+    // test that wants the abbey inside credit instead.
+    addStorehouse(world, 30, 30, {
+      [GoodId.wood]: opts.wood ?? 8,
+      [GoodId.stone]: 4,
+    });
     // A living rival whose castle stands over the reserve, so the seam is
     // its yard rather than this seat's (siting.ts rivalGround). After our
     // own: addStorehouse pads world.starts up to the owner it is given.
@@ -1702,6 +1816,7 @@ describe('the seat that sees its seam running out', () => {
     // waits for the last load spends the whole gap between the seams
     // unable to hire a hand or finish a tech — so it moves while the mine
     // it has is still producing.
+
     const {world, brain} = minedOut(10);
     const sites = mineSites(beat(brain, world));
     expect(sites.length).toBe(1);
@@ -1709,6 +1824,29 @@ describe('the seat that sees its seam running out', () => {
     // has to be within a mine's reach (4) of the far seam.
     const [site] = sites as [{x: number; y: number}];
     expect(Math.abs(site.y - 55)).toBeLessThanOrEqual(5);
+  });
+
+  it('outranks the foundation the plan would have borrowed for', () => {
+    // One plank more than the fixture's own, which puts the abbey inside
+    // AI_CREDIT at thirteen of its fourteen goods: the plan has something
+    // it would peg out this beat. The seat needs the mine more, and gets
+    // it — a rule stands down on `ctx.placed` and a borrowed frame is the
+    // last thing a beat lays, so the order between them is settled in the
+    // rule's favour (systems/ai.ts, "Credit").
+    const bought = (world: World, brain: AiBrain): SimCommand[] =>
+      beat(brain, world).filter(c => c.kind === CommandKind.placeBuilding);
+    const running = minedOut(10, {wood: 9});
+    expect(bought(running.world, running.brain)).toMatchObject([
+      {building: BuildingTypeId.silverMine},
+    ]);
+    // And with the same shelf under a mine that is NOT running out, the
+    // rule says nothing and the borrowed abbey is what the beat lays —
+    // which is what makes the assertion above about precedence rather
+    // than about credit never firing here at all.
+    const easy = minedOut(90, {wood: 9});
+    expect(bought(easy.world, easy.brain)).toMatchObject([
+      {building: BuildingTypeId.abbey},
+    ]);
   });
 
   it('leaves a mine alone while its seam still holds ore', () => {
