@@ -53,7 +53,7 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // (No bakery: it is the one building we model ourselves — BUILT_BUILDINGS.)
   // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
   // quay. The one food building that needed nothing built by hand.
-  [BuildingTypeId.fishery]: 'extra/building_shipyard_green.gltf',
+  [BuildingTypeId.fishery]: 'building_fishery_green.gltf',
   [BuildingTypeId.brewery]: 'building_tavern_green.gltf',
   // The quarry and the three mines all play this one model — the pack's
   // color variants only vary the team-color slot, which belongs to the
@@ -234,13 +234,19 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // promises water within one, so the reach here is an aim rather than a
     // guarantee. Neither is the facing: it is a quarter turn, and most
     // shorelines do not run square to the grid. So this is the deck's
-    // AUTHORED placement, and buildingSync turns and trims it about its
-    // landward end until it stands over water the player can see
-    // (#measurePier). Change the length or the standoff and the fit shifts
-    // with it — tools/modelLab/_pier.html is where that gets looked at.
+    // AUTHORED placement, and buildingSync fits it to the water from here
+    // (#measurePier): a turn rotates the whole fishery about the footprint
+    // center — hut and jetty stay square — while a trim shortens the deck
+    // alone, about its landward end. Change the length or the standoff and
+    // the fit shifts with it — tools/modelLab/_pier.html is where that
+    // gets looked at.
     {
       prop: 'extra/building_docks_green',
-      at: [0, 0.68],
+      // The attach point abuts the hut's front wall, centered on the door.
+      // It is derived from the MODEL's bounding box (normalize() centers by
+      // bbox, and the boat off the gable skews it): door at template
+      // [0.025, 0.19], deck 0.8 long. Recompute if the model changes shape.
+      at: [0.03, 0.6],
       span: 0.8,
       size: 1,
       rot: -Math.PI / 2,
@@ -258,8 +264,6 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
       size: 1,
       rot: Math.PI / 4,
     },
-    {prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4},
-    {prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3},
     // A shoal working the water off the pier. buildingSync swims it while
     // the fishery is staffed — an idle fishery's water is still. (It used to
     // say "the same way it turns a staffed well's windlass"; the well keeps
@@ -884,30 +888,6 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         ];
         scene.traverse(o => {
           if (o instanceof THREE.Mesh && o.name === 'building_mine_green') {
-            for (const [x0, y0, z0, x1, y1, z1] of CUT) {
-              o.geometry = stripTrianglesInBox(
-                o.geometry as THREE.BufferGeometry,
-                new THREE.Box3(
-                  new THREE.Vector3(x0, y0, z0),
-                  new THREE.Vector3(x1, y1, z1),
-                ),
-              );
-            }
-          }
-        });
-      }
-      if (type === BuildingTypeId.fishery) {
-        // The pack perches a finished sailing ship on the shipyard's ridge —
-        // a whole vessel, masts and sails, sitting on the roof. It reads as
-        // a toy on a shelf at village zoom, and the hull already under
-        // construction on the slipway is the part that says shipyard. Cut
-        // the roof ship; the chimney (z > 0.55) and the ridge (x > 0.45)
-        // sit outside the box and survive.
-        const CUT: [number, number, number, number, number, number][] = [
-          [0.02, 0.72, -0.36, 0.46, 1.3, 0.46],
-        ];
-        scene.traverse(o => {
-          if (o instanceof THREE.Mesh) {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,

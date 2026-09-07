@@ -263,7 +263,7 @@ describe("the fishery's pier", () => {
     expect(p.deckY).toBeCloseTo(0.15);
   });
 
-  it('turns toward the water on a shore the facing points away from', () => {
+  it('turns the whole building toward a shore the facing points away from', () => {
     // Facing 2 sends the deck north, but the water is the single tile
     // column at tx 9, WEST of the hut — so the wet band runs from world
     // x 9 to x 10. That is the shore a quarter-turn facing cannot express,
@@ -271,19 +271,23 @@ describe("the fishery's pier", () => {
     const {sync, scene} = makeSync(shoreHeights(tx => tx === 9));
     sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
-    // 60 degrees, not the 45 that gets the tip wet (x 9.73): at 45 the spot
-    // the fisherman casts from is still over grass a plank behind it
-    // (x 10.19), which is a rod hanging its line in the meadow.
-    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 3);
-    expect(p.spotX).toBeCloseTo(9.68);
+    // 45 degrees about the footprint center: the pivot swings the deck's
+    // landward end west along with the hut, which is what buys the reach a
+    // base-pivoted 45 never had (there the casting spot still hung over
+    // grass, and only 60 got it wet).
+    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 4);
+    expect(p.baseX).toBeCloseTo(11.5 - 0.85 * Math.SQRT1_2);
+    expect(p.spotX).toBeCloseTo(11.5 - 2.95 * Math.SQRT1_2);
     expect(p.spotZ).toBeLessThan(p.baseZ);
-    // The decor itself turned with it, pivoting on the landward end...
+    // The deck itself stays square to the hut — the MODEL carries the turn,
+    // house and jetty as one piece...
     const pier = scene.getObjectByName('fisheryPier')!;
-    expect(pier.rotation.y).toBeCloseTo(Math.PI / 3);
+    expect(pier.rotation.y).toBeCloseTo(0);
     expect(pier.scale.x).toBeCloseTo(1);
+    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + Math.PI / 4);
     // ...and the measurement is cached: asking again must not turn twice.
     expect(sync.fisheryPiers()[0]!.yaw).toBeCloseTo(p.yaw);
-    expect(pier.rotation.y).toBeCloseTo(Math.PI / 3);
+    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + Math.PI / 4);
   });
 
   it('trims the deck rather than stride over a narrow channel', () => {
