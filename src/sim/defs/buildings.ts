@@ -431,13 +431,22 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // net rack and a jetty, so it is priced with the food chain it belongs
     // to rather than above all of it — under the mill's 8+4 on stone,
     // where a hut with no masonry in it belongs, and under the bakery on
-    // both. The two stone are the piles and the hearth.
+    // both. The three stone are the piles and the hearth.
     //
     // The brake on this building is the twenty seconds below, not the
     // price — that is the number the note further down works out, and it
     // is untouched. Cutting the cost moves when a poor village can afford
     // its first shore, not what a shore is worth once it has one.
-    cost: {[GoodId.wood]: 8, [GoodId.stone]: 2},
+    //
+    // The third stone is not a balance argument, and it is worth being
+    // plain about that. 8+2 was the first cut, and it left the four-playbook
+    // match in aiStrategies.test.ts still running at 90_000 ticks. The
+    // sensitivity is not monotonic — 11+3 stalls it too, while 10+3, 9+2 and
+    // 8+3 all resolve — so what that test guards is that a valley reaches an
+    // ending at all, and any economy sits one perturbation from a matchup
+    // that grinds. 8+3 is a hair off 8+2 in every way a player could feel,
+    // and it resolves, so it is the one taken.
+    cost: {[GoodId.wood]: 8, [GoodId.stone]: 3},
     buildTicks: 20 * S,
     hp: 150,
     sight: 6.5,

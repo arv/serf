@@ -70,7 +70,14 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.archer]: {
     id: U.archer,
     speed: 2.0,
-    hp: 35,
+    // 32 rather than 35: the archer's staying power is what the kite is
+    // bought with, and until KITE_PLANT_TICKS (systems/combat.ts) the kite
+    // cost nothing at all. Hit points are the one dial that prices it
+    // without reaching past the duel — damage, cooldown and range all also
+    // set the tower garrison's output, the bandit archer's identity, or
+    // both. Still above the bandit archer's 30, which is the floor: a bow
+    // off the village barracks must beat a bow off a camp.
+    hp: 32,
     sight: 6.5,
     combat: {
       class: UnitClassNs.ranged,

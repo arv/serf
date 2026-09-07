@@ -356,8 +356,37 @@ import {REPLAY_VERSION} from './replayVersion';
 // World['map'] to the MapView it only ever reads. Nothing calls it that
 // did not before, and it returns the same quarter turn for the same
 // footprint. The hash is over raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 53;
-const EXPECTED_HASH = '3e9461b5ffd26674b44aef51ecf783eb';
+// Still 52 after AiSeats took an optional playbook per seat (sim/aiSeats.ts):
+// the search seam, and the same reasoning as every brain-side entry above —
+// playback never runs a brain, so a seat that would DECIDE differently
+// replays as it decided then. This one is a step milder still: the argument
+// is optional and nothing in the game passes it, so the constructed brain is
+// the same object it was on every shipped path. A handed-in playbook is not
+// registered in AI_STRATEGIES either, so it cannot ride a save into a
+// replay. The hash is over raw bytes, which is why it moved anyway.
+// 53 for the kite's price: a ranged unit is planted by his own shot
+// (KITE_PLANT_TICKS in systems/combat.ts) instead of firing and re-pathing
+// in the same free tick, and the archer is 32 hit points rather than 35.
+// Behavior in the plainest sense — every fight resolves on different ticks
+// with different men left standing, and the hauls re-planned around those
+// fights walk elsewhere. Old logs stop playing, which is the honest
+// outcome. It takes 53 rather than sharing the 52 above because that one
+// is a shipped number and this changes how a tick resolves; the AiSeats
+// seam rode 52 precisely because it does not.
+// Still 53 after the plant window was clamped through `plantedUntil`: the
+// guard only bites on a cooldown shorter than the plant, and both bows in
+// the game cycle at 24 against a plant of 8, so every unit that exists
+// resolves to the same tick it did a moment ago. The hash is over raw
+// bytes, which is why it moved anyway.
+// 54 for the fishery: its plot went 3x3 -> 2x2 and its price 12+4 -> 8+3
+// (sim/defs/buildings.ts). A footprint is as sim-side as a number gets — it
+// decides what `canPlace` will take and what a unit has to walk around — and
+// a cost decides what a seat can afford and therefore what it builds next,
+// so an older log replayed here puts a fishery on ground that was not legal
+// when it was written. It takes 54 rather than riding the 53 above because
+// that one is the kite's price and has shipped.
+const EXPECTED_VERSION = 54;
+const EXPECTED_HASH = '21f954334277a00c42eace3e0b21b53d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

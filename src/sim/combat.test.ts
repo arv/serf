@@ -81,6 +81,120 @@ describe('the counter triangle', () => {
   });
 });
 
+/**
+ * The kite is meant to be good, not absolute. Both halves are pinned here:
+ * the tick-level rule (a shot plants the man who looses it) and the balance
+ * property it exists to produce (numbers eventually tell). Before the plant
+ * neither held — a chaser slower than his quarry landed nothing at all, so
+ * sixteen knights lost to seven archers on open ground.
+ */
+describe("the kite's price", () => {
+  /** Ticks an archer stays put after firing — KITE_PLANT_TICKS in
+   * systems/combat.ts, restated rather than exported: a test that reads the
+   * constant it is checking would pass whatever the constant became. */
+  const PLANT = 8;
+
+  /** An archer with a knight already inside the kite trigger (2.4 tiles), so
+   * the very first tick is a shoot-and-scoot rather than an approach. */
+  function skirmish() {
+    const world = bareWorld();
+    const archer = spawnUnit(world, UnitTypeId.archer, 0, 30.5, 30.5);
+    const knight = spawnUnit(world, UnitTypeId.knight, BANDIT, 32.5, 30.5);
+    return {world, archer, knight};
+  }
+
+  it('plants the archer for the whole recovery, then lets him break away', () => {
+    const {world, archer} = skirmish();
+    const cooldown = UNIT_DEFS[UnitTypeId.archer].combat!.cooldownTicks;
+
+    // Tick to the shot: the cooldown going full is how the release is seen.
+    let fired = false;
+    for (let i = 0; i < 40 && !fired; i++) {
+      tickWorld(world, []);
+      fired = archer.cooldownLeft === cooldown;
+    }
+    expect(fired).toBe(true);
+    // Loosing plants him: no scoot in hand on the tick the arrow leaves.
+    expect(archer.path).toBeNull();
+
+    // He stays planted for the rest of the recovery window...
+    for (let i = 1; i < PLANT; i++) {
+      tickWorld(world, []);
+      expect(archer.path).toBeNull();
+    }
+    // ...and is free to scoot on the tick it ends.
+    tickWorld(world, []);
+    expect(archer.cooldownLeft).toBe(cooldown - PLANT);
+    expect(archer.path).not.toBeNull();
+  });
+
+  it('lets the knight land blows he could never land before', () => {
+    const {world, archer} = skirmish();
+    run(world, 20 * 20);
+    // The whole point: a chaser slower than his quarry used to finish this
+    // exchange having done no damage whatsoever.
+    expect(archer.hp).toBeLessThan(UNIT_DEFS[UnitTypeId.archer].hp);
+  });
+
+  it('lets a big enough heavy force run archers down', () => {
+    const world = bareWorld();
+    const archers = [];
+    for (let i = 0; i < 7; i++)
+      archers.push(
+        spawnUnit(
+          world,
+          UnitTypeId.archer,
+          BANDIT,
+          32.5 + (i % 2),
+          28.5 + Math.floor(i / 2),
+        ),
+      );
+    for (let i = 0; i < 16; i++)
+      spawnUnit(
+        world,
+        UnitTypeId.knight,
+        0,
+        28.5 - (i % 2),
+        28.5 + Math.floor(i / 2),
+      );
+    run(world, 20 * 180);
+    // Sixteen to seven is well past the crossover (about twelve). Before the
+    // plant the archers took this without losing a man.
+    expect(archers.filter(a => !a.dead)).toEqual([]);
+  });
+
+  it('still leaves equal numbers of archers beating knights', () => {
+    // The counter table's ranged-beats-heavy leg, which the plant prices but
+    // must not invert: four a side still goes to the bows.
+    const world = bareWorld();
+    const archers = [];
+    const knights = [];
+    for (let i = 0; i < 4; i++) {
+      archers.push(
+        spawnUnit(
+          world,
+          UnitTypeId.archer,
+          0,
+          28.5 - (i % 2),
+          28.5 + Math.floor(i / 2),
+        ),
+      );
+      knights.push(
+        spawnUnit(
+          world,
+          UnitTypeId.knight,
+          BANDIT,
+          32.5 + (i % 2),
+          28.5 + Math.floor(i / 2),
+        ),
+      );
+    }
+    run(world, 20 * 180);
+    expect(knights.filter(k => !k.dead)).toEqual([]);
+    expect(archers.filter(a => !a.dead).length).toBeGreaterThan(0);
+  });
+});
+
 describe('barracks training', () => {
   it('trains a knight from hauled food + sword', () => {
     const world = bareWorld();
