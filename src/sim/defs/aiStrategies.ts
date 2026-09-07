@@ -844,15 +844,29 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // wall first — tens of ticks of villagers across a whole campaign,
       // and none at all on this seat. They are a human's answer to being
       // rushed, not the AI's.
-      // No `after` any more: the tower carries no tech requirement at all
-      // now, so what it waits for is the roof that supplies its garrison
-      // rather than a research. Same instant in practice — the range is
-      // this seat's first building past the bow — and honest about which
-      // fact it depends on.
+      // Gated on Soldiery, which reads oddly on the seat that opens with
+      // the bow and is the point: this gate is the playbook's now, because
+      // the building's own is gone. The tower used to require Soldiery to
+      // exist at all, and with this seat researching Archery first that
+      // rule was what held its tower back a research. Ungating the
+      // building for players removed the brake as a side effect, and
+      // merging the build-order credit rule (AI_CREDIT in systems/ai.ts) is
+      // what made that matter: a seat may now lay a foundation the shelf is
+      // a load short of, and a tower arriving a research early is enough to
+      // hang seed 42 — the standoff aiStrategies.test.ts exists to catch —
+      // past 90k ticks with no ending.
+      //
+      // Tried and rejected on that test before landing here: moving this
+      // entry last in the plan (the walker skips what it cannot place, so
+      // last is not late), and raising the tower's own price to 18 stone.
+      // Neither is the lever; the timing is. What a player may raise
+      // whenever they like and when a playbook should queue it are
+      // different questions, and only the second belongs in a build order.
       {
         type: BuildingTypeId.guardTower,
         count: 1,
         anchor: BuildAnchorNs.base,
+        after: TechId.soldiery,
         needs: BuildingTypeId.archeryRange,
       },
       // No fishery here, and none in the Abbot's plan either. Both run their

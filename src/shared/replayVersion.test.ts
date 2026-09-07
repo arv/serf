@@ -392,8 +392,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // but 54 is this build's own bump and has never shipped, so there is
 // nothing older to break. The same reasoning the "Still 49" entries below
 // record.
+// Still 53 after the build order learned to borrow (AI_CREDIT in
+// systems/ai.ts): a seat may now lay a foundation whose bill the shelf is
+// a load short of, which changes what the seats DECIDE and nothing about
+// how a tick executes what they decided. Playback never runs a brain — a
+// replay stores the seats' commands rather than re-deriving them
+// (app/replay.ts) — so yesterday's logs play back exactly as they did, the
+// same reasoning the stance engine and the war behaviors are recorded
+// under above. The hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '130861e93655619605075e7bd315f61e';
+const EXPECTED_HASH = 'fe2085bf7e620f17f034b0267d1c7a7f';
 
 /**
  * Everything a replay's playback depends on, as raw source:

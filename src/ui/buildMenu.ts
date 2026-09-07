@@ -1,7 +1,6 @@
 import type {Enum} from '../shared/enum.ts';
 import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import {type GoodAmounts, goodEntries} from '../sim/defs/goods';
 import type {TechId} from '../sim/defs/techs';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -214,13 +213,26 @@ export function buildingForKey(letter: string): BuildingTypeId | null {
 }
 
 /**
- * The two gates the ribbon puts on a building, as plain functions of the
- * state they read rather than closures over the store.
+ * The one gate the ribbon puts on a building, as a plain function of the
+ * state it reads rather than a closure over the store.
  *
- * They live here because the keyboard has to apply exactly what the buttons
+ * It lives here because the keyboard has to apply exactly what the buttons
  * apply. A chord that armed a building the button next to it shows locked
- * and greyed is not a shortcut, it is a second, more permissive build menu —
- * and the sim would refuse the placement anyway, several clicks later.
+ * is not a shortcut, it is a second, more permissive build menu — and the
+ * sim would refuse the placement anyway, several clicks later.
+ *
+ * The stores are NOT a gate, and there used to be a second function here
+ * that made them one. Everything is built on credit: placing a site spends
+ * nothing, the frame rises exactly as far as the materials hauled to it
+ * have paid for (paidBuildTicks in systems/construction.ts), and the number
+ * written under the button is what the finished building costs — not what
+ * the castle must be holding before a plan may be pegged out. Gating the
+ * ribbon on stock said the opposite in the plainest way a UI can, by
+ * greying the button out, and it denied the ordinary opening move — peg the
+ * woodcutter now and let the planks catch up — to the one player who needed
+ * it most, the one whose storehouse is empty. The sim never had the gate
+ * (tick.ts places on tech and ground alone), so this also closes a seam
+ * where the menu was stricter than the rules.
  */
 export function buildUnlocked(
   type: BuildingTypeId,
@@ -231,12 +243,4 @@ export function buildUnlocked(
   return Array.isArray(req)
     ? req.some(t => researched.includes(t))
     : researched.includes(req);
-}
-
-export function buildAffordable(
-  type: BuildingTypeId,
-  stock: GoodAmounts,
-): boolean {
-  const cost = goodEntries(BUILDING_DEFS[type].cost);
-  return cost.every(([good, n]) => (stock[good] ?? 0) >= n);
 }

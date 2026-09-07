@@ -718,6 +718,114 @@ export const AI_SITING = {
   razedRadius: 8,
 } as const;
 
+/**
+ * How far ahead of its own storehouse a seat will peg out a foundation.
+ *
+ * A site is a bill, not a toll — nothing is spent to place one, and the
+ * frame rises as the loads land (systems/construction.ts) — so the plan
+ * COULD lay every step of itself on the first beat. It must not. Goods
+ * hauled into a frame are spent: they cannot be pulled back out for a
+ * hire, a repair or the step that actually mattered, and a village that
+ * banks its whole shelf in half-raised walls is a village that has stopped
+ * being able to change its mind. The old rule — pay in full or place
+ * nothing — is right about that and wrong only at the margin, where a seat
+ * one plank short stands idle for the twenty seconds it takes the last
+ * load to come in, and then starts the builder's walk it could have
+ * started already.
+ *
+ * So credit is the margin and nothing more: near enough to paid that what
+ * the frame waits on is a load rather than an industry, one tab open at a
+ * time, and never two in the same breath.
+ */
+export const AI_CREDIT = {
+  /**
+   * The share of the bill the shelf must already cover, counted in units
+   * of goods the way construction counts what it has been paid (see
+   * `paidBuildTicks`).
+   *
+   * A tenth is what a seat may be short by, and the number is doing more
+   * work than it looks. The prices in this game are small integers, so
+   * nine tenths of a six-plank woodcutter or an eight-good house rounds
+   * straight back to the whole bill: the huts a village opens with cannot
+   * be borrowed for at all, and the plan's opening is the shape it always
+   * was. What clears the bar is the big ticket — an abbey at thirteen of
+   * fourteen, a tower at eleven of twelve, a Monument at fifty-six of
+   * sixty-two — which is where waiting for the last load is genuinely
+   * waste rather than prudence.
+   *
+   * Three quarters was tried and is a different game. It borrows for the
+   * small stuff too, which lets every seat lay its next hut ten seconds
+   * early, all match: the villages come up faster (+9 and +6 wins over two
+   * 32-seed ranges) and the playbooks stop reading as themselves — the
+   * warlord's first raid slips from minute 9 to minute 11 and its village
+   * is fifteen buildings deep by minute ten instead of seven, so the seat
+   * that is supposed to look like a rusher reads as a turtle
+   * (ai/archetypePersonality.test.ts, which is the acceptance test for
+   * exactly that). Speed bought by blurring the four openings into one is
+   * not worth having.
+   */
+  paidShare: 0.9,
+  /**
+   * Frames of this seat's own that may already be standing when it opens a
+   * tab. None: credit is for the village with nothing else going up, which
+   * is the village it helps — the one whose builders are idle and whose
+   * next step is a load away. A seat already raising something has
+   * somewhere for every plank and every hammer it owns to go, and a
+   * borrowed frame beside that one only splits the haulage between two
+   * half-raised walls.
+   *
+   * Counting frames whose bill is already settled was tried and is the
+   * loophole it sounds like: they stop owing goods the moment the last
+   * load lands and start owing a builder and a hammer instead, so a seat
+   * that could not raise the one frame it had would quietly open a second,
+   * a third and a fourth tab while it waited. Road sites do not count —
+   * the paving pass lays those, not the plan (systems/trails.ts).
+   */
+  openFrames: 0,
+  /**
+   * Ticks between two placements on credit — ten seconds, which is a hand
+   * rather than a rule. A person short of planks reads the cost, decides
+   * to peg the plan out anyway and finds the ground for it; that is
+   * seconds of looking at the map, not the next beat. Without it a seat
+   * whose frame tops out quickly opens the following tab on the beat
+   * after, and a village built at that cadence is one nobody could play
+   * against by hand.
+   */
+  cooldown: 200,
+} as const;
+
+/**
+ * Is this bill within the seat's credit — `AI_CREDIT.paidShare` of it on
+ * the shelf already, over and above the plan's reserve, and no line of it
+ * at zero?
+ *
+ * The zero test is the rule the share only approximates. What the share
+ * measures is a gap of a load or two; a good the shelf has none of is a
+ * gap of an industry — a Monument with every stone and every loaf and not
+ * one gold is waiting on a seam nobody has dug — and only the plan's own
+ * ordering closes those. At a tenth the approximation is already enough
+ * and the zero test cannot bind: the thinnest line in the whole price
+ * table is that same Monument's gold at a fifth of its bill, so a missing
+ * line fails the share first. It stays because it is the thing meant,
+ * and a cheaper price table would need it.
+ */
+function withinCredit(
+  cost: GoodAmounts,
+  stock: GoodAmounts,
+  held?: GoodAmounts,
+): boolean {
+  let total = 0;
+  let covered = 0;
+  for (const [good, n] of goodEntries(cost)) {
+    if (n <= 0) continue;
+    const free = (stock[good] ?? 0) - (held?.[good] ?? 0);
+    if (free <= 0) return false;
+    total += n;
+    covered += Math.min(free, n);
+  }
+  return total > 0 && covered >= total * AI_CREDIT.paidShare;
+}
+
 const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, TileResourceKind>> = {
   [BuildAnchor.wood]: TileResource.Wood,
   [BuildAnchor.rock]: TileResource.Rock,
@@ -837,6 +945,17 @@ export class AiBrain {
   #lastSortieTick = 0;
   /** Tick of the last outpost dispatch (AI_WAR.outpostCooldown). */
   #lastOutpostTick = 0;
+  /**
+   * The tick from which this seat may lay another foundation it cannot yet
+   * pay for (AI_CREDIT.cooldown). Zero, so the first tab is open from the
+   * first beat — the pacing is between borrowings, not before the first
+   * one.
+   *
+   * Brain-local like every other clock here: a reloaded save may open one
+   * tab a few seconds sooner than an uninterrupted match would have, which
+   * is the same latitude #razed and #lastOutpostTick already take.
+   */
+  #creditDue = 0;
   /** This seat's foundations as of the last beat, by id: what a beat
    * compares the world against to learn that one was razed (AI_SITING). */
   #foundations = new Map<EntityId, {x: number; y: number}>();
@@ -1295,6 +1414,30 @@ export class AiBrain {
      * the seat cannot pay for after that is skipped exactly as before.
      */
     let held: GoodAmounts | undefined;
+    /** Frames of this seat's own already going up (AI_CREDIT.openFrames).
+     * The paving pass's road sites are not the plan's and do not count. */
+    const frames = mine.filter(
+      b => b.state === BuildingState.site && !BUILDING_DEFS[b.type].isRoad,
+    ).length;
+    /**
+     * May the plan run a little ahead of the shelf, for this bill? The
+     * three clauses of AI_CREDIT, cheapest first: the pacing clock, the
+     * frames already standing, then the bill itself.
+     *
+     * A function rather than a value because the last clause is per-step,
+     * and because `held` — the reserve struck against an earlier step of
+     * this same list — is what a later step must borrow over and above.
+     */
+    const onCredit = (cost: GoodAmounts): boolean =>
+      world.tick >= this.#creditDue &&
+      frames <= AI_CREDIT.openFrames &&
+      withinCredit(cost, stock, held);
+    /**
+     * The one foundation this beat would lay on credit, with the ground it
+     * would lay it on — held back to the end of the beat rather than placed
+     * where it is found. See "Credit" below for why it waits.
+     */
+    let creditPick: {type: BuildingTypeId; x: number; y: number} | null = null;
     const razedNear = (x: number, y: number): boolean => this.#razedNear(x, y);
     /**
      * Where the war is, for the one kind of step that is built to look at
@@ -1352,12 +1495,28 @@ export class AiBrain {
       // that search back at most once a beat: on the first gatherer the
       // shelf cannot cover, to find out whether there is ground to save for.
       if (!affordable(def.cost, stock, held)) {
-        if (
-          !held &&
-          gatherRecipeOf(def) &&
-          spotFor(world, this.playerId, step, baseX, baseY, razedNear, facing)
-        ) {
-          held = def.cost;
+        // Two questions about a step the shelf cannot pay for, and one
+        // search between them. Is it the plan's first choice that credit
+        // could cover, and is it the gatherer the reserve is struck
+        // against? Both need the same answer — is there ground for it —
+        // and the search that answers it is the expensive part of this
+        // loop, so it is asked once and both take it.
+        const wantsCredit = !creditPick && onCredit(def.cost);
+        const wantsReserve = !held && gatherRecipeOf(def) !== undefined;
+        if (wantsCredit || wantsReserve) {
+          const where = spotFor(
+            world,
+            this.playerId,
+            step,
+            baseX,
+            baseY,
+            razedNear,
+            facing,
+          );
+          if (where) {
+            if (wantsCredit) creditPick = {type: step.type, ...where};
+            if (wantsReserve) held = def.cost;
+          }
         }
         continue;
       }
@@ -1389,18 +1548,24 @@ export class AiBrain {
     // and only once the village is nearly full, so it never competes with
     // the opening. Sites count toward the planned cap, so it lays one house
     // at a time rather than four on the beat the last bed fills.
+    const roofCost = BUILDING_DEFS[BuildingTypeId.house].cost;
+    // The reserve binds here too: an unplanned roof is the last thing that
+    // should jump the queue in front of the plan's own next step.
+    const roofPaid = affordable(roofCost, stock, held);
     if (
       !placed &&
       countOf(BuildingTypeId.house) < s.houseLimit &&
       plannedPopCapOf(world, this.playerId) -
         populationOf(world, this.playerId) <
         s.housingHeadroom &&
-      // The reserve binds here too: an unplanned roof is the last thing
-      // that should jump the queue in front of the plan's own next step.
-      affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock, held)
+      // Credit reaches the top-up on the same terms as a planned step — it
+      // is a building like any other and opens the same single tab — but
+      // the plan's own steps were offered it first, so a pick already made
+      // above stands.
+      (roofPaid || (!creditPick && onCredit(roofCost)))
     ) {
       const spot = findSpot(world, BuildingTypeId.house, baseX, baseY);
-      if (spot) {
+      if (spot && roofPaid) {
         commands.push({
           kind: CommandKind.placeBuilding,
           building: BuildingTypeId.house,
@@ -1408,6 +1573,8 @@ export class AiBrain {
           y: spot.y,
         });
         placed = true; // one foundation a beat, rules below included
+      } else if (spot) {
+        creditPick = {type: BuildingTypeId.house, ...spot};
       }
     }
 
@@ -1613,6 +1780,32 @@ export class AiBrain {
       commands.push(
         ...runEconomyRules(ruleCtx, this.#rules, RulePhase.production).commands,
       );
+    }
+
+    // --- Credit: the foundation the shelf cannot quite pay for ---------------
+    // Last of everything that lays a building, and deliberately so. A
+    // borrowed frame is the least urgent thing a beat can do: it is worth
+    // laying only because the loads for it are nearly in, which is exactly
+    // what makes it the thing to drop when anything else wants the ground,
+    // the haulage or the goods. So the plan's own paid steps go first, the
+    // roof top-up after them, and every rule — the rescues especially,
+    // which spend the shelf on a mine the seat is about to need and stand
+    // down on a beat that already sited something (`ctx.placed`) — gets its
+    // say before this does.
+    //
+    // One foundation a beat still holds: any placement at all above, from a
+    // rule or from the plan, and the tab stays shut until the next beat.
+    if (
+      creditPick &&
+      !commands.some(c => c.kind === CommandKind.placeBuilding)
+    ) {
+      commands.push({
+        kind: CommandKind.placeBuilding,
+        building: creditPick.type,
+        x: creditPick.x,
+        y: creditPick.y,
+      });
+      this.#creditDue = world.tick + AI_CREDIT.cooldown;
     }
 
     // --- Army: rally at home until strong, then march ------------------------

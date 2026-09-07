@@ -797,6 +797,54 @@ and an unchanged median and longest match on the mirrored sweep. The
 producer half of the leapfrog is the bug; the rest of it is the game.
 
 
+**Credit, and the two numbers it was measured at.** Placing a site spends
+nothing — the bill is hauled and the frame rises as far as it has been paid
+for (`systems/construction.ts`) — so a plan does not have to hold the whole
+price before it pegs the ground out. The build order wore that gate anyway.
+`AI_CREDIT` lifts it at the margin only: nine tenths of the bill already on
+the shelf, nothing else of the seat's own going up, one borrowing per 200
+ticks, and last in the beat behind every rule — the rescues stand down on
+`ctx.placed`, so a borrowed foundation that jumped them would cost the seat
+the mine it was about to need.
+
+At `paidShare` 0.9 the prices decide who it applies to. Nine tenths of a
+six-plank woodcutter or an eight-good house rounds back to the whole bill,
+so the huts a village opens with are never borrowed for; what clears the
+bar is the abbey at 13 of 14, the tower at 11 of 12, the Monument at 56 of
+62. Two ranges, 32 seeds each at normal: **137/160 and 133/160 against
+134/160 and 137/160** — +3 and −4, the ranges disagreeing in sign, which is
+this page's own definition of nothing. The Mason moves most in both
+directions (21/32 and 16/32 against 16/32 and 19/32) and moves nowhere in
+particular. Read the change as capability parity with the ribbon, which now
+places on credit too, rather than as a strength change.
+
+**0.75, and why the wins were not worth taking.** Three quarters borrows
+for the small stuff as well, and it measures well: 143/160 and 143/160
+against 134/160 and 137/160, +9 and +6 with the same sign on both ranges,
+nearly all of it the Mason (16 → 25 and 19 → 26, timeouts 9 → 2 and 8 → 0),
+which is what a plan whose Monument costs sixty-two goods looks like when
+it stops waiting for the last one before laying anything.
+
+What it costs is the thing the playbooks are for. Every seat lays its next
+hut ten seconds early, all match, so every village comes up faster — and
+`ai/archetypePersonality.test.ts`, the acceptance test for whether a seat
+can TELL who it is playing, fails: the warlord's first raid slips from
+minute 9 to minute 11 and its village is fifteen buildings deep by minute
+ten instead of seven, so 46 of its 245 pooled reads that used to say
+"rusher" say "turtling" instead, and the warlord reads calmer than the
+abbot. Four openings blurred into one is a worse game than a slower AI, and
+the win column does not price that.
+
+**The draft before both.** Counting only frames that still owed goods, on
+the reasoning that a settled frame waits on a builder rather than on the
+shelf. It is the loophole it sounds like: a frame stops owing goods the
+moment the last load lands and starts owing a hammer, so a seat that could
+not raise the one frame it had quietly opened a second, third and fourth
+tab while it waited — four sites at once on the abbot's campaign, its two
+guard towers never manned, and the win 2200 ticks later than the seat that
+built one thing at a time.
+
+
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
 
 The first sweeps the seating mirror made possible. Treat these as a
