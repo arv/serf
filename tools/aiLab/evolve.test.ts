@@ -23,7 +23,7 @@ import {
   type Outcome,
   type Score,
 } from './evolve.ts';
-import {playbookOf} from './evolveWorker.ts';
+import {playbookOf, seatsOf, type EvolveTask} from './evolveWorker.ts';
 import {moveOne, MUTABLE_RANGES, mutate, stepCount} from './mutate.ts';
 
 const cand = (id: string): Individual => ({
@@ -501,5 +501,49 @@ describe('seeds', () => {
     const pool = ['a', 'b', 'c', 'd'];
     expect(sample(pool, 2, new Rng(11))).toEqual(sample(pool, 2, new Rng(11)));
     expect(sample(pool, 9, new Rng(2))).toHaveLength(4);
+  });
+});
+
+describe('a task that does not describe a match', () => {
+  /** A well-formed task but for its seat list — everything else is
+   * whatever `config` happens to be, since the guard never reads it. */
+  const taskWith = (seats: EvolveTask['seats']): EvolveTask =>
+    ({seats, config: {}}) as unknown as EvolveTask;
+
+  const entry = (
+    strategyId: EvolveTask['seats'][number]['strategyId'],
+  ): EvolveTask['seats'][number] => ({
+    strategyId,
+    delta: {},
+  });
+
+  it('builds both seats when there are exactly two', () => {
+    const [a, b] = seatsOf(
+      taskWith([entry(AiStrategyId.mason), entry(AiStrategyId.warlord)]),
+    );
+    expect(a.id).toBe(AiStrategyId.mason);
+    expect(b.id).toBe(AiStrategyId.warlord);
+  });
+
+  it('refuses a seat list that is short', () => {
+    expect(() => seatsOf(taskWith([entry(AiStrategyId.mason)]))).toThrow(
+      /wants two seats, got 1/,
+    );
+    expect(() => seatsOf(taskWith([]))).toThrow(/wants two seats, got 0/);
+  });
+
+  it('refuses a seat list that is long, rather than dropping the extra', () => {
+    // The half of this the first guard missed. Taking the first two and
+    // playing on is silent, and the run's table then carries a number for
+    // a match nobody asked for.
+    expect(() =>
+      seatsOf(
+        taskWith([
+          entry(AiStrategyId.mason),
+          entry(AiStrategyId.warlord),
+          entry(AiStrategyId.steward),
+        ]),
+      ),
+    ).toThrow(/wants two seats, got 3/);
   });
 });

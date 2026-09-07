@@ -17,7 +17,8 @@ import type {ProbeTask} from './probeWorker.ts';
  * The probe steers a seat with ADVICE, which reaches only the knobs on the
  * advice whitelist — so a question about a playbook's stance cascade, its
  * research order or its build list cannot be asked there at all. This asks
- * those, through the base-playbook seam instead (MatchConfig.playbooks):
+ * those, through the base-playbook seam instead (a whole AiStrategy as a
+ * seat in `MatchConfig.seats`):
  * a whole AiStrategy goes in as a seat's printed line, with the stance
  * engine and the difficulty tier composing over it exactly as they do over
  * a shipped one.

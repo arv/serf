@@ -38,21 +38,33 @@ export function playbookOf(entry: SeatEntry): AiStrategy {
   return {...AI_STRATEGIES[entry.strategyId], ...entry.delta} as AiStrategy;
 }
 
+/**
+ * The task's seats as a match's two, or an error.
+ *
+ * A match has exactly two seats, and this checks the LENGTH rather than
+ * only that two entries came through. The task arrives as JSON off a pipe,
+ * and both ways of getting it wrong are silent: one seat short and a side
+ * plays its printed line while the run's log claims a candidate, one seat
+ * over and the extra is dropped on the floor. Either puts a number in a
+ * table for a match that never happened, which is the failure this whole
+ * seat type exists to make impossible.
+ */
+export function seatsOf(task: EvolveTask): [AiStrategy, AiStrategy] {
+  const [a, b] = task.seats;
+  if (task.seats.length !== 2 || !a || !b)
+    throw new Error(
+      `evolveWorker: a match wants two seats, got ${task.seats.length}`,
+    );
+  return [playbookOf(a), playbookOf(b)];
+}
+
 async function main(): Promise<void> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   const task = JSON.parse(Buffer.concat(chunks).toString('utf8')) as EvolveTask;
-  const [a, b] = task.seats.map(playbookOf);
-  // A match has exactly two seats. Checked rather than cast, because this
-  // task arrives as JSON off a pipe and a silently short one would play a
-  // seat as its printed line while the run's log claimed a candidate.
-  if (!a || !b)
-    throw new Error(
-      `evolveWorker: a match wants two seats, got ${task.seats.length}`,
-    );
   const record: MatchRecord = await playMatch({
     ...task.config,
-    seats: [a, b],
+    seats: seatsOf(task),
     engines: new Map(),
   });
   process.stdout.write(JSON.stringify(record));
