@@ -976,8 +976,9 @@ export class BuildingSync {
     // axis.
     const along = Math.abs(Math.sin(facingYaw)) > 0.5;
     const len = along ? box.max.x - box.min.x : box.max.z - box.min.z;
-    // The landward end, where the deck meets the hut. The fit below turns
-    // and shortens the deck about this point, so it never comes loose.
+    // The landward end, where the deck meets the hut. A trim shortens the
+    // deck about this point, so it never comes loose; a turn instead
+    // rotates the whole model about the footprint center (below).
     const baseX = cx - Math.sin(facingYaw) * (len / 2);
     const baseZ = cz - Math.cos(facingYaw) * (len / 2);
     let yaw = facingYaw;

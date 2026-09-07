@@ -234,10 +234,12 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // promises water within one, so the reach here is an aim rather than a
     // guarantee. Neither is the facing: it is a quarter turn, and most
     // shorelines do not run square to the grid. So this is the deck's
-    // AUTHORED placement, and buildingSync turns and trims it about its
-    // landward end until it stands over water the player can see
-    // (#measurePier). Change the length or the standoff and the fit shifts
-    // with it — tools/modelLab/_pier.html is where that gets looked at.
+    // AUTHORED placement, and buildingSync fits it to the water from here
+    // (#measurePier): a turn rotates the whole fishery about the footprint
+    // center — hut and jetty stay square — while a trim shortens the deck
+    // alone, about its landward end. Change the length or the standoff and
+    // the fit shifts with it — tools/modelLab/_pier.html is where that
+    // gets looked at.
     {
       prop: 'extra/building_docks_green',
       // The attach point abuts the hut's front wall, centered on the door.
