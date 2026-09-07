@@ -107,12 +107,16 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * marching at four still ends it 454 ticks sooner); and to 15 / 16_000 when
  * the mines started eating (replay 48) and the playbooks stopped gating the
  * bread chain behind the barracks — the ration slows every seat's ore, and
- * on 20 both wars then ran past 18_500 undecided. On 15 seat 0 takes the
- * valley at 15_388 unadvised and seat 1 marching at four ends it at 11_970,
- * so the bound again sits above the slower of the two with room to spare.
+ * on 20 both wars then ran past 18_500 undecided. On 15 seat 0 took the
+ * valley at 15_388 unadvised and seat 1 marching at four ended it at
+ * 11_970; and back to 20 when a hauler standing in a building took that
+ * building's own load (replay 55) — on 15 the advised war then ran past
+ * 16_000 undecided, which asserts nothing. On 20 seat 0 takes the valley
+ * at 13_920 unadvised and seat 1 marching at four ends it at 11_844, so
+ * the bound sits above the slower of the two with room to spare.
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 15;
+const FULL_MATCH_SEED = 20;
 const FULL_MATCH_TICKS = 16_000;
 
 describe('wilson intervals', () => {

@@ -254,6 +254,74 @@ describe('logistics matcher', () => {
   });
 });
 
+describe('the load home', () => {
+  /**
+   * The trip the village kept failing to make. The mine's bread and the
+   * mine's silver are two halves of one round: a hauler who walks the
+   * loaf out and then walks back empty has made two crossings for one
+   * load, and the silver he stepped over waits for somebody to come out
+   * for it.
+   */
+  it('leaves the mine with its silver, not empty-handed', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 20, 30, {[GoodId.food]: 4});
+    // Unstaffed on purpose: a mine raises its ration demand and evacuates
+    // its shelf whether or not anyone is down the shaft, and a fixture
+    // that mines no ore is a fixture with nothing to time against.
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      34,
+      30,
+    );
+    mine.stock[GoodId.silver] = 2;
+    const serf = addSerf(world, 21, 32);
+    const initial = countGoods(world);
+
+    // Out with the bread...
+    let guard = 0;
+    while (serf.carrying !== GoodId.food && guard++ < 400) tickWorld(world, []);
+    expect(serf.carrying).toBe(GoodId.food);
+
+    // ...and set it down in the mine.
+    guard = 0;
+    while (serf.carrying !== undefined && guard++ < 600) tickWorld(world, []);
+    expect(mine.inputs[GoodId.food]).toBe(1);
+
+    // He is standing on the silver, so the silver is his: the board hands
+    // him the job at his feet before it deals anything that needs a walk.
+    run(world, 2);
+    const job = world.jobs.get(serf.jobId!);
+    expect(job?.good).toBe(GoodId.silver);
+    expect(job?.from).toBe(mine.id);
+
+    // And it gets home, rather than riding back out on the next errand.
+    guard = 0;
+    while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 600)
+      tickWorld(world, []);
+    expect(sh.stock[GoodId.silver]).toBe(1);
+    expectClean(world, initial);
+  });
+
+  it('does not hold a hand a starved site is waiting on', () => {
+    // The standing job is dealt before the tier shares, but never before
+    // the recruitment sweep: a serf has to be idle for the beat after a
+    // dropoff, or a site past its builder-starvation bound can never claim
+    // the hand that frees up (systems/staffing.ts). Delivering into the
+    // site itself is the sharpest case — he lands the last plank standing
+    // in the very building that wants him.
+    const world = bareWorld();
+    addStorehouse(world, 20, 30, {[GoodId.wood]: 40});
+    const site = addSite(world, 34, 30);
+    addSerf(world, 21, 32);
+
+    let guard = 0;
+    while (site.workerId === undefined && guard++ < 4000) tickWorld(world, []);
+    expect(site.workerId).toBeDefined();
+  });
+});
+
 describe('cancellation table', () => {
   function setupHaul(): {world: World; initial: GoodAmounts} {
     const world = bareWorld();

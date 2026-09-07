@@ -407,8 +407,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
-const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '6f38808aa1d2cfe7275f1e3c6e163713';
+const EXPECTED_VERSION = 55;
+const EXPECTED_HASH = '211c3fda39be8a2bb7ede468045d15ad';
 
 /**
  * Everything a replay's playback depends on, as raw source:

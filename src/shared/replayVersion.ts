@@ -713,6 +713,17 @@
  * freed hand to idle (#94).
  */
 /**
+ * 55: the load home. A serf standing in a building now takes that
+ * building's own open haul before the board deals anything that needs a
+ * walk (systems/logistics.ts) — the man who carried bread into the mine
+ * leaves with its silver instead of walking back to the castle empty and
+ * being sent out again for it. Which serf claims which job changes on the
+ * first delivery of a match, and every haul after it is re-timed, so a log
+ * recorded before this build diverges within seconds of the opening.
+ *
+ * 54's note follows.
+ */
+/**
  * 54: the Monument's bread halved, twenty loaves to ten
  * (defs/buildings.ts). A building's cost is consumed as its site rises, so
  * every tick after the first delivery carries different stores — a balance
@@ -726,4 +737,4 @@
  * and a logged command still executes as it did. The bread is why this is
  * 54.
  */
-export const REPLAY_VERSION = 54;
+export const REPLAY_VERSION = 55;

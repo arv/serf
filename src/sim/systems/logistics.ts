@@ -611,6 +611,96 @@ const PATH_TRIES = 3;
 
 // --- Serf claiming ---------------------------------------------------------
 
+/**
+ * The load home: an idle serf already standing in a building takes that
+ * building's own open job before anything else is handed out.
+ *
+ * This is the trip the village kept failing to make. A serf carries bread
+ * to the mine, sets it down, and stands there with silver on the shelf at
+ * his feet; the loop below then deals the oldest job of whichever tier is
+ * short of hands, and hands it to whoever is nearest *it* — which is him,
+ * because he is the only one free. So he walks back to the castle empty,
+ * and the silver waits for somebody to walk out for it. Two crossings for
+ * a load that was already in reach.
+ *
+ * Dealing these first is not a thumb on the scale for the tiers: the share
+ * they split (HAUL_SHARE) rations *walks*, and a job picked up where the
+ * man is standing costs none. Within a building he still takes the most
+ * urgent one first, which is the order the board would have used anyway.
+ *
+ * Deliberately a pass over the board rather than something progress() does
+ * on the tick a delivery lands: a serf has to be genuinely idle for the
+ * beat after a dropoff or he is invisible to the recruitment sweep, which
+ * runs later in the same tick — and a site starved of its builder claims
+ * the next hand to come free precisely there (systems/staffing.ts). So he
+ * stands, is offered to the village first, and picks the load up on the
+ * next pass if nobody wanted him.
+ */
+function takeStandingJobs(
+  world: World,
+  open: HaulJob[],
+  idleByOwner: Map<Owner, Unit[]>,
+): void {
+  // Grouped by source: a building's jobs come up together, and the men
+  // standing in it are found once for all of them rather than once each.
+  const bySource = new Map<EntityId, HaulJob[]>();
+  for (const job of open) {
+    if (!idleByOwner.has(job.owner)) continue;
+    let jobs = bySource.get(job.from);
+    if (!jobs) bySource.set(job.from, (jobs = []));
+    jobs.push(job);
+  }
+
+  for (const [from, jobs] of bySource) {
+    const b = world.buildings.get(from);
+    if (!b || b.dead) continue; // reconcile will clean it up
+    // Source and destination share an owner by construction, so the
+    // building's own is the job's — and it is the one a serf must match.
+    const idle = idleByOwner.get(b.owner);
+    if (!idle || idle.length === 0) continue;
+    // Most urgent first, then the board's own FIFO — the same order the
+    // dispatch loop below would have taken them in.
+    jobs.sort(
+      (a, z) =>
+        a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
+    );
+    for (const job of jobs) {
+      // Reservations should make this hold; if they somehow do not, leave
+      // the job on the board for reconcile rather than walk a man onto an
+      // empty shelf.
+      if ((b.stock[job.good] ?? 0) < 1) continue;
+      const i = idle.findIndex(u => atBuilding(u, b));
+      if (i < 0) break; // nobody left standing here
+      const serf = idle[i]!;
+      // The same walk the dispatch loop below would hand him, and for a man
+      // already on the ring the pathfinder returns it empty without a
+      // search — so this costs nothing, and he goes through arrival like
+      // everybody else rather than drawing from the shelf a tick early.
+      const path = findPathToAdjacent(
+        world.map,
+        Math.floor(serf.x),
+        Math.floor(serf.y),
+        b.x,
+        b.y,
+        b.w,
+        b.h,
+      );
+      // Standing next to it and still walled off from it: leave the whole
+      // building to the loop below, which knows how to back a job off.
+      if (!path) break;
+      idle.splice(i, 1);
+      job.phase = HaulPhase.toPickup;
+      job.serfId = serf.id;
+      job.blockedCount = 0; // claimed, so the unreachable tally starts over
+      serf.jobId = job.id;
+      serf.path = path;
+      serf.pathIdx = 0;
+      serf.task = {t: UnitTaskKind.haul};
+      if (idle.length === 0) break;
+    }
+  }
+}
+
 function dispatch(world: World): void {
   // Collect open, unblocked jobs in claim order.
   const open: HaulJob[] = [];
@@ -649,6 +739,9 @@ function dispatch(world: World): void {
   }
   if (idleByOwner.size === 0) return;
 
+  // The load home, before the board is dealt at all (see takeStandingJobs).
+  takeStandingJobs(world, open, idleByOwner);
+
   // Sort only once we know somebody can actually claim a job — this runs
   // every tick, and most ticks have no idle serfs. Oldest first; the tier is
   // chosen below, per hand, and this is the order within it.
@@ -661,6 +754,7 @@ function dispatch(world: World): void {
   const queues = new Map<Owner, [HaulJob[], HaulJob[], HaulJob[]]>();
   const busy = new Map<Owner, [number, number, number]>();
   for (const job of open) {
+    if (job.phase !== HaulPhase.open) continue; // taken by takeStandingJobs
     if (!idleByOwner.has(job.owner)) continue;
     let q = queues.get(job.owner);
     if (!q) queues.set(job.owner, (q = [[], [], []]));
