@@ -49,8 +49,77 @@ const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
     what: 'evolve champion — serfTarget 12→15, researchReserve 10→6',
     play: {...mason, serfTarget: 15, researchReserve: 6},
   },
-  ...rushProof(),
+  ...feedTheForge(),
 ];
+
+/**
+ * The mason, fed.
+ *
+ * The sword line took it from 1 win in 80 to 11, and the next
+ * measurement said why it stopped there: at tick 16,000 it holds FIVE
+ * swords and no food, fielding two knights, while a steward on the same
+ * tick holds two swords and fields six. A knight costs 3 food and 1
+ * sword. The mason forges the sword now and cannot pay the bread.
+ *
+ * That is the same shortage that gated its monument — food at nought to
+ * six for forty thousand ticks — so it has one bottleneck, not several,
+ * and it caps the army and the win condition together. Its own mines eat
+ * the rations, and it runs more mines than any other playbook: two
+ * silver, an iron, and a gold.
+ *
+ * So: swords, and then bread to spend them. Counts up on the chain it
+ * already has, a shore it does not use, and both.
+ */
+function feedTheForge(): {label: string; what: string; play: AiStrategy}[] {
+  const arms = {
+    weaponMix: [1, 0],
+    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
+    trainFallback: UnitTypeId.spearman,
+  };
+  const swords = {...mason, ...arms};
+  // One more of each link, not just the ovens: a third bakery with two
+  // mills behind it grinds nothing.
+  const wider = mason.build.map(b =>
+    b.type === BuildingTypeId.wheatFarm ||
+    b.type === BuildingTypeId.mill ||
+    b.type === BuildingTypeId.bakery
+      ? {...b, more: {after: TechId.ironworking, count: 3}}
+      : b,
+  );
+  // The steward's own fishery step, which the mason has never had: last in
+  // the plan, so it is surplus rather than something bought ahead of the
+  // smiths.
+  const fishery = {
+    type: BuildingTypeId.fishery,
+    count: 1,
+    anchor: BuildAnchorNs.water,
+    radius: 8,
+    after: TechId.ironworking,
+    needs: BuildingTypeId.barracks,
+  };
+  return [
+    {
+      label: 'swords',
+      what: 'the sword line alone — 11/80 last run',
+      play: swords,
+    },
+    {
+      label: 'swords+farms',
+      what: 'swords, and a third farm, mill and bakery',
+      play: {...swords, build: wider},
+    },
+    {
+      label: 'swords+fish',
+      what: 'swords, and the shore the steward already fishes',
+      play: {...swords, build: [...mason.build, fishery]},
+    },
+    {
+      label: 'swords+both',
+      what: 'swords, wider bread chain, and the fishery',
+      play: {...swords, build: [...wider, fishery]},
+    },
+  ];
+}
 
 /**
  * The mason, given something to fight a rush WITH.
