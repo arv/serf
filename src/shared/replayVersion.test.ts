@@ -378,6 +378,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // change (keepTheQueueWarm reading every hall rather than the first
 // barracks, and two playbooks raising a range) is brain-side and would have
 // ridden 53 on its own, exactly as the Mason's rule did on 49.
+// Still 54 after the merge with main's build-order credit rule, and after
+// the Fletcher's tower step took an `after: soldiery` to replace the brake
+// the ungated building no longer applies. Both are brain-side — a playbook
+// step and a rule that only reaches the sim as commands — and 54 is this
+// build's own bump besides.
+//
 // Still 54 again after the guard tower lost its tech requirement entirely
 // and the Fletcher was rebuilt around the free bow root. The tower is real
 // sim behavior — a placement the sim used to refuse it now allows — and
@@ -401,7 +407,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // same reasoning the stance engine and the war behaviors are recorded
 // under above. The hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = 'fe2085bf7e620f17f034b0267d1c7a7f';
+const EXPECTED_HASH = '0634dee7958d6490d0d99a98ccc257f6';
 
 /**
  * Everything a replay's playback depends on, as raw source:

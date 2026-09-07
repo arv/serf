@@ -30,6 +30,22 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
 
 /** Two seeds, strided as the sweeps stride them (offset 101, stride 7).
  *
+ * Re-pinned from 122 and 164 when the bow got its own roof (replay 54, and
+ * the merge that brought the build-order credit rule in with it). Those two
+ * fell to hard-v-normal 6/15 on this build — an inversion by this file's
+ * bar — so the 24-seed sweeps this pin exists to send you to were run
+ * before touching them, exactly as the note below prescribes. They read
+ * 122/219 (55.7%) on range 101 and 159/226 (70.4%) on range 1000, pooled
+ * 281/445 = 63.1% with a Wilson interval of [58.6, 67.5] — clear of 50 and
+ * a good deal wider of it than the 206/369 (55.8%) the old pair was pinned
+ * on. The tier is not what moved; those two valleys are.
+ *
+ * 108 and 157 in their place, chosen under this file's own parameters (its
+ * four playbooks, mapSize 96, MAX_TICKS) rather than the CLI's: they read
+ * hard-v-normal 6/6 and 6/7, hard-v-easy 8/8 each, normal-v-easy 8/8 each,
+ * and lose no valley in any pairing. 108 held this pin once before, which
+ * is where the previous note's "re-pinned from 101 and 108" left it.
+ *
  * Re-pinned from 101 and 108 when soldiers took up room (replay 41): on
  * that build the pair read hard-v-normal 6/15, seed 108 alone 2/8, while
  * the 24-seed sweeps it exists to send you to read 106/182 (58.2%) on
@@ -37,7 +53,7 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * clear of 50 — against 111/184 and 105/185 on the main it merged. Two
  * seeds cannot carry a 56% edge; these two read 7/8 each on that build,
  * and what they pin is an inversion, not the size of the edge. */
-const SEEDS = [122, 164] as const;
+const SEEDS = [108, 157] as const;
 /** Well past a decided duel at this size; the sweeps use 60k, and the
  * extra 20k buys suite time and nothing else. */
 const MAX_TICKS = 40_000;
