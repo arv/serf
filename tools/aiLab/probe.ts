@@ -42,6 +42,19 @@ import type {ProbeTask} from './probeWorker.ts';
  * candidate IS that control, which is the calibration: it must report
  * every trial identical and nothing flipped.
  *
+ * `--vs` breaks the "both sides" half of that: a foreign opponent plays
+ * its own printed line UNADVISED, so its stances live while the
+ * candidate's twelve advised knobs stay pinned. That asymmetry does not
+ * bias the result, because the shared control wears it too — the control
+ * in `--vs` mode is the parent advised against the same unadvised
+ * opponent, per seed AND per seat, so the opponent's stance cascade is
+ * common to both arms and cancels in the pairing. What it does cost is
+ * reach: the delta is measured in a world where the candidate's lineage
+ * cannot use its own moods, so a knob that only matters through a stance
+ * will read flat here. Advising the opponent with its own numbers would
+ * restore the symmetry and lose the thing `--vs` is for — the opponent as
+ * it actually plays.
+ *
  * Read the flips, not the rate. "50% with zero flips" and "50% with
  * balanced flips" print the same headline and mean opposite things: the
  * first says the knobs never reached the field, the second says they
@@ -524,6 +537,14 @@ async function main(): Promise<void> {
       '  Read the flips: they are the same seed and the same chair, with the',
     );
     console.log('  candidate the only thing that changed.');
+    console.log(
+      `  ${AI_STRATEGIES[vs].name} plays unadvised, so its stances are live`,
+    );
+    console.log(
+      "  while the candidate's are pinned. The control wears the same",
+    );
+    console.log('  asymmetry, so it cancels in the flips — but a knob that');
+    console.log('  only bites through a stance will read flat here.');
   }
   console.log('');
   console.log(
