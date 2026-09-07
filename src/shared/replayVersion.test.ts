@@ -24,6 +24,14 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// Still 53 after the fishery's price came down to 8 wood + 2 stone: a cost
+// is balance and so is sim behaviour, but 53 is this build's own bump and
+// has never shipped, so there is nothing older to break — the same
+// reasoning the "Still 49" entries below record.
+// 53 for the fishery's plot going from 3x3 to 2x2 (sim/defs/buildings.ts).
+// A footprint is sim behaviour: it decides what `canPlace` will take and
+// what a unit walks around, so an older log replayed here puts a fishery
+// on ground that was not legal for it when the log was written.
 // Still 49 after the Mason: a fifth playbook, an economy rule that stands a
 // full garrison's barracks down, and a build-order anchor that counts spoil.
 // Playbook data and the rule layer that reads it are brain-side, and
@@ -348,8 +356,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // World['map'] to the MapView it only ever reads. Nothing calls it that
 // did not before, and it returns the same quarter turn for the same
 // footprint. The hash is over raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 52;
-const EXPECTED_HASH = 'ddbf5afa6989dc94d11a3820ecb303f8';
+const EXPECTED_VERSION = 53;
+const EXPECTED_HASH = '3e9461b5ffd26674b44aef51ecf783eb';
 
 /**
  * Everything a replay's playback depends on, as raw source:

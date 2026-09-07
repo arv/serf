@@ -692,5 +692,12 @@
  * 12 was two sim fixes that shipped together: the pathfinder's
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
+ *
+ * 53 is the fishery shrinking from 3x3 to 2x2. A footprint is as sim-side
+ * as a number gets: it decides which tiles `canPlace` will take, what a
+ * unit has to walk around, and — because worldgen and the build order both
+ * ask where a fishery can go — where the buildings after it land. An older
+ * log replayed on this build would put a fishery on ground that is now
+ * legal for it and diverge from there.
  */
-export const REPLAY_VERSION = 52;
+export const REPLAY_VERSION = 53;

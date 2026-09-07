@@ -416,9 +416,28 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.fishery]: {
     id: B.fishery,
     name: 'Fishery',
-    w: 3,
-    h: 3,
-    cost: {[GoodId.wood]: 12, [GoodId.stone]: 4},
+    // Two tiles, not three. It was sized with the rest of the food chain,
+    // when the pack's shipyard played it and a shipyard is what it looked
+    // like; the building is a fisherman's hut now (makeFisherHut), and a
+    // one-man hut with a net rack and a jetty has no business taking the
+    // plot a castle-sized storehouse takes. It also buys shoreline: a 2x2
+    // fits stretches of bank a 3x3 could not, which is the difference
+    // between a lake having one legal site and having several.
+    w: 2,
+    h: 2,
+    // Twelve wood was the shipyard's price: the joint-highest in the game,
+    // level with the barracks and above the bakery, and the one number in
+    // this def that never carried a reason. What stands here is planks, a
+    // net rack and a jetty, so it is priced with the food chain it belongs
+    // to rather than above all of it — under the mill's 8+4 on stone,
+    // where a hut with no masonry in it belongs, and under the bakery on
+    // both. The two stone are the piles and the hearth.
+    //
+    // The brake on this building is the twenty seconds below, not the
+    // price — that is the number the note further down works out, and it
+    // is untouched. Cutting the cost moves when a poor village can afford
+    // its first shore, not what a shore is worth once it has one.
+    cost: {[GoodId.wood]: 8, [GoodId.stone]: 2},
     buildTicks: 20 * S,
     hp: 150,
     sight: 6.5,

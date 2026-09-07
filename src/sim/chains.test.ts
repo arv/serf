@@ -98,20 +98,20 @@ describe('convert chains', () => {
     // inland (waterFacing, searching the correct box, found nothing and
     // fell back to facing 0).
     for (let tx = 29; tx < 35; tx++) {
-      const i = tileIdx(tx, 34, world.map.size); // footprint y = 30..32, so this is 2 off
+      const i = tileIdx(tx, 33, world.map.size); // footprint y = 30..31, so this is 2 off
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
     expect(canPlace(world.map, BuildingTypeId.fishery, 30, 30)).toBe(false);
-    // ...and two off the east edge (footprint x = 30..32).
+    // ...and two off the east edge (footprint x = 30..31).
     for (let ty = 29; ty < 35; ty++) {
-      const i = tileIdx(34, ty, world.map.size);
+      const i = tileIdx(33, ty, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
     expect(canPlace(world.map, BuildingTypeId.fishery, 30, 30)).toBe(false);
 
-    // Water along the footprint's north edge (y = 29, footprint y = 30..32).
+    // Water along the footprint's north edge (y = 29, footprint y = 30..31).
     for (let tx = 29; tx < 35; tx++) {
       const i = tileIdx(tx, 29, world.map.size);
       world.map.terrain[i] = Terrain.Water;
@@ -138,7 +138,7 @@ describe('convert chains', () => {
   it('the fishery faces east when the water is east', () => {
     const world = bareWorld();
     for (let ty = 29; ty < 35; ty++) {
-      const i = tileIdx(33, ty, world.map.size);
+      const i = tileIdx(32, ty, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
