@@ -38,18 +38,23 @@ const mason = AI_STRATEGIES[AiStrategyId.mason];
 
 /** The variants, each a whole playbook the seat plays as its own. */
 const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
-  {label: 'printed', what: 'the mason as shipped', play: mason},
   {
-    // What `evolve --lineage mason` promoted: +12.5 points against the
-    // whole league on a holdout (31.7% vs 19.2%, 23 flips toward and 8
-    // away, p = 0.011). Whether any of that lands against the STEWARD
-    // specifically is a different question — the league is five playbooks
-    // and the steward is the one the mason loses 158 in 160 to.
-    label: 'champion',
-    what: 'evolve champion — serfTarget 12→15, researchReserve 10→6',
-    play: {...mason, serfTarget: 15, researchReserve: 6},
+    label: 'shipped',
+    what: 'the mason as it now stands — swords, knights first',
+    play: mason,
   },
-  ...armAndFeed(),
+  {
+    // The line it replaced, rebuilt here so the comparison survives the
+    // change having shipped: `mason` above now reads the new numbers.
+    label: 'old-spears',
+    what: 'the mason before — weaponMix [0], spearmen only',
+    play: {
+      ...mason,
+      weaponMix: [0],
+      trainPreference: [UnitTypeId.spearman],
+      trainFallback: UnitTypeId.spearman,
+    },
+  },
 ];
 
 /**
@@ -78,84 +83,6 @@ const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
  * the bows, and with archery competing against deepMining for the same
  * research. Every military option was capped by the same shortage.
  */
-function armAndFeed(): {label: string; what: string; play: AiStrategy}[] {
-  const swords = {
-    ...mason,
-    weaponMix: [1, 0],
-    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
-    trainFallback: UnitTypeId.spearman,
-  };
-  // The whole chain, the well included. Three farms behind one well is a
-  // bottleneck moved rather than opened — wells are what wheat drinks.
-  const fed = (build: typeof mason.build): typeof mason.build =>
-    build.map(b =>
-      b.type === BuildingTypeId.wheatFarm ||
-      b.type === BuildingTypeId.mill ||
-      b.type === BuildingTypeId.bakery ||
-      b.type === BuildingTypeId.well
-        ? {
-            ...b,
-            count: b.type === BuildingTypeId.well ? 2 : b.count,
-            more: {after: TechId.ironworking, count: 3},
-          }
-        : b,
-    );
-  const towerStep = {
-    type: BuildingTypeId.guardTower,
-    count: 2,
-    anchor: BuildAnchorNs.base,
-    after: TechId.archery,
-    needs: BuildingTypeId.barracks,
-  };
-  const at = mason.build.findIndex(b => b.type === BuildingTypeId.goldMine);
-  const withTowers = [
-    ...mason.build.slice(0, at),
-    towerStep,
-    ...mason.build.slice(at),
-  ];
-  const bowResearch = [
-    TechId.soldiery,
-    TechId.ironworking,
-    TechId.archery,
-    TechId.deepMining,
-  ];
-  return [
-    {
-      label: 'swords',
-      what: 'the sword line alone — 11/80 last run',
-      play: swords,
-    },
-    {
-      label: 'swords+fed',
-      what: 'swords, and the bread chain widened — wells included',
-      play: {...swords, build: fed(mason.build)},
-    },
-    {
-      label: 'bows+towers',
-      what: 'archers + 2 towers + bow research, fed',
-      play: {
-        ...mason,
-        weaponMix: [2, 0],
-        trainPreference: [UnitTypeId.archer, UnitTypeId.spearman],
-        trainFallback: UnitTypeId.spearman,
-        build: fed(withTowers),
-        researchOrder: bowResearch,
-      },
-    },
-    {
-      label: 'mixed+towers',
-      what: 'knights AND archers + 2 towers + bow research, fed',
-      play: {
-        ...mason,
-        weaponMix: [1, 2],
-        trainPreference: [UnitTypeId.knight, UnitTypeId.archer],
-        trainFallback: UnitTypeId.spearman,
-        build: fed(withTowers),
-        researchOrder: bowResearch,
-      },
-    },
-  ];
-}
 
 /**
  * The mason, fed.
@@ -378,7 +305,13 @@ async function main(): Promise<void> {
   const seedStart = arg('--seed-start', 41, 0);
   const jobs = arg('--jobs', 4);
   const seeds = Array.from({length: seedCount}, (_, i) => i + seedStart);
-  const opponent = AI_STRATEGIES[AiStrategyId.steward];
+  const vsAt = process.argv.indexOf('--vs');
+  const vsKey = vsAt < 0 ? 'steward' : process.argv[vsAt + 1]!;
+  const vsId = (
+    Object.keys(AiStrategyId) as (keyof typeof AiStrategyId)[]
+  ).find(k => k === vsKey);
+  if (!vsId) throw new Error(`--vs does not know "${vsKey}"`);
+  const opponent = AI_STRATEGIES[AiStrategyId[vsId]];
 
   type Trial = {variant: number; seed: number; seat: Owner};
   const trials: Trial[] = [];
