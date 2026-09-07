@@ -16,13 +16,7 @@ import type {UnitTypeId} from '../sim/defs/units';
 import * as MatchState from '../sim/matchStateEnum.ts';
 import {AdminPanel} from './AdminPanel';
 import {COMPACT, NARROW, SHORT, useMedia} from './breakpoints';
-import {
-  BUILD_GROUPS,
-  buildAffordable,
-  buildKey,
-  buildTab,
-  buildUnlocked,
-} from './buildMenu';
+import {BUILD_GROUPS, buildKey, buildTab, buildUnlocked} from './buildMenu';
 import {EconomyPanel} from './EconomyPanel';
 import {fullscreen} from './fullscreen';
 import * as HudPanel from './hudPanelEnum.ts';
@@ -488,8 +482,15 @@ export function Hud(props: {
     </div>
   );
   const cost = (type: BuildingTypeId) => goodEntries(BUILDING_DEFS[type].cost);
-  const affordable = (type: BuildingTypeId): boolean =>
-    buildAffordable(type, stock());
+  /**
+   * A good this building's bill asks for that the stores cannot cover
+   * today. Not a refusal — buildings go up on credit, and the cost written
+   * under the button is what finishes the frame rather than what the castle
+   * must hold to peg it out (see buildMenu.ts). What it buys the player is
+   * the one thing the greyed-out button used to say honestly: this one will
+   * stand and wait, and here is the good it will be waiting on.
+   */
+  const short = (good: GoodId, n: number): boolean => (stock()[good] ?? 0) < n;
   const unlocked = (type: BuildingTypeId): boolean =>
     buildUnlocked(type, techs().researched);
 
@@ -500,9 +501,9 @@ export function Hud(props: {
   // and changes nothing — that tab was already the open one.
   //
   // The aim rather than the placement, because a chord that names a
-  // building the stores cannot pay for arms nothing at all, and that is the
-  // case that needs the tab most: the answer to "why not" is the greyed
-  // button and the cost written under it. See buildAim in the store.
+  // building still locked behind research arms nothing at all, and that is
+  // the case that needs the tab most: the answer to "why not" is the greyed
+  // button with the lock on it. See buildAim in the store.
   createEffect(() => {
     const type = buildAim();
     if (!type) return;
@@ -725,9 +726,9 @@ export function Hud(props: {
         /* The shortcut letter, bolded in place inside its own label (see
            shortcut.tsx). Same gold as every other "this is live" accent. */
         #ui .kbd { font-weight: 700; color: #e5c469; }
-        /* A locked or unaffordable button is not a shortcut worth teaching
-           right now, so the letter goes grey with the rest of the label —
-           gold on a dashed disabled button reads as "press me". */
+        /* A locked button is not a shortcut worth teaching right now, so
+           the letter goes grey with the rest of the label — gold on a
+           dashed disabled button reads as "press me". */
         #ui button:disabled .kbd { color: inherit; }
         #ui .cost {
           margin-left: 6px; white-space: nowrap;
@@ -735,6 +736,13 @@ export function Hud(props: {
           font-variant-numeric: tabular-nums;
         }
         #ui .cost svg { margin-left: 4px; vertical-align: -1px; }
+        /* A good the stores are short of. Amber rather than the tooltip's
+           red: nothing is refused here — the site takes the order and
+           stands waiting for that load — so the chip means "later", not
+           "no". Red is kept for the costs that really are paid at the
+           counter (training, research), which is the whole distinction the
+           colour is carrying. */
+        #ui .cost .short { color: #d98a6a; }
 
         /* ——— Layer order ———
            #ui is position:fixed, so everything below shares one stacking
@@ -2242,17 +2250,16 @@ export function Hud(props: {
                     >
                       <button
                         classList={{active: placing() === type}}
-                        disabled={!affordable(type) && placing() !== type}
                         onClick={() => place(placing() === type ? null : type)}
                       >
                         <Key label={buildingName(type)} k={buildKey(type)} />
                         <span class="cost">
                           <For each={cost(type)}>
                             {([good, n]) => (
-                              <>
+                              <span classList={{short: short(good, n)}}>
                                 <GoodIcon good={good} size={11} />
                                 {n}
-                              </>
+                              </span>
                             )}
                           </For>
                         </span>
