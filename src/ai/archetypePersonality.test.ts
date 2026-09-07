@@ -95,10 +95,26 @@ describe('personalities read through the fog', () => {
       for (const [k, n] of abbot)
         pooled.abbot.set(k, (pooled.abbot.get(k) ?? 0) + n);
     }
+    /**
+     * Share of the reads that actually formed an OPINION — `unmet` is out
+     * of the denominator, not just out of the numerator.
+     *
+     * archetype.ts is explicit that ignorance "must be treated as 'no
+     * opinion', never as 'peaceful'", and counting it below the line broke
+     * that in the other direction: a seat that never found its rival
+     * scored 0% calm, which reads as 0% peaceful. It is not a seat playing
+     * loud, it is a seat that has not looked. Whole valleys came out that
+     * way — on seeds 8 and 55 the abbot's every read was unmet — and since
+     * those zeros are averaged against real opinions elsewhere, two blind
+     * valleys could outweigh the seven where the abbot plainly read
+     * calmer. That is what this measured before, and it is why the pool
+     * was widened to ten seeds once already: the fix was aimed at the
+     * spread when the flaw was in the ruler.
+     */
     const share = (m: Map<number, number>, k: number): number => {
-      let total = 0;
-      for (const n of m.values()) total += n;
-      return total === 0 ? 0 : (m.get(k) ?? 0) / total;
+      let held = 0;
+      for (const [kind, n] of m) if (kind !== Archetype.unmet) held += n;
+      return held === 0 ? 0 : (m.get(k) ?? 0) / held;
     };
     const rusher = (m: Map<number, number>): number =>
       share(m, Archetype.rusher);

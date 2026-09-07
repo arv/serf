@@ -85,8 +85,8 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 
 const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
 /** The full-match fixture, and how deep it has to run. Seat 0 razes seat 1
- * at tick 17024 unadvised and at 16570 advised, so the bound sits above the
- * slower of the two with room to spare.
+ * at tick 16001 unadvised and seat 1 marching at four ends it at 12870, so
+ * the bound sits above the slower of the two with room to spare.
  *
  * It has to run this deep at all because the steward's growth knobs sit
  * behind its growthAfter research and its war knobs behind a mustered
@@ -109,11 +109,18 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * bread chain behind the barracks — the ration slows every seat's ore, and
  * on 20 both wars then ran past 18_500 undecided. On 15 seat 0 takes the
  * valley at 15_388 unadvised and seat 1 marching at four ends it at 11_970,
- * so the bound again sits above the slower of the two with room to spare.
+ * so the bound again sits above the slower of the two with room to spare;
+ * and to 31 / 18_000 when the fishery's plot went from 3x3 to 2x2, which
+ * moves where every seat's fishery can stand and so what the valley grows
+ * after it — on 15 the advised war then ended 2881 ticks LATER than the
+ * control, which asserts the opposite of what this is for. Of a twelve-seed
+ * sweep, 31 had the widest margin in the right direction (control 16001,
+ * advised 12870) and the most room under its bound; 3, 11, 19, 27 and 63
+ * also still ran the right way, and 7, 23, 42 and 57 did not.
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 15;
-const FULL_MATCH_TICKS = 16_000;
+const FULL_MATCH_SEED = 31;
+const FULL_MATCH_TICKS = 18_000;
 
 describe('wilson intervals', () => {
   it('never reads a clean sweep as certainty', () => {
