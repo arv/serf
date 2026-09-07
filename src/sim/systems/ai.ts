@@ -947,15 +947,23 @@ export class AiBrain {
   #stalledBeats = 0;
   #recoveries = 0;
   /**
-   * Which economy rules this seat runs (sim/economyRules.ts). Every rule by
-   * default, which is the behaviour that was measured and shipped; the lab
-   * narrows it to ablate one rule at a time, and an empty set turns the
-   * layer off entirely. Brain-local like every other field here.
+   * Which economy rules this seat runs (sim/economyRules.ts). Every rule
+   * less whatever the playbook declines (`AiStrategy.skipsRules`, set in
+   * the constructor); the lab narrows it further to ablate one rule at a
+   * time, and an empty set turns the layer off entirely. Brain-local like
+   * every other field here.
    */
   #rules: ReadonlySet<EconomyRuleId> = new Set(ALL_ECONOMY_RULES);
 
-  /** Run only these rules. The lab's ablation handle; the game never calls
-   * it, so a shipped seat always runs the whole table. */
+  /**
+   * Run only these rules. The lab's ablation handle; the game never calls
+   * it, so a shipped seat runs the table less its own `skipsRules`.
+   *
+   * Replaces rather than intersects, and deliberately: a sweep asking what
+   * one rule is worth has to get that rule, not that rule minus whatever
+   * the seated playbook dislikes, or the arms of the ablation would each
+   * mean something different depending on who sat down.
+   */
   setEconomyRules(ids: readonly EconomyRuleId[]): void {
     this.#rules = new Set(ids);
   }
@@ -982,6 +990,15 @@ export class AiBrain {
     this.strategy = strategy;
     this.difficulty = difficulty;
     this.#tiered = applyDifficulty(strategy, difficulty);
+    // The playbook's own opt-outs. Read off `strategy` rather than
+    // `#tiered` because a difficulty tier tunes numbers, not which rules a
+    // seat believes in — an easy Warlord declines exactly what a hard one
+    // does.
+    const skips = strategy.skipsRules;
+    if (skips?.length)
+      this.#rules = new Set(
+        ALL_ECONOMY_RULES.filter(id => !skips.includes(id)),
+      );
     this.#decisionInterval = scaleDecisionInterval(
       AI_PACING.decisionInterval,
       difficulty,

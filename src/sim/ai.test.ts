@@ -21,6 +21,7 @@ import type {GoodAmounts} from './defs/goods.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as EconomyRuleId from './economyRuleIdEnum.ts';
 import {BANDIT, type Building} from './entities.ts';
 import {countResourceNear} from './map.ts';
 import * as MatchState from './matchStateEnum.ts';
@@ -2016,5 +2017,84 @@ describe('the only anvil in the village', () => {
     const orders = retuned(brain.decide(world));
     expect(orders.has(forges[0]!.id)).toBe(false);
     expect(orders.get(forges[1]!.id)).toBe(SPEAR);
+  });
+});
+/**
+ * A playbook that declines a rule.
+ *
+ * `AiStrategy.skipsRules` is a denylist so a rule added to the table
+ * tomorrow reaches every seat without an edit; what is asserted here is
+ * that it reaches the brain at all, that it takes only what it names, and
+ * that the lab's handle still outranks it — an ablation whose arms each
+ * meant "this set, less whatever the seated playbook dislikes" would not be
+ * measuring one rule.
+ */
+describe('a playbook that declines a rule', () => {
+  /** The one rule this fixture can see fire: a built barracks with no loose
+   * serfs is stood down by `handsBeforeSoldiers` on the first beat. */
+  function shortHanded(strategy: AiStrategy): {
+    world: World;
+    brain: AiBrain;
+    barracks: Building;
+  } {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      36,
+    );
+    return {
+      world,
+      brain: new AiBrain(0, strategy, world.map.size),
+      barracks,
+    };
+  }
+
+  const beat = (brain: AiBrain, world: World): SimCommand[] => {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  };
+
+  const standDown = (b: Building) => ({
+    kind: CommandKind.setBuildingPaused,
+    buildingId: b.id,
+    paused: true,
+  });
+
+  const STEWARD = AI_STRATEGIES[AiStrategyId.steward];
+
+  it('runs the whole table when it declines nothing', () => {
+    // The control, and the reason every shipped line is unaffected: no
+    // playbook names a list today.
+    expect(STEWARD.skipsRules).toBeUndefined();
+    const {world, brain, barracks} = shortHanded(STEWARD);
+    expect(beat(brain, world)).toContainEqual(standDown(barracks));
+  });
+
+  it('drops the rule it names, and only that one', () => {
+    const {world, brain, barracks} = shortHanded({
+      ...STEWARD,
+      skipsRules: [EconomyRuleId.handsBeforeSoldiers],
+    });
+    const commands = beat(brain, world);
+    expect(commands).not.toContainEqual(standDown(barracks));
+    // Not simply a silent brain: the rest of the table still spoke this
+    // beat, so the seat lost one rule rather than the layer.
+    expect(commands.length).toBeGreaterThan(0);
+  });
+
+  it('yields to the lab, which replaces the set rather than narrowing it', () => {
+    // An ablation asking what `handsBeforeSoldiers` is worth has to get it
+    // even from a seat whose playbook declines it — otherwise that arm
+    // measures nothing and reads as the rule being worthless.
+    const {world, brain, barracks} = shortHanded({
+      ...STEWARD,
+      skipsRules: [EconomyRuleId.handsBeforeSoldiers],
+    });
+    brain.setEconomyRules([EconomyRuleId.handsBeforeSoldiers]);
+    expect(beat(brain, world)).toContainEqual(standDown(barracks));
   });
 });

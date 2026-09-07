@@ -391,8 +391,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // AiSeats(world)`), so a forge that would be re-tuned today re-tunes in a
 // logged replay exactly where the recording says it did. The hash is over
 // raw bytes, which is why it moved anyway.
+// Still 54 after playbooks gained `skipsRules`: the field is read once in
+// the AiBrain constructor to seed which economy rules that seat runs, and
+// playback constructs no brains (app/simWorker.ts). No shipped playbook
+// names one yet, so the sim is bit-identical today either way — the hash
+// is over raw bytes, which is why it moved.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = 'b24720305317a11923fd59c12c22c6e6';
+const EXPECTED_HASH = 'b8d2ffd1cc7f9e13ad69d4bf5a21fc15';
 
 /**
  * Everything a replay's playback depends on, as raw source:

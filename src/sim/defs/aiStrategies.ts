@@ -3,6 +3,7 @@ import {Rng} from '../../shared/rng.ts';
 import * as AiStrategyIdNs from './aiStrategyIdEnum.ts';
 
 export type AiStrategyId = Enum<typeof AiStrategyIdNs>;
+import type * as EconomyRuleIdNs from '../economyRuleIdEnum.ts';
 import * as PlayerKind from '../playerKindEnum.ts';
 import type {StancePick} from './aiPostures.ts';
 import * as BuildAnchorNs from './buildAnchorEnum.ts';
@@ -61,6 +62,11 @@ export interface BuildStep {
   /** The count this step grows to once `after` of the pair is researched. */
   more?: {after: TechId; count: number};
 }
+
+/** One economy rule's id. Aliased off the enum module rather than
+ * imported from economyRules.ts, which imports `AiStrategy` from here —
+ * the enum is a leaf and the cycle is not worth having for a number. */
+type EconomyRuleId = (typeof EconomyRuleIdNs)[keyof typeof EconomyRuleIdNs];
 
 export interface AiStrategy {
   id: AiStrategyId;
@@ -198,6 +204,24 @@ export interface AiStrategy {
   /** Forge assignment by smith age: recipeOptions index [spear, sword, bow].
    * Smiths past the end of the list all take the last entry. */
   weaponMix: number[];
+  /**
+   * Economy rules this playbook DECLINES (sim/economyRules.ts). Absent or
+   * empty runs the whole table, which is what every shipped line does.
+   *
+   * A denylist rather than a list of the rules to run, and the direction is
+   * the whole design. A rule is written to help every seat, so the next one
+   * added to the table has to reach every seat without an edit here. An
+   * allowlist would withhold each new rule from exactly the playbooks that
+   * had opinions, and withhold it silently — a seat would simply not run
+   * something nobody remembered to add it to, and the sweep that noticed
+   * would be months later.
+   *
+   * The lab's `AiBrain.setEconomyRules` still outranks this. It is called
+   * after construction and replaces the set outright, so an ablation
+   * measures the set it asked for rather than that set minus whatever the
+   * seated playbook happened to dislike.
+   */
+  skipsRules?: EconomyRuleId[];
   /** Trained in order of preference, whichever weapon is at hand first. */
   trainPreference: UnitTypeId[];
   /** Queued when no preferred weapon is around, to keep the queue warm. */
