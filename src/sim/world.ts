@@ -44,7 +44,7 @@ import * as HaulPhaseNs from './haulPhaseEnum.ts';
 import {
   inPlayArea,
   clearResources,
-  findResourceNear,
+  canWorkResourceNear,
   generateMap,
   rectClear,
   seamSpoil,
@@ -1100,17 +1100,34 @@ export function placementRefusal(
   }
   if (!hasDoor) return 'occupied';
 
-  // A gatherer has to be within reach of something to gather. The mine's
-  // seam is the obvious case, but the woodcutter and the quarry answer to
-  // the same rule: a hut raised out of range of every tree is six wood
-  // spent on a worker who walks out, finds nothing, and comes home — so
-  // the refusal happens here, while it is still a ghost under the cursor,
-  // rather than three minutes later when the wood never arrives. The
-  // search is the worker's own, run from the footprint it would stand on.
+  // A gatherer has to be within reach of something it can actually work.
+  // The mine's seam is the obvious case, but the woodcutter and the quarry
+  // answer to the same rule: a hut raised out of range of every tree is
+  // six wood spent on a worker who walks out, finds nothing, and comes
+  // home — so the refusal happens here, while it is still a ghost under
+  // the cursor, rather than three minutes later when the wood never
+  // arrives. The search is the worker's own, run from the footprint it
+  // would stand on.
+  //
+  // The worker's own, which means reach and not just range: this used to
+  // ask `findResourceNear`, which is satisfied by a tile ringed by trees
+  // that nothing can walk to, so the rule would have raised a second
+  // quarry on exactly the dead spot the first one was dying on. The flood
+  // treats the ghost's own footprint as impassable, so the answer it gives
+  // under the cursor is the answer the built hut will live with.
   const gather = gatherRecipeOf(def);
   if (gather) {
     const c = gatherOrigin(def, x, y);
-    if (findResourceNear(map, c.x, c.y, gather.resource, gather.radius) < 0) {
+    if (
+      !canWorkResourceNear(
+        map,
+        c.x,
+        c.y,
+        {x, y, w: def.w, h: def.h},
+        gather.resource,
+        gather.radius,
+      )
+    ) {
       return 'resource';
     }
   }
@@ -1357,9 +1374,12 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
  * Gold is the exception: a worked-out gold seam becomes SPOIL rather than
  * bare ground, because the Monument's placement rule reads the seam it is
  * gilded from and a seam that vanished took every legal site with it (see
- * TileResource.GoldSpoil). Spoil is not ore — `findResourceNear` looks for
+ * TileResource.GoldSpoil). Spoil is not ore — the reach searches look for
  * an exact code, so no mine will ever work it, and a gold mine's ghost
- * refuses the ground exactly as it does today.
+ * refuses the ground exactly as it does today. The Monument's own rule
+ * (`nearResource`) counts spoil on purpose and is the one placement test
+ * that stays reach-blind: it asks the ghost to stand near a seam, not to
+ * work one.
  */
 export function depleteResourceTile(world: World, idx: number): void {
   const amt = world.map.resourceAmt[idx]!;

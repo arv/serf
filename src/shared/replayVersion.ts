@@ -20,6 +20,40 @@
  * directly.
  */
 /**
+ * 54: a gatherer answers for ground it can walk to.
+ *
+ * Every question this game asked about the ground under a hut was the same
+ * question — is there anything of the kind inside the search square? — and
+ * none of them was the question that matters, which is whether the worker
+ * can get to it. A quarry in a real match found its last rock ringed by its
+ * own grove and stood dead for eight minutes in front of it: the trip-start
+ * pathed at that tile, failed, and idled forty ticks; the card read "in
+ * reach: 10"; the seat's re-siting rule saw ground still standing and held
+ * its hand; and the placement rule would have raised the next quarry on the
+ * same spot. The barracks it fed waited on five stone that were never
+ * coming.
+ *
+ * There is one answer now (map.ts `canWorkResourceNear`): a bounded flood
+ * of the walkable ground around the hut, seeded from its own doorstep and
+ * stepping exactly as the pathfinder steps. One thing a tick does with it
+ * is sim behavior:
+ *
+ * - `canPlace` refuses a gatherer whose only resource is walled in, so a
+ *   placeSite command that used to raise a hut can now be refused, and a
+ *   valley full of AI seats lays its foundations somewhere else.
+ *
+ * The gather loop asks it too, but only as a guard on its own search: a hut
+ * that can reach anything picks its trip in the ring order it always did
+ * and paths to it exactly as before, so a working village is untouched. A
+ * hut that can reach nothing idles without paying for the eight failed A*
+ * searches it used to run every forty ticks forever — the same outcome, at
+ * a bounded price. The one place that changes an outcome is the hut whose
+ * only reachable ground lies past a detour longer than its whole search
+ * radius, which the flood's bound gives up on and the old search would have
+ * walked to.
+ *
+ * 53's note follows.
+ *
  * 53: the kite costs the archer something.
  *
  * A ranged unit backing away from a closing melee man used to loose an
@@ -712,4 +746,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 53;
+export const REPLAY_VERSION = 54;
