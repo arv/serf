@@ -51,14 +51,50 @@ import type {LabEngine} from './engines.ts';
  * experiment — advice is then the only asymmetry between the seats. */
 export type SeatStrategies = readonly [AiStrategyId, AiStrategyId];
 
+/**
+ * What one seat plays: a shipped playbook by id, or a whole candidate.
+ *
+ * These used to be two fields that had to agree — `strategies` naming a
+ * lineage per seat, `playbooks` optionally replacing it — and twice they
+ * did not. `evolve.ts` and `variants.ts` each handed a playbook in through
+ * the override seam and left the lineage array describing something else,
+ * so the match played one thing and the MatchRecord reported another.
+ * Nothing throws; the sweep just produces evidence about a match that
+ * never happened, which for a measuring instrument is worse than a crash.
+ *
+ * One field makes that unrepresentable rather than merely adjacent. A
+ * candidate already carries its own lineage in `AiStrategy.id` — `mutate`
+ * spreads the base and evolveWorker's `playbookOf` spreads
+ * `AI_STRATEGIES[lineage]`, so both preserve it — which leaves nothing to
+ * keep in step. It also fixes the operation that broke it both times:
+ * mirroring a seating now swaps whole entries, and an entry cannot be
+ * half-swapped.
+ */
+export type SeatSpec = AiStrategyId | AiStrategy;
+export type SeatSpecs = readonly [SeatSpec, SeatSpec];
+
+/** The lineage a seat wears — the id the world deals its player, and the
+ * id the record reports. Read off the candidate itself when there is one,
+ * which is the whole point of the type above. */
+export const lineageOf = (spec: SeatSpec): AiStrategyId =>
+  typeof spec === 'number' ? spec : spec.id;
+
 export interface MatchConfig {
   seed: number;
   mapSize: number;
   bandits: boolean;
-  /** One playbook per seat. Both entries the same makes advice the only
+  /**
+   * What each seat plays. Two entries of the same id makes advice the only
    * asymmetry; different entries is a playbook-vs-playbook match, and the
-   * sweep then owes the mirrored seating too (see bakeoff.ts). */
-  strategies: SeatStrategies;
+   * sweep then owes the mirrored seating too (see bakeoff.ts).
+   *
+   * A whole `AiStrategy` here is the base-playbook seam a search needs,
+   * and deliberately not the one advice uses: unlike advice it composes
+   * UNDER the stance cascade and the difficulty tier (see AiSeats), so a
+   * candidate is measured in the configuration that ships rather than in a
+   * stanceless one.
+   */
+  seats: SeatSpecs;
   /**
    * Economy rules the seats run (sim/economyRules.ts). Undefined runs the
    * whole table, which is what ships; a subset is the ablation — measure a
@@ -79,18 +115,6 @@ export interface MatchConfig {
    * time, and an empty array is the pre-reactive brain.
    */
   warBehaviors?: readonly WarBehaviorId[];
-  /**
-   * Seat-indexed base playbooks, for a search that is trying candidates
-   * rather than steering shipped ones.
-   *
-   * A seat with no entry here plays the playbook named by its own entry in
-   * `strategies` — the id that seat was dealt, not its index in this array.
-   *
-   * Unlike advice, these compose UNDER the stance cascade and the
-   * difficulty tier (see AiSeats), so a candidate is measured in the
-   * configuration that ships rather than in a stanceless one.
-   */
-  playbooks?: readonly (AiStrategy | null)[];
   /** Give up and call it undecided past here. */
   maxTicks: number;
   /** Ticks between one seat's consultations (simWorker shipped 1800 = 90 s). */
@@ -237,19 +261,23 @@ interface SeatAdviceMemory {
 
 export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   const startedAt = Date.now();
+  const lineages: SeatStrategies = [
+    lineageOf(cfg.seats[0]),
+    lineageOf(cfg.seats[1]),
+  ];
   const world = createWorld({
     seed: cfg.seed,
     players: [
-      {kind: PlayerKind.ai, strategy: cfg.strategies[0]},
-      {kind: PlayerKind.ai, strategy: cfg.strategies[1]},
+      {kind: PlayerKind.ai, strategy: lineages[0]},
+      {kind: PlayerKind.ai, strategy: lineages[1]},
     ],
     banditsEnabled: cfg.bandits,
     mapSize: cfg.mapSize,
   });
   const handed = new Map<Owner, AiStrategy>();
-  for (const [seat, playbook] of (cfg.playbooks ?? []).entries()) {
-    if (playbook) handed.set(seat as Owner, playbook);
-  }
+  cfg.seats.forEach((spec, seat) => {
+    if (typeof spec !== 'number') handed.set(seat as Owner, spec);
+  });
   const seats = new AiSeats(world, handed.size ? handed : undefined);
   if (cfg.economyRules !== undefined) {
     for (const id of seats.seatIds())
@@ -372,7 +400,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     seed: cfg.seed,
     mapSize: cfg.mapSize,
     bandits: cfg.bandits,
-    strategies: cfg.strategies,
+    strategies: lineages,
     advised,
     ticks: world.tick,
     decided,

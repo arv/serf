@@ -155,6 +155,26 @@ export interface BuildingDef {
   /** Hidden from the build menu (system-placed). */
   systemOnly?: boolean;
   /**
+   * Placeable without banking the price first: the site goes down empty
+   * and rises as goods reach it.
+   *
+   * The sim has never asked a placement to be paid for — `placeBuilding`
+   * checks the ground and the tech and nothing else — so this is not a
+   * sim rule but the one both POLICIES read: the build menu's button
+   * (ui/buildMenu.ts) and the AI's build order (systems/ai.ts). Stated
+   * once because two copies of a rule drift, and a player and a lord
+   * playing under different rules is the drift that matters here.
+   *
+   * Only the Monument sets it, and the reason is particular to it: its
+   * price is a clock rather than a choice, and victory.ts is explicit
+   * that a rival should be told the moment its site takes a first
+   * delivery and get "the whole raising" to ride out and stop it. Banking
+   * first collapsed that window — the site appeared with the goods
+   * already in hand. Any other building placed on credit is a scaffold
+   * standing idle on ground the plan needed.
+   */
+  raisedOnCredit?: boolean;
+  /**
    * Multiplier on the model's rendered size, on top of the footprint-derived
    * scale (makeGlbBuilding). Render-only — the sim's footprint, placement
    * and blocking all still read w/h, so this changes what a building looks
@@ -802,7 +822,16 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // the cost would be a clock, not a choice. The loaves are what make it
     // hurt, now that the mines eat them too (MINE_RATION_PER) — every one
     // laid in the plinth is one not in a shaft or a barracks.
-    cost: {[GoodId.gold]: 12, [GoodId.stone]: 30, [GoodId.food]: 20},
+    //
+    // Ten, halved from twenty, because twenty was not the cost it reads
+    // as. Tracking a mason's shelf: 30 stone banked by tick 15k, 12 gold
+    // by 33k, and then nothing but waiting on the twentieth loaf until
+    // 42.8k — its larder sits between nought and six for forty thousand
+    // ticks, because its own mines eat the rations. The bread was not a
+    // price among three, it was the only price, and it bought a delay
+    // rather than a decision. Halved it still hurts and no longer decides
+    // alone.
+    cost: {[GoodId.gold]: 12, [GoodId.stone]: 30, [GoodId.food]: 10},
     // The longest raising in the game by a factor of three. The build is
     // the point: a monument that goes up in a barracks' twenty-five seconds
     // is a purchase, and this has to be a thing rivals can see coming and
@@ -818,6 +847,12 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // seam does not also hand its owner an eye on it.
     sight: 5.5,
     requiresTech: TechId.deepMining,
+    // Laid empty and gilded as the carts arrive — see `raisedOnCredit`.
+    // Measured before it was: the mason banked 30 stone by tick 15k and 12
+    // gold by 33k, then waited on the twentieth loaf until 42.8k and laid
+    // the site twelve ticks later. The bread was the whole gap, and the
+    // raising nobody could see coming was the cost of it.
+    raisedOnCredit: true,
     // The gold is why it stands where it stands. Four tiles of slack so a
     // seam under the camp's own footprint is still buildable beside.
     nearResource: {kind: TileResource.GoldDep, radius: 4},

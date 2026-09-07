@@ -3,6 +3,7 @@ import {Rng} from '../../shared/rng.ts';
 import * as AiStrategyIdNs from './aiStrategyIdEnum.ts';
 
 export type AiStrategyId = Enum<typeof AiStrategyIdNs>;
+import type * as EconomyRuleIdNs from '../economyRuleIdEnum.ts';
 import * as PlayerKind from '../playerKindEnum.ts';
 import type {StancePick} from './aiPostures.ts';
 import * as BuildAnchorNs from './buildAnchorEnum.ts';
@@ -61,6 +62,11 @@ export interface BuildStep {
   /** The count this step grows to once `after` of the pair is researched. */
   more?: {after: TechId; count: number};
 }
+
+/** One economy rule's id. Aliased off the enum module rather than
+ * imported from economyRules.ts, which imports `AiStrategy` from here —
+ * the enum is a leaf and the cycle is not worth having for a number. */
+type EconomyRuleId = (typeof EconomyRuleIdNs)[keyof typeof EconomyRuleIdNs];
 
 export interface AiStrategy {
   id: AiStrategyId;
@@ -198,6 +204,24 @@ export interface AiStrategy {
   /** Forge assignment by smith age: recipeOptions index [spear, sword, bow].
    * Smiths past the end of the list all take the last entry. */
   weaponMix: number[];
+  /**
+   * Economy rules this playbook DECLINES (sim/economyRules.ts). Absent or
+   * empty runs the whole table, which is what every shipped line does.
+   *
+   * A denylist rather than a list of the rules to run, and the direction is
+   * the whole design. A rule is written to help every seat, so the next one
+   * added to the table has to reach every seat without an edit here. An
+   * allowlist would withhold each new rule from exactly the playbooks that
+   * had opinions, and withhold it silently — a seat would simply not run
+   * something nobody remembered to add it to, and the sweep that noticed
+   * would be months later.
+   *
+   * The lab's `AiBrain.setEconomyRules` still outranks this. It is called
+   * after construction and replaces the set outright, so an ablation
+   * measures the set it asked for rather than that set minus whatever the
+   * seated playbook happened to dislike.
+   */
+  skipsRules?: EconomyRuleId[];
   /** Trained in order of preference, whichever weapon is at hand first. */
   trainPreference: UnitTypeId[];
   /** Queued when no preferred weapon is around, to keep the queue warm. */
@@ -1095,6 +1119,15 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         anchor: BuildAnchorNs.gold,
         radius: 6,
         after: TechId.deepMining,
+        // The mine before the plinth. The Monument is the one building
+        // raised on credit (see the build loop in systems/ai.ts), which
+        // means it costs nothing to PLACE and can therefore overtake the
+        // gold mine above — which still has to bank its own timber and
+        // stone. A site laid first would pull haulers toward a plinth that
+        // cannot finish, because the gold it is waiting on is under a mine
+        // nobody has built yet. Measured on seed 41: the site went up at
+        // 18,365 and the mine at 19,540.
+        needs: BuildingTypeId.goldMine,
       },
     ],
     // Deep Mining is the whole line, and it is the only playbook that names
@@ -1131,8 +1164,45 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     retreats: true,
     // Spears, and only spears. A knight costs three bread where a spearman
     // costs two, and bread is the currency this plan is saving in.
-    weaponMix: [0],
-    trainPreference: [UnitTypeId.spearman],
+    // Swords first, then spears — and knights ahead of spearmen at the
+    // barracks. This is the whole of the mason's answer to a rush, and it
+    // buys nothing new: the same one forge, the same hand, the same
+    // research. It only stops forging the weapon that loses worst to what
+    // is coming.
+    //
+    // The counter triangle (defs/units.ts COUNTER_TABLE) is why. Heavy
+    // beats light at 1.5, and the steward fields knights — so a mason
+    // fielding spearmen was not merely outnumbered, it was fielding the
+    // class that takes 0.67 into the one arriving. Knights make that a
+    // neutral 1.0.
+    //
+    // Measured against the printed steward, both seatings, two disjoint
+    // seed ranges: 1 win in 80 becomes 11, and on sixty seeds the search
+    // never touched, 3 in 120 becomes 19 — at least sixteen discordant
+    // pairs, p well under 0.001. The median death moves from 18,489 to
+    // 20,838, the first movement in that number across nine attempts.
+    //
+    // Monument wins go from 2 to 16 in the same trials, which is the
+    // point: the mason could always build the thing, it could not live
+    // long enough to finish it.
+    //
+    // Everything that ADDED capacity measured worse, and it is worth
+    // recording so nobody retries them: a wider bread chain with the
+    // wells (0 wins in 120), two guard towers with the bow line (1), and
+    // both classes at once (1). Each costs a hand to staff, stone to
+    // raise and hauls to feed, and all of it arrives after the steward's
+    // first march at ~17,500. The mason is racing a clock it cannot move,
+    // so the only affordable change is the one that spends nothing extra.
+    // Archers do counter knights at 1.5 — it cannot buy the detour.
+    //
+    // What the sword line costs is the Fletcher, whose every forge is on
+    // bowstaves: ranged kites heavy at 1.5, so this trades a uniform loss
+    // for three good matchups and one bad one. The bad one is answered in
+    // the brain rather than here — `forgeTheCounter` in economyRules.ts
+    // now lets a seat's ONLY anvil take the counter, which is this seat,
+    // and which is why a constant belongs in a rule's reach.
+    weaponMix: [1, 0],
+    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
     trainFallback: UnitTypeId.spearman,
     barracksQueueDepth: 2,
     // Not a muster bar: the size of the garrison it keeps standing

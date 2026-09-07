@@ -21,6 +21,7 @@ import type {GoodAmounts} from './defs/goods.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as EconomyRuleId from './economyRuleIdEnum.ts';
 import {BANDIT, type Building} from './entities.ts';
 import {countResourceNear} from './map.ts';
 import * as MatchState from './matchStateEnum.ts';
@@ -28,6 +29,7 @@ import * as PlayerKind from './playerKindEnum.ts';
 import {findSpot} from './siting.ts';
 import {
   AI_CREDIT,
+  AI_INTEL,
   AI_PACING,
   AI_SITING,
   AI_STALL,
@@ -2063,5 +2065,187 @@ describe('the road to a far post', () => {
       TechId.masonry,
     ]);
     expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+});
+
+/**
+ * The counter triangle reaching a seat that owns exactly one anvil.
+ *
+ * `forgeTheCounter` keeps the FIRST smith on the playbook's printed line so
+ * a sighting cannot stampede the whole armory. That is a hedge only while a
+ * second smith is standing to counter with; a seat with one forge has no
+ * second line, so the same rule pins 100% of its weapon output to a
+ * constant. The Mason is that seat — one anvil, `weaponMix: [1, 0]` — and
+ * a constant sword line is neutral into the Steward's knights and 0.67 into
+ * the Fletcher's archers.
+ */
+describe('the only anvil in the village', () => {
+  /** A seat with `smiths` built forges and `AI_INTEL.minSighting` of the
+   * rival's soldiers standing in its own yard, which is all the intel
+   * `#counterPlan` needs: seen this tick, inside the trust window, enough
+   * of them to be an army rather than an anecdote. */
+  function underWatch(
+    strategy: AiStrategy,
+    seen: Enum<typeof UnitTypeId>,
+    smiths: number,
+  ): {world: World; brain: AiBrain; forges: Building[]} {
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 90, 90, {}, 1);
+    world.players[0]!.techs.researched.push(TechId.ironworking);
+    const forges = Array.from({length: smiths}, (_, i) => {
+      const b = placeBuiltBuilding(
+        world,
+        BuildingTypeId.weaponsmith,
+        0,
+        34 + i * 3,
+        34,
+      );
+      b.recipeIndex =
+        strategy.weaponMix[Math.min(i, strategy.weaponMix.length - 1)]!;
+      return b;
+    });
+    for (let i = 0; i < AI_INTEL.minSighting; i++)
+      spawnUnit(world, seen, 1, 31.5 + i, 31.5);
+    world.tick = 1000;
+    return {world, brain: new AiBrain(0, strategy, world.map.size), forges};
+  }
+
+  /** The recipe this beat re-tuned each forge to, by building id. */
+  function retuned(commands: SimCommand[]): Map<number, number> {
+    const out = new Map<number, number>();
+    for (const c of commands)
+      if (c.kind === CommandKind.setBuildingRecipe)
+        out.set(c.buildingId, c.index);
+    return out;
+  }
+
+  const MASON = AI_STRATEGIES[AiStrategyId.mason];
+  /** [spear, sword, bow] — the seats BUILDING_DEFS gives the recipes. */
+  const SPEAR = 0;
+  const SWORD = 1;
+
+  it('turns the lone forge onto the counter when archers are at the gate', () => {
+    const {world, brain, forges} = underWatch(MASON, UnitTypeId.archer, 1);
+    expect(MASON.weaponMix[0]).toBe(SWORD); // the printed line, for contrast
+    expect(retuned(brain.decide(world)).get(forges[0]!.id)).toBe(SPEAR);
+  });
+
+  it('leaves it on the printed line when the counter is unforgeable', () => {
+    // Knights at the gate want bowstaves back, and the Mason never
+    // researches archery — so the sword line stands, which is the whole
+    // reason its answer to the Steward's rush survives this rule.
+    const {world, brain, forges} = underWatch(MASON, UnitTypeId.knight, 1);
+    const orders = retuned(brain.decide(world));
+    // Not vacuous: the sighting IS on file — the same picture that turned
+    // the forge in the test above — and the tech gate is what stops it.
+    expect(brain.intelReport().find(r => r.owner === 1)?.total).toBe(
+      AI_INTEL.minSighting,
+    );
+    expect(orders.has(forges[0]!.id)).toBe(false);
+    expect(forges[0]!.recipeIndex).toBe(SWORD);
+  });
+
+  it("hedges a plan's second forge before it is standing", () => {
+    // The distinction the rule reads, and the one that cost an archetype.
+    // The Abbot plans two smiths; here only the first is up, which is
+    // every seat's ordinary state while the second is going up. Reading
+    // the STANDING count made all four playbooks counter through that
+    // window — invisible until AI_CREDIT moved the second forge and
+    // stretched it, at which point archetypePersonality caught the Abbot
+    // reading as less calm than the Warlord.
+    const abbot = AI_STRATEGIES[AiStrategyId.abbot];
+    const {world, brain, forges} = underWatch(abbot, UnitTypeId.archer, 1);
+    expect(retuned(brain.decide(world)).has(forges[0]!.id)).toBe(false);
+  });
+
+  it('still hedges the first of two forges', () => {
+    // The Abbot forges swords then bowstaves. Archers at the gate make
+    // spears the counter, and only the second anvil takes it: the first is
+    // a hedge again, because there is now something to hedge against.
+    const abbot = AI_STRATEGIES[AiStrategyId.abbot];
+    const {world, brain, forges} = underWatch(abbot, UnitTypeId.archer, 2);
+    const orders = retuned(brain.decide(world));
+    expect(orders.has(forges[0]!.id)).toBe(false);
+    expect(orders.get(forges[1]!.id)).toBe(SPEAR);
+  });
+});
+/**
+ * A playbook that declines a rule.
+ *
+ * `AiStrategy.skipsRules` is a denylist so a rule added to the table
+ * tomorrow reaches every seat without an edit; what is asserted here is
+ * that it reaches the brain at all, that it takes only what it names, and
+ * that the lab's handle still outranks it — an ablation whose arms each
+ * meant "this set, less whatever the seated playbook dislikes" would not be
+ * measuring one rule.
+ */
+describe('a playbook that declines a rule', () => {
+  /** The one rule this fixture can see fire: a built barracks with no loose
+   * serfs is stood down by `handsBeforeSoldiers` on the first beat. */
+  function shortHanded(strategy: AiStrategy): {
+    world: World;
+    brain: AiBrain;
+    barracks: Building;
+  } {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      36,
+    );
+    return {
+      world,
+      brain: new AiBrain(0, strategy, world.map.size),
+      barracks,
+    };
+  }
+
+  const beat = (brain: AiBrain, world: World): SimCommand[] => {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  };
+
+  const standDown = (b: Building) => ({
+    kind: CommandKind.setBuildingPaused,
+    buildingId: b.id,
+    paused: true,
+  });
+
+  const STEWARD = AI_STRATEGIES[AiStrategyId.steward];
+
+  it('runs the whole table when it declines nothing', () => {
+    // The control, and the reason every shipped line is unaffected: no
+    // playbook names a list today.
+    expect(STEWARD.skipsRules).toBeUndefined();
+    const {world, brain, barracks} = shortHanded(STEWARD);
+    expect(beat(brain, world)).toContainEqual(standDown(barracks));
+  });
+
+  it('drops the rule it names, and only that one', () => {
+    const {world, brain, barracks} = shortHanded({
+      ...STEWARD,
+      skipsRules: [EconomyRuleId.handsBeforeSoldiers],
+    });
+    const commands = beat(brain, world);
+    expect(commands).not.toContainEqual(standDown(barracks));
+    // Not simply a silent brain: the rest of the table still spoke this
+    // beat, so the seat lost one rule rather than the layer.
+    expect(commands.length).toBeGreaterThan(0);
+  });
+
+  it('yields to the lab, which replaces the set rather than narrowing it', () => {
+    // An ablation asking what `handsBeforeSoldiers` is worth has to get it
+    // even from a seat whose playbook declines it — otherwise that arm
+    // measures nothing and reads as the rule being worthless.
+    const {world, brain, barracks} = shortHanded({
+      ...STEWARD,
+      skipsRules: [EconomyRuleId.handsBeforeSoldiers],
+    });
+    brain.setEconomyRules([EconomyRuleId.handsBeforeSoldiers]);
+    expect(beat(brain, world)).toContainEqual(standDown(barracks));
   });
 });

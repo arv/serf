@@ -20,7 +20,13 @@
  * directly.
  */
 /**
- * 54: the bow gets its own roof — the Archery Range.
+ * 55: the bow gets its own roof — the Archery Range.
+ *
+ * 55 and not 54 because main took 54 while this branch was open (the
+ * Monument's bread, halved; its note follows below). Two builds cannot
+ * share a number — the whole point of it is that a file stamped 54 names
+ * one world of behavior — so the later of the two to land moves up.
+ * Nothing about the change below is different for it.
  *
  * The archer left the barracks' roster for a building of his own (2x2, 10
  * wood and 2 stone, unlocked by Archery rather than by a gate of its own)
@@ -44,6 +50,21 @@
  * The save format is untouched: a building id is already a number in a
  * save, and no file written before this can contain a 22, so
  * WORLD_SAVE_VERSION stays at 9 and old saves still open.
+ *
+ * 54's note follows.
+ *
+ * 54: the Monument's bread halved, twenty loaves to ten
+ * (defs/buildings.ts). A building's cost is consumed as its site rises, so
+ * every tick after the first delivery carries different stores — a balance
+ * number in the plainest sense, and a replay recorded before that build
+ * spends a larder it no longer has.
+ *
+ * The same commit lets the Monument be PLACED before its price is banked,
+ * and that half needed no number: nothing in the sim ever asked a
+ * placement to be paid for, so what moved there was two policies deciding
+ * when to send a command — a lord's build order and a player's button —
+ * and a logged command still executes as it did. The bread is why that is
+ * 54.
  *
  * 53's note follows.
  *
@@ -739,4 +760,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 54;
+export const REPLAY_VERSION = 55;

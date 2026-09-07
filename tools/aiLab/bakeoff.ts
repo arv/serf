@@ -367,13 +367,15 @@ const LAYOUT_SALT_STRIDE = 1_000_003;
 const saltOf = (t: Trial): number =>
   t.seed * 2 + (t.advisedSeat ?? 0) + t.layout * LAYOUT_SALT_STRIDE;
 
-/** The seats' playbooks in one seating. */
+/** The seats' playbooks in one seating. Ids rather than candidates: the
+ * bake-off measures ADVICE over shipped lines, so nothing here hands a
+ * seat a playbook of its own. */
 const seatingOf = (opts: Options, layout: 0 | 1): SeatStrategies =>
   layout === 0 ? opts.strategies : [opts.strategies[1], opts.strategies[0]];
 
 /** Everything about a match except which seed, which seating and who is
  * advised — the three things a trial names. */
-type MatchBase = Omit<MatchConfig, 'engines' | 'seed' | 'strategies'>;
+type MatchBase = Omit<MatchConfig, 'engines' | 'seed' | 'seats'>;
 
 /** Play one trial in this process — the --jobs 1 path, and the tests'. */
 async function playHere(
@@ -391,7 +393,7 @@ async function playHere(
   return playMatch({
     ...base,
     seed: t.seed,
-    strategies: seatingOf(opts, t.layout),
+    seats: seatingOf(opts, t.layout),
     engines,
   });
 }
@@ -404,7 +406,7 @@ function playInWorker(
   base: MatchBase,
 ): Promise<MatchRecord> {
   const task: WorkerTask = {
-    config: {...base, seed: t.seed, strategies: seatingOf(opts, t.layout)},
+    config: {...base, seed: t.seed, seats: seatingOf(opts, t.layout)},
     advisedSeat: t.advisedSeat,
     spec: opts.spec,
     salt: saltOf(t),
