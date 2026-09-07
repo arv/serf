@@ -5,7 +5,12 @@ import type {Enum} from '../shared/enum.ts';
 import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
-import {makeBakehouse, makeFarmstead, makeMonument} from './procBuildings';
+import {
+  makeBakehouse,
+  makeFarmstead,
+  makeFisherHut,
+  makeMonument,
+} from './procBuildings';
 import {
   makeAshlar,
   makeHeadframe,
@@ -14,7 +19,7 @@ import {
   makeSluice,
   makeWindlassHouse,
 } from './procMines';
-import {makeFishSign, makeShoal} from './procParts';
+import {makeFishSign, makeRodStand, makeShoal} from './procParts';
 import * as ScatterPackNs from './scatterPackEnum.ts';
 import {
   DEFAULT_FIGURE,
@@ -51,9 +56,10 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // scenery, not a workplace. The farmstead is ours now, BUILT_BUILDINGS.)
   [BuildingTypeId.mill]: 'building_windmill_green.gltf',
   // (No bakery: it is the one building we model ourselves — BUILT_BUILDINGS.)
-  // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
-  // quay. The one food building that needed nothing built by hand.
-  [BuildingTypeId.fishery]: 'extra/building_shipyard_green.gltf',
+  // (No fishery: it plays the EXTRA shipyard no longer — that model is a
+  // yard where boats are MADE, and the largest, most formal thing in the
+  // village after the castle, on a building that is one man with a rod.
+  // The hut is ours now, BUILT_BUILDINGS.)
   [BuildingTypeId.brewery]: 'building_tavern_green.gltf',
   // The quarry and the three mines all play this one model — the pack's
   // color variants only vary the team-color slot, which belongs to the
@@ -96,6 +102,10 @@ const BUILT_BUILDINGS: Partial<
   >
 > = {
   [BuildingTypeId.bakery]: makeBakehouse,
+  // The fishery is built for the reason the bakery is: the pack has no
+  // shell the right size. See makeFisherHut — what makes it read as a hut
+  // on a 3x3 plot is how much of the plot it leaves to the yard.
+  [BuildingTypeId.fishery]: makeFisherHut,
   // The farm is built rather than loaded so its field can be a place of
   // work: walkable lanes between the rows, and the mowing circuit
   // authored into the model as named marks (see makeFarmstead).
@@ -230,9 +240,19 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
     // it toward the water (see Building.facing). Long enough to overhang the
-    // footprint on purpose — nearly two tiles past it, where placement only
-    // promises water within one, so the reach here is an aim rather than a
-    // guarantee. Neither is the facing: it is a quarter turn, and most
+    // footprint on purpose — about two and a half tiles past it, where
+    // placement only promises water within one, so the reach here is an aim
+    // rather than a guarantee.
+    //
+    // Both numbers are in the unit square, so BOTH shrank with the plot when
+    // the fishery went from 3x3 to 2x2 and the deck quietly lost a third of
+    // its reach. It was authored at 0.68/0.8 for the larger plot; measured
+    // on seed 1 at the smaller one that left 16 of 416 legal sites with a
+    // deck the fit could not get wet — sixteen fisheries casting onto grass.
+    // Re-measured across lengths: 0.8 -> 16 dry, 1.2 -> 4, 1.4 -> 3,
+    // 1.6 -> 8. It gets worse again past 1.4 because a deck long enough to
+    // stride a narrow channel lands on the far bank, which is one of the two
+    // things the fit exists to correct and which the tally scores as dry. Neither is the facing: it is a quarter turn, and most
     // shorelines do not run square to the grid. So this is the deck's
     // AUTHORED placement, and buildingSync turns and trims it about its
     // landward end until it stands over water the player can see
@@ -240,26 +260,49 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // with it — tools/modelLab/_pier.html is where that gets looked at.
     {
       prop: 'extra/building_docks_green',
-      at: [0, 0.68],
-      span: 0.8,
+      at: [0, 0.98],
+      span: 1.4,
       size: 1,
       rot: -Math.PI / 2,
       // buildingSync finds the pier by name and tells sceneSync where it
       // runs: the fisherman walks out on it and fishes off the end.
       name: 'fisheryPier',
     },
-    // On the ridge, where the pack's sailing ship was — turned 45 degrees so
-    // it stands near broadside to the default camera yaw. Along either axis
-    // the fish would be read end-on and vanish.
+    // On the hut's ridge, turned 45 degrees so it stands near broadside to
+    // the default camera yaw — along either axis the fish would be read
+    // end-on and vanish.
+    //
+    // Measured off the built template rather than guessed, because there is
+    // no arithmetic here that survives an edit to the hut: `normalize`
+    // scales the whole group to the plot by whichever way it is widest, so
+    // moving the net rack a hair changes where the ridge lands in this
+    // space. It sat at 0.34 on the shipyard and at 0.74 on the first hut,
+    // and both went stale the same way — the second time by a quarter of
+    // the building's height, with the fish left hanging off the back slope.
     {
-      make: prop => makeFishSign(0.19, prop),
-      at: [0.06, -0.02],
-      y: 0.34,
+      make: prop => makeFishSign(0.17, prop),
+      at: [-0.02, -0.01],
+      y: 0.66,
       size: 1,
       rot: Math.PI / 4,
     },
-    {prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4},
-    {prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3},
+    // Rods leaning on the hut's water gable, off to one side of the door.
+    //
+    // Placed by the wall rather than by eye. makeRodStand leans its rods
+    // toward -z with their tops about 0.11 back from where it is placed,
+    // so this wants to sit roughly that far in FRONT of the boards: the
+    // tips then rest on them and the butts land on the ground just inside
+    // the eave, which is where rods are kept dry. Anywhere short of it and
+    // the shafts stand IN the wall — and note the wall moves whenever the
+    // hut is resized, because normalize re-centres the whole group.
+    //
+    // (They stood on the landward side until a second net rack took that
+    // ground. Before either, an anchor and a boat rack stood here — both
+    // the shipyard's vocabulary, ship's ground tackle and a hull cradle,
+    // and beside a one-man hut they said the wrong trade. What replaced
+    // them is the trade's own two tools: these, and the nets on the racks
+    // makeFisherHut builds into the yard.)
+    {make: prop => makeRodStand(prop, 0.22), at: [0.1, 0.26], size: 1},
     // A shoal working the water off the pier. buildingSync swims it while
     // the fishery is staffed — an idle fishery's water is still. (It used to
     // say "the same way it turns a staffed well's windlass"; the well keeps
@@ -884,30 +927,6 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         ];
         scene.traverse(o => {
           if (o instanceof THREE.Mesh && o.name === 'building_mine_green') {
-            for (const [x0, y0, z0, x1, y1, z1] of CUT) {
-              o.geometry = stripTrianglesInBox(
-                o.geometry as THREE.BufferGeometry,
-                new THREE.Box3(
-                  new THREE.Vector3(x0, y0, z0),
-                  new THREE.Vector3(x1, y1, z1),
-                ),
-              );
-            }
-          }
-        });
-      }
-      if (type === BuildingTypeId.fishery) {
-        // The pack perches a finished sailing ship on the shipyard's ridge —
-        // a whole vessel, masts and sails, sitting on the roof. It reads as
-        // a toy on a shelf at village zoom, and the hull already under
-        // construction on the slipway is the part that says shipyard. Cut
-        // the roof ship; the chimney (z > 0.55) and the ridge (x > 0.45)
-        // sit outside the box and survive.
-        const CUT: [number, number, number, number, number, number][] = [
-          [0.02, 0.72, -0.36, 0.46, 1.3, 0.46],
-        ];
-        scene.traverse(o => {
-          if (o instanceof THREE.Mesh) {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,

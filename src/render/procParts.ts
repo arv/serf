@@ -133,3 +133,56 @@ export function makeShoal(prop: PropFactory): THREE.Group {
   }
   return g;
 }
+
+/**
+ * Fishing rods stood against the hut wall: three of the pack's own rod,
+ * butts on the ground, tips leaning back on the wall.
+ *
+ * They lean toward -z, so the caller places this in front of the wall it
+ * leans on and the tops travel back to meet it. Leaning the other way was
+ * the first attempt and it put three rods propped against thin air with
+ * their butts through the boards.
+ *
+ * The rod is already in the pack (it is the fishery's output good), so this
+ * places the model rather than carving sticks — the same call the shoal and
+ * the fish sign make, and for the same reason: a hand-built rod would be
+ * the one thing in the yard not shading off the atlas.
+ *
+ * Both the size and the origin are taken off the clone's own bounding box
+ * rather than trusted, because this model breaks the two assumptions the
+ * decor path makes. It is authored to be HELD: its origin sits mid-shaft
+ * with the line hanging out to one side, so a prop placed at its own origin
+ * plants halfway into the ground. And it is 4.3 long against 1.3 across, so
+ * `PropFactory`'s span — which sizes by the horizontal footprint — hands
+ * back a rod three times the height asked for. `len` here means height, and
+ * is enforced after the fact.
+ */
+export function makeRodStand(prop: PropFactory, len = 0.34): THREE.Group {
+  const g = new THREE.Group();
+  const LEAN = [
+    {tilt: 0.22, turn: -0.5, x: -0.035},
+    {tilt: 0.15, turn: 0.15, x: 0.0},
+    {tilt: 0.26, turn: 0.7, x: 0.038},
+  ];
+  for (const l of LEAN) {
+    const rod = prop('tools/fishing_rod', len);
+    if (!rod) continue;
+    // Rescale to `len` TALL, then stand it on its butt.
+    const raw = new THREE.Box3().setFromObject(rod);
+    rod.scale.multiplyScalar(len / Math.max(raw.max.y - raw.min.y, 1e-6));
+    const box = new THREE.Box3().setFromObject(rod);
+    rod.position.set(
+      -(box.min.x + box.max.x) / 2,
+      -box.min.y,
+      -(box.min.z + box.max.z) / 2,
+    );
+    const pivot = new THREE.Group();
+    pivot.add(rod);
+    pivot.rotation.order = 'YXZ';
+    pivot.rotation.y = l.turn;
+    pivot.rotation.x = -l.tilt;
+    pivot.position.x = l.x;
+    g.add(pivot);
+  }
+  return g;
+}

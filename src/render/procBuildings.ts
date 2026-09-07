@@ -1271,3 +1271,403 @@ function blazon(g: THREE.Group): void {
   );
   g.add(holder);
 }
+
+/**
+ * The fisherman's hut, and the working yard around it.
+ *
+ * Why this is built rather than loaded. The EXTRA pack's shipyard played
+ * this building for as long as the fishery was "the food that comes off
+ * water", and it is a shipyard: a hull up on the slipway under a full suit
+ * of sail, an anchor on the quay. That is a yard where boats are MADE, and
+ * it is the largest, most formal thing in the village after the castle —
+ * on a building that is one man with a rod. The pack has nothing smaller
+ * that fits: `tent` is a market table, and both houses are taller and more
+ * formal than the shipyard is.
+ *
+ * The trap is that `normalize` fits whatever this returns to the building's
+ * plot, so nothing here can be made small by building it small — the group
+ * is scaled back up to the footprint whatever size it is authored at, and
+ * only the RATIOS inside it survive. What makes this read as a hut is
+ * therefore the plot: the fishery is 2x2 now, against the 3x3 it took when
+ * the shipyard played it (see its def). At two tiles the hut may fill its
+ * ground the way a house fills its own, and the yard is what is left over
+ * beside it — the net rack, and the rods BUILDING_DECOR leans on the wall.
+ *
+ * So the hut is made small the only way it can be: by taking less of the
+ * group's own bounding box. A net rack stands either side of it, and the
+ * pair is what holds that box out to the plot's full width while the hut
+ * sits well inside it — the hut is a little under half the span, and the
+ * rest is a working yard. Shrinking the hut alone would achieve nothing at
+ * all, because the box would shrink with it and normalize would hand back
+ * exactly the building it started with.
+ *
+ * None of this reaches the pier. BUILDING_DECOR places that AFTER normalize,
+ * in the unit square, so its reach over the water is fixed no matter how the
+ * shell inside is proportioned — which is the property that makes this safe
+ * to tune. A pier that shrank with the hut would stop finding water, and
+ * `#measurePier` can turn and trim a deck but never lengthen one.
+ *
+ * There is deliberately no quay. One stood along the water edge here and it
+ * was a second pier: the deck BUILDING_DECOR places is the pier, the one
+ * buildingSync finds by name, fits to the water and walks the fisherman out
+ * on, and two plank decks meeting at a right angle read as a mistake rather
+ * than as a wharf.
+ *
+ * It keeps Kay's one proportion rule (eave = roof half-span = roof rise,
+ * roof at 45 degrees — see the note on EAVE) so it stands beside his
+ * buildings, and it keeps the roof in cell (3,3), which is the slot
+ * splitTeamColorGroups repaints: a fishery no seat's colour reaches is a
+ * fishery every seat builds identically.
+ */
+export function makeFisherHut(
+  piece: PieceFactory,
+  packMaterial: THREE.Material | null,
+): THREE.Group {
+  atlas = packMaterial;
+  const g = new THREE.Group();
+  hut(g, piece);
+  // One rack either side. The second is not decoration for its own sake:
+  // it is what holds the group's bounding box out to the plot's width
+  // while the hut itself sits well inside it — see the note above.
+  netRack(g, NRX, NR_LEN, NR_TOP);
+  netRack(g, -NRX, NR_LEN * 0.8, NR_TOP * 0.82);
+  applyRamps(g);
+  return g;
+}
+
+/**
+ * Mitre a roof piece's ridge end: cut it to the bisector, so two slopes
+ * meeting at the apex close into one line instead of crossing.
+ *
+ * Square-ended slabs at a 45-degree ridge present their end faces to each
+ * other at a right angle. One slab's end then stands proud of the other's
+ * top surface and the apex reads as a step — which the ridge cap used to
+ * hide, and which is what a cap is FOR. With the cap gone the joint itself
+ * has to be right.
+ *
+ * The bisector of two 45-degree slopes is vertical, so the cut plane is the
+ * vertical one through the ridge (x = FX in the hut's own space). A piece
+ * lies along its panel's local x with its thickness in y, and the panel
+ * carries the pitch, so in the piece's frame that plane is
+ * `x = end - sx * (y + dy)` — `dy` being the piece's own offset within the
+ * panel, which the laid strips each have a different one of and which must
+ * come out of the cut or a raised strip overshoots the ridge by it.
+ *
+ * The outer face runs to the apex and the underside stops short, which is
+ * exactly what a mitre does and why nothing needs to overlap.
+ */
+function mitreRidge(
+  geo: THREE.BufferGeometry,
+  end: number,
+  sx: number,
+  dy: number,
+): THREE.BufferGeometry {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    // Every vertex on the ridge end, whichever face it belongs to: a box
+    // duplicates its corners per face, and they have to travel together.
+    if (Math.abs(pos.getX(i) - end) > 1e-6) continue;
+    pos.setX(i, end - sx * (pos.getY(i) + dy));
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Hut plan: centre and extents. Set back toward -z, because +z is the
+ * water side — the face BUILDING_DECOR runs the pier out of. */
+const FX = -0.02;
+const FZ = -0.14;
+const FW = 0.32;
+const FD = 0.28;
+
+/** The hut stands on piles, so its sill is off the ground. Cut back with
+ * the rest of it: at 0.07 under a wall this short the hut went leggy, and
+ * a shack on stilts a third of its own wall height reads as a watchtower. */
+const FPILE = 0.055;
+
+/**
+ * Kay's rule, at hut size: eave height = roof half-span = roof rise, roof
+ * at 45 degrees. The bakehouse note works the measurement out on home_A;
+ * this only applies it. The ridge lands at 0.68 against the bakehouse's
+ * 1.01 and a pack house's 1.09-1.17, on a plan a little over half the
+ * plot — which is the whole of what makes this read as an outbuilding
+ * rather than a house that happens to be near water.
+ */
+const FOVER = 0.06;
+const FSPAN = FW / 2 + FOVER;
+const FEAVE = FPILE + FSPAN;
+const FRISE = FSPAN;
+const FPITCH = Math.atan2(FRISE, FSPAN);
+const FSLOPE = Math.hypot(FSPAN, FRISE);
+
+/**
+ * The hut: a board-walled shack on piles under a team-coloured gable, its
+ * door on the water face.
+ *
+ * Plaster panels between timber, which is the pack's own wall and the
+ * house's: the same cell (0,1) home_A's walls take, so the two read as one
+ * village rather than as a painted building beside a bare one.
+ *
+ * What still separates it from the house is everything BUT the colour —
+ * no stone course, no corner footings, no dormer; it stands on piles
+ * instead of on the ground, and it is half the house's size. Kay's masonry
+ * vocabulary is what says permanent, and this has none of it. The battens
+ * carry the frame's worth of timber the pack's elevations show without
+ * pretending to a frame the hut does not have.
+ */
+function hut(g: THREE.Group, piece: PieceFactory): void {
+  // Piles under the four corners, and the sill they carry.
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      box(
+        g,
+        0.06,
+        FPILE,
+        0.06,
+        KAY.timber,
+        FX + sx * (FW / 2 - 0.05),
+        FPILE / 2,
+        FZ + sz * (FD / 2 - 0.05),
+      );
+    }
+  }
+  box(g, FW, 0.045, FD, KAY.timber, FX, FPILE + 0.022, FZ);
+
+  // Walls: one board panel, with battens standing proud of it. The panel
+  // is the lighter timber and the battens the darker, so the wall reads as
+  // boards behind a frame rather than as one flat plank.
+  const wallY = (FEAVE + FPILE + 0.045) / 2;
+  const wallH = FEAVE - FPILE - 0.045;
+  box(g, FW - 0.03, wallH, FD - 0.03, KAY.plaster, FX, wallY, FZ);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      box(
+        g,
+        0.075,
+        wallH,
+        0.075,
+        KAY.timber,
+        FX + sx * (FW / 2 - 0.028),
+        wallY,
+        FZ + sz * (FD / 2 - 0.028),
+      );
+    }
+  }
+  // Intermediate battens: two down each long side, one across the back.
+  for (const sx of [-1, 1]) {
+    for (const dz of [-0.11, 0.09]) {
+      box(
+        g,
+        0.055,
+        wallH,
+        0.03,
+        KAY.timber,
+        FX + sx * (FW / 2 - 0.012),
+        wallY,
+        FZ + dz,
+      );
+    }
+  }
+  for (const dx of [-0.12, 0.12]) {
+    box(
+      g,
+      0.03,
+      wallH,
+      0.055,
+      KAY.timber,
+      FX + dx,
+      wallY,
+      FZ - (FD / 2 - 0.012),
+    );
+  }
+  // Wall plate under the eave.
+  box(g, FW + 0.01, 0.05, FD + 0.01, KAY.timber, FX, FEAVE - 0.028, FZ);
+
+  // Gable ends, and a tie beam across the foot of each.
+  for (const sz of [-1, 1]) {
+    const tri = mesh(gableGeo(FW, FRISE, 0.045), KAY.plaster);
+    tri.position.set(FX, FEAVE, FZ + sz * (FD / 2 - 0.022));
+    g.add(tri);
+    box(
+      g,
+      FW * 0.7,
+      0.04,
+      0.028,
+      KAY.timber,
+      FX,
+      FEAVE + FRISE * 0.2,
+      FZ + sz * (FD / 2 + 0.004),
+    );
+  }
+
+  // Roof: the bakehouse's laid slopes, at hut scale — three strips a side
+  // at slightly different heights, so the surface kinks the way a pack roof
+  // does, a bargeboard down each rake and nothing along the eave.
+  const roofD = FD + 2 * FOVER;
+  const STRIPS: {frac: number; dy: number; dlen: number}[] = [
+    {frac: 0.38, dy: 0, dlen: 0},
+    {frac: 0.3, dy: 0.02, dlen: 0.026},
+    {frac: 0.32, dy: 0.007, dlen: -0.016},
+  ];
+  for (const sx of [-1, 1]) {
+    const panel = new THREE.Group();
+    panel.position.set(FX + (sx * FSPAN) / 2, FEAVE + FRISE / 2, FZ);
+    panel.rotation.z = -sx * FPITCH;
+    g.add(panel);
+
+    let z = -roofD / 2;
+    for (const st of STRIPS) {
+      const d = roofD * st.frac;
+      const len = FSLOPE + st.dlen;
+      // The strips are laid to different lengths and heights, and all of
+      // them are trimmed back to the one ridge plane.
+      const slab = mesh(
+        mitreRidge(
+          new THREE.BoxGeometry(len, 0.038, d),
+          (-sx * len) / 2,
+          sx,
+          st.dy,
+        ),
+        KAY.roof,
+      );
+      slab.position.set((sx * st.dlen) / 2, st.dy, z + d / 2);
+      panel.add(slab);
+      z += d;
+    }
+    for (const sz of [-1, 1]) {
+      const drop = (sz < 0 ? 0.045 : 0.015) * FSPAN * 2;
+      const eaveOver = drop * Math.SQRT2;
+      // Mitred at the ridge like the slabs. These used to overrun it by a
+      // hair instead, which is the other way to close a joint you cannot
+      // cut — and it left the two rake boards crossing in an X at the apex
+      // of each gable, in the open, once the cap came off.
+      // Depth and half-depth travel together — the board is seated by its
+      // own half-thickness against the roof's edge, so a change to one that
+      // misses the other floats it off the rake or buries it in the slope.
+      const VERGE_D = 0.04;
+      const vlen = FSLOPE + eaveOver;
+      const verge = mesh(
+        mitreRidge(
+          new THREE.BoxGeometry(vlen, 0.062, VERGE_D),
+          (-sx * vlen) / 2,
+          sx,
+          0.015,
+        ),
+        KAY.timber,
+      );
+      verge.position.set(
+        (sx * eaveOver) / 2,
+        0.015,
+        sz * (roofD / 2 + VERGE_D / 2),
+      );
+      panel.add(verge);
+    }
+  }
+  // No ridge cap. The bakehouse carries one because its four rake boards
+  // come together up there and the join wants covering; at hut size the
+  // beam sat on the apex as a heavy dark bar, and it was the one piece of
+  // this roof the eye went to first.
+
+  // The door, on the water gable — the pack's own leaf where the pack
+  // loaded, a dark reveal where it did not. Hung on the wall plane rather
+  // than sunk into it, which is where cutPackPiece delivers a piece.
+  const zf = FZ + FD / 2 - 0.012;
+  const doorH = (FEAVE - FPILE) * 0.74;
+  const leaf = piece('door', doorH);
+  if (leaf) {
+    leaf.position.set(FX, FPILE + 0.045, zf);
+    g.add(leaf);
+  } else {
+    box(
+      g,
+      doorH * 0.62,
+      doorH,
+      0.03,
+      KAY.shadow,
+      FX,
+      FPILE + 0.045 + doorH / 2,
+      zf,
+    );
+  }
+}
+
+/** Net racks: how far out they stand, and how big the taller one is. They
+ * flank the hut on +x and -x, clear of the deck the pier runs out on. */
+const NRX = 0.38;
+const NRZ = -0.1;
+const NR_LEN = 0.46;
+const NR_TOP = 0.34;
+
+/**
+ * A net hung out to dry on a rack: two posts, a rail, and the net itself.
+ *
+ * The net is the one thing here that has to be drawn rather than
+ * suggested, because a net is the tell — a hut with a rod leaning on it is
+ * a hut, and a hut with a net drying beside it is a fishery. So it is
+ * strands, not a sheet: a sheet in any colour reads as canvas or as a flag,
+ * and the reason is that a net is mostly the daylight through it.
+ *
+ * Hung with a sag and cut off unevenly at the bottom, because a net hung
+ * straight and level reads as a hoarding. The floats along the rail are the
+ * only saturated colour on the building — the same job the loaves do on the
+ * bakehouse, and the same restraint: a handful, on the one part of the
+ * composition that names it.
+ */
+function netRack(g: THREE.Group, x: number, len: number, top: number): void {
+  // Struts rake away from the hut, so the pair leans outward rather than
+  // both leaning the same way across the yard.
+  const out = Math.sign(x) || 1;
+  for (const sz of [-1, 1]) {
+    box(g, 0.05, top, 0.05, KAY.timber, x, top / 2, NRZ + sz * (len / 2));
+    // A raking strut off each post, or the rack reads as two sticks.
+    box(
+      g,
+      0.032,
+      top * 0.5,
+      0.032,
+      KAY.timber,
+      x + out * 0.045,
+      top * 0.26,
+      NRZ + sz * (len / 2 - 0.02),
+      {x: sz * 0.5},
+    );
+  }
+  box(g, 0.045, 0.045, len + 0.1, KAY.timber, x, top, NRZ);
+
+  // The mesh: strands down from the rail, crossed by courses that follow
+  // the sag. STRANDS across the rack's length, COURSES down its drop.
+  const STRANDS = Math.round(17 * (len / NR_LEN));
+  const COURSES = 4;
+  const DROP = top * 0.62;
+  const SAG = 0.04;
+  /** How far down the rail's length a strand hangs, 0 at the posts. */
+  const sagAt = (t: number): number => Math.sin(t * Math.PI) * SAG;
+  for (let i = 0; i < STRANDS; i++) {
+    const t = (i + 0.5) / STRANDS;
+    const z = NRZ - len / 2 + t * len;
+    // Uneven hems: the net is not a cut rectangle.
+    const drop = DROP * (0.72 + 0.28 * Math.abs(Math.sin(i * 2.4)));
+    const y0 = top - sagAt(t);
+    // Alternating lean, so the strands and the courses do not meet at
+    // right angles. A rectilinear grid of this pitch reads as a trellis —
+    // the eye names it by its junctions, and a net's are diamonds.
+    const lean = (i % 2 ? 1 : -1) * 0.13;
+    box(g, 0.008, drop, 0.008, KAY.hay, x, y0 - drop / 2, z, {x: lean});
+  }
+  for (let c = 0; c < COURSES; c++) {
+    const f = (c + 1) / (COURSES + 1);
+    // Sampled at the rack's midpoint: one straight course across a sagging
+    // net is close enough at this size, and a curved one would cost a
+    // strip of boxes for a difference of a few thousandths.
+    const y = top - SAG * f - DROP * f * 0.9;
+    box(g, 0.009, 0.009, len * 0.94, KAY.hay, x, y, NRZ);
+  }
+  // Cork floats strung along the rail.
+  for (const dz of [-0.15, 0.0, 0.15]) {
+    const f = mesh(new THREE.SphereGeometry(0.018, 6, 5), KAY.ember);
+    f.position.set(x + out * 0.03, top + 0.01, NRZ + dz * (len / NR_LEN));
+    f.scale.set(1, 0.85, 1);
+    g.add(f);
+  }
+}
