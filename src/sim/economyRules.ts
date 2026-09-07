@@ -684,6 +684,19 @@ const resumeDrainedPost: EconomyRule = {
  * reason to hedge, not to stampede — and a counter the seat cannot forge
  * (tech-gated recipe) leaves the mix as written.
  *
+ * A seat with ONE forge is the exception, and it counters. The hedge above
+ * is only a hedge because a second smith is still forging the printed
+ * line; with a single forge there is no second line, so "keep the first
+ * smith on the playbook" does not hedge anything — it pins 100% of the
+ * seat's weapon output to a constant, which the counter triangle
+ * (defs/units.ts COUNTER_TABLE) can make exactly wrong. The Mason is the
+ * case: one forge on swords, so a knight line against the Steward's
+ * knights (neutral, and the reason it survives the rush) and against the
+ * Fletcher's archers too, where ranged takes 1.5 into heavy. The tech gate
+ * still applies and does most of the work here — the Mason never researches
+ * archery, so the counter to a heavy rival is unforgeable and the sword
+ * line stands, which is what keeps the rush answer intact.
+ *
  * Claims each smith it retunes, so a later rule cannot re-order the same
  * forge in the same beat.
  */
@@ -702,7 +715,7 @@ const forgeTheCounter: EconomyRule = {
     smiths.forEach((smith, i) => {
       let want =
         ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
-      if (ctx.counter && i > 0) {
+      if (ctx.counter && (i > 0 || smiths.length === 1)) {
         const opt =
           BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[
             ctx.counter.recipe

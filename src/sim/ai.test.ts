@@ -27,6 +27,7 @@ import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import {findSpot} from './siting.ts';
 import {
+  AI_INTEL,
   AI_PACING,
   AI_SITING,
   AI_STALL,
@@ -1925,5 +1926,95 @@ describe('the road to a far post', () => {
       TechId.masonry,
     ]);
     expect(researchOrdered(brain, world)).toBe(TechId.soldiery);
+  });
+});
+
+/**
+ * The counter triangle reaching a seat that owns exactly one anvil.
+ *
+ * `forgeTheCounter` keeps the FIRST smith on the playbook's printed line so
+ * a sighting cannot stampede the whole armory. That is a hedge only while a
+ * second smith is standing to counter with; a seat with one forge has no
+ * second line, so the same rule pins 100% of its weapon output to a
+ * constant. The Mason is that seat — one anvil, `weaponMix: [1, 0]` — and
+ * a constant sword line is neutral into the Steward's knights and 0.67 into
+ * the Fletcher's archers.
+ */
+describe('the only anvil in the village', () => {
+  /** A seat with `smiths` built forges and `AI_INTEL.minSighting` of the
+   * rival's soldiers standing in its own yard, which is all the intel
+   * `#counterPlan` needs: seen this tick, inside the trust window, enough
+   * of them to be an army rather than an anecdote. */
+  function underWatch(
+    strategy: AiStrategy,
+    seen: Enum<typeof UnitTypeId>,
+    smiths: number,
+  ): {world: World; brain: AiBrain; forges: Building[]} {
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 90, 90, {}, 1);
+    world.players[0]!.techs.researched.push(TechId.ironworking);
+    const forges = Array.from({length: smiths}, (_, i) => {
+      const b = placeBuiltBuilding(
+        world,
+        BuildingTypeId.weaponsmith,
+        0,
+        34 + i * 3,
+        34,
+      );
+      b.recipeIndex =
+        strategy.weaponMix[Math.min(i, strategy.weaponMix.length - 1)]!;
+      return b;
+    });
+    for (let i = 0; i < AI_INTEL.minSighting; i++)
+      spawnUnit(world, seen, 1, 31.5 + i, 31.5);
+    world.tick = 1000;
+    return {world, brain: new AiBrain(0, strategy, world.map.size), forges};
+  }
+
+  /** The recipe this beat re-tuned each forge to, by building id. */
+  function retuned(commands: SimCommand[]): Map<number, number> {
+    const out = new Map<number, number>();
+    for (const c of commands)
+      if (c.kind === CommandKind.setBuildingRecipe)
+        out.set(c.buildingId, c.index);
+    return out;
+  }
+
+  const MASON = AI_STRATEGIES[AiStrategyId.mason];
+  /** [spear, sword, bow] — the seats BUILDING_DEFS gives the recipes. */
+  const SPEAR = 0;
+  const SWORD = 1;
+
+  it('turns the lone forge onto the counter when archers are at the gate', () => {
+    const {world, brain, forges} = underWatch(MASON, UnitTypeId.archer, 1);
+    expect(MASON.weaponMix[0]).toBe(SWORD); // the printed line, for contrast
+    expect(retuned(brain.decide(world)).get(forges[0]!.id)).toBe(SPEAR);
+  });
+
+  it('leaves it on the printed line when the counter is unforgeable', () => {
+    // Knights at the gate want bowstaves back, and the Mason never
+    // researches archery — so the sword line stands, which is the whole
+    // reason its answer to the Steward's rush survives this rule.
+    const {world, brain, forges} = underWatch(MASON, UnitTypeId.knight, 1);
+    const orders = retuned(brain.decide(world));
+    // Not vacuous: the sighting IS on file — the same picture that turned
+    // the forge in the test above — and the tech gate is what stops it.
+    expect(brain.intelReport().find(r => r.owner === 1)?.total).toBe(
+      AI_INTEL.minSighting,
+    );
+    expect(orders.has(forges[0]!.id)).toBe(false);
+    expect(forges[0]!.recipeIndex).toBe(SWORD);
+  });
+
+  it('still hedges the first of two forges', () => {
+    // The Abbot forges swords then bowstaves. Archers at the gate make
+    // spears the counter, and only the second anvil takes it: the first is
+    // a hedge again, because there is now something to hedge against.
+    const abbot = AI_STRATEGIES[AiStrategyId.abbot];
+    const {world, brain, forges} = underWatch(abbot, UnitTypeId.archer, 2);
+    const orders = retuned(brain.decide(world));
+    expect(orders.has(forges[0]!.id)).toBe(false);
+    expect(orders.get(forges[1]!.id)).toBe(SPEAR);
   });
 });
