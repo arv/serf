@@ -795,15 +795,19 @@ export const AI_CREDIT = {
 } as const;
 
 /**
- * Is this bill within the seat's credit — three quarters of it on the
- * shelf already, over and above the plan's reserve, and no line of it at
- * zero?
+ * Is this bill within the seat's credit — `AI_CREDIT.paidShare` of it on
+ * the shelf already, over and above the plan's reserve, and no line of it
+ * at zero?
  *
- * The zero test is not covered by the share: a Monument with every stone
- * and every loaf and not one gold is four fifths paid and waiting on a
- * seam nobody has dug. What the share measures is a gap of a load or two;
- * a good the shelf has none of is a gap of an industry, and the plan's own
- * ordering is the thing that closes those.
+ * The zero test is the rule the share only approximates. What the share
+ * measures is a gap of a load or two; a good the shelf has none of is a
+ * gap of an industry — a Monument with every stone and every loaf and not
+ * one gold is waiting on a seam nobody has dug — and only the plan's own
+ * ordering closes those. At a tenth the approximation is already enough
+ * and the zero test cannot bind: the thinnest line in the whole price
+ * table is that same Monument's gold at a fifth of its bill, so a missing
+ * line fails the share first. It stays because it is the thing meant,
+ * and a cheaper price table would need it.
  */
 function withinCredit(
   cost: GoodAmounts,

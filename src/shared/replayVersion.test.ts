@@ -379,7 +379,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // same reasoning the stance engine and the war behaviors are recorded
 // under above. The hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 53;
-const EXPECTED_HASH = '9bccd3c02240025f2f0ca4e2249f37e4';
+const EXPECTED_HASH = 'f265b717f0e0f01cd0e91a47d4fc45a4';
 
 /**
  * Everything a replay's playback depends on, as raw source:

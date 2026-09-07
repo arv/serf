@@ -95,8 +95,11 @@ describe('a site is placed on credit', () => {
 
   it('takes the order with the stores stripped bare', () => {
     const world = bareWorld();
-    // Not one plank of the house's six, and no tools either: the emptiest
-    // village the game can hold.
+    // Not one plank of the house's six, not a stone of its two, and not
+    // even the hammer a site borrows: the emptiest shelf this fixture can
+    // hand out. Its other tools ride along regardless (FIXTURE_TOOLS in
+    // testUtils.ts) and are beside the point — a tool is not what a
+    // building is made of, which is the very distinction under test.
     addStorehouse(world, 30, 30, {
       [GoodId.wood]: 0,
       [GoodId.stone]: 0,
