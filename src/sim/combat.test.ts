@@ -248,7 +248,12 @@ describe('barracks training', () => {
     );
     expect(range.trainQueue ?? []).toEqual([]);
 
-    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.archery);
+    // Archery ALONE, and the omission is the assertion. Archery used to sit
+    // behind Soldiery, so granting both said nothing about which one opened
+    // the door; now that warfare has two roots, a bow plan that never buys
+    // the spear line has to reach its own archer. Adding Soldiery back here
+    // would let a reintroduced dependency pass unnoticed.
+    world.players[0]!.techs.researched.push(TechId.archery);
     tickWorld(
       world,
       cmds({
@@ -270,6 +275,9 @@ describe('barracks training', () => {
       36,
       30,
     );
+    // Both roots here, unlike the test above, and deliberately: the claim is
+    // that a barracks which is in every way entitled to train — its own tech
+    // in, the bow's tech in, bows on the shelf — still refuses the archer.
     world.players[0]!.techs.researched.push(TechId.soldiery, TechId.archery);
     tickWorld(
       world,
