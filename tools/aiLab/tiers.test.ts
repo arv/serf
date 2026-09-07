@@ -30,8 +30,10 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
 
 /** Two seeds, strided as the sweeps stride them (offset 101, stride 7).
  *
- * Re-pinned from 122 and 164 when the bow got its own roof (replay 54, and
- * the merge that brought the build-order credit rule in with it). Those two
+ * Re-pinned from 122 and 164 when the bow got its own roof (replay 55, and
+ * the merge that brought the build-order credit rule in with it — the roof
+ * held 54 while it was being written, and lost it to the Monument's bread
+ * before it landed). Those two
  * fell to hard-v-normal 6/15 on this build — an inversion by this file's
  * bar — so the 24-seed sweeps this pin exists to send you to were run
  * before touching them, exactly as the note below prescribes. They read
