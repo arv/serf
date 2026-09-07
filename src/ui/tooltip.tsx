@@ -398,9 +398,11 @@ const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.abbey]:
     'Monks research the tech tree here; delivered ale throws work-speed festivals.',
   [BuildingTypeId.barracks]:
-    'Trains knights, spearmen, and archers from wheat and forged weapons.',
+    'Trains knights and spearmen from bread and forged weapons. Archers are trained at the Archery Range.',
+  [BuildingTypeId.archeryRange]:
+    'Trains archers from bread and bows, a quarter faster than the barracks ever did — and on its own queue, so bowmen and steel are mustered side by side rather than one behind the other.',
   [BuildingTypeId.guardTower]:
-    'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. Man it and any archer with nothing else to do walks in from the field on his own; while none is free — none trained yet, or every one of them marching — villagers answer instead and hold it with stones, far weaker but today rather than three techs from now. Standing it down empties the roof again and gives the men back. Nobody manning it can be shot at while the tower stands.',
+    'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. Man it and any archer with nothing else to do walks in from the field on his own; while none is free — none trained yet, or every one of them marching — villagers answer instead and hold it with stones, far weaker but today rather than a research, a bow and a range from now. Standing it down empties the roof again and gives the men back. Nobody manning it can be shot at while the tower stands.',
   [BuildingTypeId.house]:
     'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
   [BuildingTypeId.storehouse]:

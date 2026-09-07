@@ -250,7 +250,7 @@ describe('the AI playbooks', () => {
         ],
         banditsEnabled: false,
       },
-      9_000,
+      12_000,
     );
     expect(world.players.map(p => p.strategy)).toEqual([
       AiStrategyId.steward,
@@ -275,8 +275,22 @@ describe('the AI playbooks', () => {
     // takes the bow line first — ironworking comes last and only for the
     // axes (its forges stay on bowstaves) — while the warlord digs a
     // second seam to keep two sword forges fed.
-    expect(world.players[3]!.techs.researched).toContain(TechId.archery);
-    expect(world.players[3]!.techs.researched[0]).toBe(TechId.soldiery);
+    //
+    // Literally first now, where it used to be second. Archery was behind
+    // Soldiery in the tech tree, so a bow plan had to buy the other arm's
+    // research to reach its own; the two are separate roots since the
+    // Archery Range, and this seat opens on the one it is named for.
+    //
+    // The horizon moved 9k -> 12k with it, and the reason is worth naming
+    // because it is the cost of the reorder: Soldiery is 6 wheat and 6
+    // silver, and the opening stock hands every village 12 wheat that
+    // nothing else wants that early — so Soldiery-first was very nearly
+    // free. Archery is 8 WOOD, which is the one material this seat's whole
+    // opening competes for. Its first research lands at 10.5k now rather
+    // than inside 9k. It measures better anyway over 24 seeds (21/24
+    // against 20/24), but it is slower off the line, not faster.
+    expect(world.players[3]!.techs.researched[0]).toBe(TechId.archery);
+    expect(world.players[3]!.techs.researched).toContain(TechId.soldiery);
     const ironMines = (owner: number): number =>
       [...world.buildings.values()].filter(
         b => !b.dead && b.owner === owner && b.type === BuildingTypeId.ironMine,
