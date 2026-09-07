@@ -20,7 +20,7 @@ import {UNIT_DEFS} from '../sim/defs/units';
 import {isPlayerOwner} from '../sim/entities';
 import {playMax, playMin, seamSpoil} from '../sim/map';
 import {canPlace, placementRefusal} from '../sim/world';
-import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
+import {buildUnlocked, buildingForKey} from '../ui/buildMenu';
 import {
   HIRE_KEY,
   HOLD_KEY,
@@ -801,25 +801,25 @@ export class Controls {
   }
 
   /**
-   * Commit a chord to a placement, under the same two gates the ribbon's
-   * buttons wear. A refusal says which one it was: the button the player
-   * cannot see (they typed instead of looked) is greyed for a reason, and
-   * "nothing happened" is the one answer that teaches nothing.
+   * Commit a chord to a placement, under the same gate the ribbon's buttons
+   * wear. A refusal says what it was: the button the player cannot see
+   * (they typed instead of looked) is greyed for a reason, and "nothing
+   * happened" is the one answer that teaches nothing.
+   *
+   * The stores are not that gate. Everything is built on credit — a site
+   * costs nothing to peg out and rises as its bill is hauled in — so an
+   * empty storehouse arms the ghost like any other, and the chord stays
+   * exactly as permissive as the button beside it (buildMenu.ts).
    */
   #armBuild(type: BuildingTypeId): void {
     const name = buildingDef(type).name;
-    // Before the gates, not after: a refusal is exactly when the player
-    // most needs the button in front of them — greyed, with the cost or
-    // the lock on it — and a tab that stayed put leaves the toast as the
-    // only account of what just happened.
+    // Before the gate, not after: a refusal is exactly when the player most
+    // needs the button in front of them — greyed, with the lock on it — and
+    // a tab that stayed put leaves the toast as the only account of what
+    // just happened.
     setBuildAim(type);
     if (!buildUnlocked(type, techs().researched)) {
       pushToast(`The ${name} needs researching first.`);
-      play('uiRefused');
-      return;
-    }
-    if (!buildAffordable(type, stock())) {
-      pushToast(`Not enough in the stores for a ${name}.`);
       play('uiRefused');
       return;
     }

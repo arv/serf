@@ -1,12 +1,13 @@
 import {describe, expect, it} from 'vitest';
 import type {Enum} from '../shared/enum.ts';
 import * as BuildingState from './buildingStateEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 import {BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import type {Building} from './entities.ts';
 import {paidBuildTicks} from './systems/construction.ts';
-import {addSerf, bareWorld} from './testUtils.ts';
+import {addSerf, addStorehouse, bareWorld, cmds} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import {placeSite, type World} from './world.ts';
 
@@ -61,6 +62,70 @@ function manned(world: World): Building {
   addSerf(world, 25, 31);
   return site;
 }
+
+/**
+ * Placing costs nothing. The bill is what the site is owed, not what the
+ * castle must be holding before a plan may be pegged out, and the sim has
+ * never charged a toll at placement — but the build ribbon used to grey out
+ * every button the stores could not cover, which said the opposite to the
+ * only player who could not argue with it. These are the sim-side half of
+ * that rule, so a gate re-grown anywhere fails here rather than quietly in
+ * a menu nobody tests.
+ */
+describe('a site is placed on credit', () => {
+  // A house rather than the quarry the rest of this file uses: these two go
+  // through the real command path, which enforces placement rules, and a
+  // quarry wants a rock seam beside it before it will stand anywhere.
+  const HOUSE = BUILDING_DEFS[BuildingTypeId.house];
+
+  function orderHouse(world: World): Building | undefined {
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.placeBuilding,
+        building: BuildingTypeId.house,
+        x: 24,
+        y: 30,
+      }),
+    );
+    return [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.house,
+    );
+  }
+
+  it('takes the order with the stores stripped bare', () => {
+    const world = bareWorld();
+    // Not one plank of the house's six, not a stone of its two, and not
+    // even the hammer a site borrows: the emptiest shelf this fixture can
+    // hand out. Its other tools ride along regardless (FIXTURE_TOOLS in
+    // testUtils.ts) and are beside the point — a tool is not what a
+    // building is made of, which is the very distinction under test.
+    addStorehouse(world, 30, 30, {
+      [GoodId.wood]: 0,
+      [GoodId.stone]: 0,
+      [GoodId.hammer]: 0,
+    });
+    const site = orderHouse(world);
+    expect(site?.state).toBe(BuildingState.site);
+    expect(site?.siteNeeds?.[GoodId.wood]).toBe(HOUSE.cost[GoodId.wood]);
+  });
+
+  it('spends nothing at placement: the goods are hauled, not billed', () => {
+    const world = bareWorld();
+    const wood = HOUSE.cost[GoodId.wood]!;
+    const stone = HOUSE.cost[GoodId.stone]!;
+    const store = addStorehouse(world, 30, 30, {
+      [GoodId.wood]: wood,
+      [GoodId.stone]: stone,
+    });
+    expect(orderHouse(world)?.state).toBe(BuildingState.site);
+    // Still on the shelf. It leaves in a serf's hands, one load at a time,
+    // and a village that could pay cash up front is not a village that got
+    // its house any sooner.
+    expect(store.stock[GoodId.wood]).toBe(wood);
+    expect(store.stock[GoodId.stone]).toBe(stone);
+  });
+});
 
 describe('a frame rises as far as it is paid for', () => {
   it('buys build ticks in proportion to the goods that have landed', () => {

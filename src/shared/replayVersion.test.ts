@@ -370,8 +370,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
+// Still 53 after the build order learned to borrow (AI_CREDIT in
+// systems/ai.ts): a seat may now lay a foundation whose bill the shelf is
+// a load short of, which changes what the seats DECIDE and nothing about
+// how a tick executes what they decided. Playback never runs a brain — a
+// replay stores the seats' commands rather than re-deriving them
+// (app/replay.ts) — so yesterday's logs play back exactly as they did, the
+// same reasoning the stance engine and the war behaviors are recorded
+// under above. The hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 53;
-const EXPECTED_HASH = '543269a185f1ac2c8a0a6504d2117a1a';
+const EXPECTED_HASH = 'f265b717f0e0f01cd0e91a47d4fc45a4';
 
 /**
  * Everything a replay's playback depends on, as raw source:

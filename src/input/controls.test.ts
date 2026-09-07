@@ -1195,11 +1195,12 @@ describe('build chord', () => {
     expect(buildAim()).toBe(BuildingTypeId.mill);
   });
 
-  it('aims the ribbon at a building the stores cannot pay for', () => {
-    // The refusal is the case that needs the tab most: the toast says the
-    // stores are short, and the button that says short of what is on a tab
-    // the player is not looking at. Nothing is armed — the gate still
-    // holds — but the ribbon has been pointed at the answer.
+  it('arms a building the stores cannot pay for', () => {
+    // Everything is built on credit, so the stores are not a gate on the
+    // chord any more than on the button beside it: the price in the ribbon
+    // is what finishes the building, not what the castle must be holding to
+    // peg the plan out (buildMenu.ts). A village with one plank to its name
+    // arms the mill and the frame stands waiting for the rest.
     const h = harness();
     controls = h.controls;
     setStock({[GoodId.wood]: 1});
@@ -1207,7 +1208,7 @@ describe('build chord', () => {
     h.type('B');
     h.type('M');
 
-    expect(placing()).toBeNull();
+    expect(placing()).toBe(BuildingTypeId.mill);
     expect(buildAim()).toBe(BuildingTypeId.mill);
   });
 
@@ -1225,11 +1226,13 @@ describe('build chord', () => {
 
   it('aims again when the same refused building is chorded twice', () => {
     // The signal is written with equals:false for exactly this: a player
-    // who read the cost, tabbed away and typed the chord again gets the
-    // tab back. Plain signal equality would swallow the second write.
+    // who read the lock, tabbed away and typed the chord again gets the tab
+    // back. Plain signal equality would swallow the second write. The iron
+    // mine carries this now that short stores refuse nothing — research is
+    // the one gate left, and so the only refusal there is to repeat.
     const h = harness();
     controls = h.controls;
-    setStock({});
+    setStock({[GoodId.wood]: 99, [GoodId.stone]: 99});
     const aims: (BuildingTypeId | null)[] = [];
 
     const stop = createRoot(dispose => {
@@ -1237,12 +1240,17 @@ describe('build chord', () => {
       return dispose;
     });
     h.type('B');
-    h.type('M');
+    h.type('I');
     h.type('B');
-    h.type('M');
+    h.type('I');
     stop();
 
-    expect(aims).toEqual([null, BuildingTypeId.mill, BuildingTypeId.mill]);
+    expect(aims).toEqual([
+      null,
+      BuildingTypeId.ironMine,
+      BuildingTypeId.ironMine,
+    ]);
+    expect(placing()).toBeNull();
   });
 
   it('leaves a stray letter alone', () => {
