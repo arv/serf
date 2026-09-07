@@ -280,19 +280,33 @@ export function CostLine(props: {
   label: string;
   cost: GoodAmounts;
   extra?: string;
+  /**
+   * A bill the thing pays as it is built, rather than a price the stores
+   * must cover before the order will be taken. Buildings are the only cost
+   * of that kind: a site is pegged out for nothing and rises as far as the
+   * loads carried to it have paid for, so being short of a good delays the
+   * roof and refuses nothing. Training and research are paid at the
+   * counter, and are short in the harder sense — hence two colours and two
+   * sentences rather than one of each.
+   */
+  onCredit?: boolean;
 }) {
   const entries = () => goodEntries(props.cost).filter(([, n]) => n > 0);
-  const short = () => {
-    const s = stock();
-    return entries().some(([good, n]) => (s[good] ?? 0) < n);
-  };
+  const missing = (good: GoodId, n: number): boolean =>
+    (stock()[good] ?? 0) < n;
+  const short = () => entries().some(([good, n]) => missing(good, n));
   return (
     <div class="tip-line tip-cost">
       <b>{props.label}</b>
       <Show when={entries().length > 0} fallback={<span> free</span>}>
         <For each={entries()}>
           {([good, n]) => (
-            <span classList={{'tip-bad': (stock()[good] ?? 0) < n}}>
+            <span
+              classList={{
+                'tip-bad': !props.onCredit && missing(good, n),
+                'tip-warn': props.onCredit && missing(good, n),
+              }}
+            >
               <GoodIcon good={good} size={12} />
               {n}
             </span>
@@ -303,7 +317,12 @@ export function CostLine(props: {
         <span> · {props.extra}</span>
       </Show>
       <Show when={short()}>
-        <span class="tip-bad"> (short on goods)</span>
+        <Show
+          when={props.onCredit}
+          fallback={<span class="tip-bad"> (short on goods)</span>}
+        >
+          <span class="tip-warn"> (the site waits on what is missing)</span>
+        </Show>
       </Show>
     </div>
   );
@@ -436,10 +455,14 @@ export function BuildingTip(props: {type: BuildingTypeId}) {
           </div>
         )}
       </Show>
+      {/* On credit, always: what is written here is what finishes the
+          building, not what the stores must hold before the plan may be
+          pegged out. */}
       <CostLine
         label="Build"
         cost={def().cost}
         extra={`${Math.round(def().buildTicks / TICKS_PER_SECOND)}s`}
+        onCredit
       />
       <Show when={lockedBy()}>
         <div class="tip-warn">

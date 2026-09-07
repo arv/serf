@@ -94,9 +94,11 @@ export function CommandsPage(): JSX.Element {
         <p class="lede">
           Press <b>B</b>, then the building’s letter — the same letter the
           ribbon bolds in its name. The ribbon turns to that building’s tab
-          either way: if the stores are short or the research is missing,
-          nothing is armed, but the button is in front of you with the cost or
-          the lock on it.
+          either way: if the research is missing, nothing is armed, but the
+          button is in front of you with the lock on it. Short stores stop
+          nothing — everything is built on credit, and the cost under the button
+          is what finishes the building, not what you must be holding to peg it
+          out.
         </p>
         <div class="scroll-x">
           <table>

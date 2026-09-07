@@ -684,18 +684,29 @@ const resumeDrainedPost: EconomyRule = {
  * reason to hedge, not to stampede — and a counter the seat cannot forge
  * (tech-gated recipe) leaves the mix as written.
  *
- * A seat with ONE forge is the exception, and it counters. The hedge above
- * is only a hedge because a second smith is still forging the printed
- * line; with a single forge there is no second line, so "keep the first
- * smith on the playbook" does not hedge anything — it pins 100% of the
- * seat's weapon output to a constant, which the counter triangle
- * (defs/units.ts COUNTER_TABLE) can make exactly wrong. The Mason is the
- * case: one forge on swords, so a knight line against the Steward's
+ * A seat whose PLAN calls for one forge is the exception, and it counters.
+ * The hedge above is only a hedge because a second smith is forging the
+ * printed line; where the plan has no second smith there is no second
+ * line, so "keep the first smith on the playbook" hedges nothing — it pins
+ * 100% of the seat's weapon output to a constant, which the counter
+ * triangle (defs/units.ts COUNTER_TABLE) can make exactly wrong. The Mason
+ * is the case: one forge on swords, so a knight line against the Steward's
  * knights (neutral, and the reason it survives the rush) and against the
  * Fletcher's archers too, where ranged takes 1.5 into heavy. The tech gate
  * still applies and does most of the work here — the Mason never researches
  * archery, so the counter to a heavy rival is unforgeable and the sword
  * line stands, which is what keeps the rush answer intact.
+ *
+ * The PLAN and not the standing count, and that distinction was bought the
+ * hard way. Every seat passes through a spell with exactly one forge built
+ * while its second is going up, and reading the count made all four of
+ * them counter during it. That was invisible until the build order learned
+ * to borrow (AI_CREDIT), which moved the second forge and stretched the
+ * window: the Abbot came out reading as less calm than the Warlord and
+ * ai/archetypePersonality.test.ts caught it, which is the acceptance test
+ * for exactly that — the four openings staying recognisably four. A seat
+ * whose plan has a second smith coming is hedging with it, standing or
+ * not.
  *
  * Measured on 120 seeds, both seatings, against a worktree of the parent
  * commit: mason vs fletcher 19/239 to 32/239, and paired on (seed, seating)
@@ -707,6 +718,18 @@ const resumeDrainedPost: EconomyRule = {
  * Claims each smith it retunes, so a later rule cannot re-order the same
  * forge in the same beat.
  */
+/** Forges this playbook means to end up with, `more` included. Zero when
+ * it never builds one, which reads the same as one here: a seat with no
+ * plan for a second smith has no second line to hedge with. */
+function plannedSmiths(strategy: AiStrategy): number {
+  let n = 0;
+  for (const step of strategy.build) {
+    if (step.type !== BuildingTypeId.weaponsmith) continue;
+    n += Math.max(step.count, step.more?.count ?? 0);
+  }
+  return n;
+}
+
 const forgeTheCounter: EconomyRule = {
   id: EconomyRuleIdNs.forgeTheCounter,
   when: 'a forge is set to something other than what this seat should be making',
@@ -722,7 +745,7 @@ const forgeTheCounter: EconomyRule = {
     smiths.forEach((smith, i) => {
       let want =
         ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
-      if (ctx.counter && (i > 0 || smiths.length === 1)) {
+      if (ctx.counter && (i > 0 || plannedSmiths(ctx.strategy) <= 1)) {
         const opt =
           BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[
             ctx.counter.recipe

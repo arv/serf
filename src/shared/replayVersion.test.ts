@@ -396,8 +396,19 @@ import {REPLAY_VERSION} from './replayVersion';
 // playback constructs no brains (app/simWorker.ts). No shipped playbook
 // names one yet, so the sim is bit-identical today either way — the hash
 // is over raw bytes, which is why it moved.
+// Still 54 after the lone anvil's counter moved from the standing forge
+// count to the plan's (economyRules.ts `plannedSmiths`): a rule inside a
+// brain again, and playback builds no brains.
+// Still 54 after main's build order learned to borrow (AI_CREDIT in
+// systems/ai.ts, from the other branch): a seat may lay a foundation whose
+// bill the shelf is a load short of, which changes what the seats DECIDE
+// and nothing about how a tick executes what they decided. That note
+// arrived here saying "still 53" because it was written against a main
+// that had not seen the Monument's bread yet — the bread is a consumed
+// cost and did move the number, so the two meet at 54 rather than at
+// either one alone.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = 'b8d2ffd1cc7f9e13ad69d4bf5a21fc15';
+const EXPECTED_HASH = '6f38808aa1d2cfe7275f1e3c6e163713';
 
 /**
  * Everything a replay's playback depends on, as raw source:

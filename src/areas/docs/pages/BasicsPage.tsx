@@ -72,6 +72,26 @@ export function BasicsPage(): JSX.Element {
           <Stat label="Smith queue">{FORGE_QUEUE_CAP}</Stat>
         </Stats>
       </Section>
+      {/* The one rule about construction that is not a per-building number,
+          and the one players most often have backwards: the price in the
+          build menu is the bill, not the entry fee. */}
+      <Section title="Building">
+        <Stats>
+          <Stat label="Placing a site costs">
+            nothing — every building goes up on credit
+          </Stat>
+          <Stat label="The price in the build menu">
+            is what finishes the building, hauled to the site as it is produced
+          </Stat>
+          <Stat label="A frame rises">
+            as far as its bill has been delivered; the last tick of work waits
+            on the last load
+          </Stat>
+          <Stat label="Every site borrows">
+            1 hammer, handed back when the roof goes on
+          </Stat>
+        </Stats>
+      </Section>
       <Section title="Raids">
         <p class="lede">
           <Prose
