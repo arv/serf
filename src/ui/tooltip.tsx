@@ -398,7 +398,7 @@ const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.abbey]:
     'Monks research the tech tree here; delivered ale throws work-speed festivals.',
   [BuildingTypeId.barracks]:
-    'Trains knights and spearmen from bread and forged weapons. Bows are trained at the Archery Range.',
+    'Trains knights and spearmen from bread and forged weapons. Archers are trained at the Archery Range.',
   [BuildingTypeId.archeryRange]:
     'Trains archers from bread and bows, a quarter faster than the barracks ever did — and on its own queue, so bowmen and steel are mustered side by side rather than one behind the other.',
   [BuildingTypeId.guardTower]:

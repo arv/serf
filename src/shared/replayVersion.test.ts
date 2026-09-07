@@ -388,7 +388,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // playbook data, and it is what earns the bump: the AI half of the same
 // change (keepTheQueueWarm reading every hall rather than the first
 // barracks, and two playbooks raising a range) is brain-side and would have
-// ridden 53 on its own, exactly as the Mason's rule did on 49.
+// ridden whatever version it merged onto, exactly as the Mason's rule did
+// on 49. (Deliberately not spelled as a number: it said "53" until main
+// took 54 out from under it, which is the third stale figure this one
+// branch has left in this file.)
 // Still 55 after the merge with main's build-order credit rule, and after
 // the Fletcher's tower step took an `after: soldiery` to replace the brake
 // the ungated building no longer applies. Both are brain-side — a playbook
@@ -406,17 +409,9 @@ import {REPLAY_VERSION} from './replayVersion';
 // now and a village can open on the bow without ever unlocking the
 // barracks. That is sim behavior in the plainest sense — a research the
 // queue would have refused is accepted, and every clock behind it moves —
-// but 54 is this build's own bump and has never shipped, so there is
+// but 55 is this build's own bump and has never shipped, so there is
 // nothing older to break. The same reasoning the "Still 49" entries below
 // record.
-// Still 53 after the build order learned to borrow (AI_CREDIT in
-// systems/ai.ts): a seat may now lay a foundation whose bill the shelf is
-// a load short of, which changes what the seats DECIDE and nothing about
-// how a tick executes what they decided. Playback never runs a brain — a
-// replay stores the seats' commands rather than re-deriving them
-// (app/replay.ts) — so yesterday's logs play back exactly as they did, the
-// same reasoning the stance engine and the war behaviors are recorded
-// under above. The hash is over raw bytes, which is why it moved anyway.
 // 54 for the Monument's bread, halved from twenty loaves to ten: a
 // building's cost is consumed as its site rises, so every tick after the
 // first delivery carries different stores. The placement change that
