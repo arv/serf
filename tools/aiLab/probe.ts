@@ -13,7 +13,7 @@ import type {Owner} from '../../src/sim/entities.ts';
 import {intArg} from './args.ts';
 import {runMatchChild} from './childRun.ts';
 import type {EngineSpec} from './engines.ts';
-import type {MatchConfig, MatchRecord} from './match.ts';
+import type {MatchConfig, MatchRecord, SeatSpecs} from './match.ts';
 import {adviceOf, describeMutation, MUTABLE_RANGES, mutate} from './mutate.ts';
 import type {ProbeTask} from './probeWorker.ts';
 
@@ -85,13 +85,13 @@ interface Done extends Trial {
 function baseConfig(
   seed: number,
   mapSize: number,
-  seated: readonly [AiStrategyId, AiStrategyId],
+  seated: SeatSpecs,
 ): Omit<MatchConfig, 'engines'> {
   return {
     seed,
     mapSize,
     bandits: true,
-    strategies: seated,
+    seats: seated,
     maxTicks: 120_000,
     advicePeriod: 1800,
     adviceStagger: 300,
@@ -118,7 +118,7 @@ function playOne(
   // the parent's knobs would be handing a mason the steward's serfTarget,
   // which is not the opponent anybody wants to measure against.
   const other: EngineSpec = vs === null ? wears(parent) : {kind: 'none'};
-  const seated: [AiStrategyId, AiStrategyId] =
+  const seated: SeatSpecs =
     trial.candidateSeat === 0
       ? [lineage, vs ?? lineage]
       : [vs ?? lineage, lineage];

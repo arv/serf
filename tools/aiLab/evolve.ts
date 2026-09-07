@@ -402,21 +402,20 @@ export interface RunOptions {
   matchTimeoutMs: number;
 }
 
+// The seats are deliberately absent: the worker builds them from the
+// entries it is already sent (evolveWorker's `playbookOf`), so this side
+// never names a lineage and therefore cannot name the wrong one. It used
+// to pass a `strategies` array beside the playbooks, and got it wrong —
+// a MatchRecord saying both seats played the steward while a mason sat in
+// seat 1 is evidence of a match that never happened.
 function baseConfig(
   seed: number,
   o: RunOptions,
-  seated: readonly [AiStrategyId, AiStrategyId],
-): Omit<MatchConfig, 'engines' | 'playbooks'> {
+): Omit<MatchConfig, 'engines' | 'seats'> {
   return {
     seed,
     mapSize: o.mapSize,
     bandits: true,
-    // The lineage each seat actually wears, not the run's own. Nothing in
-    // a headless match reads these — the brain plays the playbook handed
-    // in beside them, and the only other reader is the renderer — but the
-    // MatchRecord is evidence, and one that says both seats played the
-    // steward while a mason sat in seat 1 is evidence of the wrong match.
-    strategies: seated,
     maxTicks: o.maxTicks,
     advicePeriod: 1800,
     adviceStagger: 300,
@@ -432,10 +431,7 @@ function play(
 ): Promise<Outcome> {
   const seats: [SeatEntry, SeatEntry] =
     p.candidateSeat === 0 ? [cand, opp] : [opp, cand];
-  const task: EvolveTask = {
-    config: baseConfig(p.seed, o, [seats[0].strategyId, seats[1].strategyId]),
-    seats,
-  };
+  const task: EvolveTask = {config: baseConfig(p.seed, o), seats};
   return runMatchChild(WORKER, task, o.matchTimeoutMs).then(rec =>
     rec === null
       ? {...p, winner: null, ticks: 0, decided: false}

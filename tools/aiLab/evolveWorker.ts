@@ -27,7 +27,10 @@ export interface SeatEntry {
 }
 
 export interface EvolveTask {
-  config: Omit<MatchConfig, 'engines' | 'playbooks'>;
+  /** Everything but the seats, which are built here from `seats` below —
+   * one source for both the playbook a brain plays and the lineage the
+   * record reports, so the two cannot drift (see MatchConfig.seats). */
+  config: Omit<MatchConfig, 'engines' | 'seats'>;
   seats: readonly SeatEntry[];
 }
 
@@ -39,9 +42,17 @@ async function main(): Promise<void> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   const task = JSON.parse(Buffer.concat(chunks).toString('utf8')) as EvolveTask;
+  const [a, b] = task.seats.map(playbookOf);
+  // A match has exactly two seats. Checked rather than cast, because this
+  // task arrives as JSON off a pipe and a silently short one would play a
+  // seat as its printed line while the run's log claimed a candidate.
+  if (!a || !b)
+    throw new Error(
+      `evolveWorker: a match wants two seats, got ${task.seats.length}`,
+    );
   const record: MatchRecord = await playMatch({
     ...task.config,
-    playbooks: task.seats.map(playbookOf),
+    seats: [a, b],
     engines: new Map(),
   });
   process.stdout.write(JSON.stringify(record));

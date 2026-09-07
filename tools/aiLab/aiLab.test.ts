@@ -73,7 +73,7 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
     seed: 42,
     mapSize: 64,
     bandits: false,
-    strategies: [AiStrategyId.steward, AiStrategyId.steward],
+    seats: [AiStrategyId.steward, AiStrategyId.steward],
     maxTicks: 4_000,
     advicePeriod: 500,
     adviceStagger: 200,
@@ -305,7 +305,9 @@ describe('a headless match', () => {
     // control.
     const control = await playMatch(config());
     const restated = await playMatch(
-      config({playbooks: [AI_STRATEGIES[AiStrategyId.steward], null]}),
+      config({
+        seats: [AI_STRATEGIES[AiStrategyId.steward], AiStrategyId.steward],
+      }),
     );
     expect(digestOf(restated)).toBe(digestOf(control));
 
@@ -315,9 +317,9 @@ describe('a headless match', () => {
     // hiring bites on the opening beats.
     const changed = await playMatch(
       config({
-        playbooks: [
+        seats: [
           {...AI_STRATEGIES[AiStrategyId.steward], researchReserve: 0},
-          null,
+          AiStrategyId.steward,
         ],
       }),
     );
@@ -426,13 +428,13 @@ describe('a headless match', () => {
 
   it('seats a different playbook per side, and says which sat where', async () => {
     const straight = await playMatch(
-      config({strategies: [AiStrategyId.steward, AiStrategyId.warlord]}),
+      config({seats: [AiStrategyId.steward, AiStrategyId.warlord]}),
     );
     const swapped = await playMatch(
-      config({strategies: [AiStrategyId.warlord, AiStrategyId.steward]}),
+      config({seats: [AiStrategyId.warlord, AiStrategyId.steward]}),
     );
     const mirror = await playMatch(
-      config({strategies: [AiStrategyId.steward, AiStrategyId.steward]}),
+      config({seats: [AiStrategyId.steward, AiStrategyId.steward]}),
     );
     expect(straight.strategies).toEqual([
       AiStrategyId.steward,
@@ -442,6 +444,30 @@ describe('a headless match', () => {
       AiStrategyId.warlord,
       AiStrategyId.steward,
     ]);
+
+    // The bug this seat type exists to prevent, asserted rather than
+    // trusted. A candidate goes into seat 1 and NOTHING in this call names
+    // warlord a second time — the record's lineage is read off the
+    // candidate's own `id`. Under the old two-field config the caller had
+    // to write the id again in a parallel array, and twice it wrote the
+    // wrong one, so the match played a warlord and the evidence said
+    // steward.
+    const candidate = await playMatch(
+      config({
+        seats: [
+          AiStrategyId.steward,
+          {...AI_STRATEGIES[AiStrategyId.warlord], researchReserve: 0},
+        ],
+      }),
+    );
+    expect(candidate.strategies).toEqual([
+      AiStrategyId.steward,
+      AiStrategyId.warlord,
+    ]);
+    // And it is the CANDIDATE that played, not the printed warlord the id
+    // names — otherwise the assertion above would pass for a config that
+    // quietly ignored the object.
+    expect(digestOf(candidate)).not.toBe(digestOf(straight));
     // Three genuinely different games on one seed — the swap is not a
     // relabelling of the same match, which is the whole reason the seating
     // mirror is worth playing.

@@ -133,16 +133,11 @@ async function main(): Promise<void> {
             seed: t.seed,
             mapSize: 96,
             bandits: true,
-            // The lineage each seat actually wears. Hard-coding the
-            // opponent's id meant `--vs warlord` recorded a steward in
-            // seat 1 and handed anything keyed off `strategies` the wrong
-            // playbook — the same bug evolve.ts had in baseConfig, made
-            // twice.
-            strategies:
-              t.seat === 0
-                ? [AiStrategyId.mason, vsId]
-                : [vsId, AiStrategyId.mason],
-            playbooks: t.seat === 0 ? [play, opponent] : [opponent, play],
+            // One expression, so `--vs warlord` cannot record a steward
+            // in seat 1 the way it once did: each entry is the playbook
+            // itself and the lineage is read off its `id`. This is where
+            // the two-array version was wrong twice (see MatchConfig).
+            seats: t.seat === 0 ? [play, opponent] : [opponent, play],
             maxTicks: 120_000,
             advicePeriod: 1800,
             adviceStagger: 300,
