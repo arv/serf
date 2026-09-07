@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {tileCount, tileX, tileY} from '../shared/grid';
+import {tileCount, tileIdx, tileX, tileY} from '../shared/grid';
 import {hash2} from '../shared/math';
 import {WATER_LEVEL, playEdgeDist, type MapView} from '../sim/map';
 import * as Terrain from '../sim/terrainEnum.ts';
@@ -148,6 +148,70 @@ const CULMS_PER_TILE = 5;
 const TREES_PER_TILE = 2;
 
 /**
+ * A trunk taking a beating: how far the first swing tips it (radians, at
+ * unit height — a heavier tree gives less), how fast it rings, how long
+ * until it is standing straight again, and the time constant of the
+ * decay. Small numbers on purpose: an instance can only pivot as a rigid
+ * body about its base, so the honest read of an axe landing is a shiver
+ * that dies inside a second, not a tree swaying like a mast.
+ */
+const SHAKE_LEAN = 0.14;
+const SHAKE_HZ = 6;
+export const SHAKE_SECS = 0.8;
+const SHAKE_DECAY = 0.22;
+
+/** How far from the axe a trunk can be and still be the one it bit. A
+ * woodcutter stands on a tile bordering the grove, so his own tile and
+ * its eight neighbours hold every candidate. */
+const CHOP_REACH = 2;
+
+/**
+ * The shape of a struck trunk's motion, as a fraction of the first
+ * swing's lean: nothing while the axe is still falling (t < 0, the lead
+ * the cue was scheduled with), then a damped ring that starts and ends at
+ * zero — so the last frame of a shake writes the rest pose back exactly.
+ */
+export function shakeCurve(t: number, hz: number): number {
+  if (t <= 0 || t >= SHAKE_SECS) return 0;
+  return Math.exp(-t / SHAKE_DECAY) * Math.sin(2 * Math.PI * hz * t);
+}
+
+/**
+ * A tree we can shake. Scatter keeps no record of where it put anything —
+ * the instance matrix is the record — so a trunk's rest pose is
+ * decomposed back out of that matrix the first time an axe swings near
+ * it, and every frame of a shake recomposes from the copy. A live tree's
+ * instance origin sits on the ground at its foot, which is exactly the
+ * pivot a leaning trunk wants.
+ */
+interface Trunk {
+  tile: number;
+  chunk: Chunk;
+  id: number;
+  pos: THREE.Vector3;
+  quat: THREE.Quaternion;
+  scale: THREE.Vector3;
+  /** The matrix as placed — what the trunk is put back to, to the bit,
+   * when the ring dies out. Recomposing from the decomposition above
+   * lands a rounding step away from it, and a forest each of whose trees
+   * is a hair off where worldgen put it is a forest that drifts. */
+  rest: THREE.Matrix4;
+  /** Radians of the first swing, and how fast it rings down. */
+  amp: number;
+  hz: number;
+  /** Horizontal axis it tips about — square to the axe's line. */
+  axis: THREE.Vector3;
+  /** Seconds since the bite; negative while the axe is still falling. */
+  t: number;
+  /** Is the matrix on the GPU a leaning one? What says whether standing
+   * this trunk straight is a write or a no-op. */
+  leaning: boolean;
+}
+
+const shakeMatrix = new THREE.Matrix4();
+const shakeQuat = new THREE.Quaternion();
+
+/**
  * All standing scatter (tree stands, boulders, ore markers) as a handful of
  * InstancedMeshes. Depletion hides a tile's instances by zeroing their
  * matrices — counts are fixed at worldgen.
@@ -167,6 +231,10 @@ export class ScatterMesh {
   #forest = false;
   #bushSpecies = 0;
   #deadSpecies = 0;
+  /** Rest poses of the trees on a tile, decomposed on first ask. */
+  #trunks = new Map<number, Trunk[]>();
+  /** The trunks an axe currently has moving — walked every frame. */
+  #shaking: Trunk[] = [];
 
   /**
    * Does scatter on this tile pay for the shadow pass? The playable field
@@ -599,8 +667,157 @@ export class ScatterMesh {
     }
   }
 
+  /**
+   * The axe bites at (x, z) `delaySec` from now: set the trunk it lands
+   * in shivering. Driven by the same cue the chop sound rides, with the
+   * same lead — the swing, the crack and the shudder are one event, and
+   * splitting them into two schedules is exactly how they would drift
+   * apart.
+   */
+  chop(x: number, z: number, delaySec = 0): void {
+    const trunk = this.#nearestTrunk(x, z);
+    if (!trunk) return;
+    // The blow pushes the canopy away from the woodcutter, so the trunk
+    // tips about the horizontal axis square to his line: rotating by a
+    // positive angle about (uz, 0, -ux) carries the treetop along u.
+    const dx = trunk.pos.x - x;
+    const dz = trunk.pos.z - z;
+    const d = Math.hypot(dx, dz);
+    if (d > 1e-4) trunk.axis.set(dz / d, 0, -dx / d);
+    else trunk.axis.set(1, 0, 0);
+    // Big timber barely moves and swings slow; a sapling whips. Height
+    // is the instance's own Y scale, which is what #placeGrove varied.
+    const h = Math.max(trunk.scale.y, 0.25);
+    trunk.amp = SHAKE_LEAN / h;
+    trunk.hz = SHAKE_HZ / Math.sqrt(h);
+    // A blow landing on a trunk still ringing from the last one restarts
+    // it rather than stacking a second ring on top.
+    if (trunk.t >= SHAKE_SECS) this.#shaking.push(trunk);
+    trunk.t = -Math.max(0, delaySec);
+  }
+
+  /**
+   * Advance the trunks an axe set moving. Frames when the woods are still
+   * — nearly all of them — walk nothing at all.
+   *
+   * Two frames' worth of nothing are worth naming, because an instance
+   * matrix is not a cheap thing to write: flagging one dirties the whole
+   * chunk's buffer, and a chunk is up to a thousand trees re-uploaded.
+   * A frozen frame advances no clock, so every trunk still leans exactly
+   * as the GPU already has it — a pause caught mid-ring would otherwise
+   * re-upload that buffer every frame until the player pressed play. And
+   * a trunk standing straight (waiting out the axe's lead, or just
+   * finished ringing) is only written back if we are the ones who moved
+   * it.
+   */
+  update(dt: number): void {
+    if (dt === 0 || this.#shaking.length === 0) return;
+    let kept = 0;
+    for (const trunk of this.#shaking) {
+      trunk.t += dt;
+      const done = trunk.t >= SHAKE_SECS;
+      const angle = done ? 0 : trunk.amp * shakeCurve(trunk.t, trunk.hz);
+      if (angle === 0) {
+        if (trunk.leaning) {
+          // From the placed matrix, never a recomposition of it: the
+          // decomposition round-trips to about 2e-15, which is nothing
+          // to look at and still not where worldgen put the tree.
+          trunk.chunk.mesh.setMatrixAt(trunk.id, trunk.rest);
+          trunk.chunk.mesh.instanceMatrix.needsUpdate = true;
+          trunk.leaning = false;
+        }
+      } else {
+        shakeQuat.setFromAxisAngle(trunk.axis, angle);
+        shakeMatrix.compose(
+          trunk.pos,
+          shakeQuat.multiply(trunk.quat),
+          trunk.scale,
+        );
+        trunk.chunk.mesh.setMatrixAt(trunk.id, shakeMatrix);
+        trunk.chunk.mesh.instanceMatrix.needsUpdate = true;
+        trunk.leaning = true;
+      }
+      // Kept until the ring runs out, so the frame that drops it is the
+      // one that stood the tree back up.
+      if (!done) this.#shaking[kept++] = trunk;
+    }
+    this.#shaking.length = kept;
+  }
+
+  /** The standing tree nearest the axe, or null if it swung at nothing. */
+  #nearestTrunk(x: number, z: number): Trunk | null {
+    const tx = Math.floor(x);
+    const tz = Math.floor(z);
+    let best: Trunk | null = null;
+    let bestD = CHOP_REACH * CHOP_REACH;
+    for (let ny = tz - 1; ny <= tz + 1; ny++) {
+      if (ny < 0 || ny >= this.#size) continue;
+      for (let nx = tx - 1; nx <= tx + 1; nx++) {
+        if (nx < 0 || nx >= this.#size) continue;
+        for (const trunk of this.#trunksAt(tileIdx(nx, ny, this.#size))) {
+          const d = (trunk.pos.x - x) ** 2 + (trunk.pos.z - z) ** 2;
+          if (d < bestD) {
+            bestD = d;
+            best = trunk;
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * The trees standing on a tile, rest poses read out of their instance
+   * matrices once and cached (removeTile drops the entry, so a felled
+   * grove cannot leave a trunk behind to shake).
+   */
+  #trunksAt(tile: number): Trunk[] {
+    const cached = this.#trunks.get(tile);
+    if (cached) return cached;
+    const out: Trunk[] = [];
+    const chunkIdx = this.#chunkOf(tile);
+    for (const [name, a] of this.#archetypes) {
+      // Live grove trees only — `tree0`, `treeFar1`. The snags are
+      // `dead*`, and the bamboo the fallback plants when the model pack
+      // is missing is a `culm` with its leaf `spray`s placed as separate
+      // instances around it: a stalk that leaned would leave its own
+      // foliage hanging in the air.
+      if (!name.startsWith('tree')) continue;
+      const ids = a.byTile.get(tile);
+      const chunk = a.chunks[chunkIdx];
+      if (!ids || !chunk) continue;
+      for (const id of ids) {
+        const trunk: Trunk = {
+          tile,
+          chunk,
+          id,
+          pos: new THREE.Vector3(),
+          quat: new THREE.Quaternion(),
+          scale: new THREE.Vector3(),
+          rest: new THREE.Matrix4(),
+          amp: 0,
+          hz: SHAKE_HZ,
+          axis: new THREE.Vector3(1, 0, 0),
+          t: SHAKE_SECS,
+          leaning: false,
+        };
+        chunk.mesh.getMatrixAt(id, trunk.rest);
+        trunk.rest.decompose(trunk.pos, trunk.quat, trunk.scale);
+        out.push(trunk);
+      }
+    }
+    this.#trunks.set(tile, out);
+    return out;
+  }
+
   /** Hide all scatter on a tile (resource depleted / cleared for building). */
   removeTile(tile: number): void {
+    // Nothing felled is left shaking, and the cache cannot hand a later
+    // axe a trunk that is no longer standing.
+    this.#trunks.delete(tile);
+    if (this.#shaking.length > 0) {
+      this.#shaking = this.#shaking.filter(t => t.tile !== tile);
+    }
     dummy.position.set(0, -100, 0);
     dummy.rotation.set(0, 0, 0);
     dummy.scale.setScalar(0.0001);
