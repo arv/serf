@@ -370,6 +370,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
+// Still 55 after a Copilot review pass corrected three pieces of prose the
+// branch had left describing the world as it was mid-branch — the Archery
+// tech's note still said the guard tower was Soldiery's to unlock, the
+// tower tooltip still counted the levy's wait in techs, and the README read
+// as though soldiers trained at the range. Comments and player-facing text:
+// the hash is over raw bytes so it moved, the sim did not.
+//
 // 55 for the Archery Range, and 55 rather than 54 because main claimed
 // 54 while this branch was open (the Monument's bread — its note is
 // carried below). Two builds cannot share a number.
@@ -448,7 +455,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
 const EXPECTED_VERSION = 55;
-const EXPECTED_HASH = '2379215bc4be76b79d8d5295012e8a9c';
+const EXPECTED_HASH = 'ca8666b071994070c64bcc46e4612bc2';
 
 /**
  * Everything a replay's playback depends on, as raw source:

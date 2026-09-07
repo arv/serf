@@ -242,10 +242,14 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // So warfare has two roots, and they are the two arms: Soldiery buys
     // the hall, the spear and the sword; Archery buys the range, the bow
     // and the bowstave at the forge. A village can now open on either and
-    // never touch the other. The one thing that still crosses the line is
-    // the guard tower, which is unlocked by Soldiery and garrisoned by
-    // archers — a bow-only plan can field them and not the wall they stand
-    // on.
+    // never touch the other, and nothing crosses between them.
+    //
+    // The guard tower was the one thing that did, and it is why it carries
+    // no tech requirement now: it was Soldiery's to unlock and archers' to
+    // man, so a bow plan could field the men and not the wall they stand
+    // on. Ungated, it leans the other way if anywhere — anyone may raise
+    // one, but only this root's archers turn it into more than a levy on
+    // the parapet.
     prereqs: [],
     cost: {[GoodId.wood]: 8, [GoodId.silver]: 6},
     durationTicks: 30 * S,

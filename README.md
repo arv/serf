@@ -47,9 +47,10 @@ pnpm dev
 - **Chains**: wells feed wheat farms; the mill grinds wheat to flour and the
   bakery bakes it into food (the fishery lands food straight off the shore);
   iron + wood become weapons — and iron tools — at the Smith; food + weapons
-  train soldiers at the barracks, and at the archery range for bows; wheat + water become ale, and ale delivered
-  to the abbey throws festivals (+25% work speed) — or, with Ale Rations,
-  fills the barracks cask so every recruit drinks and trains faster.
+  train knights and spearmen at the barracks and archers at the archery
+  range; wheat + water become ale, and ale delivered to the abbey throws
+  festivals (+25% work speed) — or, with Ale Rations, fills the barracks
+  cask so every recruit drinks and trains faster.
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut
