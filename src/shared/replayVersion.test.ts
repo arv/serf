@@ -378,8 +378,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // change (keepTheQueueWarm reading every hall rather than the first
 // barracks, and two playbooks raising a range) is brain-side and would have
 // ridden 53 on its own, exactly as the Mason's rule did on 49.
+// Still 54 after Archery lost its Soldiery prereq: warfare has two roots
+// now and a village can open on the bow without ever unlocking the
+// barracks. That is sim behavior in the plainest sense — a research the
+// queue would have refused is accepted, and every clock behind it moves —
+// but 54 is this build's own bump and has never shipped, so there is
+// nothing older to break. The same reasoning the "Still 49" entries below
+// record.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = 'cf5bcf86ac8975523cf1bcc2531f6d40';
+const EXPECTED_HASH = '8f813d134761a17669ebf2fcd88e814b';
 
 /**
  * Everything a replay's playback depends on, as raw source:

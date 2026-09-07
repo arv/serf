@@ -232,7 +232,21 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     id: T.archery,
     name: 'Archery',
     branch: TechBranchNs.warfare,
-    prereqs: [T.soldiery],
+    // No prereq. The bow used to hang off Soldiery because it had to: the
+    // archer was an option on the barracks' roster, so a village that had
+    // not unlocked the barracks had nowhere to put him. He trains under his
+    // own roof now, and the range is unlocked by this research rather than
+    // by that one — which leaves the old edge gating nothing except the
+    // order the two are bought in.
+    //
+    // So warfare has two roots, and they are the two arms: Soldiery buys
+    // the hall, the spear and the sword; Archery buys the range, the bow
+    // and the bowstave at the forge. A village can now open on either and
+    // never touch the other. The one thing that still crosses the line is
+    // the guard tower, which is unlocked by Soldiery and garrisoned by
+    // archers — a bow-only plan can field them and not the wall they stand
+    // on.
+    prereqs: [],
     cost: {[GoodId.wood]: 8, [GoodId.silver]: 6},
     durationTicks: 30 * S,
     effects: [
