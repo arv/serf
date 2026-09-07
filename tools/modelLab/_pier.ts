@@ -12,6 +12,7 @@ import {ScatterMesh} from '../../src/render/scatterMesh';
 import {TerrainMesh} from '../../src/render/terrainMesh';
 import {WaterMesh} from '../../src/render/waterMesh';
 import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
+import {buildingDef} from '../../src/sim/defs/buildings';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import {WATER_LEVEL} from '../../src/sim/map';
 import {canPlace, createWorld, waterFacing} from '../../src/sim/world';
@@ -53,6 +54,13 @@ const YAW =
   q.get('yaw') !== null ? (Number(q.get('yaw')) * Math.PI) / 180 : CAMERA_YAW;
 /** Tiles across the frame — village zoom, the bar decor has to clear. */
 const VIEW = Number(q.get('view') ?? 12);
+
+/** The fishery's footprint, and half of it — the offset from a site's
+ * origin to its centre. Read off the def: this page used to write 3 and
+ * 1.5 out in five places, which is five places to miss when the plot
+ * changes size. */
+const FP = buildingDef(BuildingTypeId.fishery).w;
+const HALF = FP / 2;
 
 const world = createWorld(SEED);
 const map = world.map;
@@ -103,11 +111,11 @@ function snap(id: number, x: number, y: number): BuildingSnap {
     owner: 0,
     x,
     y,
-    w: 3,
-    h: 3,
+    w: FP,
+    h: FP,
     // The sim's own answer, or the deck would start out pointing +z on
     // every site and the fit would be judged against a straw man.
-    facing: waterFacing(map, x, y, 3, 3, 1),
+    facing: waterFacing(map, x, y, FP, FP, 1),
     hp: 150,
     maxHp: 150,
     state: BuildingState.built,
@@ -129,13 +137,13 @@ function measure(
   sync.update(sites.map((s, i) => snap(i + 1, s.x, s.y)));
   const out = new Map<string, PierInfo>();
   for (const p of sync.fisheryPiers())
-    out.set(`${Math.round(p.bx - 1.5)},${Math.round(p.bz - 1.5)}`, p);
+    out.set(`${Math.round(p.bx - HALF)},${Math.round(p.bz - HALF)}`, p);
   return out;
 }
 
 const sites: {x: number; y: number}[] = [];
-for (let y = 0; y < map.size - 3; y++)
-  for (let x = 0; x < map.size - 3; x++)
+for (let y = 0; y < map.size - FP; y++)
+  for (let x = 0; x < map.size - FP; x++)
     if (canPlace(map, BuildingTypeId.fishery, x, y)) sites.push({x, y});
 
 const asAuthored = measure(sites, filledIn);
@@ -217,8 +225,8 @@ app.appendChild(grid);
 
 const cam = new THREE.OrthographicCamera();
 for (const s of picked) {
-  const cx = s.x + 1.5;
-  const cz = s.y + 1.5;
+  const cx = s.x + HALF;
+  const cz = s.y + HALF;
   cam.left = -VIEW / 2;
   cam.right = VIEW / 2;
   cam.top = VIEW / 2;
