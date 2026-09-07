@@ -49,19 +49,70 @@ const VARIANTS: {label: string; what: string; play: AiStrategy}[] = [
     what: 'evolve champion — serfTarget 12→15, researchReserve 10→6',
     play: {...mason, serfTarget: 15, researchReserve: 6},
   },
-  // Towers, and the bow line they need. The Abbot is the template: two
-  // guard towers gated on archery and needing a barracks, `weaponMix`
-  // carrying the bow, archers in the train preference. `#manTowers` in
-  // systems/ai.ts already climbs them.
-  //
-  // Worth saying why the search could not have found this. `weaponMix`
-  // and `trainPreference` ARE in the mutation space, and three
-  // generations never moved them — because an archer with no bow tech and
-  // no tower to stand in is strictly worse than a spearman. The tech, the
-  // building and the arms only pay TOGETHER, and a hill-climb that must
-  // improve at every single step cannot cross a valley three knobs wide.
-  ...towerVariants(),
+  ...rushProof(),
 ];
+
+/**
+ * The mason, given something to fight a rush WITH.
+ *
+ * The diagnosis, measured: at tick 17,000 against a steward the mason has
+ * pop 31 to the steward's 33 and fields six spearmen against nine
+ * knights, having fielded nothing at all when the steward had four. It is
+ * not short of people. It converts almost none of them into soldiers, and
+ * the ones it converts are the cheap unit.
+ *
+ * The reason is one line of its plan: a single weaponsmith, twelfth in
+ * priority, with `weaponMix: [0]` — every forge on spears. It cannot
+ * field a knight because it never forges a sword. The steward runs
+ * [1, 0], sword first.
+ *
+ * These are the three moves that have to happen together, which is
+ * exactly why the search could not find them: swords alone with one late
+ * forge arms nobody, a second forge alone still makes spears, and a
+ * knight preference with no sword to carry falls through to the
+ * spearman fallback. Every single step scores worse than the parent.
+ */
+function rushProof(): {label: string; what: string; play: AiStrategy}[] {
+  const arms = {
+    weaponMix: [1, 0],
+    trainPreference: [UnitTypeId.knight, UnitTypeId.spearman],
+    trainFallback: UnitTypeId.spearman,
+  };
+  const twoForges = mason.build.map(b =>
+    b.type === BuildingTypeId.weaponsmith ? {...b, count: 2} : b,
+  );
+  // The forge moved up the priority list, to just behind the barracks it
+  // arms. Order is priority rather than sequence, so this only matters on
+  // the beats where both are affordable — which are the beats that decide
+  // whether a sword exists before the first march.
+  const at = twoForges.findIndex(b => b.type === BuildingTypeId.weaponsmith);
+  const bar = twoForges.findIndex(b => b.type === BuildingTypeId.barracks);
+  const early = [...twoForges];
+  const [forge] = early.splice(at, 1);
+  early.splice(bar + 1, 0, forge!);
+  return [
+    {
+      label: 'swords',
+      what: 'weaponMix [0]→[1,0], train knights — one forge still',
+      play: {...mason, ...arms},
+    },
+    {
+      label: 'swords+forge',
+      what: 'swords, and a second weaponsmith',
+      play: {...mason, ...arms, build: twoForges},
+    },
+    {
+      label: 'swords+early',
+      what: 'swords, two forges, and the forge up behind the barracks',
+      play: {...mason, ...arms, build: early},
+    },
+    {
+      label: 'the-lot',
+      what: 'swords + two forges + forge early + champion serfTarget 15',
+      play: {...mason, ...arms, build: early, serfTarget: 15},
+    },
+  ];
+}
 
 /** The mason, taught the bow. Two orderings, because archery has to come
  * out of the same research budget the monument's deepMining does: one
