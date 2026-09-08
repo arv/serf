@@ -524,8 +524,17 @@ import {REPLAY_VERSION} from './replayVersion';
 // same reasoning the "Still 49 after the Mason" and "Still 54 after the lone
 // anvil's counter" entries above record. The hash is over raw bytes, which is
 // why it moved anyway.
+// Still 60 after research stopped spending goods it had already promised
+// to a haul (tick.ts, releaseShelfPromises). Real sim behavior — the hauls
+// die at the moment the shelf is spent instead of when the carrier arrives
+// to find nothing — but 60 is this build's own bump and has never shipped.
+// The bug it fixes is older than this branch and nothing to do with it: a
+// tech is bought straight off the shelf against `stock` alone, so four iron
+// reserved for a smith bought Ironworking anyway and left reservedOut over
+// a stock of nothing (checkInvariants caught it in ai.test.ts once the
+// range's footprint re-timed seed 11 into the collision).
 const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = '157d5adef1a45d54777ce50fc8532499';
+const EXPECTED_HASH = 'eceff2388b1a137a00dfb5ef98ee53ed';
 
 /**
  * Everything a replay's playback depends on, as raw source:
