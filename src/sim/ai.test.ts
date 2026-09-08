@@ -16,6 +16,7 @@ import {HIRE_SERF_COST} from './defs/balance.ts';
 import * as BuildAnchor from './defs/buildAnchorEnum.ts';
 import {BUILDING_DEFS, OUTPUT_CAP} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import type {GoodAmounts} from './defs/goods.ts';
 import * as TechId from './defs/techIdEnum.ts';
@@ -2247,5 +2248,83 @@ describe('a playbook that declines a rule', () => {
     });
     brain.setEconomyRules([EconomyRuleId.handsBeforeSoldiers]);
     expect(beat(brain, world)).toContainEqual(standDown(barracks));
+  });
+});
+
+/**
+ * A seat with no soldiers, looking anyway.
+ *
+ * The scout is drawn from the army, so an economy-first plan cannot look at
+ * anything until it has a spare fighter — which for the Mason is roughly
+ * the moment it is attacked. `serfScouts` (defs/difficulty.ts) lets a hard
+ * seat walk a serf instead while the yard is empty of soldiers. What is
+ * asserted here is that it happens at all, that it is confined to hard, and
+ * that it cannot spend a village's last hands.
+ */
+describe('a village with nobody to send', () => {
+  /** A seat with serfs and no soldiers at all. */
+  function noSoldiers(
+    difficulty: number | undefined,
+    serfs: number,
+  ): {world: World; brain: AiBrain; serfIds: number[]} {
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 90, 90, {}, 1);
+    const serfIds: number[] = [];
+    for (let i = 0; i < serfs; i++) serfIds.push(addSerf(world, 31 + i, 31).id);
+    world.tick = 1000;
+    return {
+      world,
+      brain: new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.mason],
+        world.map.size,
+        difficulty as never,
+      ),
+      serfIds,
+    };
+  }
+
+  /** Did this beat walk one of the serfs somewhere? */
+  const walked = (commands: SimCommand[], ids: number[]): boolean =>
+    commands.some(
+      c =>
+        c.kind === CommandKind.moveUnits &&
+        c.unitIds.some(id => ids.includes(id)),
+    );
+
+  const beat = (brain: AiBrain, world: World): SimCommand[] => {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  };
+
+  it('walks a serf out to look, on hard', () => {
+    const {world, brain, serfIds} = noSoldiers(DifficultyId.hard, 8);
+    let sent = false;
+    for (let i = 0; i < 20 && !sent; i++)
+      sent = walked(beat(brain, world), serfIds);
+    expect(sent).toBe(true);
+  });
+
+  it('does not, on the printed game', () => {
+    // The whole reason this is a tier flag: every seat anybody actually
+    // plays against is bit-identical to what it was.
+    const {world, brain, serfIds} = noSoldiers(undefined, 8);
+    let sent = false;
+    for (let i = 0; i < 20 && !sent; i++)
+      sent = walked(beat(brain, world), serfIds);
+    expect(sent).toBe(false);
+  });
+
+  it('will not spend the last hands even on hard', () => {
+    // At the survival floor the look is not affordable: a village that
+    // walks its final pair off the map to learn something has lost the
+    // thing the knowledge was for.
+    const floor = AI_STRATEGIES[AiStrategyId.mason].survivalFloor;
+    const {world, brain, serfIds} = noSoldiers(DifficultyId.hard, floor);
+    let sent = false;
+    for (let i = 0; i < 20 && !sent; i++)
+      sent = walked(beat(brain, world), serfIds);
+    expect(sent).toBe(false);
   });
 });

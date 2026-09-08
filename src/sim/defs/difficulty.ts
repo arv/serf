@@ -242,6 +242,27 @@ export interface Difficulty {
    */
   flanksTowers: boolean;
   /**
+   * Whether a seat with no soldiers yet may send a SERF to scout.
+   *
+   * The scout is drawn from the army, so a seat cannot look at anything
+   * until it has a spare fighter — and an economy-first plan does not have
+   * one until roughly the moment it is attacked. Traced on the Mason
+   * against a printed Steward: the rival's address was never learned at
+   * all, on any seed, for a whole match, and its entire picture of what was
+   * coming arrived within ten ticks of the first enemy soldier reaching its
+   * gate. A seat that cannot march is exactly the one that needs to know
+   * early, because which weapon to forge is decided thousands of ticks
+   * before the fight.
+   *
+   * `hard` alone, and for the same reason `micro` and `flanksTowers` are:
+   * spending a pair of hands on a look you cannot yet defend is judgement,
+   * and the lower tiers are meant to be surprised. Only while the yard is
+   * empty of soldiers — once one exists the army provides the scout as
+   * before — and never below the playbook's `survivalFloor`, so the look
+   * cannot cost a village its last hands.
+   */
+  serfScouts: boolean;
+  /**
    * Percent of the stance engine's clocks (AI_STANCE.evalPeriod and
    * `dwell`) — how often a seat re-reads which mood it should be in, and
    * how long it must hold one before it may change again.
@@ -469,6 +490,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     micro: false,
     remembersWipes: false,
     flanksTowers: false,
+    serfScouts: false,
     // A muster this village cannot reach: fourteen soldiers on a thirty-bed
     // cap that also has to staff every post. So an easy seat never leaves
     // its opening for the stance that goes and takes a castle — it defends,
@@ -524,6 +546,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     micro: false,
     remembersWipes: true,
     flanksTowers: false,
+    serfScouts: false,
     spearsOnly: false,
     decisionIntervalPct: 100,
     serfTarget: 0,
@@ -562,6 +585,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     micro: true,
     remembersWipes: true,
     flanksTowers: true,
+    serfScouts: true,
     foundAfterArmy: null,
     spearsOnly: false,
     decisionIntervalPct: 100,

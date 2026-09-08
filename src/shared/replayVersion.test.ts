@@ -407,8 +407,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
+// Still 54 after the hard tier learned to walk a SERF out to scout when it
+// has no soldiers yet (defs/difficulty.ts `serfScouts`). Brain-side like
+// every AI note above: it changes what a seat DECIDES to do with a hand,
+// and playback constructs no brains (app/simWorker.ts). The printed game is
+// bit-identical either way — the flag is off for easy and normal, which a
+// traced Mason confirms tick for tick. The hash is over raw bytes.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '6f38808aa1d2cfe7275f1e3c6e163713';
+const EXPECTED_HASH = 'a7f2b2a7c151e9e7560a83a9eadefef5';
 
 /**
  * Everything a replay's playback depends on, as raw source:

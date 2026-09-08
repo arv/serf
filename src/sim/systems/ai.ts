@@ -882,6 +882,9 @@ export class AiBrain {
   /** Whether this seat marches around the towers it knows of
    * (Difficulty.flanksTowers): gates `flankMarch` the same way. */
   readonly #flanksTowers: boolean;
+  /** Whether a soldierless seat may walk a serf out to look (hard only;
+   * defs/difficulty.ts `serfScouts`). */
+  readonly #serfScouts: boolean;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -1127,6 +1130,7 @@ export class AiBrain {
     this.#micro = difficultyOf(difficulty).micro;
     this.#remembersWipes = difficultyOf(difficulty).remembersWipes;
     this.#flanksTowers = difficultyOf(difficulty).flanksTowers;
+    this.#serfScouts = difficultyOf(difficulty).serfScouts;
     this.#stanceEval = scaleStanceClock(AI_STANCE.evalPeriod, difficulty);
     this.#stanceDwell = scaleStanceClock(AI_STANCE.dwell, difficulty);
     this.#vision = new SeatVision(mapSize);
@@ -2188,9 +2192,14 @@ export class AiBrain {
       // that scout standing at the enemy's gate for as long as the
       // garrison stayed visible — the read never filed, the errand never
       // retired, and the muster a soldier short of what it counted on.
+      // A soldierless seat may still look, on the one tier that knows to
+      // (defs/difficulty.ts `serfScouts`). Everywhere else this reads
+      // exactly as it did: no army, no scout.
+      const canWalkSerf =
+        this.#serfScouts && army.length === 0 && serfCount > s.survivalFloor;
       if (
         (!target || staleRival >= 0 || this.#scoutGoal >= 0) &&
-        army.length > 0
+        (army.length > 0 || canWalkSerf)
       ) {
         if (this.#scoutId < 0) {
           // A soldier under half his blood is passed over on a seat that
@@ -2202,7 +2211,21 @@ export class AiBrain {
           // never moved. Seats without the behavior are untouched:
           // they never stand a scout down for wounds in the first place.
           const flees = this.#warOn(WarBehaviorIdNs.scoutFlees);
-          const idle = army.filter(
+          // Soldiers first, always: a serf is what an empty yard has
+          // instead of a scout, not a cheaper one. Once a fighter exists
+          // the pool is the army again and this whole branch is what it
+          // has always been.
+          const idle = (
+            army.length > 0
+              ? army
+              : [...world.units.values()].filter(
+                  u =>
+                    !u.dead &&
+                    u.owner === this.playerId &&
+                    u.kind === UnitTypeId.serf &&
+                    !manning.has(u.id),
+                )
+          ).filter(
             u => u.task.t === UnitTaskKind.idle && !(flees && isSpent(u)),
           );
           const pick = idle.sort(
