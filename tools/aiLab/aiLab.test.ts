@@ -143,9 +143,20 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * passes today. Seed 5 was the cheapest (14_985 and 14_104, inside the old
  * bound) and is exactly the thin margin that keeps bringing us back here.
  *
+ * ...and to 1 when a study's goods had to be carried to the Abbey before
+ * the books opened (systems/logistics.ts, systems/research.ts, with every
+ * tech's clock cut to 0.6 to pay for the walk). Every seat's tech line now
+ * waits on hauls, which re-times every war again: on 11 the two runs ended
+ * on the SAME tick, 12_375 apiece — the one outcome this fixture cannot
+ * use. Ten seeds were re-measured under the new rules; 1 is picked on the
+ * same two counts as ever, seat 1 winning both ways at 16_561 unadvised
+ * and 12_743 marching at four, which is 3_818 ticks of gap and 5_439 under
+ * the bound. (8 inverted outright — the advised war ran 5_311 ticks LATER
+ * — and 2, 10 and 11 tied.)
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 11;
+const FULL_MATCH_SEED = 1;
 const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {

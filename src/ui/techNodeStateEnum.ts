@@ -1,6 +1,8 @@
 /**
- * How the tech tree draws one node, as a JS enum module — the five states
- * a research can be in from the panel's point of view.
+ * How the tech tree draws one node, as a JS enum module — the six states a
+ * research can be in from the panel's point of view. `delivering` and
+ * `researching` are the two halves of the one study in hand: the serfs are
+ * still carrying its goods to the Abbey, or the books are open.
  */
 export const done = 1 as const;
 export type done = typeof done;
@@ -12,3 +14,5 @@ export const unaffordable = 4 as const;
 export type unaffordable = typeof unaffordable;
 export const locked = 5 as const;
 export type locked = typeof locked;
+export const delivering = 6 as const;
+export type delivering = typeof delivering;

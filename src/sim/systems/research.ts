@@ -9,10 +9,13 @@ import type {Building, Owner} from '../entities.ts';
 import type {World} from '../world.ts';
 
 /**
- * Ticks every player's active research and festival buff. Research is
- * *started* by the research command (tick.ts); completion applies one-shot
- * effects here (currently just paving — unlock checks read `researched`
- * directly).
+ * Ticks every player's active research and festival buff.
+ *
+ * A study is *ordered* by the research command (tick.ts), which writes its
+ * bill on the Abbey and nothing else: the village carries the goods there
+ * load by load like a site's materials, and the clock below does not start
+ * until the last one is in. Completion applies one-shot effects here
+ * (currently just paving — unlock checks read `researched` directly).
  */
 export function researchSystem(world: World): void {
   // Each owner's first built abbey (the only one the old per-player scan
@@ -39,7 +42,22 @@ export function researchSystem(world: World): void {
   for (const p of world.players) {
     const t = p.techs;
 
-    if (t.active) {
+    // Waiting on the haul: the study is ordered, the bill is on the Abbey,
+    // and nothing happens until the serfs have carried all of it in.
+    if (t.active && !t.active.started) {
+      const abbey = world.buildings.get(t.active.abbey);
+      if (!abbey || abbey.dead || abbey.state !== BuildingState.built) {
+        // The roof came down (or was sold) with the books still on the
+        // road. The order dies with it and the slot opens again — order
+        // it at another Abbey. Whatever was already carried in is spent;
+        // it was consumed at the door, like a repair's stone.
+        t.active = undefined;
+      } else if (!abbey.researchNeeds) {
+        t.active.started = true;
+      }
+    }
+
+    if (t.active?.started) {
       t.active.ticksLeft--;
       if (t.active.ticksLeft <= 0) {
         const def = TECH_DEFS[t.active.tech];

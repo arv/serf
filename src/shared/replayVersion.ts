@@ -20,6 +20,24 @@
  * directly.
  */
 /**
+ * 60: a study is carried to the Abbey before it begins.
+ *
+ * The research command used to take a tech's goods off the storehouse
+ * shelf and start its clock in the same tick. It writes the bill on the
+ * Abbey instead (tick.ts), the matcher hauls it there like a site's
+ * materials (systems/logistics.ts), each load is spent at the door, and
+ * the clock starts when the last one lands (systems/research.ts). Every
+ * tech's durationTicks was cut to 0.6 of what it was to pay for the walk.
+ *
+ * Nothing about that replays: a log recorded before this build spends
+ * goods on a tick this one does not, hauls that never existed take hands
+ * off the board for a minute at a time, and every research lands on a
+ * different tick — which moves every unlock, and with it every order that
+ * waited on one.
+ *
+ * 59's note follows.
+ */
+/**
  * 59: the armory holds one of each arm.
  *
  * 59, cut as 56: main took 56 (the reachable ground rule), 57 (the
@@ -870,4 +888,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 59;
+export const REPLAY_VERSION = 60;

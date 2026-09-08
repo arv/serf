@@ -29,7 +29,19 @@ export type StaffingState = Enum<typeof StaffingStateNs>;
 /** Tech-tree state for the UI. */
 export interface TechSnap {
   researched: TechId[];
-  active?: {tech: TechId; ticksLeft: number; totalTicks: number};
+  /**
+   * The study in hand. `started` is false while the serfs are still
+   * carrying its bill to the Abbey — `needs` is what is left of that bill,
+   * and the ticks do not move until it is empty. Once started, `needs` is
+   * gone and the two tick counts are the whole story.
+   */
+  active?: {
+    tech: TechId;
+    ticksLeft: number;
+    totalTicks: number;
+    started: boolean;
+    needs?: GoodAmounts;
+  };
   festivalTicksLeft: number;
   pavingUnlocked: boolean;
   hasAbbey: boolean;

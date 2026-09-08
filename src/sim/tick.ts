@@ -57,7 +57,12 @@ import {
 } from './systems/training.ts';
 import {victorySystem} from './systems/victory.ts';
 import {wanderSystem} from './systems/wander.ts';
-import {canResearch, getModifier, isBuildingUnlocked} from './techHelpers.ts';
+import {
+  canResearch,
+  getModifier,
+  isBuildingUnlocked,
+  researchAbbey,
+} from './techHelpers.ts';
 import {
   clearMarchSpeed,
   clearOrders,
@@ -67,6 +72,7 @@ import {
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   canPlace,
+  clearResearchBill,
   destroyBuilding,
   killUnit,
   placeSite,
@@ -300,21 +306,32 @@ export function applyCommand(
       if (world.admin.enabled) applyAdmin(world, playerId, cmd.action);
       break;
     case CommandKind.research: {
+      // Ordering a study no longer pays for it. The bill is written on the
+      // Abbey and the village carries it there load by load, exactly like
+      // a site's materials; the clock starts when the last one lands
+      // (systems/research.ts). Nothing is spent until a good is actually
+      // handed over the Abbey's threshold, so an order that never gets
+      // its stone costs the player nothing but the slot.
       if (!canResearch(world, playerId, cmd.tech).ok) break;
+      const abbey = researchAbbey(world, playerId);
       const sh = findStorehouse(world, playerId);
       const cost = TECH_DEFS[cmd.tech].cost;
-      if (!sh) break;
+      if (!abbey || !sh) break;
+      // Still gated on the shelf holding the whole bill today, though the
+      // goods that eventually walk in may come from anywhere (the matcher
+      // sources each load from the nearest supply). The gate is what keeps
+      // "available" on the tech panel honest, and what stops a seat
+      // parking its one study slot on a bill it cannot begin to pay.
       const affordable = goodEntries(cost).every(
         ([good, n]) => (sh.stock[good] ?? 0) >= n,
       );
       if (!affordable) break;
-      for (const [good, n] of goodEntries(cost)) {
-        sh.stock[good] = (sh.stock[good] ?? 0) - n;
-        world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
-      }
+      abbey.researchNeeds = {...cost};
       player.techs.active = {
         tech: cmd.tech,
         ticksLeft: TECH_DEFS[cmd.tech].durationTicks,
+        abbey: abbey.id,
+        started: false,
       };
       break;
     }
@@ -547,7 +564,15 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       break;
     case AdminAction.finishResearch: {
       const active = world.players[playerId]?.techs.active;
-      if (active) active.ticksLeft = 1;
+      if (!active) break;
+      // Settles the haul too: the cheat is "this study is done", and a
+      // study still waiting on its stone would otherwise sit at one tick
+      // left forever. The bill is torn up rather than paid — nothing was
+      // debited when it was written, so nothing is owed.
+      const abbey = world.buildings.get(active.abbey);
+      if (abbey) clearResearchBill(abbey);
+      active.started = true;
+      active.ticksLeft = 1;
       break;
     }
     case AdminAction.spawnParade: {

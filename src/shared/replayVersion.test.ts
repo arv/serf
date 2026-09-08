@@ -488,8 +488,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // The playbook half rode it for free, as playbook data always does: the
 // Warlord's ironworking moved second (the rack no longer carries it to a
 // raiding party) and the Fletcher's notes stopped describing two spears.
-const EXPECTED_VERSION = 59;
-const EXPECTED_HASH = 'e26bb64ab787e6d1137ae6443104d5a3';
+const EXPECTED_VERSION = 60;
+const EXPECTED_HASH = 'da1eab6dc75f4e9eab24546668598259';
 
 /**
  * Everything a replay's playback depends on, as raw source:

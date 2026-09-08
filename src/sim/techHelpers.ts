@@ -6,7 +6,7 @@ import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import * as TechEffectKind from './defs/techEffectKindEnum.ts';
 import {TECH_DEFS, type TechId} from './defs/techs.ts';
 import type {UnitTypeId} from './defs/units.ts';
-import type {Owner} from './entities.ts';
+import type {Building, Owner} from './entities.ts';
 import type {World} from './world.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -84,7 +84,21 @@ export function canResearch(
     if (!t.researched.includes(p))
       return {ok: false, reason: `requires ${TECH_DEFS[p].name}`};
   }
-  let hasAbbey = false;
+  if (!researchAbbey(world, owner))
+    return {ok: false, reason: 'needs a built Abbey'};
+  return {ok: true};
+}
+
+/**
+ * The roof a study is ordered at: this owner's first standing Abbey, by id,
+ * so the same one is picked every time the question is asked. It is where
+ * the bill is carried (systems/logistics.ts) and what the order is pinned
+ * to for as long as the goods are on the road.
+ */
+export function researchAbbey(
+  world: World,
+  owner: Owner,
+): Building | undefined {
   for (const b of world.buildings.values()) {
     if (
       !b.dead &&
@@ -92,10 +106,8 @@ export function canResearch(
       b.state === BuildingState.built &&
       b.owner === owner
     ) {
-      hasAbbey = true;
-      break;
+      return b;
     }
   }
-  if (!hasAbbey) return {ok: false, reason: 'needs a built Abbey'};
-  return {ok: true};
+  return undefined;
 }

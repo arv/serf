@@ -110,8 +110,32 @@ describe('personalities read through the fog', () => {
     };
     const rusher = (m: Map<number, number>): number =>
       share(m, Archetype.rusher);
+    /**
+     * The calm read is `booming` alone — army at or under one, ten
+     * buildings standing — and it used to be booming + turtling.
+     *
+     * Turtling left because it stopped being a read about temperament.
+     * It needs a force of three SEEN, so it is as much a statement about
+     * how big the rival's army has grown as about what he does with it,
+     * and when studies started being carried to the Abbey before they
+     * began (a slower tech line for everyone) the abbot's soldiers came
+     * later than this window: pooled over the same twenty-four seeds his
+     * turtling share fell 0.250 -> 0.114 while the warlord's held at
+     * 0.244 -> 0.232, because the warlord buys its war techs first and
+     * the abbot buys them last. Running the pool out to 22_000 ticks does
+     * not bring them back (0.131), so this is his army being smaller
+     * through the whole match rather than the window ending early.
+     *
+     * What the change did to the read this test is actually about is the
+     * opposite: the abbot's booming share ROSE, 0.115 -> 0.176, against
+     * the warlord's 0.099 -> 0.092. Booming alone separates the two
+     * playbooks by a factor of two where booming + turtling separated
+     * them by 0.022 — so this is the sharper instrument as well as the
+     * honest one. If a rebalance ever gives the abbot an army inside
+     * fifteen minutes again, turtling is worth reconsidering here.
+     */
     const calm = (m: Map<number, number>): number =>
-      share(m, Archetype.booming) + share(m, Archetype.turtling);
+      share(m, Archetype.booming);
 
     // The loop saw real games: both sides produced reads at all.
     let warlordReads = 0;

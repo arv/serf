@@ -34,7 +34,10 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
   const state = (id: TechId): TechNodeState => {
     const t = techs();
     if (t.researched.includes(id)) return TechNodeStateNs.done;
-    if (t.active?.tech === id) return TechNodeStateNs.researching;
+    if (t.active?.tech === id)
+      return t.active.started
+        ? TechNodeStateNs.researching
+        : TechNodeStateNs.delivering;
     // No abbey, no research. The head-note already says so in words; the
     // node has to agree in form — 'available' dressed it in the pointer
     // cursor and hover glow while the click handler (rightly) swallowed
@@ -54,7 +57,27 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
   const progress = (id: TechId): number => {
     const a = techs().active;
     if (!a || a.tech !== id) return 0;
+    // Before the books open the study's progress is measured in loads, not
+    // ticks: the clock has not started, and a node that sat at 0% through
+    // a minute of hauling would read as an order the village had ignored.
+    if (!a.started) {
+      const cost = TECH_DEFS[id].cost;
+      const total = GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
+      const left = GOODS.reduce((n, g) => n + (a.needs?.[g] ?? 0), 0);
+      return total > 0 ? Math.round((1 - left / total) * 100) : 0;
+    }
     return Math.round((1 - a.ticksLeft / a.totalTicks) * 100);
+  };
+
+  /** "3 of 8 carried in" — the delivering node's own line. */
+  const hauled = (id: TechId): string => {
+    const a = techs().active;
+    const cost = TECH_DEFS[id].cost;
+    const total = GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
+    const left = GOODS.reduce((n, g) => n + (a?.needs?.[g] ?? 0), 0);
+    return `Serfs are carrying the goods to the ${buildingName(
+      BuildingTypeId.abbey,
+    )} — ${total - left} of ${total} in.`;
   };
 
   return (
@@ -124,6 +147,14 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
         .tech-node .desc { opacity: 0.65; font-size: 11px; margin-top: 2px; }
         .tech-node.done { border-color: #7a9a4a; background: rgba(96, 122, 60, 0.22); }
         .tech-node.researching { border-color: #dfb670; background: rgba(212, 169, 60, 0.14); }
+        /* The haul half of the same order: the same warm border, dashed,
+           because nothing is being learned yet — the fill under it counts
+           loads carried in, not ticks studied. */
+        .tech-node.delivering {
+          border-color: #dfb670; border-style: dashed;
+          background: rgba(212, 169, 60, 0.08);
+        }
+        .tech-node .haul { font-size: 11px; opacity: 0.8; margin-top: 2px; }
         .tech-node.available { border-color: #c8735a; cursor: pointer; }
         .tech-node.available:hover {
           background: rgba(176, 74, 56, 0.25); box-shadow: 0 0 6px rgba(223, 182, 112, 0.35);
@@ -291,7 +322,12 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
                       }}
                     >
                       {/* First in the DOM so it paints behind the text. */}
-                      <Show when={state(id) === TechNodeStateNs.researching}>
+                      <Show
+                        when={
+                          state(id) === TechNodeStateNs.researching ||
+                          state(id) === TechNodeStateNs.delivering
+                        }
+                      >
                         <div class="fill" style={{width: `${progress(id)}%`}} />
                       </Show>
                       <b>
@@ -310,6 +346,9 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
                         </For>
                       </span>
                       <div class="desc">{techDesc(id)}</div>
+                      <Show when={state(id) === TechNodeStateNs.delivering}>
+                        <div class="haul">{hauled(id)}</div>
+                      </Show>
                     </div>
                   )}
                 </For>

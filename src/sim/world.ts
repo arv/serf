@@ -96,6 +96,13 @@ export interface HaulJob {
    */
   repair?: true;
   /**
+   * This haul was booked by an Abbey's study bill. Same purpose as `repair`
+   * above and for the same reason: the Abbey wants wheat for a study and
+   * ale for its festivals, and at the door the two loads are otherwise the
+   * same wheat-shaped errand.
+   */
+  research?: true;
+  /**
    * Set on arrival at a source with `drawTicks` (the well): the tick the
    * hauler finishes drawing and the good is finally in its hands. Lives on
    * the job rather than the building so two haulers at one well each pay
@@ -209,7 +216,20 @@ export type GameEvent =
 
 export interface TechState {
   researched: TechId[];
-  active?: {tech: TechId; ticksLeft: number};
+  /**
+   * The one study in hand, in either of its two halves. `started` is false
+   * while the serfs are still carrying the bill to the Abbey — the ticks
+   * do not run and nothing is learned — and true from the tick the last
+   * load lands. `abbey` is the roof it was ordered at and where the goods
+   * are going; lose it before the books open and the order is dropped
+   * (systems/research.ts).
+   */
+  active?: {
+    tech: TechId;
+    ticksLeft: number;
+    abbey: EntityId;
+    started: boolean;
+  };
   /** Ticks remaining on the current festival work-speed buff. */
   festivalTicksLeft: number;
 }
@@ -1366,6 +1386,21 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
   delete b.repairNeeds;
   delete b.repairHpPerGood;
   for (const g of bill) delete b.demandSince[g];
+}
+
+/**
+ * Tear up an Abbey's study bill — the last load landed, the order was
+ * dropped with the roof, or the debug lever finished it outright.
+ *
+ * Drops the FIFO clocks with it for the same reason a finished repair
+ * does (see clearRepairOrder): the age of an unmet demand lives per
+ * (building, good), and an Abbey that keeps a cleared bill's clock would
+ * hand the next study's first load a queue place it never stood in.
+ */
+export function clearResearchBill(b: Building): void {
+  if (!b.researchNeeds) return;
+  for (const g of goodKeys(b.researchNeeds)) delete b.demandSince[g];
+  delete b.researchNeeds;
 }
 
 /**

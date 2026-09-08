@@ -286,6 +286,18 @@ export function snapPlayers(world: World): PlayerSnap[] {
               tech: p.techs.active.tech,
               ticksLeft: p.techs.active.ticksLeft,
               totalTicks: TECH_DEFS[p.techs.active.tech].durationTicks,
+              started: p.techs.active.started,
+              // What the Abbey is still owed, while it is still owed
+              // anything: the panel counts the study's progress in loads
+              // before it counts it in ticks.
+              ...(p.techs.active.started
+                ? {}
+                : {
+                    needs: {
+                      ...world.buildings.get(p.techs.active.abbey)
+                        ?.researchNeeds,
+                    },
+                  }),
             }
           : undefined,
         festivalTicksLeft: p.techs.festivalTicksLeft,
