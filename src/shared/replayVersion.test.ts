@@ -473,8 +473,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // landing as 57: main took 55 for the Archery Range and 56 for the
 // reachable-ground rule while the branch was open. (The hut it carries got
 // smaller in the same commit, and that half is render only.)
-const EXPECTED_VERSION = 57;
-const EXPECTED_HASH = '750c9820d9dfe62f1a6ada8b6fb2ea87';
+const EXPECTED_VERSION = 58;
+const EXPECTED_HASH = 'bcb68720908722f03d851b0b6ddae0af';
 
 /**
  * Everything a replay's playback depends on, as raw source:

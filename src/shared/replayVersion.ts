@@ -20,6 +20,23 @@
  * directly.
  */
 /**
+ * 58: the load home. A serf standing at a building now takes that
+ * building's own open haul before the board deals anything that needs a
+ * walk (systems/logistics.ts) — the man who carried bread into the mine
+ * leaves with its silver instead of walking back to the castle empty and
+ * being sent out again for it.
+ *
+ * 58, cut as 55: main took 55, 56 and 57 while this branch was in review.
+ * Fourth number, same reason the three notes below give for their own
+ * renumbering, and by now the pattern is the note worth reading.
+ *
+ * Which serf claims which job changes on the first delivery of a match,
+ * and every haul after it is re-timed, so a log recorded before this build
+ * diverges within seconds of the opening.
+ *
+ * 57's note follows.
+ */
+/**
  * 57: the fishery stands on 2x2.
  *
  * 57 and not 55, which is the number this was cut as: main took 55 (the
@@ -823,4 +840,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 57;
+export const REPLAY_VERSION = 58;
