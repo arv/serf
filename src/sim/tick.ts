@@ -310,23 +310,21 @@ export function applyCommand(
       // Abbey and the village carries it there load by load, exactly like
       // a site's materials; the clock starts when the last one lands
       // (systems/research.ts). Nothing is spent until a good is actually
-      // handed over the Abbey's threshold, so an order that never gets
-      // its stone costs the player nothing but the slot.
+      // handed over the Abbey's threshold, so an order that never gets its
+      // stone costs the player nothing but the slot.
+      //
+      // The stores are not a gate, for the same reason the build ribbon
+      // does not gate on them (buildUnlocked in ui/buildMenu.ts): a study
+      // is pegged out on credit like a woodcutter is, and the village
+      // catches up to the bill. Requiring the shelf to hold the whole cost
+      // first would deny the plain opening — order it now and let the
+      // silver come — to the player with the emptiest storehouse, who is
+      // exactly the one who needs to plan ahead. Tech and a standing
+      // Abbey are the whole of it (canResearch).
       if (!canResearch(world, playerId, cmd.tech).ok) break;
       const abbey = researchAbbey(world, playerId);
-      const sh = findStorehouse(world, playerId);
-      const cost = TECH_DEFS[cmd.tech].cost;
-      if (!abbey || !sh) break;
-      // Still gated on the shelf holding the whole bill today, though the
-      // goods that eventually walk in may come from anywhere (the matcher
-      // sources each load from the nearest supply). The gate is what keeps
-      // "available" on the tech panel honest, and what stops a seat
-      // parking its one study slot on a bill it cannot begin to pay.
-      const affordable = goodEntries(cost).every(
-        ([good, n]) => (sh.stock[good] ?? 0) >= n,
-      );
-      if (!affordable) break;
-      abbey.researchNeeds = {...cost};
+      if (!abbey) break;
+      abbey.researchNeeds = {...TECH_DEFS[cmd.tech].cost};
       player.techs.active = {
         tech: cmd.tech,
         ticksLeft: TECH_DEFS[cmd.tech].durationTicks,

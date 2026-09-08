@@ -83,7 +83,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.research]: {
     summary:
-      'Order a study at the Abbey. Nothing is spent up front: the cost is billed to the Abbey, serfs carry it there, and the study starts when the last load lands.',
+      'Order a study at the Abbey. Nothing is spent up front and the stores are not a gate — like a building site, the cost is billed to the Abbey, serfs carry it there as the village can, and the study starts when the last load lands.',
     payload: 'tech',
   },
   [CommandKind.trainUnit]: {

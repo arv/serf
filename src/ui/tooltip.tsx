@@ -615,7 +615,8 @@ export function TechTip(props: {tech: TechId}) {
           of the wait — worth saying on the tip that quotes the clock. */}
       <div class="tip-line">
         Serfs carry the goods to the {buildingName(BuildingTypeId.abbey)} first;
-        the study starts when the last load arrives.
+        the study starts when the last load arrives. Order it before you can pay
+        for it and the village catches up.
       </div>
       <Show when={prereqNames().length > 0}>
         <div class="tip-warn">Requires {prereqNames()}</div>

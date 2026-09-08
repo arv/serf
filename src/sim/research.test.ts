@@ -4,6 +4,7 @@ import {checkInvariants} from './debug/invariants.ts';
 import {BARRACKS_ALE_CAP, FESTIVAL_DURATION} from './defs/balance.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
+import {goodEntries} from './defs/goods.ts';
 import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
@@ -135,6 +136,34 @@ describe('research', () => {
       TechId.cobbledBoots,
     );
     expect(sh.stock[GoodId.silver]).toBe(50);
+  });
+
+  it('is ordered on credit, and the study waits for the goods', () => {
+    // The build ribbon's rule, applied to the tree: a site is pegged out
+    // with an empty storehouse and the planks catch up, and a study is
+    // ordered the same way. Nothing on the shelf, an order taken all the
+    // same — and it starts the moment the goods exist and are carried in.
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {});
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
+    expect(world.players[0]!.techs.active?.started).toBe(false);
+
+    // The silver and wheat turn up later, from wherever.
+    const cost = TECH_DEFS[TechId.cobbledBoots].cost;
+    for (const [good, n] of goodEntries(cost)) {
+      sh.stock[good] = n;
+      world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
+    }
+    runHaul(world);
+    run(world, TECH_DEFS[TechId.cobbledBoots].durationTicks + 2);
+    expect(world.players[0]!.techs.researched).toContain(TechId.cobbledBoots);
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('drops the order if the Abbey falls before the books open', () => {

@@ -29,6 +29,12 @@
  * the clock starts when the last one lands (systems/research.ts). Every
  * tech's durationTicks was cut to 0.6 of what it was to pay for the walk.
  *
+ * With the payment goes the gate: the command used to refuse an order the
+ * storehouse could not cover that instant, and takes it on credit now, the
+ * way a building site is pegged out on credit (buildUnlocked in
+ * ui/buildMenu.ts says the same of the ribbon). So a log can also carry a
+ * research order an older build simply threw away.
+ *
  * Nothing about that replays: a log recorded before this build spends
  * goods on a tick this one does not, hauls that never existed take hands
  * off the board for a minute at a time, and every research lands on a

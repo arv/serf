@@ -16,7 +16,6 @@ import {
   playersMeta,
   replayMode,
   setTechPanelOpen,
-  stock,
   techs,
   viewerId,
 } from './store';
@@ -47,11 +46,14 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
     if (!def.prereqs.every(p => t.researched.includes(p)))
       return TechNodeStateNs.locked;
     if (t.active) return TechNodeStateNs.locked;
-    const s = stock();
-    const affordable = GOODS.every(g => (s[g] ?? 0) >= (def.cost[g] ?? 0));
-    return affordable
-      ? TechNodeStateNs.available
-      : TechNodeStateNs.unaffordable;
+    // The shelf is not consulted. A study is ordered on credit like a
+    // building is pegged out on credit — the bill goes on the Abbey and
+    // the village carries it there as it can (tick.ts) — so a node dimmed
+    // for an empty storehouse would be the build ribbon's old stock gate
+    // again, in the one place it was never true either: greying out the
+    // plan a poor village most needs to make. The cost is written on the
+    // node; what it can be paid with is the player's to read.
+    return TechNodeStateNs.available;
   };
 
   const progress = (id: TechId): number => {
@@ -159,7 +161,6 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
         .tech-node.available:hover {
           background: rgba(176, 74, 56, 0.25); box-shadow: 0 0 6px rgba(223, 182, 112, 0.35);
         }
-        .tech-node.unaffordable { opacity: 0.7; }
         .tech-node.locked { opacity: 0.4; }
         /* A replay's tree is read, not clicked. An affordable node keeps
            its face — it says what the seat could take up next, which is
