@@ -229,34 +229,34 @@ describe("the fishery's pier", () => {
     // Facing 2: the pier turns half a circle, out of the north face (-z).
     // Flat dry ground everywhere, so no fit can better the authored deck
     // and the line comes back exactly as the model places it.
-    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const piers = sync.fisheryPiers();
     expect(piers.length).toBe(1);
     const p = piers[0]!;
-    expect(p.bx).toBeCloseTo(11.5);
-    expect(p.bz).toBeCloseTo(11.5);
+    expect(p.bx).toBeCloseTo(11);
+    expect(p.bz).toBeCloseTo(11);
     expect(p.yaw).toBeCloseTo(Math.PI);
     // The deck runs north: its landward end nearest the building, the
     // fishing spot further out (and a step short of the tip).
-    expect(p.baseZ).toBeLessThan(11.5);
+    expect(p.baseZ).toBeLessThan(11);
     expect(p.spotZ).toBeLessThan(p.baseZ);
-    expect(p.baseX).toBeCloseTo(11.5);
-    expect(p.spotX).toBeCloseTo(11.5);
+    expect(p.baseX).toBeCloseTo(11);
+    expect(p.spotX).toBeCloseTo(11);
     // Standing height: the planks sit a touch proud of the ground.
     expect(p.deckY).toBeGreaterThan(0);
     expect(p.deckY).toBeLessThan(0.2);
   });
 
   it('leaves the authored deck alone when it already reaches water', () => {
-    // Facing 2 sends the deck north out of a 3x3 at (10,10): landward end
-    // at z 10.65, tip at 8.15, fishing spot at 8.55. Open water from z 9
-    // north, so the authored placement stands over it.
+    // Facing 2 sends the deck north out of the 2x2 at (10,10): landward
+    // end at z 10.15, tip at 7.65, fishing spot at 8.05. Open water from
+    // z 9 north, so the authored placement stands over it.
     const {sync, scene} = makeSync(shoreHeights((_tx, tz) => tz <= 8));
-    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
     expect(p.yaw).toBeCloseTo(Math.PI);
-    expect(p.spotX).toBeCloseTo(11.5);
-    expect(p.spotZ).toBeCloseTo(8.55);
+    expect(p.spotX).toBeCloseTo(11);
+    expect(p.spotZ).toBeCloseTo(8.05);
     const pier = scene.getObjectByName('fisheryPier')!;
     expect(pier.rotation.y).toBeCloseTo(0);
     expect(pier.scale.x).toBeCloseTo(1);
@@ -269,68 +269,72 @@ describe("the fishery's pier", () => {
     // x 9 to x 10. That is the shore a quarter-turn facing cannot express,
     // and the reason the authored deck so often ends on grass.
     const {sync, scene} = makeSync(shoreHeights(tx => tx === 9));
-    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
-    // 45 degrees about the footprint center: the pivot swings the deck's
-    // landward end west along with the hut, which is what buys the reach a
-    // base-pivoted 45 never had (there the casting spot still hung over
-    // grass, and only 60 got it wet).
-    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 4);
-    expect(p.baseX).toBeCloseTo(11.5 - 0.85 * Math.SQRT1_2);
-    expect(p.spotX).toBeCloseTo(11.5 - 2.95 * Math.SQRT1_2);
+    // 30 degrees about the footprint center — the least intrusive turn
+    // that gets there: the pivot swings the deck's landward end west along
+    // with the hut, which is what buys the reach a base-pivoted turn never
+    // had (pivoted at the deck's own base, the casting spot still hung over
+    // grass at 45 and only 60 got it wet).
+    const turn = Math.PI / 6;
+    expect(p.yaw).toBeCloseTo(Math.PI + turn);
+    expect(p.baseX).toBeCloseTo(11 - 0.85 * Math.sin(turn));
+    expect(p.spotX).toBeCloseTo(11 - 2.95 * Math.sin(turn));
     expect(p.spotZ).toBeLessThan(p.baseZ);
     // The deck itself stays square to the hut — the MODEL carries the turn,
     // house and jetty as one piece...
     const pier = scene.getObjectByName('fisheryPier')!;
     expect(pier.rotation.y).toBeCloseTo(0);
     expect(pier.scale.x).toBeCloseTo(1);
-    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + Math.PI / 4);
+    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + turn);
     // ...and the measurement is cached: asking again must not turn twice.
     expect(sync.fisheryPiers()[0]!.yaw).toBeCloseTo(p.yaw);
-    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + Math.PI / 4);
+    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + turn);
   });
 
   it('trims the deck rather than stride over a narrow channel', () => {
-    // The single tile row at tz 9, straight off the front face, so the wet
-    // band runs from world z 9 to z 10: the authored deck reaches z 8.15,
+    // The single tile row at tz 8, straight off the front face, so the wet
+    // band runs from world z 8 to z 9: the authored deck reaches z 7.65,
     // clean over it and dry on the far bank.
     // Placement only promises water within a tile of the footprint, so a
     // deck running two tiles past it can do exactly this.
-    const {sync, scene} = makeSync(shoreHeights((_tx, tz) => tz === 9));
-    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    const {sync, scene} = makeSync(shoreHeights((_tx, tz) => tz === 8));
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
-    // Still pointing where the hut faces — a whole tile shorter instead.
+    // Still pointing where the hut faces — half a tile shorter instead.
     expect(p.yaw).toBeCloseTo(Math.PI);
-    expect(p.baseZ).toBeCloseTo(10.65);
-    expect(p.spotZ).toBeCloseTo(9.55);
+    expect(p.baseZ).toBeCloseTo(10.15);
+    expect(p.spotZ).toBeCloseTo(8.55);
     const pier = scene.getObjectByName('fisheryPier')!;
     expect(pier.rotation.y).toBeCloseTo(0);
-    expect(pier.scale.x).toBeCloseTo(0.6);
+    expect(pier.scale.x).toBeCloseTo(0.8);
     // A smaller dock, planks and all, so the standing height comes down.
-    expect(p.deckY).toBeCloseTo(0.13);
+    expect(p.deckY).toBeCloseTo(0.14);
   });
 
   it('settles for touching water where nothing it can reach is deep', () => {
     // A shallow flat at z 8-9: under the water plane, but nowhere near the
     // plank's depth the fit asks for first. The strict pass finds nothing,
     // so a trim off the second — which is the only reason this deck moves
-    // at all — pulls the tip back off the far bank and into it.
+    // at all — pulls the tip back off the far bank and into it. Three
+    // quarter-tile steps of trim, where a turn would cost half again as
+    // much apiece.
     const {sync, scene} = makeSync(
       shoreHeights((_tx, tz) => tz === 8 || tz === 9, -0.4),
     );
-    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
     expect(p.yaw).toBeCloseTo(Math.PI);
     expect(p.spotZ).toBeCloseTo(8.8);
-    expect(scene.getObjectByName('fisheryPier')!.scale.x).toBeCloseTo(0.9);
+    expect(scene.getObjectByName('fisheryPier')!.scale.x).toBeCloseTo(0.7);
   });
 
   it('keeps the authored deck when no fit reaches water at all', () => {
     const {sync, scene} = makeSync(shoreHeights(() => false));
-    sync.update([snap({type: BuildingTypeId.fishery, w: 3, h: 3, facing: 2})]);
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
     expect(p.yaw).toBeCloseTo(Math.PI);
-    expect(p.spotZ).toBeCloseTo(8.55);
+    expect(p.spotZ).toBeCloseTo(8.05);
     const pier = scene.getObjectByName('fisheryPier')!;
     expect(pier.rotation.y).toBeCloseTo(0);
     expect(pier.scale.x).toBeCloseTo(1);
@@ -341,8 +345,6 @@ describe("the fishery's pier", () => {
     sync.update([
       snap({
         type: BuildingTypeId.fishery,
-        w: 3,
-        h: 3,
         facing: 1,
         state: BuildingState.site,
         siteNeeds: {},
