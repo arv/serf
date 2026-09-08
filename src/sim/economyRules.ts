@@ -104,6 +104,18 @@ export interface RuleContext {
    */
   soldierCount: number;
   /**
+   * What this seat's hands are holding right now, good by good — counted
+   * in the same unit sweep as `serfCount` and `soldierCount`, so it costs
+   * a rule nothing to ask.
+   *
+   * A good in transit is NOT in any building: logistics decrements the
+   * source's stock at pickup and parks the load on the serf until he
+   * arrives. So a rule that adds up its own buildings and stops there
+   * reads a village mid-haul as poorer than it is, and one that acts on
+   * being poor will act again every beat the carriers are walking.
+   */
+  carried: GoodAmounts;
+  /**
    * The stall watchdog's reading for this beat. No rule reads it today —
    * `resiteExtractor` was the last, and 2026-09-01 gave it a condition of
    * its own (see its comment, and AI_STALL in systems/ai.ts). It is still
@@ -314,12 +326,15 @@ function canLose(def: BuildingDef, b: Building): boolean {
  *
  * - **A woodcutter in any state stands the rule down**, scaffold included.
  *   A seat with one going up is not stranded, it is waiting.
- * - **Wood anywhere on the seat's ground** is counted, not just the
- *   shelf — piles included, since a sale's own salvage is what the next
- *   beat must see if this is to sell one roof rather than the village. It
- *   is the pile that makes the rule self-limiting: the wood lands on the
- *   ground the instant the wreckers finish, so the condition is false
- *   again before the serfs have carried a plank home.
+ * - **Wood anywhere the seat has it** is counted — every building, the
+ *   salvage piles, and the loads its serfs are carrying. That last one is
+ *   not fastidiousness either: a good in transit has already been taken
+ *   off the building it came from, so a rule counting buildings alone
+ *   watches its own rescue vanish the moment a serf picks it up and sells
+ *   another roof to replace it. Counting all three is what makes the rule
+ *   self-limiting: the pile lands the instant the wreckers finish, the
+ *   condition is false from that beat on, and it stays false while the
+ *   planks are walking home.
  * - **Somewhere to put the replacement.** `nearestClaimableResource` is
  *   the same question `resiteExtractor` asks before it sells: a roof
  *   traded for a hut with no grove to stand by buys nothing.
@@ -356,7 +371,7 @@ const sellForTheWoodcutter: EconomyRule = {
   when: 'the last woodcutter is gone and there is no wood left to raise another',
   phase: RulePhaseNs.recovery,
   fire(ctx) {
-    let wood = 0;
+    let wood = ctx.carried[GoodId.wood] ?? 0;
     let best: Building | undefined;
     let bestRefund = 0;
     for (const b of ctx.mine) {

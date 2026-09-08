@@ -770,6 +770,14 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // against 27 and 30 against 29. Noise either way by that file's own
     // rule, which is the finding: six stone does not cost the seat built
     // around the bow its map.
+    //
+    // Those four pairs were read on the tree this branch cut from, before
+    // main's fishery footprint and its one-of-each armory landed under it,
+    // and they are left as they were read rather than quietly restated
+    // against a game they were not read on. What the merged tree says is
+    // recorded where it was measured — the whole-sweep totals in
+    // sellForTheWoodcutter's own note (economyRules.ts), which is the run
+    // that had to be redone anyway.
     cost: {[GoodId.wood]: 10, [GoodId.stone]: 6},
     // Faster up than the barracks' twenty-five seconds, for the same reason
     // it is cheaper: it is the second roof on the military line, not the

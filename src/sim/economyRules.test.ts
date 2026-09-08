@@ -4,6 +4,7 @@ import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
+import type {GoodAmounts} from './defs/goods.ts';
 import * as EconomyRuleId from './economyRuleIdEnum.ts';
 import {
   ALL_ECONOMY_RULES,
@@ -173,6 +174,10 @@ describe('the real rules stay quiet on a healthy seat', () => {
     mine: [],
     stock: {},
     serfCount: 3,
+    // Empty hands, like every other field here: the brain fills this in
+    // the same sweep it counts serfs in, so a context without it is a
+    // context no rule ever really sees.
+    carried: {},
     stalled: false,
     strategy: {survivalFloor: 3},
   } as unknown as RuleContext;
@@ -270,11 +275,19 @@ describe('sellForTheWoodcutter: paying for the axe with a roof', () => {
     r => r.id === EconomyRuleId.sellForTheWoodcutter,
   )!;
 
-  function contextFor(world: World): RuleContext {
+  /** `mine` sorted, because RuleContext documents it as ascending id and
+   * this rule's tie-break rides on that. A Map happens to hand back
+   * insertion order, which happens to be id order — "happens to" twice is
+   * not what a contract is worth testing against. `carried` is the loads
+   * the seat's serfs are holding, which the rule counts as its own wood. */
+  function contextFor(world: World, carried: GoodAmounts = {}): RuleContext {
     return {
       world,
       owner: 0,
-      mine: [...world.buildings.values()].filter(b => b.owner === 0),
+      mine: [...world.buildings.values()]
+        .filter(b => b.owner === 0)
+        .sort((a, b) => a.id - b.id),
+      carried,
     } as RuleContext;
   }
 
@@ -321,6 +334,17 @@ describe('sellForTheWoodcutter: paying for the axe with a roof', () => {
     const world = strandedSeat(0);
     spawnSalvage(world, 0, 50, 50, 1, 1, {[GoodId.wood]: 6});
     expect(rule.fire(contextFor(world))).toBeNull();
+  });
+
+  it("counts the planks already in a serf's hands", () => {
+    // The window this closes: logistics takes a good off its source at
+    // PICKUP and parks it on the carrier, so the salvage this rule just
+    // bought reads as nothing at all while it walks home. A rule blind to
+    // that watches its own rescue vanish and sells another roof to replace
+    // it, every beat, until the village is gone — which is what the first
+    // version of it did.
+    const world = strandedSeat(0);
+    expect(rule.fire(contextFor(world, {[GoodId.wood]: 6}))).toBeNull();
   });
 
   it('will not sell the bread out of the village to buy an axe', () => {

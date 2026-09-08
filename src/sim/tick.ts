@@ -482,6 +482,23 @@ export function applyCommand(
           goods[good] = 0;
         }
       }
+      // The hauls this building was one end of die with it, here rather
+      // than at the next reconcile. Both ends matter, and the source end is
+      // the one that bites: a job carrying iron to this smith has that iron
+      // RESERVED out of the storehouse, and a promise left standing while
+      // the stock behind it walks away is exactly the `reservedOut > stock`
+      // the invariant check names (debug/invariants.ts). Reconcile does
+      // catch it, but only on the matcher's clock, and a sale is not a
+      // thing the books should be wrong about in between.
+      //
+      // The carrier keeps what is already in his hands — the matcher finds
+      // it another home — for the same reason a move order does: a sale is
+      // a decision about a building, not about a barrel.
+      for (const job of [...world.jobs.values()]) {
+        if (job.from === b.id || job.to === b.id) {
+          abortJob(world, job, 'the building was sold', true);
+        }
+      }
       destroyBuilding(world, b);
       // The pile stands where the building stood, on its exact footprint,
       // and serfs cart it home through the ordinary evacuation hauls (or
