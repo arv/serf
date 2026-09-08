@@ -186,7 +186,34 @@ export function hashWorld(world: World): number {
   }
   for (const p of world.players) {
     mix(p.alive ? 1 : 0);
+    // Fixed for the life of a world, like `starts` above, and hashed for
+    // the same reason: a save that dropped a seat's kind, playbook or tier
+    // would come back a different match. 0 is a safe "absent" sentinel for
+    // the two optional ones: every id starts at 1.
+    mix(p.kind);
+    mix(p.strategy ?? 0);
+    mix(p.difficulty ?? 0);
+    // Which techs, not how many: a seat holding Irrigation and one holding
+    // Cobbled Boots work every post differently from the first tick.
     mix(p.techs.researched.length);
+    for (const tech of p.techs.researched) mix(tech);
+    // The study in hand, both halves of it: what is being learned, how far
+    // the books are from closing, the roof it was ordered at, and whether
+    // the ticks are running yet. A save that dropped it would play on as
+    // the same world until the tech never landed. The presence bit keeps
+    // "no study" apart from a study whose every field reads 0.
+    const active = p.techs.active;
+    mix(active ? 1 : 0);
+    if (active) {
+      mix(active.tech);
+      mixU32(active.ticksLeft);
+      mixU32(active.abbey);
+      mix(active.started ? 1 : 0);
+    }
+    // The festival buff decides how fast every post in the village works
+    // for as long as it runs.
+    mixU32(p.techs.festivalTicksLeft);
+    mix(p.pavingUnlocked ? 1 : 0);
   }
 
   const blocked = world.map.blocked;

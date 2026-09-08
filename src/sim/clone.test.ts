@@ -1,8 +1,11 @@
 import {describe, expect, it} from 'vitest';
 import * as BuildingState from './buildingStateEnum.ts';
 import {cloneWorld} from './clone.ts';
+import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
 import {hashWorld} from './hash.ts';
+import type {PlayerState} from './player.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import {deserializeWorld, serializeWorld} from './save.ts';
 import {tickWorld} from './tick.ts';
@@ -167,6 +170,75 @@ describe('hashWorld', () => {
       const w = cloneWorld(world);
       const first = [...w.units.values()][0]!;
       mutate(first);
+      expect(hashWorld(w)).not.toBe(base);
+    }
+  });
+
+  it('sees the whole of a player, not just a count of his techs', () => {
+    // Each of these leaves `alive` and the researched count where they
+    // were — the two things the digest used to read per seat — and changes
+    // what every post in the village does next. A save that dropped any of
+    // them round-tripped to an identical hash, so the clone/save/hash
+    // triangle test above could not catch it (#259).
+    const world = createWorld({
+      seed: 21,
+      players: [{kind: PlayerKind.ai, difficulty: DifficultyId.hard}],
+    });
+    run(world, 400);
+    const seat = world.players[0]!;
+    seat.techs.researched = [TechId.irrigation];
+    seat.techs.active = {
+      tech: TechId.millstones,
+      ticksLeft: 300,
+      abbey: 7,
+      started: false,
+    };
+    seat.techs.festivalTicksLeft = 100;
+    const base = hashWorld(world);
+    expect(hashWorld(cloneWorld(world))).toBe(base);
+    const mutations: ((p: PlayerState) => void)[] = [
+      // Which tech, not how many.
+      p => {
+        p.techs.researched = [TechId.cobbledBoots];
+      },
+      // Every field of the study in hand...
+      p => {
+        p.techs.active!.tech = TechId.brewing;
+      },
+      p => {
+        p.techs.active!.ticksLeft -= 1;
+      },
+      p => {
+        p.techs.active!.abbey = 8;
+      },
+      p => {
+        p.techs.active!.started = true;
+      },
+      // ...and whether there is one at all.
+      p => {
+        p.techs.active = undefined;
+      },
+      p => {
+        p.techs.festivalTicksLeft = 0;
+      },
+      p => {
+        p.pavingUnlocked = !p.pavingUnlocked;
+      },
+      // Fixed for the life of a world, but a save that dropped them comes
+      // back a different match.
+      p => {
+        p.strategy = undefined;
+      },
+      p => {
+        p.difficulty = undefined;
+      },
+      p => {
+        p.kind = PlayerKind.human;
+      },
+    ];
+    for (const mutate of mutations) {
+      const w = cloneWorld(world);
+      mutate(w.players[0]!);
       expect(hashWorld(w)).not.toBe(base);
     }
   });

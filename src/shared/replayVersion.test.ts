@@ -613,8 +613,18 @@ import {REPLAY_VERSION} from './replayVersion';
 // repair bill it is the twin of. save.ts needs nothing — it serializes
 // buildings whole. Neither is replayed state, and 62 is this build's own
 // bump besides.
+// Still 62 after hashWorld learned to read the whole of a player (#259).
+// It mixed two things per seat — `alive` and a count of researched techs —
+// so which techs, the study in hand (its tech, ticksLeft, abbey, started),
+// the festival buff, pavingUnlocked, and the seat's kind, playbook and tier
+// were all invisible to it, and a clone or save that dropped any of them
+// round-tripped to an identical digest: the clone/save/hash triangle test
+// structurally could not see a player. The digest changes no sim behavior
+// and is not replayed state — its only non-test callers are the perf
+// tools (tools/perf/digest.ts, stress.ts) — so this is the same "Still"
+// as the study-bill entry above it.
 const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = 'd81c67a9942d60679e2c36773716c586';
+const EXPECTED_HASH = '76728c8e342557a3349dbc6642837451';
 
 /**
  * Everything a replay's playback depends on, as raw source:
