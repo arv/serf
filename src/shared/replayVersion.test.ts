@@ -464,8 +464,17 @@ import {REPLAY_VERSION} from './replayVersion';
 // its tooltip (protocol/, ui/), the reach outline (render/), and the
 // re-siting rule's condition, which is brain-side the way every other
 // economy rule is — playback never runs a brain.
-const EXPECTED_VERSION = 56;
-const EXPECTED_HASH = '4e51e7fdb6eaa434d40b9838c1cc3fac';
+// 57 for the fishery's footprint, 3x3 down to 2x2 (defs/buildings.ts):
+// canPlace measures the ground and the water against it, placeBuilding
+// blocks the tiles it covers, and both answer differently now — shores
+// that could not take a fishery can (416 legal sites on seed 1 against
+// 379), and the four tiles a standing one blocks are not the nine it
+// blocked. Sim in the plainest sense; see replayVersion.ts. Cut as 55,
+// landing as 57: main took 55 for the Archery Range and 56 for the
+// reachable-ground rule while the branch was open. (The hut it carries got
+// smaller in the same commit, and that half is render only.)
+const EXPECTED_VERSION = 57;
+const EXPECTED_HASH = '750c9820d9dfe62f1a6ada8b6fb2ea87';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -20,6 +20,29 @@
  * directly.
  */
 /**
+ * 57: the fishery stands on 2x2.
+ *
+ * 57 and not 55, which is the number this was cut as: main took 55 (the
+ * Archery Range) and 56 (the reachable-ground rule) while the branch was
+ * open, and two builds cannot share a number — the same renumbering the
+ * two notes below record about themselves.
+ *
+ * A footprint is sim, not decoration. `canPlace` measures the flat ground
+ * under it and the water within a tile of it, `placeBuilding` blocks the
+ * tiles it covers, and every serf walking past one paths around what it
+ * blocked. A shoreline that had to give nine tiles of buildable bank gives
+ * four now — on seed 1 that is 416 legal fishery sites where there were
+ * 379 — so a log recorded before this re-runs into a valley whose shores
+ * take fisheries the old one refused, and where one already stands it
+ * stands on different ground with different tiles walkable around it.
+ *
+ * (The hut drawn on that footprint got smaller with it, and its jetty was
+ * re-authored in tiles so the planks still reach the water. That half is
+ * render only — assets.ts — and nothing in a tick can see it.)
+ *
+ * 56's note follows.
+ */
+/**
  * 56: a gatherer answers only for ground it can walk to.
  *
  * 56 and not 54, which is the number this was cut as: main took 54 (the
@@ -800,4 +823,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 56;
+export const REPLAY_VERSION = 57;
