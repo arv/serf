@@ -1774,9 +1774,38 @@ export class AiBrain {
       const next = road ?? s.researchOrder.find(open);
       if (next && hasBuilt(BuildingTypeId.abbey)) {
         const cost = TECH_DEFS[next].cost;
-        const ok = goodEntries(cost).every(
-          ([good, n]) => (stock[good] ?? 0) >= n,
-        );
+        // The shelf has to hold the whole bill, and this is a decision the
+        // brain makes rather than one the sim imposes: since studies are
+        // billed to the Abbey and carried there, the command takes an
+        // order the storehouse cannot cover (tick.ts) exactly as the build
+        // ribbon takes a site nobody can pay for. The seat declines to use
+        // that credit, and it was measured both ways before it did.
+        //
+        // A bill is a standing demand: it calls for its goods until it has
+        // them, and its place on the haul board is the tick it was written
+        // (FIFO by demand age), so a bill for goods the village does not
+        // have yet takes every one of them as it appears, ahead of
+        // everything asked for since — the mill's wheat, the forge's iron,
+        // the barracks' bread. A seat ordering on credit therefore keeps a
+        // study standing at all times, and the study is first in the queue
+        // for the same goods its army and its hands are made of.
+        //
+        // Twelve dealt four-seat valleys, 90_000 ticks each: waiting for
+        // the shelf, all twelve wars are decided (mean 20_873) and the
+        // board holds 466 people and 166 soldiers when they are; on credit,
+        // eleven are decided (mean 25_222) with 334 people and 108
+        // soldiers. It buys books with them — 189 techs against 154 — and
+        // the trade is bad: a third of the army for a fifth more research.
+        // Requiring only the SILVER in hand and the rest on credit was
+        // measured too and is not the fix; on seed 42 that game runs past
+        // 150_000 ticks with three seats standing and eight PEOPLE between
+        // them, where waiting settles it at 29_422.
+        //
+        // The player is not held to this. A human ordering a study before
+        // the silver is in is making a plan with the same board in front of
+        // them; a seat doing it every time it can is a plan that never
+        // stops paying for one.
+        //
         // Hands first, when there are barely any. Every tech is priced in
         // silver and so is a hire, and the panic branch above only fires on
         // the beat the shelf already holds the four — so a seat rebuilding
@@ -1792,6 +1821,13 @@ export class AiBrain {
         // with nowhere to put them — silver held back for a hire there is no
         // bed for is silver held back for nothing, so a full village
         // researches.
+        //
+        // The sum reads today's shelf against a bill the study will draw
+        // down over the next minute rather than this tick, which makes it a
+        // forecast now rather than an account. It is the right forecast: an
+        // ordered study calls for its silver until it has it, so coin
+        // promised to the Abbey is coin the next hire will not see either
+        // way, only later.
         const leavesHireMoney =
           serfCount >= s.survivalFloor ||
           !room ||
@@ -1799,6 +1835,9 @@ export class AiBrain {
             (hiring ? HIRE_SERF_COST : 0) -
             (cost[GoodId.silver] ?? 0) >=
             HIRE_SERF_COST;
+        const ok = goodEntries(cost).every(
+          ([good, n]) => (stock[good] ?? 0) >= n,
+        );
         if (ok && leavesHireMoney)
           commands.push({kind: CommandKind.research, tech: next});
       }

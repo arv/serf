@@ -489,7 +489,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // Warlord's ironworking moved second (the rack no longer carries it to a
 // raiding party) and the Fletcher's notes stopped describing two spears.
 const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = 'eba22e932f4b9605367365ca158fa107';
+const EXPECTED_HASH = '544c40e047b7e6e2220e963c48065c93';
 
 /**
  * Everything a replay's playback depends on, as raw source:
