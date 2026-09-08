@@ -296,4 +296,25 @@ describe('snapBuildings: a building the definitions cannot describe', () => {
     );
     expect(roster.some(b => b.id === stranger.id)).toBe(false);
   });
+
+  it('still counts the men an undescribed building holds', () => {
+    const world = bareWorld();
+    addStorehouse(world, 10, 10, {});
+    // The shape a newer build's trainer arrives in: a type this one has no
+    // entry for, holding a garrison and a recruit already under way.
+    const stranger = addBuiltHut(world, 40, 40, false);
+    (stranger as {type: number}).type = 9999;
+    stranger.garrison = 2;
+    stranger.trainQueue = [
+      {unit: UnitTypeId.archer, ticksLeft: 10, started: true},
+      {unit: UnitTypeId.archer, ticksLeft: 10, started: false},
+    ];
+
+    // Two up the roof and one on the drill floor: three heads, and the
+    // sim's own populationOf counts every one of them. A readout that
+    // dropped them with the building would sit under the gate the castle
+    // is refusing hires against, which is the disagreement snapPlayers
+    // exists to have already fixed.
+    expect(snapPlayers(world)[0]!.pop).toBe(3);
+  });
 });

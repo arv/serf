@@ -268,12 +268,24 @@ export function snapPlayers(world: World): PlayerSnap[] {
   // the two archers up the tower were the two missing heads.
   const heads = new Map<Owner, number>();
   for (const b of world.buildings.values()) {
-    if (b.dead || !describable(b)) continue;
+    if (b.dead) continue;
+    // Heads first, ahead of the describable gate, because counting them
+    // needs no definition: a garrison and a started recruit are plain
+    // fields on the building. Behind the gate they went missing exactly
+    // where this build is least able to afford it — a save from a newer
+    // build whose unknown building happens to hold men (a trainer, say,
+    // which is what an unknown 2x2 with a rally flag usually is) would
+    // report a population below the sim's own, since populationOf counts
+    // them either way. That is the same disagreement the note above
+    // records being fixed once already, and it ends with the castle
+    // offering a hire the sim then refuses.
     let held = b.garrison ?? 0;
     if (b.trainQueue) {
       for (const item of b.trainQueue) if (item.started) held++;
     }
     if (held) heads.set(b.owner, (heads.get(b.owner) ?? 0) + held);
+    // Everything below reads BUILDING_DEFS, so it is the gate's business.
+    if (!describable(b)) continue;
     if (b.state === BuildingState.site) {
       // A site still owed its borrowed hammer counts as a hammer want.
       if (
