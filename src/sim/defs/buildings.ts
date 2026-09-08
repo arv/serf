@@ -155,6 +155,26 @@ export interface BuildingDef {
   /** Hidden from the build menu (system-placed). */
   systemOnly?: boolean;
   /**
+   * Placeable without banking the price first: the site goes down empty
+   * and rises as goods reach it.
+   *
+   * The sim has never asked a placement to be paid for — `placeBuilding`
+   * checks the ground and the tech and nothing else — so this is not a
+   * sim rule but the one both POLICIES read: the build menu's button
+   * (ui/buildMenu.ts) and the AI's build order (systems/ai.ts). Stated
+   * once because two copies of a rule drift, and a player and a lord
+   * playing under different rules is the drift that matters here.
+   *
+   * Only the Monument sets it, and the reason is particular to it: its
+   * price is a clock rather than a choice, and victory.ts is explicit
+   * that a rival should be told the moment its site takes a first
+   * delivery and get "the whole raising" to ride out and stop it. Banking
+   * first collapsed that window — the site appeared with the goods
+   * already in hand. Any other building placed on credit is a scaffold
+   * standing idle on ground the plan needed.
+   */
+  raisedOnCredit?: boolean;
+  /**
    * Multiplier on the model's rendered size, on top of the footprint-derived
    * scale (makeGlbBuilding). Render-only — the sim's footprint, placement
    * and blocking all still read w/h, so this changes what a building looks
@@ -672,6 +692,10 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 220,
     sight: 5.5,
     requiresTech: TechId.soldiery,
+    // Steel only. The bow moved out to the Archery Range below, which is
+    // what makes the hall a choice instead of a menu: a village that wants
+    // both arms of the triangle now raises both roofs, and the two queues
+    // run side by side rather than one behind the other.
     trains: [
       // Soldiers march on bread, not on raw grain: the barracks is the far
       // end of mill -> bakery, and wheat is a crop again.
@@ -685,10 +709,46 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
         cost: {[GoodId.food]: 2, [GoodId.spear]: 1},
         durationTicks: 10 * S,
       },
+    ],
+  },
+  [B.archeryRange]: {
+    id: B.archeryRange,
+    name: 'Archery Range',
+    // Two by two where the barracks is three: a fenced lane, a shed for the
+    // staves and a butt at the end of it is not a drill hall.
+    w: 2,
+    h: 2,
+    // Timber and a token course of stone for the butt. Deliberately cheap in
+    // the one material the bow line is already short of: a guard tower is
+    // twelve stone, and the range now stands between Archery and the men who
+    // climb it. Making the range cost stone too would have priced the whole
+    // tower plan out of reach of the seat built around it (the Fletcher digs
+    // no iron and quarries only once).
+    cost: {[GoodId.wood]: 10, [GoodId.stone]: 2},
+    // Faster up than the barracks' twenty-five seconds, for the same reason
+    // it is cheaper: it is the second roof on the military line, not the
+    // first, and a second gate that also costs a barracks' worth of waiting
+    // would read as a toll rather than a choice.
+    buildTicks: 18 * S,
+    // Softer than the barracks' 220 — fence and shed against a drill hall.
+    // A raid that walks past the wall can burn the bows off the plan, which
+    // is the risk that pays for the range's speed.
+    hp: 150,
+    sight: 5.5,
+    // Archery rather than Soldiery: the tech that unlocks the archer unlocks
+    // the roof he is trained under, so the bow is still one research, not
+    // two. What it now also costs is a building.
+    requiresTech: TechId.archery,
+    trains: [
+      // Nine seconds against the barracks' twelve. The dedicated butt is
+      // what the extra roof buys: a plan that commits to the bow trains it
+      // a quarter faster than the mixed hall ever did, so the range is a
+      // trade rather than a tax. The bill itself is unchanged — two bread
+      // and a bow, exactly what the barracks charged.
       {
         unit: UnitTypeId.archer,
         cost: {[GoodId.food]: 2, [GoodId.bow]: 1},
-        durationTicks: 12 * S,
+        durationTicks: 9 * S,
       },
     ],
   },
@@ -705,10 +765,21 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // A tower is built to be looked out of. Short of the castle's nine,
     // well past the five and a half every workshop sees.
     sight: 8,
-    // Gated with the barracks rather than with the bow: raising the tower
-    // is the decision to defend a line, and it can stand empty and waiting
-    // while the archers who will man it are still a research away.
-    requiresTech: TechId.soldiery,
+    // Ungated. It was Soldiery's, on the reasoning that raising a tower is
+    // the decision to defend a line and may stand empty while the archers
+    // who will man it are still a research away — but Soldiery is one of
+    // two warfare roots now, and a village that opens on the bow was being
+    // asked to buy the OTHER arm's research to raise a wall its own arm
+    // mans. Left as it was, the one thing crossing between the two lines
+    // was the tower.
+    //
+    // Nothing is given away by opening it. The tower is expensive in the
+    // material a young village has least of (12 stone against the
+    // barracks' 8), and what stands in it before there are archers is the
+    // levy: villagers with stones off the parapet, at about a quarter of
+    // two bowmen's output. A tower raised on turn one is a quarry's worth
+    // of stone spent on that, and the men in it are hands not carrying
+    // anything.
     // Half again the damage and two tiles further than the same archer
     // standing in the field. Deliberately short of doubling either: two men
     // in a tower already beat two men on the grass by being unkillable
@@ -751,7 +822,16 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // the cost would be a clock, not a choice. The loaves are what make it
     // hurt, now that the mines eat them too (MINE_RATION_PER) — every one
     // laid in the plinth is one not in a shaft or a barracks.
-    cost: {[GoodId.gold]: 12, [GoodId.stone]: 30, [GoodId.food]: 20},
+    //
+    // Ten, halved from twenty, because twenty was not the cost it reads
+    // as. Tracking a mason's shelf: 30 stone banked by tick 15k, 12 gold
+    // by 33k, and then nothing but waiting on the twentieth loaf until
+    // 42.8k — its larder sits between nought and six for forty thousand
+    // ticks, because its own mines eat the rations. The bread was not a
+    // price among three, it was the only price, and it bought a delay
+    // rather than a decision. Halved it still hurts and no longer decides
+    // alone.
+    cost: {[GoodId.gold]: 12, [GoodId.stone]: 30, [GoodId.food]: 10},
     // The longest raising in the game by a factor of three. The build is
     // the point: a monument that goes up in a barracks' twenty-five seconds
     // is a purchase, and this has to be a thing rivals can see coming and
@@ -767,6 +847,12 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // seam does not also hand its owner an eye on it.
     sight: 5.5,
     requiresTech: TechId.deepMining,
+    // Laid empty and gilded as the carts arrive — see `raisedOnCredit`.
+    // Measured before it was: the mason banked 30 stone by tick 15k and 12
+    // gold by 33k, then waited on the twentieth loaf until 42.8k and laid
+    // the site twelve ticks later. The bread was the whole gap, and the
+    // raising nobody could see coming was the cost of it.
+    raisedOnCredit: true,
     // The gold is why it stands where it stands. Four tiles of slack so a
     // seam under the camp's own footprint is still buildable beside.
     nearResource: {kind: TileResource.GoldDep, radius: 4},
@@ -970,6 +1056,7 @@ export const BUILDING_TYPES: readonly BuildingTypeId[] = [
   B.weaponsmith,
   B.abbey,
   B.barracks,
+  B.archeryRange,
   B.guardTower,
   B.roadSite,
   B.salvage,
@@ -995,6 +1082,7 @@ export const BUILDING_KEYS: Readonly<Record<BuildingTypeId, string>> = {
   [B.weaponsmith]: 'weaponsmith',
   [B.abbey]: 'abbey',
   [B.barracks]: 'barracks',
+  [B.archeryRange]: 'archeryRange',
   [B.guardTower]: 'guardTower',
   [B.roadSite]: 'roadSite',
   [B.salvage]: 'salvage',

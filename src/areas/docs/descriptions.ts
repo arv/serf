@@ -95,7 +95,9 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.abbey]:
     'Where research happens and where festival ale is drunk. No resident: the serf who raises it walks away a serf.',
   [BuildingTypeId.barracks]:
-    'Turns bread, a forged weapon and a walking serf into a soldier. The rally flag on its door is where fresh recruits march.',
+    'Turns bread, a forged weapon and a walking serf into a soldier — knights and spearmen, the two arms that fight in reach. The rally flag on its door is where fresh recruits march.',
+  [BuildingTypeId.archeryRange]:
+    'The bow’s own roof: butts, a stave rack and the same bread-weapon-serf bill the barracks charges, filled a quarter faster. It is a second building on the military line rather than a stall in the first, so an army of steel and an army of bows are two decisions and two queues instead of one queue and an ordering.',
   [BuildingTypeId.guardTower]: `Stone that shoots back. ${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers on the wall hit harder and further than the same number on the grass — and until archers exist, the levy drops stones.`,
   [BuildingTypeId.roadSite]:
     'A single tile of paving, placed by the Masonry road pass rather than by hand. When it finishes, the trail beneath it is stone for good.',

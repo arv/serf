@@ -370,15 +370,86 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
-// Still 53 after the build order learned to borrow (AI_CREDIT in
-// systems/ai.ts): a seat may now lay a foundation whose bill the shelf is
-// a load short of, which changes what the seats DECIDE and nothing about
-// how a tick executes what they decided. Playback never runs a brain — a
-// replay stores the seats' commands rather than re-deriving them
-// (app/replay.ts) — so yesterday's logs play back exactly as they did, the
-// same reasoning the stance engine and the war behaviors are recorded
-// under above. The hash is over raw bytes, which is why it moved anyway.
-// 54 for a gatherer answering only for ground it can walk to: canPlace
+// Still 55 after a Copilot review pass corrected three pieces of prose the
+// branch had left describing the world as it was mid-branch — the Archery
+// tech's note still said the guard tower was Soldiery's to unlock, the
+// tower tooltip still counted the levy's wait in techs, and the README read
+// as though soldiers trained at the range. Comments and player-facing text:
+// the hash is over raw bytes so it moved, the sim did not.
+//
+// 55 for the Archery Range, and 55 rather than 54 because main claimed
+// 54 while this branch was open (the Monument's bread — its note is
+// carried below). Two builds cannot share a number.
+//
+// The Archery Range: the archer's training option moved off the
+// barracks' roster onto a building of its own, so a command an old log
+// records — `trainUnit archer` aimed at a barracks — is refused outright by
+// this build instead of filling a queue. That is command semantics, not
+// playbook data, and it is what earns the bump: the AI half of the same
+// change (keepTheQueueWarm reading every hall rather than the first
+// barracks, and two playbooks raising a range) is brain-side and would have
+// ridden whatever version it merged onto, exactly as the Mason's rule did
+// on 49. (Deliberately not spelled as a number: it said "53" until main
+// took 54 out from under it, which is the third stale figure this one
+// branch has left in this file.)
+// Still 55 after the merge with main's build-order credit rule, and after
+// the Fletcher's tower step took an `after: soldiery` to replace the brake
+// the ungated building no longer applies. Both are brain-side — a playbook
+// step and a rule that only reaches the sim as commands — and 55 is this
+// build's own bump besides.
+//
+// Still 55 again after the guard tower lost its tech requirement entirely
+// and the Fletcher was rebuilt around the free bow root. The tower is real
+// sim behavior — a placement the sim used to refuse it now allows — and
+// the playbook half is brain-side as ever (a replay stores a seat's
+// commands rather than re-deriving them, app/replay.ts). Both ride 55 for
+// the same reason the prereq did: it is this build's own bump.
+//
+// Still 55 after Archery lost its Soldiery prereq: warfare has two roots
+// now and a village can open on the bow without ever unlocking the
+// barracks. That is sim behavior in the plainest sense — a research the
+// queue would have refused is accepted, and every clock behind it moves —
+// but 55 is this build's own bump and has never shipped, so there is
+// nothing older to break. The same reasoning the "Still 49" entries below
+// record.
+// 54 for the Monument's bread, halved from twenty loaves to ten: a
+// building's cost is consumed as its site rises, so every tick after the
+// first delivery carries different stores. The placement change that
+// shipped beside it did NOT need the number — nothing in the sim asks a
+// placement to be paid for, so what moved was when two policies send a
+// command a logged replay already contains.
+// Still 54 after the Mason took up the sword line (weaponMix [0] →
+// [1, 0], knights ahead of spearmen): playbook data, and playback never
+// runs a brain — a replay stores the seats' commands rather than
+// re-deriving them, so a seat that would decide differently today replays
+// as it decided then. The same reading the Warlord's gold line and the
+// Abbot's reordered ale got. The hash is over raw bytes, which is why it
+// moved anyway.
+// Still 54 after the lone anvil started forging the counter
+// (economyRules.ts `forgeTheCounter`, now firing for smith 0 when it is
+// the seat's only forge): the same reading again, one layer in. The rule
+// runs inside a brain and its output is a seat's commands — and playback
+// builds no seats at all (app/simWorker.ts: `ai = replay ? null : new
+// AiSeats(world)`), so a forge that would be re-tuned today re-tunes in a
+// logged replay exactly where the recording says it did. The hash is over
+// raw bytes, which is why it moved anyway.
+// Still 54 after playbooks gained `skipsRules`: the field is read once in
+// the AiBrain constructor to seed which economy rules that seat runs, and
+// playback constructs no brains (app/simWorker.ts). No shipped playbook
+// names one yet, so the sim is bit-identical today either way — the hash
+// is over raw bytes, which is why it moved.
+// Still 54 after the lone anvil's counter moved from the standing forge
+// count to the plan's (economyRules.ts `plannedSmiths`): a rule inside a
+// brain again, and playback builds no brains.
+// Still 54 after main's build order learned to borrow (AI_CREDIT in
+// systems/ai.ts, from the other branch): a seat may lay a foundation whose
+// bill the shelf is a load short of, which changes what the seats DECIDE
+// and nothing about how a tick executes what they decided. That note
+// arrived here saying "still 53" because it was written against a main
+// that had not seen the Monument's bread yet — the bread is a consumed
+// cost and did move the number, so the two meet at 54 rather than at
+// either one alone.
+// 56 for a gatherer answering only for ground it can walk to: canPlace
 // refuses a hut whose only resource is walled in (map.ts
 // canWorkResourceNear), so a placeSite command that used to be accepted is
 // now refusable and every AI valley lays its foundations somewhere else.
@@ -387,12 +458,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // it always did — so the sim's day-to-day is untouched and the only
 // outcome that moves is the hut whose ground lies past a detour longer
 // than its whole radius. Behavior either way, so old logs stop playing.
+// Cut as 54, landing as 56: main took 54 for the Monument's bread and 55
+// for the Archery Range while the branch was open.
 // The rest of the arc is outside the surface: the card's two numbers and
 // its tooltip (protocol/, ui/), the reach outline (render/), and the
 // re-siting rule's condition, which is brain-side the way every other
 // economy rule is — playback never runs a brain.
-const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '83c537f884c329dc61034af526584597';
+const EXPECTED_VERSION = 56;
+const EXPECTED_HASH = '4e51e7fdb6eaa434d40b9838c1cc3fac';
 
 /**
  * Everything a replay's playback depends on, as raw source:

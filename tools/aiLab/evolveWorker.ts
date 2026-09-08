@@ -27,12 +27,35 @@ export interface SeatEntry {
 }
 
 export interface EvolveTask {
-  config: Omit<MatchConfig, 'engines' | 'playbooks'>;
+  /** Everything but the seats, which are built here from `seats` below —
+   * one source for both the playbook a brain plays and the lineage the
+   * record reports, so the two cannot drift (see MatchConfig.seats). */
+  config: Omit<MatchConfig, 'engines' | 'seats'>;
   seats: readonly SeatEntry[];
 }
 
 export function playbookOf(entry: SeatEntry): AiStrategy {
   return {...AI_STRATEGIES[entry.strategyId], ...entry.delta} as AiStrategy;
+}
+
+/**
+ * The task's seats as a match's two, or an error.
+ *
+ * A match has exactly two seats, and this checks the LENGTH rather than
+ * only that two entries came through. The task arrives as JSON off a pipe,
+ * and both ways of getting it wrong are silent: one seat short and a side
+ * plays its printed line while the run's log claims a candidate, one seat
+ * over and the extra is dropped on the floor. Either puts a number in a
+ * table for a match that never happened, which is the failure this whole
+ * seat type exists to make impossible.
+ */
+export function seatsOf(task: EvolveTask): [AiStrategy, AiStrategy] {
+  const [a, b] = task.seats;
+  if (task.seats.length !== 2 || !a || !b)
+    throw new Error(
+      `evolveWorker: a match wants two seats, got ${task.seats.length}`,
+    );
+  return [playbookOf(a), playbookOf(b)];
 }
 
 async function main(): Promise<void> {
@@ -41,7 +64,7 @@ async function main(): Promise<void> {
   const task = JSON.parse(Buffer.concat(chunks).toString('utf8')) as EvolveTask;
   const record: MatchRecord = await playMatch({
     ...task.config,
-    playbooks: task.seats.map(playbookOf),
+    seats: seatsOf(task),
     engines: new Map(),
   });
   process.stdout.write(JSON.stringify(record));
