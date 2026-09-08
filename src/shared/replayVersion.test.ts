@@ -370,6 +370,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
+// 56 for the armory holding one of each arm (START_STOCK in
+// sim/defs/balance.ts): two spears and a sword became a spear, a sword and
+// a bow, so every seat's opening army is one soldier smaller and the hauls
+// planned around the missing spear walk elsewhere. A balance number in the
+// plainest sense — the same kind the Monument's bread was at 54.
+//
+// The playbook half rode it for free, as playbook data always does: the
+// Warlord's ironworking moved second (the rack no longer carries it to a
+// raiding party) and the Fletcher's notes stopped describing two spears.
+//
 // Still 55 after a Copilot review pass corrected three pieces of prose the
 // branch had left describing the world as it was mid-branch — the Archery
 // tech's note still said the guard tower was Soldiery's to unlock, the
@@ -449,8 +459,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
-const EXPECTED_VERSION = 55;
-const EXPECTED_HASH = 'ca8666b071994070c64bcc46e4612bc2';
+const EXPECTED_VERSION = 56;
+const EXPECTED_HASH = '6b27e299e1a00f13c57f5b6f9146ecbb';
 
 /**
  * Everything a replay's playback depends on, as raw source:

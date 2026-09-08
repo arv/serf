@@ -281,16 +281,25 @@ describe('the AI playbooks', () => {
     // research to reach its own; the two are separate roots since the
     // Archery Range, and this seat opens on the one it is named for.
     //
-    // The horizon moved 9k -> 12k with it, and the reason is worth naming
-    // because it is the cost of the reorder: Soldiery is 6 wheat and 6
-    // silver, and the opening stock hands every village 12 wheat that
-    // nothing else wants that early — so Soldiery-first was very nearly
-    // free. Archery is 8 WOOD, which is the one material this seat's whole
-    // opening competes for. Its first research lands at 10.5k now rather
-    // than inside 9k. It measures better anyway over 24 seeds (21/24
-    // against 20/24), but it is slower off the line, not faster.
+    // The horizon moved 9k -> 12k when Archery went first, and the armory
+    // going to one of each arm (START_STOCK in defs/balance.ts) moved what
+    // is worth asserting after it. On this seed the bow now lands EARLIER
+    // than it did — tick 9.2k against 10.5k — and then this seat buys
+    // nothing else at all, not by 12k and not by 60k: four seats on one
+    // map is a poorer game than the solo campaign the sweeps run, and a
+    // plan that spends its wood on bowstaves has little left for a second
+    // research. That is the seat behaving as its blurb says, not a stall.
+    //
+    // So the second line asserts what still separates this seat rather
+    // than a fact that has stopped being true. Soldiery being in by a
+    // fixed tick was that fact; it is not any more. Ironworking staying
+    // OUT is — it is last in this plan's order and only ever for the axes,
+    // which is the difference from every iron seat in the deck, and it is
+    // the claim the comment above has always made.
     expect(world.players[3]!.techs.researched[0]).toBe(TechId.archery);
-    expect(world.players[3]!.techs.researched).toContain(TechId.soldiery);
+    expect(world.players[3]!.techs.researched).not.toContain(
+      TechId.ironworking,
+    );
     const ironMines = (owner: number): number =>
       [...world.buildings.values()].filter(
         b => !b.dead && b.owner === owner && b.type === BuildingTypeId.ironMine,
