@@ -615,30 +615,34 @@ function villager(cloth: string): JSX.Element {
   );
 }
 
-/** The bow both archers carry, in whichever wood the faction stains it. */
+/**
+ * The bow both archers carry, in whichever wood the faction stains it. The
+ * stave bows away from the archer and the string is drawn back toward him,
+ * so the shot — and the arrow across the riser — goes right.
+ */
 function bow(stave: string, tip: string): JSX.Element {
   return (
     <>
       <path
-        d="M11.4 2.2a7.2 7.2 0 0 1 0 11.6"
+        d="M6.2 2.4a7.5 7.5 0 0 1 0 11.2"
         stroke={stave}
         stroke-width="1.6"
         fill="none"
         stroke-linecap="round"
       />
       <path
-        d="M11.4 2.2 9.6 8l1.8 5.8"
+        d="M6.2 2.4 3.8 8l2.4 5.6"
         stroke="#e0dccf"
         stroke-width="0.8"
         fill="none"
       />
       <path
-        d="M3.4 8h7"
+        d="M3.6 8h7"
         stroke={HAFT}
         stroke-width="1.1"
         stroke-linecap="round"
       />
-      <path d="M2 8l2.6-1.5v3Z" fill={tip} />
+      <path d="M12.6 8l-2.6-1.5v3Z" fill={tip} />
     </>
   );
 }
@@ -706,12 +710,12 @@ const UNIT_PATHS: Record<UnitTypeId, () => JSX.Element> = {
     <>
       {bow(ROGUE, STEEL)}
       <path
-        d="M2.6 12.6 6 10.4"
+        d="M1.4 14.5h2.6"
         stroke="#6b4e2e"
         stroke-width="1.1"
         stroke-linecap="round"
       />
-      <path d="M1.6 13.2l1.6-1 .8 1.3-1.7.9Z" fill={ROGUE} />
+      <path d="M5 14.5 3.6 13.8v1.4Z" fill={ROGUE} />
     </>
   ),
   // A two-handed axe, oversized on purpose: the heaviest thing that walks.

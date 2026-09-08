@@ -488,24 +488,79 @@ import {REPLAY_VERSION} from './replayVersion';
 // The playbook half rode it for free, as playbook data always does: the
 // Warlord's ironworking moved second (the rack no longer carries it to a
 // raiding party) and the Fletcher's notes stopped describing two spears.
-// 60 for the repair pull (systems/logistics.ts): which hand takes which
+// 60 for the Archery Range taking the barracks' footprint (2x2 -> 3x3, in
+// defs/buildings.ts). What started it is the model — KayKit authors the
+// range larger than the barracks and the renderer scales off min(w,h), so
+// at two it read as a shed — but a footprint is not costume, on exactly the
+// reasoning the fishery's note above gives one paragraph earlier: nine
+// tiles of flat ground instead of four makes a placeSite an old log could
+// have carried refusable, nine blocked tiles re-route every hauler that
+// walks past it, and sight measured from the footprint edge reveals a wider
+// ring. Behavior, so old logs stop playing. Cut as 57, landing as 60: main
+// took 57 for the fishery, 58 for the load home and 59 for the armory while
+// the branch was open.
+// Still 60 for the range's stone going 2 -> 6 alongside it: a build cost is
+// behavior of the plainest kind — four more hauls before the site rises,
+// and a dearer repair with it (REPAIR_COST_SHARE) — but 59 is this build's
+// own bump and has never shipped, so there is nothing older to break. The
+// same reasoning the "Still 49" entries above record. It rides here because
+// it is the same decision: nine tiles bought for one token course of
+// masonry was the cheapest large footprint in the game. The Fletcher is the
+// seat that pays for it — the one playbook built on the bow, digging no
+// iron and quarrying once — and its campaign still lands
+// (aiStrategies.test.ts); its quarry is second in its plan, ahead of
+// everything but the axe, and the range is well down the order behind it.
+// Still 60 for the range's hit points going 150 -> 200 with them, on that
+// same never-shipped reasoning, and it is the same decision a third time: a
+// building on the barracks' footprint at nearly the barracks' price does
+// not also get to be a shed to knock over. Real behavior — a raid that used
+// to level a range leaves it standing, and every tick of that fight lands
+// somewhere else.
+// Still 60 after sellForTheWoodcutter (economyRules.ts, and its id): a rule
+// inside a brain, which is the one kind of change this file has never had to
+// bump for — playback replays the commands a seat issued, not the reasoning
+// that issued them (app/replay.ts), so a seat that would now tear down its
+// barracks to buy an axe replays as whatever it actually did that day. The
+// same reasoning the "Still 49 after the Mason" and "Still 54 after the lone
+// anvil's counter" entries above record. The hash is over raw bytes, which is
+// why it moved anyway.
+// Still 60 after research stopped spending goods it had already promised
+// to a haul (tick.ts, releaseShelfPromises). Real sim behavior — the hauls
+// die at the moment the shelf is spent instead of when the carrier arrives
+// to find nothing — but 60 is this build's own bump and has never shipped.
+// The bug it fixes is older than this branch and nothing to do with it: a
+// tech is bought straight off the shelf against `stock` alone, so four iron
+// reserved for a smith bought Ironworking anyway and left reservedOut over
+// a stock of nothing (checkInvariants caught it in ai.test.ts once the
+// range's footprint re-timed seed 11 into the collision).
+// Still 60 after a review pass untangled a run-on in sellForTheWoodcutter's
+// doc comment — and corrected the example inside it, which offered a well as
+// the cheap roof to sell when the well is one of the three the rule refuses
+// to touch. Comment only; the hash is over raw bytes, which is why it moved.
+// Still 60 after sellForTheWoodcutter learned that a sale returns what the
+// building is HOLDING as well as half its price (Copilot's read of
+// tick.ts's sellBuilding, and correct): a weaponsmith on bowstaves sits on
+// three planks that the rule was not counting, so it could reach past the
+// smallest sale that would actually have covered the shortfall. Rule
+// behavior, which is brain-side — but it changes which building a seat
+// tears down, so it is named here rather than left to the hash.
+// 61 for the repair pull (systems/logistics.ts): which hand takes which
 // haul, and in what order, is sim behavior of the plainest kind — every
 // good in the village is somewhere else a second later. The note in
 // replayVersion.ts says what it fixes and why it pulls rather than books.
-// Cut as 55, landing as 60: main took 55 for the Archery Range, 56 for the
-// reachable-ground rule, 57 for the fishery's footprint, 58 for the load
-// home and 59 for the armory while the branch was open — the same drift
-// every note above records of itself.
-// Still 60 after the note in takeStandingJobs saying why the load-home
+// Cut as 55, landing as 61: main took 55, 56, 57, 58, 59 and then 60 for
+// the Archery Range's footprint while the branch was open — six numbers
+// for one change, and the same drift every note above records of itself.
+// Still 61 after the note in takeStandingJobs saying why the load-home
 // route sorts on job.priority and not the effective tier: a comment, and
 // the hash is over raw bytes.
-// Still 60 after PULL_STRIDE was derived from the goods rather than
+// Still 61 after PULL_STRIDE was derived from the goods rather than
 // written as 64: the stride only ever keys a scratch map built and spent
 // inside one dispatch pass, and both numbers clear every good id, so the
 // pairs group exactly as they did. The hash is over raw bytes, which is
 // why it moved anyway.
-const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = '4ececc6d523141a19d9e5af8a11fbaf3';
+const EXPECTED_VERSION = 61;
+const EXPECTED_HASH = 'cbf447f309749acb48a0dff57151cad1';
 
 /**
  * Everything a replay's playback depends on, as raw source:

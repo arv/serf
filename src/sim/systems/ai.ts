@@ -1653,10 +1653,19 @@ export class AiBrain {
     // Soldiers ride along in the same sweep: garrisonIsEnough needs the
     // count and a scan of its own per beat would be the whole cost of it.
     let soldierCount = 0;
+    // And what the seat's hands are holding, for the same reason and in
+    // the same pass: a good in transit has already left the building it
+    // came from (logistics decrements the source's stock at pickup and
+    // parks the load on the serf), so a rule that adds up buildings alone
+    // reads a village mid-haul as poorer than it is.
+    const carried: GoodAmounts = {};
     for (const u of world.units.values()) {
       if (u.dead || u.owner !== this.playerId) continue;
       if (u.kind === UnitTypeId.serf) serfCount++;
       else if (UNIT_DEFS[u.kind].combat) soldierCount++;
+      if (u.carrying !== undefined) {
+        carried[u.carrying] = (carried[u.carrying] ?? 0) + 1;
+      }
     }
     const researchPending = s.researchOrder.some(
       id => !techs.researched.includes(id),
@@ -1727,6 +1736,7 @@ export class AiBrain {
       stock,
       serfCount,
       soldierCount,
+      carried,
       stalled,
       placed,
       strategy: s,
