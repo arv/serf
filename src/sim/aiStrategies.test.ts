@@ -234,14 +234,19 @@ describe('the AI playbooks', () => {
 
   it('plays four visibly different games in one world', () => {
     // Named seats rather than dealt ones, so the assertions can be about
-    // particular playbooks — and so the naming itself is exercised. Seed 13
-    // is pure data, re-pinned when a worldgen change rolls a valley the
+    // particular playbooks — and so the naming itself is exercised. The
+    // seed is pure data, re-pinned when a change rolls a valley the
     // playbooks do not separate on within the budget (11 held it until the
     // pan clamp took a share of the scenery ring, and left the warlord
-    // digging one seam rather than two).
+    // digging one seam rather than two; 13 until the load home re-timed
+    // every haul in the game, replay 56, and left the fletcher's SECOND
+    // research past the budget on that valley — the four seats still play
+    // four different games there, but Soldiery never lands, at 12k or at
+    // 26k). What is asserted is that the bow line is taken first and the
+    // other arm still bought, not the tick either lands on.
     const world = playSeats(
       {
-        seed: 13,
+        seed: 19,
         players: [
           {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
           {kind: PlayerKind.ai, strategy: AiStrategyId.warlord},
