@@ -114,25 +114,25 @@ describe('personalities read through the fog', () => {
      * The calm read is `booming` alone — army at or under one, ten
      * buildings standing — and it used to be booming + turtling.
      *
-     * Turtling left because it stopped being a read about temperament.
-     * It needs a force of three SEEN, so it is as much a statement about
-     * how big the rival's army has grown as about what he does with it,
-     * and when studies started being carried to the Abbey before they
-     * began (a slower tech line for everyone) the abbot's soldiers came
-     * later than this window: pooled over the same twenty-four seeds his
-     * turtling share fell 0.250 -> 0.114 while the warlord's held at
-     * 0.244 -> 0.232, because the warlord buys its war techs first and
-     * the abbot buys them last. Running the pool out to 22_000 ticks does
-     * not bring them back (0.131), so this is his army being smaller
-     * through the whole match rather than the window ending early.
+     * Turtling left because it stopped being a read about temperament. It
+     * needs a force of three SEEN, so it says as much about how big a
+     * rival's army has grown as about what he does with it, and the two
+     * playbooks grow theirs at opposite ends of their lists: the warlord
+     * buys its war techs first and the abbot buys them last. Once studies
+     * had to be carried to the Abbey before they began — a slower tech
+     * line for everyone — that gap opened wide enough to swamp the read.
+     * Pooled over these twenty-four seeds the abbot turtles 0.190 of the
+     * time against the warlord's 0.331, so booming + turtling now calls
+     * the WARLORD the calm one, 0.401 to 0.335. Running the pool out to
+     * 22_000 ticks does not mend it; the abbot's army is smaller through
+     * the whole match, not just past the window.
      *
-     * What the change did to the read this test is actually about is the
-     * opposite: the abbot's booming share ROSE, 0.115 -> 0.176, against
-     * the warlord's 0.099 -> 0.092. Booming alone separates the two
-     * playbooks by a factor of two where booming + turtling separated
-     * them by 0.022 — so this is the sharper instrument as well as the
-     * honest one. If a rebalance ever gives the abbot an army inside
-     * fifteen minutes again, turtling is worth reconsidering here.
+     * Booming alone says what this test means and says it twice as
+     * loudly: 0.145 for the abbot against 0.070 for the warlord, where
+     * the old composite separated the pair by 0.022 (0.365 to 0.343)
+     * back when nothing was carried anywhere. If a rebalance ever gives
+     * the abbot an army inside fifteen minutes again, turtling is worth
+     * reconsidering here.
      */
     const calm = (m: Map<number, number>): number =>
       share(m, Archetype.booming);

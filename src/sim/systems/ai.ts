@@ -1774,42 +1774,53 @@ export class AiBrain {
       const next = road ?? s.researchOrder.find(open);
       if (next && hasBuilt(BuildingTypeId.abbey)) {
         const cost = TECH_DEFS[next].cost;
-        // The whole bill on the shelf, and no credit — which is the one
-        // place this brain's policy is deliberately stricter than the one
-        // beside it. A frame is pegged out at AI_CREDIT.paidShare of its
-        // price (withinCredit, above); a study is not, and the sim would
-        // allow either, since it takes a research order the storehouse
-        // cannot cover exactly as it takes a site nobody can pay for
-        // (tick.ts). Both were measured on the board that counts — dealt
-        // four-seat valleys, 90_000 ticks each, counting what is decided
-        // and what is standing when it is:
+        // A study is bought on the credit a frame is pegged out on:
+        // AI_CREDIT.paidShare of the bill already on the shelf and no line
+        // of it at zero (withinCredit, above). One rule for both bills —
+        // which matters because the sim itself has no opinion: it takes a
+        // research order the storehouse cannot cover exactly as it takes a
+        // site nobody can pay for (tick.ts), so where the shelf binds is a
+        // policy, and a lord holding two of them is a lord playing two
+        // games. The prices make the margin the big tickets only: a tenth
+        // of a six-good Cobbled Boots rounds back to the whole bill, while
+        // Archery at thirteen of fourteen and Soldiery at eleven of twelve
+        // clear the bar.
+        //
+        // It is bought at a price and the price is recorded here rather
+        // than discovered again. Dealt four-seat valleys, 90_000 ticks
+        // each — what is decided, and what is standing when it is:
         //
         //   whole shelf   24/24 decided, mean 21_696, 856 people, 351 soldiers, 307 techs
         //   paidShare 0.9 21/24 decided, mean 23_670, 802 people, 279 soldiers, 299 techs
         //   full credit   11/12 decided, mean 25_222, 334 people, 108 soldiers, 189 techs (12 seeds)
         //
-        // Dose for dose the same trade, and it is a bad one at every dose:
-        // a fifth of the army for the margin, a third for the lot, three
-        // valleys that never finish and — the part that settles it — no
-        // more research at the end of it. 299 techs against 307. The
-        // margin does not even buy what it is for.
+        // So the margin costs a fifth of the army and three valleys in
+        // twenty-four that never finish, and it buys no research at all —
+        // 299 techs against 307. What it buys is the seats reading as
+        // themselves. Pooled over the twenty-four seeds of
+        // ai/archetypePersonality.test.ts, the warlord is read as a rusher
+        // 0.053 of the time with the margin against 0.004 without it —
+        // above even the 0.032 it managed before studies were carried at
+        // all — and its village is seen seven and a nine-tenths buildings
+        // deep against seven. The abbot keeps the calm read against it,
+        // 0.145 booming to 0.070. Waiting for the last load was quietly
+        // flattening the four openings into one, and that is the thing
+        // this deck is for.
         //
-        // Why it is different from a frame: a bill is a standing demand,
-        // holding its place on the haul board by the tick it was written
-        // (FIFO by demand age), so a bill for goods the village does not
-        // have yet takes every one of them as it appears — ahead of the
-        // mill's wheat, the forge's iron, the barracks' bread. A frame is
-        // one building's worth of that and then it tops out. A study is
-        // replaced by the next study for the whole match. Full credit
-        // makes it permanent: on seed 42 that game runs past 150_000 ticks
+        // The margin and nothing past it. FULL credit is a different
+        // animal: a bill is a standing demand, holding its place on the
+        // haul board by the tick it was written (FIFO by demand age), so a
+        // bill for goods the village does not have yet takes every one of
+        // them as it appears — ahead of the mill's wheat, the forge's iron,
+        // the barracks' bread — and a seat that orders on credit has one
+        // standing all match. On seed 42 that game runs past 150_000 ticks
         // with three seats standing and eight PEOPLE between them, against
-        // 29_422 here. Requiring only the SILVER in hand and the rest on
-        // credit was tried too and is not the fix.
+        // 29_422 on the whole shelf. Requiring only the SILVER in hand and
+        // the rest on credit was tried too and is not the fix.
         //
-        // The player is not held to any of this — the tech panel offers
-        // every study a standing Abbey allows. A human ordering one early
-        // is making a plan; a seat doing it every time it can is a plan
-        // that never stops paying for one.
+        // No openFrames or cooldown beside the share, unlike the build
+        // order's tab: the sim allows one study at a time, so the seat
+        // cannot open a second, nor the next until this one is learned.
         //
         // Hands first, when there are barely any. Every tech is priced in
         // silver and so is a hire, and the panic branch above only fires on
@@ -1840,9 +1851,7 @@ export class AiBrain {
             (hiring ? HIRE_SERF_COST : 0) -
             (cost[GoodId.silver] ?? 0) >=
             HIRE_SERF_COST;
-        const ok = goodEntries(cost).every(
-          ([good, n]) => (stock[good] ?? 0) >= n,
-        );
+        const ok = withinCredit(cost, stock);
         if (ok && leavesHireMoney)
           commands.push({kind: CommandKind.research, tech: next});
       }

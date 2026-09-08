@@ -1384,10 +1384,12 @@ describe('a village that lost its hands', () => {
     //
     // The steward's first tech is Soldiery at 6 silver (defs/techs.ts), and
     // the shelf has to be able to AFFORD it or the guard is not what the
-    // assertion is reading — an unaffordable tech is refused a line earlier
-    // and the test would pass with the guard deleted. (The sim itself would
-    // take the order on credit; the brain is what declines to give it —
-    // see the measurements beside that check in systems/ai.ts.)
+    // assertion is reading — a tech outside the seat's credit is refused a
+    // line earlier and the test would pass with the guard deleted. Afford
+    // it on the seat's terms, which are AI_CREDIT.paidShare of the bill
+    // rather than all of it (systems/ai.ts): Soldiery is 6 wheat and 6
+    // silver, twelve goods, so eleven of them clear the bar and the wheat
+    // below is stocked well past either reading.
     const soldiery = TECH_DEFS[TechId.soldiery].cost[GoodId.silver]!;
     const world = bareWorld();
     const shelf = addStorehouse(world, 30, 30, {
