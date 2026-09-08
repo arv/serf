@@ -544,8 +544,23 @@ import {REPLAY_VERSION} from './replayVersion';
 // smallest sale that would actually have covered the shortfall. Rule
 // behavior, which is brain-side — but it changes which building a seat
 // tears down, so it is named here rather than left to the hash.
-const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = '3946549a2291cb2c39c3aeb7060a09f3';
+// 61 for the repair pull (systems/logistics.ts): which hand takes which
+// haul, and in what order, is sim behavior of the plainest kind — every
+// good in the village is somewhere else a second later. The note in
+// replayVersion.ts says what it fixes and why it pulls rather than books.
+// Cut as 55, landing as 61: main took 55, 56, 57, 58, 59 and then 60 for
+// the Archery Range's footprint while the branch was open — six numbers
+// for one change, and the same drift every note above records of itself.
+// Still 61 after the note in takeStandingJobs saying why the load-home
+// route sorts on job.priority and not the effective tier: a comment, and
+// the hash is over raw bytes.
+// Still 61 after PULL_STRIDE was derived from the goods rather than
+// written as 64: the stride only ever keys a scratch map built and spent
+// inside one dispatch pass, and both numbers clear every good id, so the
+// pairs group exactly as they did. The hash is over raw bytes, which is
+// why it moved anyway.
+const EXPECTED_VERSION = 61;
+const EXPECTED_HASH = 'cbf447f309749acb48a0dff57151cad1';
 
 /**
  * Everything a replay's playback depends on, as raw source:

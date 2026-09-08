@@ -49,6 +49,13 @@ export interface SimHost {
   /** Playback reached the recording's end and the sim paused itself. */
   onReplayEnded?(cb: () => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
+  /**
+   * The sim broke after the match came up, and the HUD is no longer being
+   * told what the world looks like. Called at most once. Registering is
+   * optional only in the type: a screen that skips it is a screen that can
+   * freeze without saying so.
+   */
+  onFatal?(cb: (message: string) => void): void;
 }
 
 export class WorkerSimHost implements SimHost {
@@ -85,8 +92,32 @@ export class WorkerSimHost implements SimHost {
    * registers — and an unlatched signal left the HUD with no end card. */
   #replayEndedPending = false;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
+  #fatalCb: ((message: string) => void) | null = null;
+  /** Whether 'ready' has landed — which is what decides where a worker
+   * failure is reported (see onerror). */
+  #started = false;
+  /** A fatal already told, so a worker failing on a timer says it once.
+   * The worker suppresses its own repeats; onerror has no such memory, and
+   * an error thrown from an interval fires as often as the interval. */
+  #fatalTold = false;
   /** Seat the UI's commands are issued as. */
   playerId = 0;
+
+  /** A failure that landed before anyone registered for it, latched the way
+   * replayEnded is: the worker posts 'ready' and then draws its first
+   * structural frame immediately, while runMatch is still awaiting its
+   * asset loads — so the very failure most worth reporting, the one in the
+   * opening frame, is the one that arrives with no listener. Dropped, it
+   * left the HUD frozen from the first tick with nothing said. */
+  #fatalPending: string | null = null;
+
+  /** Report a mid-match failure to whoever registered for it, once. */
+  #fatal(message: string): void {
+    if (this.#fatalTold) return;
+    this.#fatalTold = true;
+    if (this.#fatalCb) this.#fatalCb(message);
+    else this.#fatalPending = message;
+  }
 
   constructor(kind: 'sim' | 'net' = 'sim') {
     this.#worker =
@@ -107,21 +138,46 @@ export class WorkerSimHost implements SimHost {
   ): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
-      // A worker that dies after start would otherwise fail silently: the
-      // promise is already resolved, so surface the error loudly too.
+      // Two different failures wear one event. Before 'ready' the start
+      // promise is still pending, so rejecting it is the report, and the
+      // caller draws the screen that says the match could not begin.
+      //
+      // After 'ready' that promise has settled, and rejecting a settled
+      // promise does nothing at all — which is how a worker that broke
+      // mid-match used to leave one console line and no other trace, while
+      // the player sat looking at a HUD that had quietly stopped being
+      // true. So past that point the failure goes to #fatalCb instead,
+      // which is the half of the app that can actually say so on the glass.
       this.#worker.onerror = e => {
-        console.error(`[sim worker] ${e.message} (${e.filename}:${e.lineno})`);
-        reject(new Error(`sim worker failed: ${e.message}`));
+        const where = `[sim worker] ${e.message} (${e.filename}:${e.lineno})`;
+        if (!this.#started) {
+          console.error(where);
+          reject(new Error(`sim worker failed: ${e.message}`));
+          return;
+        }
+        // Once, however often the interval that threw comes round again.
+        // The worker's pump is a timer, and an error thrown out of it
+        // fires this every time it ticks — a thousand copies of one line,
+        // with the first (the only one that names anything) scrolled off
+        // the top. Asked before #fatal rather than inside it, because a
+        // fatal the worker reported itself has already written its own
+        // line over there and does not want a second here.
+        if (this.#fatalTold) return;
+        console.error(where);
+        this.#fatal(e.message);
       };
       this.#worker.onmessage = (e: MessageEvent<WorkerToMain>) => {
         const msg = e.data;
         if (msg.type === WorkerToMainKind.ready) {
+          this.#started = true;
           resolve({
             reader: new SabReader(msg.sab),
             map: msg.map,
             buildings: msg.buildings,
             explored: msg.explored,
           });
+        } else if (msg.type === WorkerToMainKind.fatal) {
+          this.#fatal(msg.message);
         } else if (msg.type === WorkerToMainKind.structural) {
           if (this.#structuralCb) this.#structuralCb(msg);
           else this.#pendingStructural.push(msg);
@@ -202,6 +258,13 @@ export class WorkerSimHost implements SimHost {
 
   onNetStatus(cb: (status: NetStatus) => void): void {
     this.#netStatusCb = cb;
+  }
+
+  onFatal(cb: (message: string) => void): void {
+    this.#fatalCb = cb;
+    const pending = this.#fatalPending;
+    this.#fatalPending = null;
+    if (pending !== null) cb(pending);
   }
 
   sendCommands(commands: SimCommand[]): void {

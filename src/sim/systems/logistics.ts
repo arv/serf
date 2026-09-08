@@ -609,6 +609,91 @@ function deliveryTargetFor(
  */
 const PATH_TRIES = 3;
 
+/**
+ * One key per (destination, good), as `id * PULL_STRIDE + good`.
+ *
+ * Derived from the goods themselves rather than written down as a number
+ * with room to spare. The key is only unique while every good id is under
+ * the stride, and a good that broke that would not announce itself: two
+ * different (building, good) pairs would quietly share one budget, and a
+ * repair somewhere would pull the wrong loads for reasons nothing in the
+ * logs could explain. A constant makes that a thing to remember when the
+ * nineteenth good becomes the sixty-fourth; this makes it impossible.
+ */
+const PULL_STRIDE = Math.max(...GOODS) + 1;
+
+/**
+ * How many loads of each good an ordered repair may pull up to its own
+ * tier, keyed by (destination, good). Null — the common case — when no
+ * building anywhere is under repair, so a village at peace pays nothing
+ * for this.
+ *
+ * The matcher books a repair's materials at construction priority and then
+ * nets what it asks for against `inbound` (see match). Both halves are
+ * right on their own and wrong together, which is what this repairs.
+ *
+ * Netting is right about QUANTITY: a load already walking in will feed the
+ * repair when it lands, whatever it was sent for — deliver() puts any good
+ * arriving at a building with an outstanding repairNeeds straight into the
+ * walls. Booking a second load for a need already covered would just haul
+ * a plank the village did not need moved.
+ *
+ * But netting silently threw the PRIORITY away with it, and at a
+ * storehouse that is fatal. The storehouse is where every producer
+ * evacuates to, so its `inbound` is permanently thick with priority-3
+ * hauls; a repair ordered on it nets to `want <= 0` for every good, raises
+ * no demand at all, and so never gets the tier-1 job that was the entire
+ * point of ordering it. In one recorded match the castle was repaired at
+ * 60% health with 14 open evacuation jobs standing against it, some 4,400
+ * ticks old, and the order sat at "wants 3 wood, 2 stone" until the
+ * building was destroyed 3,700 ticks later. Nothing was wrong with the
+ * village's stores or its ground: the loads were there and nobody was
+ * ever told to hurry.
+ *
+ * So the repair pulls rather than books. The loads already on their way
+ * ride at its tier for as long as it needs them, which costs no extra
+ * haulage and is exactly the urgency the player asked for. Bounded by what
+ * the repair still wants, because beyond that the loads are ordinary
+ * evacuation again and outranking a site's planks with them would be the
+ * same mistake pointing the other way.
+ */
+function repairPull(world: World): Map<number, number> | null {
+  let out: Map<number, number> | null = null;
+  for (const b of world.buildings.values()) {
+    if (b.dead || !b.repairNeeds) continue;
+    for (const good of GOODS) {
+      const want = b.repairNeeds[good] ?? 0;
+      if (want <= 0) continue;
+      out ??= new Map();
+      out.set(b.id * PULL_STRIDE + good, want);
+    }
+  }
+  return out;
+}
+
+/**
+ * The tier this job actually rides in, spending a repair's pull if one is
+ * standing for it.
+ *
+ * Spends: call it exactly once per job per pass, in a fixed order (hands in
+ * flight, then the open queue oldest-first), or the tiers stop being a
+ * function of the world and the sim stops being deterministic.
+ *
+ * A job already at tier 1 spends the pull too, and is why this does not
+ * short-circuit on one. Away from the storehouse the netting works and the
+ * matcher books the repair's own tier-1 haul; letting that job through
+ * without spending would leave the whole pull unspent beside it, to be
+ * handed to evacuation loads the mend has no use for.
+ */
+function tierOf(job: HaulJob, pull: Map<number, number> | null): HaulPriority {
+  if (pull === null) return job.priority;
+  const key = job.to * PULL_STRIDE + job.good;
+  const left = pull.get(key);
+  if (left === undefined || left <= 0) return job.priority;
+  pull.set(key, left - 1);
+  return 1;
+}
+
 // --- Serf claiming ---------------------------------------------------------
 
 /**
@@ -670,6 +755,21 @@ function takeStandingJobs(
     // board deals a tier 3 load ahead of a tier 1 one by design. This is the
     // order that is right for a man already standing here — the building's
     // most urgent load first, since none of them costs him a walk.
+    //
+    // `job.priority`, deliberately, and not the effective tier a repair's
+    // pull would give it (see repairPull). Two reasons, and the first is
+    // that this sort is already a different discipline from the tiers: it
+    // is a strict rank among the loads of ONE source, where the pull ranks
+    // by DESTINATION, so all the pull could decide here is which of a
+    // building's own loads leaves first — never whether the mend is served
+    // at all. The main route below is where a repair takes its hands, and
+    // it has the pull.
+    //
+    // The second is that the budget is per pass and spent, so honoring it
+    // in two claiming routes means fixing an order between them and
+    // keeping it fixed, for a reordering worth this little. If load-home
+    // ever does want it, thread the same map through and spend it here
+    // first — this route runs first — rather than growing a second budget.
     jobs.sort(
       (a, z) =>
         a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
@@ -792,20 +892,29 @@ function dispatch(world: World): void {
   // each tier already has — every job a serf is walking for, pickup or
   // dropoff, counts as one. Rehomed cargo (a priority-2 delivery with no
   // pickup) counts like any other.
+  //
+  // The tier a job rides in is `tierOf`, not `job.priority`: an ordered
+  // repair pulls the loads already walking its way up to its own tier
+  // instead of booking new ones. Hands in flight are counted first, so
+  // they spend the pull before the open queue sees it.
+  const pull = repairPull(world);
   const queues = new Map<Owner, [HaulJob[], HaulJob[], HaulJob[]]>();
   const busy = new Map<Owner, [number, number, number]>();
-  for (const job of open) {
-    if (job.phase !== HaulPhase.open) continue; // taken by takeStandingJobs
-    if (!idleByOwner.has(job.owner)) continue;
-    let q = queues.get(job.owner);
-    if (!q) queues.set(job.owner, (q = [[], [], []]));
-    q[job.priority - 1]!.push(job);
-  }
   for (const job of world.jobs.values()) {
     if (job.serfId === undefined || !idleByOwner.has(job.owner)) continue;
     let b = busy.get(job.owner);
     if (!b) busy.set(job.owner, (b = [0, 0, 0]));
-    b[job.priority - 1]!++;
+    b[tierOf(job, pull) - 1]!++;
+  }
+  for (const job of open) {
+    // Taken by takeStandingJobs, which ran above — and counted in `busy`
+    // just now, since it has a carrier. Skipping it here is also what
+    // keeps it from spending the repair's pull a second time.
+    if (job.phase !== HaulPhase.open) continue;
+    if (!idleByOwner.has(job.owner)) continue;
+    let q = queues.get(job.owner);
+    if (!q) queues.set(job.owner, (q = [[], [], []]));
+    q[tierOf(job, pull) - 1]!.push(job);
   }
 
   for (const [owner, idle] of idleByOwner) {

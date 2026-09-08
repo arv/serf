@@ -295,4 +295,11 @@ export type WorkerToMain =
   /** Replay playback reached the log's end tick; the sim has paused itself. */
   | {type: WorkerToMainKindNs.replayEnded}
   | {type: WorkerToMainKindNs.netStatus; status: NetStatus}
+  /**
+   * The worker is still running but can no longer describe the world to
+   * the HUD — a structural frame threw. The world goes on ticking and the
+   * units go on moving, so nothing else would tell the player that every
+   * panel they are reading has stopped being true.
+   */
+  | {type: WorkerToMainKindNs.fatal; message: string}
   | {type: WorkerToMainKindNs.log; message: string};

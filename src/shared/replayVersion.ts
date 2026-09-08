@@ -20,6 +20,39 @@
  * directly.
  */
 /**
+ * 61: an ordered repair pulls the loads already walking its way up to its
+ * own tier (systems/logistics.ts, repairPull/tierOf). Which hand takes
+ * which job, and in what order, decides where every good in the village is
+ * a second later — this is as behavioral as a change gets, and a log
+ * recorded before it re-runs into a different world within a few hundred
+ * ticks.
+ *
+ * 61, written as 55: main took 55, then 56, 57, 58 and 59, and then 60 for
+ * the Archery Range's footprint while this branch sat in review — six
+ * numbers for one change. Every note below says the same of itself, which
+ * by now is the pattern rather than the accident: the number is whatever
+ * is free on the day it lands.
+ *
+ * What it fixes: the matcher books a repair at construction priority and
+ * then nets what it asks for against `inbound`. At the storehouse — where
+ * every producer in the village evacuates to, so inbound is permanently
+ * thick with priority-3 hauls — that netting always came out at or below
+ * zero, no tier-1 job was ever booked, and the order's priority was
+ * silently discarded. A recorded match had the castle repaired at 60%
+ * health and the order still reading "wants 3 wood, 2 stone" 3,700 ticks
+ * later, when the building was destroyed under it. The same match now
+ * settles the bill 711 ticks after it is ordered.
+ *
+ * A pull rather than a fresh booking, because the netting is right about
+ * quantity: a load already walking in feeds the mend when it lands
+ * (deliver puts any good arriving at a building with an outstanding
+ * repairNeeds straight into the walls), so booking a second would haul a
+ * plank nobody needed moved. Only the rank was wrong, and only the rank
+ * moves.
+ *
+ * 60's note follows.
+ */
+/**
  * 60: the Archery Range stands on the barracks' footprint, pays a mason
  * for it, and takes the hit points that go with both.
  *
@@ -915,4 +948,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 60;
+export const REPLAY_VERSION = 61;
