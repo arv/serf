@@ -263,3 +263,21 @@ judging anything the audit's heuristics summarize away:
 ```sh
 node tools/modelLab/animImpacts.mjs curve Rig_Medium_Tools.glb Chopping handslot.r
 ```
+
+## The hut roof
+
+`reroofFishery.mjs` re-lays the fisherman's hut roof: it drops the boards
+the Blender model laid at the modeller's pitch down to five a slope, spread
+across the same span, and puts every one of them on one shared eave-to-ridge
+ramp of the atlas column. Measured against the pack after `normalize`, the
+authored boards were 0.047 of the footprint where home_A's are 0.082, each
+sampling the ramp at its own offset — half the pack's board with twice its
+line work, which is what read as stripes at village zoom.
+
+```sh
+node tools/modelLab/reroofFishery.mjs
+```
+
+It runs once, on the model as Blender left it, and refuses a roof it has
+already re-laid. The script is in the tree because the alternative is an
+unreviewable diff in a `.bin`.
