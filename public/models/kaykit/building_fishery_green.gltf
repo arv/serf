@@ -1,136 +1,136 @@
 {
-	"asset":{
-		"generator":"Khronos glTF Blender I/O v5.2.40",
-		"version":"2.0"
+	"asset": {
+		"generator": "Khronos glTF Blender I/O v5.2.40",
+		"version": "2.0"
 	},
-	"scene":0,
-	"scenes":[
+	"scene": 0,
+	"scenes": [
 		{
-			"name":"Scene",
-			"nodes":[
+			"name": "Scene",
+			"nodes": [
 				0
 			]
 		}
 	],
-	"nodes":[
+	"nodes": [
 		{
-			"mesh":0,
-			"name":"building_fishery_green"
+			"mesh": 0,
+			"name": "building_fishery_green"
 		}
 	],
-	"materials":[
+	"materials": [
 		{
-			"name":"hexagons_medieval",
-			"pbrMetallicRoughness":{
-				"baseColorTexture":{
-					"index":0
+			"name": "hexagons_medieval",
+			"pbrMetallicRoughness": {
+				"baseColorTexture": {
+					"index": 0
 				},
-				"metallicFactor":0,
-				"roughnessFactor":0.5
+				"metallicFactor": 0,
+				"roughnessFactor": 0.5
 			}
 		}
 	],
-	"meshes":[
+	"meshes": [
 		{
-			"name":"building_fishery_green",
-			"primitives":[
+			"name": "building_fishery_green",
+			"primitives": [
 				{
-					"attributes":{
-						"POSITION":0,
-						"NORMAL":1,
-						"TEXCOORD_0":2
+					"attributes": {
+						"POSITION": 0,
+						"NORMAL": 1,
+						"TEXCOORD_0": 2
 					},
-					"indices":3,
-					"material":0
+					"indices": 3,
+					"material": 0
 				}
 			]
 		}
 	],
-	"textures":[
+	"textures": [
 		{
-			"sampler":0,
-			"source":0
+			"sampler": 0,
+			"source": 0
 		}
 	],
-	"images":[
+	"images": [
 		{
-			"mimeType":"image/png",
-			"name":"hexagons_medieval",
-			"uri":"hexagons_medieval.png"
+			"mimeType": "image/png",
+			"name": "hexagons_medieval",
+			"uri": "hexagons_medieval.png"
 		}
 	],
-	"accessors":[
+	"accessors": [
 		{
-			"bufferView":0,
-			"componentType":5126,
-			"count":3641,
-			"max":[
+			"bufferView": 0,
+			"componentType": 5126,
+			"count": 3257,
+			"max": [
 				0.6382051706314087,
 				1.0670000314712524,
 				0.4827817380428314
 			],
-			"min":[
+			"min": [
 				-0.9164845943450928,
-				-1.0430813546236095e-08,
+				-1.0430813546236095e-8,
 				-0.4827817380428314
 			],
-			"type":"VEC3"
+			"type": "VEC3"
 		},
 		{
-			"bufferView":1,
-			"componentType":5126,
-			"count":3641,
-			"type":"VEC3"
+			"bufferView": 1,
+			"componentType": 5126,
+			"count": 3257,
+			"type": "VEC3"
 		},
 		{
-			"bufferView":2,
-			"componentType":5126,
-			"count":3641,
-			"type":"VEC2"
+			"bufferView": 2,
+			"componentType": 5126,
+			"count": 3257,
+			"type": "VEC2"
 		},
 		{
-			"bufferView":3,
-			"componentType":5123,
-			"count":6084,
-			"type":"SCALAR"
+			"bufferView": 3,
+			"componentType": 5123,
+			"count": 5508,
+			"type": "SCALAR"
 		}
 	],
-	"bufferViews":[
+	"bufferViews": [
 		{
-			"buffer":0,
-			"byteLength":43692,
-			"byteOffset":0,
-			"target":34962
+			"buffer": 0,
+			"byteLength": 39084,
+			"byteOffset": 0,
+			"target": 34962
 		},
 		{
-			"buffer":0,
-			"byteLength":43692,
-			"byteOffset":43692,
-			"target":34962
+			"buffer": 0,
+			"byteLength": 39084,
+			"byteOffset": 39084,
+			"target": 34962
 		},
 		{
-			"buffer":0,
-			"byteLength":29128,
-			"byteOffset":87384,
-			"target":34962
+			"buffer": 0,
+			"byteLength": 26056,
+			"byteOffset": 78168,
+			"target": 34962
 		},
 		{
-			"buffer":0,
-			"byteLength":12168,
-			"byteOffset":116512,
-			"target":34963
+			"buffer": 0,
+			"byteLength": 11016,
+			"byteOffset": 104224,
+			"target": 34963
 		}
 	],
-	"samplers":[
+	"samplers": [
 		{
-			"magFilter":9729,
-			"minFilter":9987
+			"magFilter": 9729,
+			"minFilter": 9987
 		}
 	],
-	"buffers":[
+	"buffers": [
 		{
-			"byteLength":128680,
-			"uri":"building_fishery_green.bin"
+			"byteLength": 115240,
+			"uri": "building_fishery_green.bin"
 		}
 	]
 }
