@@ -407,13 +407,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
-// Still 54 after the fishery's hut was drawn under its footprint
-// (defs/buildings.ts `modelScale: 0.75`): modelScale is render-only by
-// construction — makeGlbBuilding is the one reader, and placement,
-// blocking and every tick still measure the same 3x3. The hash is over raw
-// bytes, which is why it moved.
-const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '7816ad5ca84b2453e6e35e596ec94dbc';
+// 55 for the fishery's footprint, 3x3 down to 2x2 (defs/buildings.ts):
+// canPlace measures the ground and the water against it, placeBuilding
+// blocks the tiles it covers, and both answer differently now — shores
+// that could not take a fishery can, and the four tiles a standing one
+// blocks are not the nine it blocked. Sim in the plainest sense; see
+// replayVersion.ts. (The hut it carries got smaller in the same commit,
+// and that half is render only.)
+const EXPECTED_VERSION = 55;
+const EXPECTED_HASH = '464cfeafe510a4892fe97129d3611185';
 
 /**
  * Everything a replay's playback depends on, as raw source:

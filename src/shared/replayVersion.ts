@@ -726,4 +726,18 @@
  * and a logged command still executes as it did. The bread is why this is
  * 54.
  */
-export const REPLAY_VERSION = 54;
+/**
+ * 55: the fishery stands on 2x2 (defs/buildings.ts).
+ *
+ * A footprint is sim, not decoration: `canPlace` measures the ground under
+ * it and the water within a tile of it, `placeBuilding` blocks the tiles it
+ * covers, and every serf who walks past one paths around what it blocked.
+ * A shore that was nine tiles of buildable bank is four now, so a log
+ * recorded before this re-runs into a village whose shoreline takes
+ * fisheries the old one refused — and where one already stands, it stands
+ * on different ground with different tiles walkable around it.
+ *
+ * (The same commit drew the hut smaller and re-authored its jetty, which
+ * is render only — 54's note above is the last thing the sim did.)
+ */
+export const REPLAY_VERSION = 55;

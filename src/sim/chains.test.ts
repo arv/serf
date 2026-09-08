@@ -84,9 +84,11 @@ describe('convert chains', () => {
     expect(canPlace(world.map, BuildingTypeId.fishery, 30, 30)).toBe(false);
 
     // ...and water two tiles off is still inland. The pier is part of the
-    // building, so the rule is "touching", not "near".
+    // building, so the rule is "touching", not "near". (The footprint is
+    // 2x2: x and y both run 30..31, and the rule's box is that grown by
+    // one, so every probe below stands exactly one tile outside it.)
     for (let tx = 29; tx < 35; tx++) {
-      const i = tileIdx(tx, 27, world.map.size);
+      const i = tileIdx(tx, 28, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
@@ -98,20 +100,20 @@ describe('convert chains', () => {
     // inland (waterFacing, searching the correct box, found nothing and
     // fell back to facing 0).
     for (let tx = 29; tx < 35; tx++) {
-      const i = tileIdx(tx, 34, world.map.size); // footprint y = 30..32, so this is 2 off
+      const i = tileIdx(tx, 33, world.map.size); // footprint y = 30..31, so this is 2 off
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
     expect(canPlace(world.map, BuildingTypeId.fishery, 30, 30)).toBe(false);
-    // ...and two off the east edge (footprint x = 30..32).
+    // ...and two off the east edge (footprint x = 30..31).
     for (let ty = 29; ty < 35; ty++) {
-      const i = tileIdx(34, ty, world.map.size);
+      const i = tileIdx(33, ty, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
     expect(canPlace(world.map, BuildingTypeId.fishery, 30, 30)).toBe(false);
 
-    // Water along the footprint's north edge (y = 29, footprint y = 30..32).
+    // Water along the footprint's north edge (y = 29, footprint y = 30..31).
     for (let tx = 29; tx < 35; tx++) {
       const i = tileIdx(tx, 29, world.map.size);
       world.map.terrain[i] = Terrain.Water;
@@ -137,8 +139,10 @@ describe('convert chains', () => {
 
   it('the fishery faces east when the water is east', () => {
     const world = bareWorld();
+    // One tile off the footprint's east edge (x = 30..31), which is what
+    // `nearWater: {radius: 1}` asks for.
     for (let ty = 29; ty < 35; ty++) {
-      const i = tileIdx(33, ty, world.map.size);
+      const i = tileIdx(32, ty, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
