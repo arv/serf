@@ -20,6 +20,70 @@
  * directly.
  */
 /**
+ * 56: the load home. A serf standing in a building now takes that
+ * building's own open haul before the board deals anything that needs a
+ * walk (systems/logistics.ts) — the man who carried bread into the mine
+ * leaves with its silver instead of walking back to the castle empty and
+ * being sent out again for it.
+ *
+ * 56 and not 55 for the reason 55 gives below: main took 55 while this
+ * branch was open, and two builds cannot share a number.
+ *
+ * Which serf claims which job changes on the first delivery of a match,
+ * and every haul after it is re-timed, so a log recorded before this build
+ * diverges within seconds of the opening.
+ *
+ * 55's note follows.
+ */
+/**
+ * 55: the bow gets its own roof — the Archery Range.
+ *
+ * 55 and not 54 because main took 54 while this branch was open (the
+ * Monument's bread, halved; its note follows below). Two builds cannot
+ * share a number — the whole point of it is that a file stamped 54 names
+ * one world of behavior — so the later of the two to land moves up.
+ * Nothing about the change below is different for it.
+ *
+ * The archer left the barracks' roster for a building of his own (2x2, 10
+ * wood and 2 stone, unlocked by Archery rather than by a gate of its own)
+ * and trains there in nine seconds instead of twelve. Three things move at
+ * once because of it. A barracks that used to answer `trainUnit archer`
+ * now refuses it, which is a command whose meaning changed. The AI's
+ * `keepTheQueueWarm` reads every hall a seat owns instead of the first
+ * building whose type is `barracks`, and warms each against that hall's own
+ * roster — so the orders two of the five playbooks issue differ from the
+ * first beat their range stands, and their build orders carry a roof that
+ * did not exist. And the range itself is a building id no earlier build
+ * ever wrote, which is format as much as behavior.
+ *
+ * The rule layer is brain-side and a replay stores commands rather than
+ * re-deriving them, so on its own that half would not have bumped this
+ * (see the "Still 49 after the Mason" entry in replayVersion.test.ts). The
+ * roster change is not brain-side: a log recorded before this build carries
+ * archer orders aimed at a barracks, and this build drops every one of
+ * them — the army that log musters never exists here.
+ *
+ * The save format is untouched: a building id is already a number in a
+ * save, and no file written before this can contain a 22, so
+ * WORLD_SAVE_VERSION stays at 9 and old saves still open.
+ *
+ * 54's note follows.
+ *
+ * 54: the Monument's bread halved, twenty loaves to ten
+ * (defs/buildings.ts). A building's cost is consumed as its site rises, so
+ * every tick after the first delivery carries different stores — a balance
+ * number in the plainest sense, and a replay recorded before that build
+ * spends a larder it no longer has.
+ *
+ * The same commit lets the Monument be PLACED before its price is banked,
+ * and that half needed no number: nothing in the sim ever asked a
+ * placement to be paid for, so what moved there was two policies deciding
+ * when to send a command — a lord's build order and a player's button —
+ * and a logged command still executes as it did. The bread is why that is
+ * 54.
+ *
+ * 53's note follows.
+ *
  * 53: the kite costs the archer something.
  *
  * A ranged unit backing away from a closing melee man used to loose an
@@ -712,29 +776,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-/**
- * 55: the load home. A serf standing in a building now takes that
- * building's own open haul before the board deals anything that needs a
- * walk (systems/logistics.ts) — the man who carried bread into the mine
- * leaves with its silver instead of walking back to the castle empty and
- * being sent out again for it. Which serf claims which job changes on the
- * first delivery of a match, and every haul after it is re-timed, so a log
- * recorded before this build diverges within seconds of the opening.
- *
- * 54's note follows.
- */
-/**
- * 54: the Monument's bread halved, twenty loaves to ten
- * (defs/buildings.ts). A building's cost is consumed as its site rises, so
- * every tick after the first delivery carries different stores — a balance
- * number in the plainest sense, and a replay recorded before this build
- * spends a larder it no longer has.
- *
- * The same commit lets the Monument be PLACED before its price is banked,
- * and that half needed no number: nothing in the sim ever asked a
- * placement to be paid for, so what moved there was two policies deciding
- * when to send a command — a lord's build order and a player's button —
- * and a logged command still executes as it did. The bread is why this is
- * 54.
- */
-export const REPLAY_VERSION = 55;
+export const REPLAY_VERSION = 56;

@@ -119,6 +119,7 @@ export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
         BuildingTypeId.ironMine,
         BuildingTypeId.weaponsmith,
         BuildingTypeId.barracks,
+        BuildingTypeId.archeryRange,
         BuildingTypeId.guardTower,
         BuildingTypeId.goldMine,
         BuildingTypeId.monument,
@@ -187,6 +188,10 @@ export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.goldMine]: 'G',
   [BuildingTypeId.weaponsmith]: 'S',
   [BuildingTypeId.barracks]: 'K',
+  // A belongs to the Abbey and R to the Brewery, so the range takes the
+  // third letter of its own name — Ar**c**hery Range, the same fallback
+  // the Barracks and the Monument took.
+  [BuildingTypeId.archeryRange]: 'C',
   [BuildingTypeId.guardTower]: 'T',
   // M belongs to the Mill, so the Monument takes the next letter of its own
   // name — the same fallback the Brewery and the Barracks took.

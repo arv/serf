@@ -370,6 +370,48 @@ import {REPLAY_VERSION} from './replayVersion';
 // the game cycle at 24 against a plant of 8, so every unit that exists
 // resolves to the same tick it did a moment ago. The hash is over raw
 // bytes, which is why it moved anyway.
+// Still 55 after a Copilot review pass corrected three pieces of prose the
+// branch had left describing the world as it was mid-branch — the Archery
+// tech's note still said the guard tower was Soldiery's to unlock, the
+// tower tooltip still counted the levy's wait in techs, and the README read
+// as though soldiers trained at the range. Comments and player-facing text:
+// the hash is over raw bytes so it moved, the sim did not.
+//
+// 55 for the Archery Range, and 55 rather than 54 because main claimed
+// 54 while this branch was open (the Monument's bread — its note is
+// carried below). Two builds cannot share a number.
+//
+// The Archery Range: the archer's training option moved off the
+// barracks' roster onto a building of its own, so a command an old log
+// records — `trainUnit archer` aimed at a barracks — is refused outright by
+// this build instead of filling a queue. That is command semantics, not
+// playbook data, and it is what earns the bump: the AI half of the same
+// change (keepTheQueueWarm reading every hall rather than the first
+// barracks, and two playbooks raising a range) is brain-side and would have
+// ridden whatever version it merged onto, exactly as the Mason's rule did
+// on 49. (Deliberately not spelled as a number: it said "53" until main
+// took 54 out from under it, which is the third stale figure this one
+// branch has left in this file.)
+// Still 55 after the merge with main's build-order credit rule, and after
+// the Fletcher's tower step took an `after: soldiery` to replace the brake
+// the ungated building no longer applies. Both are brain-side — a playbook
+// step and a rule that only reaches the sim as commands — and 55 is this
+// build's own bump besides.
+//
+// Still 55 again after the guard tower lost its tech requirement entirely
+// and the Fletcher was rebuilt around the free bow root. The tower is real
+// sim behavior — a placement the sim used to refuse it now allows — and
+// the playbook half is brain-side as ever (a replay stores a seat's
+// commands rather than re-deriving them, app/replay.ts). Both ride 55 for
+// the same reason the prereq did: it is this build's own bump.
+//
+// Still 55 after Archery lost its Soldiery prereq: warfare has two roots
+// now and a village can open on the bow without ever unlocking the
+// barracks. That is sim behavior in the plainest sense — a research the
+// queue would have refused is accepted, and every clock behind it moves —
+// but 55 is this build's own bump and has never shipped, so there is
+// nothing older to break. The same reasoning the "Still 49" entries below
+// record.
 // 54 for the Monument's bread, halved from twenty loaves to ten: a
 // building's cost is consumed as its site rises, so every tick after the
 // first delivery carries different stores. The placement change that
@@ -407,8 +449,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
-const EXPECTED_VERSION = 55;
-const EXPECTED_HASH = 'a186cce9de00cffec1b364ec11d5e9d9';
+const EXPECTED_VERSION = 56;
+const EXPECTED_HASH = 'ca8666b071994070c64bcc46e4612bc2';
 
 /**
  * Everything a replay's playback depends on, as raw source:

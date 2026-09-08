@@ -47,9 +47,10 @@ pnpm dev
 - **Chains**: wells feed wheat farms; the mill grinds wheat to flour and the
   bakery bakes it into food (the fishery lands food straight off the shore);
   iron + wood become weapons — and iron tools — at the Smith; food + weapons
-  train soldiers at the barracks; wheat + water become ale, and ale delivered
-  to the abbey throws festivals (+25% work speed) — or, with Ale Rations,
-  fills the barracks cask so every recruit drinks and trains faster.
+  train knights and spearmen at the barracks and archers at the archery
+  range; wheat + water become ale, and ale delivered to the abbey throws
+  festivals (+25% work speed) — or, with Ale Rations, fills the barracks
+  cask so every recruit drinks and trains faster.
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut
@@ -205,17 +206,18 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | **1**…**0** | Call the group back — units selected, or a building's panel opened; twice in a beat also jumps the camera to it |
 | Right click | Move order / attack enemy building |
 | **Shift** + right click | Queue the order behind the ones already given — the squad walks the waypoints in turn (also with **A**/**M**/**P** armed, and on the minimap) |
-| Click building | Building panel (barracks: train units) |
+| Click building | Building panel (barracks and archery range: train units) |
 | Click a face on the selection card | Take that one on his own (shift = leave him behind) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target, on the map or on the minimap |
 | **P** (units selected) | Arm a patrol — the next click is the far end of a beat the soldiers walk back and forth, fighting what they meet on the way, until another order comes. **Shift** on that click adds the spot to the beat instead; behind a plain route it patrols from where the route ends |
 | **H** (units selected) | Hold ground — the soldiers stop where they stand and fight only what comes within reach; no chasing, no giving ground. Sent on the spot, no click to wait for; any other order releases them |
 | Minimap: drag | Steer the camera; right click it, or click it with **A**/**M**/**P** armed, to send the selection there |
 | **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |
-| **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Guard **T**ower |
+| **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Ar**c**hery Range, Guard **T**ower |
 | **R** | Tech tree |
 | **H** (castle selected) | Hire Serf |
-| **K** / **S** / **A** (barracks selected) | Train **K**night / **S**pearman / **A**rcher |
+| **K** / **S** (barracks selected) | Train **K**night / **S**pearman |
+| **A** (archery range selected) | Train an **A**rcher |
 | M (nothing selected) | Mute |
 | Cursor at screen edge / arrows / middle-drag | Pan camera (edge scroll has a start-menu toggle) |
 | Backspace | Jump to your keep |
@@ -359,7 +361,7 @@ still decides what it always did: the name printed beside a rival's hut, the
 fog the map is drawn through (F lifts it), and the outcome.
 
 The letters on a selected building's panel are contextual, as in both those
-games, so they may reuse a global letter: the barracks' **A**rcher is the
+games, so they may reuse a global letter: the range's **A**rcher is the
 attack-move's A and the castle's **H**ire is hold ground's H, which is only
 safe because a building selection and a unit selection cannot both stand. The gates are shared between the button and the
 key (`ui/commands.ts`, `ui/buildMenu.ts`), so a shortcut can never fire where

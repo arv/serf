@@ -51,3 +51,5 @@ export const salvage = 20 as const;
 export type salvage = typeof salvage;
 export const monument = 21 as const;
 export type monument = typeof monument;
+export const archeryRange = 22 as const;
+export type archeryRange = typeof archeryRange;

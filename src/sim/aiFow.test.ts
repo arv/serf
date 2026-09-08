@@ -197,12 +197,19 @@ describe('the AI under fog of war', () => {
   it('keeps the playbook line when the counter is out of its reach', () => {
     // Fletcher vs archers: the counter is spears, but the spear recipe is
     // behind ironworking the fletcher never researches — the forges stay
-    // on bows and the barracks trains the archer it can actually arm.
+    // on bows and the range trains the archer it can actually arm.
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {[GoodId.bow]: 2});
     hands(world);
     world.players[0]!.techs.researched.push(TechId.soldiery, TechId.archery);
     placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
+    const range = placeBuiltBuilding(
+      world,
+      BuildingTypeId.archeryRange,
+      0,
+      38,
+      34,
+    );
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
     for (let i = 0; i < 4; i++)
@@ -219,9 +226,14 @@ describe('the AI under fog of war', () => {
     );
     expect(recipes).toHaveLength(2);
     for (const r of recipes) expect(r).toMatchObject({index: 2}); // bowstaves
-    expect(commands.find(c => c.kind === CommandKind.trainUnit)).toMatchObject({
-      unit: UnitTypeId.archer,
-    });
+    // The order that matters is the one at the range: the bow is trained
+    // under its own roof now, so "keeps the playbook line" is a claim about
+    // that queue and not about whatever the spear hall next door is holding.
+    expect(
+      commands.find(
+        c => c.kind === CommandKind.trainUnit && c.buildingId === range.id,
+      ),
+    ).toMatchObject({unit: UnitTypeId.archer});
   });
 
   it('holds the barracks slot with a unit the seat can actually train', () => {
@@ -253,7 +265,7 @@ describe('the AI under fog of war', () => {
   });
 
   it('will not order a locked unit even with its weapon on the shelf', () => {
-    // Bows in the store and the barracks open, but Archery is not in. The
+    // Bows in the store and both roofs open, but Archery is not in. The
     // preference list must be read through the same gate the fallback is:
     // an armed order the sim refuses fills no queue either.
     const world = bareWorld(1, 2);
@@ -263,27 +275,47 @@ describe('the AI under fog of war', () => {
       TechId.soldiery,
       TechId.ironworking,
     );
-    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      34,
+      34,
+    );
+    const range = placeBuiltBuilding(
+      world,
+      BuildingTypeId.archeryRange,
+      0,
+      38,
+      34,
+    );
     world.tick = 1000;
     const brain = new AiBrain(
       0,
       AI_STRATEGIES[AiStrategyId.abbot],
       world.map.size,
     );
-    const order = brain
+    const before = brain
       .decide(world)
-      .find(c => c.kind === CommandKind.trainUnit);
-    expect(order).toMatchObject({unit: UnitTypeId.knight});
+      .filter(c => c.kind === CommandKind.trainUnit);
+    expect(before.find(c => c.buildingId === barracks.id)).toMatchObject({
+      unit: UnitTypeId.knight,
+    });
+    // And nothing at the range: a roof standing over a locked unit has no
+    // order to give, which is the same refusal seen from the other side.
+    expect(before.find(c => c.buildingId === range.id)).toBeUndefined();
 
     // Once the research lands the archer is the playbook's own answer to a
-    // shelf of bows, and the rule goes back to giving it.
+    // shelf of bows, and the rule goes back to giving it — at the range.
     world.players[0]!.techs.researched.push(TechId.archery);
     world.tick += 20;
     expect(
-      brain.decide(world).find(c => c.kind === CommandKind.trainUnit),
-    ).toMatchObject({
-      unit: UnitTypeId.archer,
-    });
+      brain
+        .decide(world)
+        .find(
+          c => c.kind === CommandKind.trainUnit && c.buildingId === range.id,
+        ),
+    ).toMatchObject({unit: UnitTypeId.archer});
   });
 
   it('keeps a trusted sighting through a doorstep read that saw nothing', () => {

@@ -232,11 +232,35 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     id: T.archery,
     name: 'Archery',
     branch: TechBranchNs.warfare,
-    prereqs: [T.soldiery],
+    // No prereq. The bow used to hang off Soldiery because it had to: the
+    // archer was an option on the barracks' roster, so a village that had
+    // not unlocked the barracks had nowhere to put him. He trains under his
+    // own roof now, and the range is unlocked by this research rather than
+    // by that one — which leaves the old edge gating nothing except the
+    // order the two are bought in.
+    //
+    // So warfare has two roots, and they are the two arms: Soldiery buys
+    // the hall, the spear and the sword; Archery buys the range, the bow
+    // and the bowstave at the forge. A village can now open on either and
+    // never touch the other, and nothing crosses between them.
+    //
+    // The guard tower was the one thing that did, and it is why it carries
+    // no tech requirement now: it was Soldiery's to unlock and archers' to
+    // man, so a bow plan could field the men and not the wall they stand
+    // on. Ungated, it leans the other way if anywhere — anyone may raise
+    // one, but only this root's archers turn it into more than a levy on
+    // the parapet.
+    prereqs: [],
     cost: {[GoodId.wood]: 8, [GoodId.silver]: 6},
     durationTicks: 30 * S,
-    effects: [{kind: TechEffectKindNs.unlockUnit, unit: UnitTypeId.archer}],
-    desc: 'Unlocks bowmaking at the Smith, and Archers.',
+    effects: [
+      {
+        kind: TechEffectKindNs.unlockBuilding,
+        building: BuildingTypeId.archeryRange,
+      },
+      {kind: TechEffectKindNs.unlockUnit, unit: UnitTypeId.archer},
+    ],
+    desc: 'Unlocks bowmaking at the Smith, the Archery Range, and Archers.',
   },
   [T.mailArmor]: {
     id: T.mailArmor,
