@@ -21,7 +21,7 @@ import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import * as RecipeKind from '../defs/recipeKindEnum.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import type {Building} from '../entities.ts';
-import {findResourcesNear} from '../map.ts';
+import {canWorkResourceNear, findResourcesNear} from '../map.ts';
 import {findPathToAdjacent} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
 import * as TileResource from '../tileResourceEnum.ts';
@@ -36,6 +36,14 @@ type GoodId = Enum<typeof GoodId>;
  * giving up until the next attempt. Enough to see past a walled-in pocket
  * of its own seam; small enough that a fully shut-in hut costs a bounded
  * handful of path searches per 40-tick retry.
+ *
+ * "Bounded" was carrying more than it could: a failed A* is the most
+ * expensive search there is, since it expands the whole walkable component
+ * before it can say no, so eight of them every forty ticks forever is what
+ * a dead hut actually cost. The reach guard in gatherStep answers that case
+ * before this budget is spent, which leaves this once again what it says it
+ * is — the allowance for a hut whose NEAREST ground is shut, not the
+ * standing bill for one whose ground all is.
  */
 const GATHER_REACH_TRIES = 8;
 
@@ -473,14 +481,40 @@ function gatherStep(
       // village of the good everything else is built from. The trip goes
       // to the nearest tile a path actually reaches; the candidate cap
       // bounds the pathfinding bill on beats where everything is shut.
-      const candidates = findResourcesNear(
+      //
+      // Ahead of all of it, one cheap question: can this hut reach
+      // anything in its square AT ALL (map.ts)? Asked first because of
+      // what the loop below costs when the answer is no. An A* that fails
+      // has expanded the whole walkable component to find that out —
+      // thousands of tiles — and a hut with nothing reachable pays that
+      // GATHER_REACH_TRIES times over, every forty ticks, for the rest of
+      // the match. That is a quarry whose last rock stands ringed by its
+      // own grove, and it is not an exotic shape: it is what a gatherer
+      // becomes as its square runs down around it. The flood is bounded
+      // and answers on the first workable tile it touches, so a hut with
+      // work to do barely pays for the guard, and a hut with none pays
+      // once instead of eight times.
+      //
+      // The guard only gates the search. The tile is still chosen in ring
+      // order and still has to be pathed to, so a hut that has work sends
+      // its worker exactly where it always sent him.
+      const candidates = canWorkResourceNear(
         world.map,
         c.x,
         c.y,
+        b,
         recipe.resource,
         recipe.radius,
-        GATHER_REACH_TRIES,
-      );
+      )
+        ? findResourcesNear(
+            world.map,
+            c.x,
+            c.y,
+            recipe.resource,
+            recipe.radius,
+            GATHER_REACH_TRIES,
+          )
+        : [];
       let tile = -1;
       let path: number[] | null = null;
       for (const cand of candidates) {

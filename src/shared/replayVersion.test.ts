@@ -449,8 +449,23 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
-const EXPECTED_VERSION = 56;
-const EXPECTED_HASH = '00e0779a0ab65ff66ea38257a7834a91';
+// 56 for a gatherer answering only for ground it can walk to: canPlace
+// refuses a hut whose only resource is walled in (map.ts
+// canWorkResourceNear), so a placeSite command that used to be accepted is
+// now refusable and every AI valley lays its foundations somewhere else.
+// The gather loop asks the same question, but only as a guard on its own
+// search — a hut that can reach anything picks its trip in the ring order
+// it always did — so the sim's day-to-day is untouched and the only
+// outcome that moves is the hut whose ground lies past a detour longer
+// than its whole radius. Behavior either way, so old logs stop playing.
+// Cut as 54, landing as 56: main took 54 for the Monument's bread and 55
+// for the Archery Range while the branch was open.
+// The rest of the arc is outside the surface: the card's two numbers and
+// its tooltip (protocol/, ui/), the reach outline (render/), and the
+// re-siting rule's condition, which is brain-side the way every other
+// economy rule is — playback never runs a brain.
+const EXPECTED_VERSION = 57;
+const EXPECTED_HASH = '9d4b77c14065d160888265b995502043';
 
 /**
  * Everything a replay's playback depends on, as raw source:

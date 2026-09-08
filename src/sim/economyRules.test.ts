@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import type {Enum} from '../shared/enum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as EconomyRuleId from './economyRuleIdEnum.ts';
 import {
   ALL_ECONOMY_RULES,
@@ -11,6 +12,9 @@ import {
   type RuleContext,
 } from './economyRules.ts';
 import * as RulePhase from './rulePhaseEnum.ts';
+import {addResourceTile, addStorehouse, bareWorld} from './testUtils.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import {placeBuiltBuilding, type World} from './world.ts';
 
 type EconomyRuleId = Enum<typeof EconomyRuleId>;
 
@@ -19,6 +23,12 @@ type EconomyRuleId = Enum<typeof EconomyRuleId>;
  * a real world, in ai.test.ts. What is covered here is the runner, because
  * composition is the whole reason this layer exists and the two things that
  * keep composition honest (claims and groups) have no other home.
+ *
+ * One rule's CONDITION is pinned here too, at the bottom: resiteExtractor's,
+ * because "the hut can no longer work anything" is a different sentence from
+ * "there is nothing left in the square" and the gap between them is where a
+ * seat's dead quarry used to live forever. Firing it directly is the only
+ * way to say which sentence the rule is reading.
  */
 
 const ctx = {} as RuleContext;
@@ -178,5 +188,68 @@ describe('the real rules stay quiet on a healthy seat', () => {
     expect(runEconomyRules(healthy, all, RulePhase.production).fired).toEqual(
       [],
     );
+  });
+});
+
+/**
+ * The re-siting rule's condition, which is the whole rule: everything after
+ * it is a sell command.
+ *
+ * It used to ask `findResourcesNear` — is there anything of the kind inside
+ * the radius — and a single tile the worker cannot walk to answers that yes
+ * for the rest of the match. So the one rule that exists to move a hut off
+ * dead ground was blind to the deadest ground there is: a quarry whose last
+ * rock stood ringed by its own grove had no trips to make and no way to be
+ * moved, and it sat there through eight minutes of a real match while the
+ * barracks it fed waited on five stone.
+ */
+describe('resiteExtractor: what counts as dead ground', () => {
+  const rule = ECONOMY_RULES.find(r => r.id === EconomyRuleId.resiteExtractor)!;
+
+  /** The rule reads three fields, and `nearestClaimableResource` reads the
+   * seat's ground off the world. The rest of the context is the runner's. */
+  function contextFor(world: World): RuleContext {
+    return {
+      world,
+      owner: 0,
+      mine: [...world.buildings.values()].filter(b => b.owner === 0),
+    } as RuleContext;
+  }
+
+  /** A quarry at (30,30) with one rock in reach, ringed by `wall`. */
+  function quarryWithSealedRock(wall: boolean): World {
+    const world = bareWorld();
+    addStorehouse(world, 60, 60, {});
+    placeBuiltBuilding(world, BuildingTypeId.quarry, 0, 30, 30);
+    addResourceTile(world, 35, 31, TileResource.Rock);
+    if (wall) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          addResourceTile(world, 35 + dx, 31 + dy, TileResource.Wood);
+        }
+      }
+    }
+    // Somewhere to go: the rule refuses to sell a hut with no better spot
+    // on the seat's own side of the valley, so give it fresh rock.
+    addResourceTile(world, 58, 58, TileResource.Rock);
+    return world;
+  }
+
+  it('holds its hand while the hut can still work its ground', () => {
+    expect(rule.fire(contextFor(quarryWithSealedRock(false)))).toBeNull();
+  });
+
+  it('sells a hut whose last ground it cannot reach', () => {
+    const world = quarryWithSealedRock(true);
+    const quarry = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.quarry,
+    )!;
+    const fired = rule.fire(contextFor(world));
+
+    expect(fired?.claims).toEqual([quarry.id]);
+    expect(fired?.commands).toEqual([
+      {kind: CommandKind.sellBuilding, buildingId: quarry.id},
+    ]);
   });
 });
