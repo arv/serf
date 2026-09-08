@@ -473,8 +473,23 @@ import {REPLAY_VERSION} from './replayVersion';
 // landing as 57: main took 55 for the Archery Range and 56 for the
 // reachable-ground rule while the branch was open. (The hut it carries got
 // smaller in the same commit, and that half is render only.)
-const EXPECTED_VERSION = 58;
-const EXPECTED_HASH = 'bcb68720908722f03d851b0b6ddae0af';
+// 59 for the armory holding one of each arm (START_STOCK in
+// sim/defs/balance.ts): two spears and a sword became a spear, a sword and
+// a bow, so every seat's opening army is one soldier smaller and the hauls
+// planned around the missing spear walk elsewhere. A balance number in the
+// plainest sense, the same kind the Monument's bread was.
+//
+// Cut as 56, landing as 59: main took 56 for the reachable-ground rule, 57
+// for the fishery's footprint and 58 for the load home while the branch
+// was open. Four numbers for one change, and the notes above carry the
+// same line about themselves — which is the pattern worth reading rather
+// than any one of the four.
+//
+// The playbook half rode it for free, as playbook data always does: the
+// Warlord's ironworking moved second (the rack no longer carries it to a
+// raiding party) and the Fletcher's notes stopped describing two spears.
+const EXPECTED_VERSION = 59;
+const EXPECTED_HASH = 'e26bb64ab787e6d1137ae6443104d5a3';
 
 /**
  * Everything a replay's playback depends on, as raw source:
