@@ -22,3 +22,5 @@ export const openReserveMine = 9 as const;
 export type openReserveMine = typeof openReserveMine;
 export const garrisonIsEnough = 10 as const;
 export type garrisonIsEnough = typeof garrisonIsEnough;
+export const sellForTheWoodcutter = 11 as const;
+export type sellForTheWoodcutter = typeof sellForTheWoodcutter;

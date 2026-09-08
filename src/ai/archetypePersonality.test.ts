@@ -24,9 +24,33 @@ import {summarizeForSeat} from './summary.ts';
  *
  * Orderings, not thresholds, on purpose: a threshold here would be seat
  * bias and seed noise wearing a pass mark. What is asserted is only the
- * direction — the warlord reads as a rusher more than the abbot does, and
- * the abbot as the calm one more than the warlord — pooled over seeds so
- * one valley's geography cannot decide it.
+ * direction — the warlord reads as a rusher more than the abbot does —
+ * pooled over seeds so one valley's geography cannot decide it.
+ *
+ * There was a second ordering here, the mirror of that one: the abbot as
+ * the calm one more than the warlord. It was removed when the Archery
+ * Range took the barracks' footprint, and not because that change broke
+ * it. Measured on five pools, it does not hold on main either:
+ *
+ *   pool        main (calm a/w)      3x3 range (calm a/w)
+ *   1..24       0.364/0.343  holds   0.339/0.378  inverts
+ *   4..23       0.334/0.370  inverts 0.312/0.368  inverts
+ *   24..40      0.340/0.469  inverts 0.376/0.332  holds
+ *   1..40       0.343/0.404  inverts 0.342/0.356  inverts
+ *   1..48       0.345/0.407  inverts 0.359/0.375  inverts
+ *
+ * One pool in five, and the one it holds on is the one that was pinned.
+ * The remedy this file reached for last time — "the pool widened rather
+ * than the assertion softening" — is the first thing that was tried and it
+ * does not work here: widening inverts it for BOTH builds. An assertion
+ * that needs one particular draw to pass is measuring the draw, and every
+ * footprint change in the game will keep knocking it over; the fishery's
+ * did, one release ago, and the note below records that round.
+ *
+ * The rusher half is a different matter and is what remains. It holds on
+ * every pool measured, on both builds, and reads wider on the 3x3 range
+ * (0.056/0.005 against 0.035/0.000 at 1..40) rather than narrower — which
+ * is the direction that says the signal is real.
  */
 
 /** One warlord-vs-abbot match, each brain classifying the other every 500
@@ -110,17 +134,16 @@ describe('personalities read through the fog', () => {
     };
     const rusher = (m: Map<number, number>): number =>
       share(m, Archetype.rusher);
-    const calm = (m: Map<number, number>): number =>
-      share(m, Archetype.booming) + share(m, Archetype.turtling);
 
     // The loop saw real games: both sides produced reads at all.
     let warlordReads = 0;
     for (const n of pooled.warlord.values()) warlordReads += n;
     expect(warlordReads).toBeGreaterThan(20);
 
-    // The blurbs, finally visible from the other side of the fog.
+    // The blurb, finally visible from the other side of the fog. Its
+    // mirror — the abbot reading calmer than the warlord — used to stand
+    // here; the header says what five pools made of it.
     expect(pooled.warlord.get(Archetype.rusher) ?? 0).toBeGreaterThan(0);
     expect(rusher(pooled.warlord)).toBeGreaterThan(rusher(pooled.abbot));
-    expect(calm(pooled.abbot)).toBeGreaterThan(calm(pooled.warlord));
   }, 300_000);
 });

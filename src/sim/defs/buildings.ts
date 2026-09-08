@@ -735,26 +735,70 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.archeryRange]: {
     id: B.archeryRange,
     name: 'Archery Range',
-    // Two by two where the barracks is three: a fenced lane, a shed for the
-    // staves and a butt at the end of it is not a drill hall.
-    w: 2,
-    h: 2,
-    // Timber and a token course of stone for the butt. Deliberately cheap in
-    // the one material the bow line is already short of: a guard tower is
-    // twelve stone, and the range now stands between Archery and the men who
-    // climb it. Making the range cost stone too would have priced the whole
-    // tower plan out of reach of the seat built around it (the Fletcher digs
-    // no iron and quarries only once).
-    cost: {[GoodId.wood]: 10, [GoodId.stone]: 2},
+    // Three by three, the barracks' own footprint. It was two, on the
+    // reasoning that a fenced lane, a shed for the staves and a butt at the
+    // end of it is not a drill hall — but the model KayKit ships is the
+    // second largest building in the pack (1.67 x 1.55 in its own units
+    // against the barracks' 1.44 x 1.57; only the castle is bigger), and
+    // makeGlbBuilding sizes every model off min(w,h). A range squeezed into
+    // two tiles rendered a third smaller than the hall it stands beside, so
+    // the yard read as a shed. The footprint the artist drew is the one the
+    // sim now charges for: nine tiles of flat ground, and a wider thing to
+    // shoot at.
+    w: 3,
+    h: 3,
+    // Timber and a real course of stone — half a guard tower's twelve — for
+    // the butt the yard shoots at and the footings the fence stands on. It
+    // was two, a token, on the argument that the range sits between Archery
+    // and the men who climb the tower and that charging it stone would
+    // price the whole tower plan out of reach of the seat built around it
+    // (the Fletcher digs no iron and quarries only once). Six is that
+    // argument's other half: a nine-tile yard bought for one course of
+    // masonry was the cheapest large footprint in the game, and a second
+    // roof that costs a village nothing is not the choice the range was
+    // added to be. The Fletcher's plan still lands — it quarries first,
+    // ahead of everything but the axe, and the range is well down its
+    // order — but the stone is now a queue the bow line waits in rather
+    // than a rounding error.
+    //
+    // Measured on both halves of the change together, over two ranges of
+    // 32 campaigns (tools/aiLab/balance.ts 32, and again at offset 200),
+    // because that old note was a prediction about this seat and predictions
+    // about seats are decided in the aggregate or not at all: the Fletcher
+    // reads 27/32 against 26 on the first range and 30/32 against 30 on the
+    // second, and the Abbot — the other playbook that raises a range — 29
+    // against 27 and 30 against 29. Noise either way by that file's own
+    // rule, which is the finding: six stone does not cost the seat built
+    // around the bow its map.
+    //
+    // Those four pairs were read on the tree this branch cut from, before
+    // main's fishery footprint and its one-of-each armory landed under it,
+    // and they are left as they were read rather than quietly restated
+    // against a game they were not read on. What the merged tree says is
+    // recorded where it was measured — the whole-sweep totals in
+    // sellForTheWoodcutter's own note (economyRules.ts), which is the run
+    // that had to be redone anyway.
+    cost: {[GoodId.wood]: 10, [GoodId.stone]: 6},
     // Faster up than the barracks' twenty-five seconds, for the same reason
     // it is cheaper: it is the second roof on the military line, not the
     // first, and a second gate that also costs a barracks' worth of waiting
     // would read as a toll rather than a choice.
     buildTicks: 18 * S,
-    // Softer than the barracks' 220 — fence and shed against a drill hall.
-    // A raid that walks past the wall can burn the bows off the plan, which
-    // is the risk that pays for the range's speed.
-    hp: 150,
+    // Still under the barracks' 220, but only just. It was 150, and the
+    // argument for the gap was that a fence and a shed are not a drill hall
+    // — a raid that walks past the wall can burn the bows off the plan, and
+    // that risk is what paid for the range's speed. The building it is now
+    // is not that building: same nine tiles as the hall, six stone of
+    // masonry in the butt and the footings. Twenty short is the fence and
+    // the open yard still costing something; seventy was the shed the range
+    // has stopped being.
+    //
+    // The speed it was supposed to pay for is still bought, by the build
+    // clock above and the nine-second archer below. Softness was never the
+    // load-bearing half of that trade: what makes the range a decision is
+    // that it is a second roof and a second bill, not that a raider can
+    // knock it over in fewer swings than the hall beside it.
+    hp: 200,
     sight: 5.5,
     // Archery rather than Soldiery: the tech that unlocks the archer unlocks
     // the roof he is trained under, so the bow is still one research, not

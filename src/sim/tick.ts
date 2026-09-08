@@ -27,6 +27,7 @@ import {
 } from './defs/units.ts';
 import {BANDIT, type Building, type Owner} from './entities.ts';
 import * as GameEventKind from './gameEventKindEnum.ts';
+import * as HaulPhase from './haulPhaseEnum.ts';
 import {findPath, nearestWalkable} from './path.ts';
 import {hasRoomToHire} from './population.ts';
 import {banditsSystem} from './systems/bandits.ts';
@@ -311,6 +312,23 @@ export function applyCommand(
       for (const [good, n] of goodEntries(cost)) {
         sh.stock[good] = (sh.stock[good] ?? 0) - n;
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
+        // A tech is bought off the shelf, and the shelf may already have
+        // promised what it is paying with. Reservations are the haulage
+        // board's claim on stock (`reservedOut` — see the invariants at the
+        // top of systems/logistics.ts), and nothing here ever consulted
+        // them: four iron reserved for a smith and four iron on the shelf
+        // bought Ironworking anyway, and left `reservedOut[iron]=4` over a
+        // stock of nothing.
+        //
+        // The promise is what gives, not the purchase. Every one of those
+        // hauls was going to die of this anyway — reconcile drops an open
+        // job whose source has fallen below its reservations, and a serf
+        // already walking gets "source out of stock at pickup" when he
+        // arrives — so this cancels them at the moment the shelf is spent
+        // rather than leaving the books wrong until he finds out. Research
+        // stays exactly as affordable as it was; what changes is that the
+        // carrier is told now.
+        releaseShelfPromises(world, sh, good);
       }
       player.techs.active = {
         tech: cmd.tech,
@@ -519,6 +537,39 @@ export function applyCommand(
       if (sh && !sh.dead) cancelHire(world, sh, cmd.index);
       break;
     }
+  }
+}
+
+/**
+ * Give back the haulage promises a building can no longer keep: cancel its
+ * outbound jobs for `good`, oldest first, until `reservedOut` is inside the
+ * stock again.
+ *
+ * The one caller is research, which is the one thing in the game that
+ * spends off a shelf without asking the haulage board first. Ordinary
+ * production cannot get here — a converter eats from its own inputs, and
+ * every good that leaves a building for another one leaves through a job
+ * that booked its reservation first.
+ *
+ * Oldest first, by job id, because the sim's tie-breaks are by id
+ * everywhere else and a cancellation order that depended on Map iteration
+ * would be a determinism bug waiting for a rewrite. The carrier keeps
+ * whatever is already in his hands: a job in `toDropoff` holds no
+ * reservation here (it was released at pickup), so it is never a candidate
+ * — but a serf walking TO the shelf is stood down with nothing lost.
+ */
+function releaseShelfPromises(world: World, b: Building, good: GoodId): void {
+  const over = (): number => (b.reservedOut[good] ?? 0) - (b.stock[good] ?? 0);
+  if (over() <= 0) return;
+  const promises = [...world.jobs.values()]
+    .filter(
+      j =>
+        j.from === b.id && j.good === good && j.phase !== HaulPhase.toDropoff,
+    )
+    .sort((x, y) => x.id - y.id);
+  for (const job of promises) {
+    if (over() <= 0) break;
+    abortJob(world, job, 'the shelf spent what this haul was promised', true);
   }
 }
 
