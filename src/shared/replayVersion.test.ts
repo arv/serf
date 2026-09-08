@@ -464,33 +464,45 @@ import {REPLAY_VERSION} from './replayVersion';
 // its tooltip (protocol/, ui/), the reach outline (render/), and the
 // re-siting rule's condition, which is brain-side the way every other
 // economy rule is — playback never runs a brain.
-// 57 for the Archery Range taking the barracks' footprint (2x2 -> 3x3, in
+// 57 for the fishery's footprint, 3x3 down to 2x2 (defs/buildings.ts):
+// canPlace measures the ground and the water against it, placeBuilding
+// blocks the tiles it covers, and both answer differently now — shores
+// that could not take a fishery can (416 legal sites on seed 1 against
+// 379), and the four tiles a standing one blocks are not the nine it
+// blocked. Sim in the plainest sense; see replayVersion.ts. Cut as 55,
+// landing as 57: main took 55 for the Archery Range and 56 for the
+// reachable-ground rule while the branch was open. (The hut it carries got
+// smaller in the same commit, and that half is render only.)
+// 59 for the Archery Range taking the barracks' footprint (2x2 -> 3x3, in
 // defs/buildings.ts). What started it is the model — KayKit authors the
 // range larger than the barracks and the renderer scales off min(w,h), so
-// at two it read as a shed — but a footprint is not costume: nine tiles of
-// flat ground instead of four makes a placeSite an old log could have
-// carried refusable, nine blocked tiles re-route every hauler that walks
-// past it, and sight measured from the footprint edge reveals a wider ring.
-// Behavior, so old logs stop playing.
-// Still 57 for the range's stone going 2 -> 6 alongside it: a build cost is
+// at two it read as a shed — but a footprint is not costume, on exactly the
+// reasoning the fishery's note above gives one paragraph earlier: nine
+// tiles of flat ground instead of four makes a placeSite an old log could
+// have carried refusable, nine blocked tiles re-route every hauler that
+// walks past it, and sight measured from the footprint edge reveals a wider
+// ring. Behavior, so old logs stop playing. Cut as 57, landing as 59: main
+// took 57 for the fishery and 58 for the load home while the branch was
+// open.
+// Still 59 for the range's stone going 2 -> 6 alongside it: a build cost is
 // behavior of the plainest kind — four more hauls before the site rises,
-// and a dearer repair with it (REPAIR_COST_SHARE) — but 57 is this build's
+// and a dearer repair with it (REPAIR_COST_SHARE) — but 59 is this build's
 // own bump and has never shipped, so there is nothing older to break. The
 // same reasoning the "Still 49" entries above record. It rides here because
 // it is the same decision: nine tiles bought for one token course of
 // masonry was the cheapest large footprint in the game. The Fletcher is the
 // seat that pays for it — the one playbook built on the bow, digging no
-// iron and quarrying once — and its campaign still lands (aiStrategies.test.ts);
-// its quarry is second in its plan, ahead of everything but the axe, and
-// the range is well down the order behind it.
-// Still 57 for the range's hit points going 150 -> 200 with them, on that
+// iron and quarrying once — and its campaign still lands
+// (aiStrategies.test.ts); its quarry is second in its plan, ahead of
+// everything but the axe, and the range is well down the order behind it.
+// Still 59 for the range's hit points going 150 -> 200 with them, on that
 // same never-shipped reasoning, and it is the same decision a third time: a
 // building on the barracks' footprint at nearly the barracks' price does
 // not also get to be a shed to knock over. Real behavior — a raid that used
 // to level a range leaves it standing, and every tick of that fight lands
 // somewhere else.
-const EXPECTED_VERSION = 57;
-const EXPECTED_HASH = '3cc51269038383aac3be225146f98906';
+const EXPECTED_VERSION = 59;
+const EXPECTED_HASH = '18e6e3af2c18e4d0bedcdd96b3d548ab';
 
 /**
  * Everything a replay's playback depends on, as raw source:

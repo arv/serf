@@ -20,23 +20,33 @@
  * directly.
  */
 /**
- * 57: the Archery Range stands on the barracks' footprint, pays a mason
+ * 59: the Archery Range stands on the barracks' footprint, pays a mason
  * for it, and takes the hit points that go with both.
  *
  * Two by two to three by three, the stone bill two to six, and 150 hit
  * points to 200. Nothing else about the building moves — same ten wood,
- * same eighteen-second raising, same nine-second archer. The model is what started it: KayKit authors the
- * range as the second largest building in the pack (only the castle is bigger, and it out-measures the barracks it was
- * written as the small sibling of), and the renderer sizes every model off
- * min(w,h). At two the yard rendered a third smaller than the hall beside
- * it and read as a shed. The price follows the ground — nine tiles bought
- * for one token course of masonry was the cheapest large footprint in the
- * game.
+ * same eighteen-second raising, same nine-second archer.
  *
- * Both halves are sim, not costume, which is what earns the bump. Nine
- * tiles of flat ground instead of four is a placement an old log's
- * `placeSite` could have been given and this build refuses; the nine tiles
- * block movement, so haulers and soldiers walk around a wider obstacle and
+ * 59 and not 57, which is the number this was cut as: main took 57 (the
+ * fishery's own footprint, whose note is below and reasons about a
+ * footprint in exactly these terms) and 58 (the load home) while the
+ * branch was open. Third build in a row to renumber for the same reason,
+ * which is by now the pattern rather than the accident.
+ *
+ * The model is what started it. KayKit authors the range as the second
+ * largest building in the pack — only the castle is bigger, and it
+ * out-measures the barracks it was written as the small sibling of — and
+ * the renderer sizes every model off min(w,h). At two the yard rendered a
+ * third smaller than the hall beside it and read as a shed. The other two
+ * numbers follow the ground: nine tiles bought for one token course of
+ * masonry was the cheapest large footprint in the game, and 150 hit points
+ * were written for a fence and a shed rather than for a building on the
+ * barracks' plot at nearly the barracks' price.
+ *
+ * All three are sim, not costume, which is what earns the bump. Nine tiles
+ * of flat ground instead of four is a placement an old log's `placeSite`
+ * could have been given and this build refuses; the nine tiles block
+ * movement, so haulers and soldiers walk around a wider obstacle and
  * arrive on different ticks; sight is measured from the footprint edge, so
  * a built range reveals a wider ring. The four extra stone are four more
  * hauls to the site before it rises, and a repair is billed as a share of
@@ -46,8 +56,49 @@
  * replay recorded before this build re-runs into a different world within
  * seconds of the first range going down.
  *
- * 56's note follows.
+ * 58's note follows.
+ */
+/**
+ * 58: the load home. A serf standing at a building now takes that
+ * building's own open haul before the board deals anything that needs a
+ * walk (systems/logistics.ts) — the man who carried bread into the mine
+ * leaves with its silver instead of walking back to the castle empty and
+ * being sent out again for it.
  *
+ * 58, cut as 55: main took 55, 56 and 57 while this branch was in review.
+ * Fourth number, same reason the three notes below give for their own
+ * renumbering, and by now the pattern is the note worth reading.
+ *
+ * Which serf claims which job changes on the first delivery of a match,
+ * and every haul after it is re-timed, so a log recorded before this build
+ * diverges within seconds of the opening.
+ *
+ * 57's note follows.
+ */
+/**
+ * 57: the fishery stands on 2x2.
+ *
+ * 57 and not 55, which is the number this was cut as: main took 55 (the
+ * Archery Range) and 56 (the reachable-ground rule) while the branch was
+ * open, and two builds cannot share a number — the same renumbering the
+ * two notes below record about themselves.
+ *
+ * A footprint is sim, not decoration. `canPlace` measures the flat ground
+ * under it and the water within a tile of it, `placeBuilding` blocks the
+ * tiles it covers, and every serf walking past one paths around what it
+ * blocked. A shoreline that had to give nine tiles of buildable bank gives
+ * four now — on seed 1 that is 416 legal fishery sites where there were
+ * 379 — so a log recorded before this re-runs into a valley whose shores
+ * take fisheries the old one refused, and where one already stands it
+ * stands on different ground with different tiles walkable around it.
+ *
+ * (The hut drawn on that footprint got smaller with it, and its jetty was
+ * re-authored in tiles so the planks still reach the water. That half is
+ * render only — assets.ts — and nothing in a tick can see it.)
+ *
+ * 56's note follows.
+ */
+/**
  * 56: a gatherer answers only for ground it can walk to.
  *
  * 56 and not 54, which is the number this was cut as: main took 54 (the
@@ -828,4 +879,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 57;
+export const REPLAY_VERSION = 59;

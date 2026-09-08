@@ -79,16 +79,24 @@ describe('personalities read through the fog', () => {
       warlord: new Map<number, number>(),
       abbot: new Map<number, number>(),
     };
-    // Ten seeds, not the original six: when the salvage change landed
-    // (drops and sale piles re-time every match), seed 8 inverted hard —
-    // the warlord read all-calm and the abbot all-unmet in that one
-    // valley — and at six seeds that single geography tied the pool at
-    // exactly 63/94 apiece. One valley deciding it is precisely what
-    // pooling exists to prevent, so the pool widened rather than the
-    // assertion softening. Per-seed shares at the widening: abbot calmer
-    // on 1, 3, 5, 13, 89; ties on 2, 21, 34; warlord ahead on 8 and
-    // narrowly 55; pooled 129/191 against 122/191.
-    for (const seed of [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]) {
+    // A contiguous range of seeds, and it is worth saying why rather than
+    // leaving it to look arbitrary. This pool was six Fibonacci seeds, then
+    // ten of them (the salvage change made seed 8 invert hard, and at six
+    // that one valley tied the pool at 63/94 apiece — so the pool widened
+    // rather than the assertion softening). The fishery's footprint, 3x3
+    // down to 2x2, re-times every match that has a shore in it, and that
+    // draw inverted again: pooled calm went 0.345/0.328 to 0.383/0.430,
+    // and pushing the same sequence out to sixteen did not mend it
+    // (0.394/0.468).
+    //
+    // It was the draw and not the signal. Measured on three pools of
+    // sixteen the ordering holds on both footprints — seeds 4..23 read
+    // 0.387/0.308 before and 0.429/0.361 after, seeds 24..40 read
+    // 0.438/0.402 and 0.425/0.382 — and it holds on this contiguous
+    // twenty-four, 0.364/0.322 before and 0.399/0.386 after. A run of
+    // seeds nobody chose is the pool least able to hide a valley, which is
+    // what this test wanted from pooling in the first place.
+    for (let seed = 1; seed <= 24; seed++) {
       const {warlord, abbot} = readsFor(seed, 18_000);
       for (const [k, n] of warlord)
         pooled.warlord.set(k, (pooled.warlord.get(k) ?? 0) + n);
