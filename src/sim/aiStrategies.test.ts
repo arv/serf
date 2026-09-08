@@ -290,10 +290,14 @@ describe('the AI playbooks', () => {
     // going to one of each arm (START_STOCK in defs/balance.ts) moved what
     // is worth asserting after it. On this seed the bow now lands EARLIER
     // than it did — tick 9.2k against 10.5k — and then this seat buys
-    // nothing else at all, not by 12k and not by 60k: four seats on one
-    // map is a poorer game than the solo campaign the sweeps run, and a
-    // plan that spends its wood on bowstaves has little left for a second
-    // research. That is the seat behaving as its blurb says, not a stall.
+    // nothing else by the 12k this test plays to. Run out of band it buys
+    // nothing by 60k either, which is why the assertion below is worded as
+    // it is rather than waiting for a second research that is not coming:
+    // four seats on one map is a poorer game than the solo campaign the
+    // sweeps run, and a plan that spends its wood on bowstaves has little
+    // left over. That is the seat behaving as its blurb says, not a stall
+    // — but 60k is an observation about the seat, not something this test
+    // checks, and only the 12k half is pinned here.
     //
     // So the second line asserts what still separates this seat rather
     // than a fact that has stopped being true. Soldiery being in by a

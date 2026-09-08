@@ -103,30 +103,9 @@ describe('personalities read through the fog', () => {
       for (const [k, n] of abbot)
         pooled.abbot.set(k, (pooled.abbot.get(k) ?? 0) + n);
     }
-    // Shares over the reads that SAW something, not over every sample.
-    //
-    // An `unmet` read is the classifier saying "I cannot tell yet" — no
-    // trustworthy sighting of a force (AI_INTEL.minSighting is three
-    // soldiers, ARCHETYPE.force the same). Counting those in the
-    // denominator makes this a measure of how often one seat's scout got
-    // lucky, which is not what the test is named for.
-    //
-    // It mattered from the day the armory went to one of each arm
-    // (START_STOCK in sim/defs/balance.ts). Every seat's opening army is
-    // one soldier smaller now, so both seats clear the three-man bar later
-    // and `unmet` dominates: on the ten pooled seeds the abbot reads unmet
-    // 163 times out of 217 against the warlord's 114. Denominated over all
-    // samples that asymmetry alone inverted the calm ordering — 0.22
-    // against 0.41 — while the seats' actual reads, once seen, still
-    // ordered exactly as the blurbs promise: warlord rusher .146 to the
-    // abbot's .111, abbot calm .889 to the warlord's .854.
-    const seen = (m: Map<number, number>): number => {
-      let total = 0;
-      for (const [k, n] of m) if (k !== Archetype.unmet) total += n;
-      return total;
-    };
     const share = (m: Map<number, number>, k: number): number => {
-      const total = seen(m);
+      let total = 0;
+      for (const n of m.values()) total += n;
       return total === 0 ? 0 : (m.get(k) ?? 0) / total;
     };
     const rusher = (m: Map<number, number>): number =>
