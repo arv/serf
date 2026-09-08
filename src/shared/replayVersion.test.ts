@@ -496,13 +496,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // reachable-ground rule, 57 for the fishery's footprint, 58 for the load
 // home and 59 for the armory while the branch was open — the same drift
 // every note above records of itself.
+// Still 60 after the note in takeStandingJobs saying why the load-home
+// route sorts on job.priority and not the effective tier: a comment, and
+// the hash is over raw bytes.
 // Still 60 after PULL_STRIDE was derived from the goods rather than
 // written as 64: the stride only ever keys a scratch map built and spent
 // inside one dispatch pass, and both numbers clear every good id, so the
 // pairs group exactly as they did. The hash is over raw bytes, which is
 // why it moved anyway.
 const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = 'c1818c76979940db8898f73dedf8ec5c';
+const EXPECTED_HASH = '4ececc6d523141a19d9e5af8a11fbaf3';
 
 /**
  * Everything a replay's playback depends on, as raw source:

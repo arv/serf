@@ -755,6 +755,21 @@ function takeStandingJobs(
     // board deals a tier 3 load ahead of a tier 1 one by design. This is the
     // order that is right for a man already standing here — the building's
     // most urgent load first, since none of them costs him a walk.
+    //
+    // `job.priority`, deliberately, and not the effective tier a repair's
+    // pull would give it (see repairPull). Two reasons, and the first is
+    // that this sort is already a different discipline from the tiers: it
+    // is a strict rank among the loads of ONE source, where the pull ranks
+    // by DESTINATION, so all the pull could decide here is which of a
+    // building's own loads leaves first — never whether the mend is served
+    // at all. The main route below is where a repair takes its hands, and
+    // it has the pull.
+    //
+    // The second is that the budget is per pass and spent, so honoring it
+    // in two claiming routes means fixing an order between them and
+    // keeping it fixed, for a reordering worth this little. If load-home
+    // ever does want it, thread the same map through and spend it here
+    // first — this route runs first — rather than growing a second budget.
     jobs.sort(
       (a, z) =>
         a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
