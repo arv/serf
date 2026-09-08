@@ -612,8 +612,10 @@ const PATH_TRIES = 3;
 // --- Serf claiming ---------------------------------------------------------
 
 /**
- * The load home: an idle serf already standing in a building takes that
- * building's own open job before anything else is handed out.
+ * The load home: an idle serf already standing at a building takes that
+ * building's own open job before anything else is handed out. At, not in —
+ * the test is atBuilding, a reach measured to the footprint, so the man on
+ * the doorstep counts and nobody is ever inside the walls.
  *
  * This is the trip the village kept failing to make. A serf carries bread
  * to the mine, sets it down, and stands there with silver on the shelf at
@@ -625,8 +627,12 @@ const PATH_TRIES = 3;
  *
  * Dealing these first is not a thumb on the scale for the tiers: the share
  * they split (HAUL_SHARE) rations *walks*, and a job picked up where the
- * man is standing costs none. Within a building he still takes the most
- * urgent one first, which is the order the board would have used anyway.
+ * man is standing costs none. He takes the building's most urgent load
+ * first — for its own reason, not because the loop below would have
+ * ordered them that way. It would not: it picks a tier by how far that
+ * tier sits below its share of the hands before it sorts within one. Here
+ * there is no walk to ration between them, so urgency is all that is left
+ * to sort on.
  *
  * Deliberately a pass over the board rather than something progress() does
  * on the tick a delivery lands: a serf has to be genuinely idle for the
@@ -642,7 +648,7 @@ function takeStandingJobs(
   idleByOwner: Map<Owner, Unit[]>,
 ): void {
   // Grouped by source: a building's jobs come up together, and the men
-  // standing in it are found once for all of them rather than once each.
+  // standing at it are found once for all of them rather than once each.
   const bySource = new Map<EntityId, HaulJob[]>();
   for (const job of open) {
     if (!idleByOwner.has(job.owner)) continue;

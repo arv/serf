@@ -282,7 +282,7 @@ describe('the load home', () => {
     // two. With one serf free it is not a share at all — the site takes
     // him, and it used to take him from where he was standing.
     addSite(world, 24, 30);
-    const serf = addSerf(world, 34, 32); // just set the bread down inside
+    const serf = addSerf(world, 34, 32); // at the mine, bread just set down
     const initial = countGoods(world);
 
     run(world, 1);
