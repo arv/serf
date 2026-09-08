@@ -60,6 +60,12 @@ const KINK_DEG = 3.6;
 const ROOF_U = 0.4375;
 
 const gltf = JSON.parse(fs.readFileSync(at(NAME + '.gltf'), 'utf8'));
+// One buffer, which everything below reads from and writes back to by index.
+// In a valid glTF that also settles every bufferView's `buffer`: there is
+// only one to point at.
+if (gltf.buffers.length !== 1) {
+  throw new Error(`${gltf.buffers.length} buffers: this handles one`);
+}
 const bin = fs.readFileSync(at(gltf.buffers[0].uri));
 const prim = gltf.meshes[0].primitives[0];
 
