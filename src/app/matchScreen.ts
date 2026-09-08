@@ -666,15 +666,39 @@ export async function runMatch(
     // village has stopped, and carrying the sim further from the last
     // frame the player actually saw. (Playback's pause needs no second
     // half: there the worker stops itself at the log's end.)
-    setSpeed(0);
+    //
+    // The worker's half goes first, and alone, because it is the half that
+    // cannot fail: a post to the worker, with no HUD in it. Everything
+    // after this line is drawn, and drawing is the part that may be broken
+    // at the moment a failure is being reported — see reportFailure.
     host.setSpeed(0);
-    showFatal(
+    reportFailure(
       `The simulation stopped: ${message}. The village on screen is no ` +
         'longer being updated — what you are looking at is the last frame ' +
         'that arrived.',
-      {menu: true, title: 'The village has stopped'},
     );
   });
+  /**
+   * Put the failure on screen and take the HUD's gear off the throttle,
+   * and never throw doing it.
+   *
+   * Both callers reach here from a failure whose cause may be the HUD
+   * itself, and both have already stopped the worker by the one channel
+   * that has no HUD in it. What is left is drawing, in this order for a
+   * reason: showFatal is raw DOM precisely so it can come up when Solid is
+   * what failed, and the gear is a signal write — the same kind of write
+   * that threw. If reporting the failure threw, it would take the report
+   * with it and, from the structural handler's catch, escape the guard
+   * whose whole job is to be the last stop.
+   */
+  function reportFailure(message: string): void {
+    try {
+      showFatal(message, {menu: true, title: 'The village has stopped'});
+      setSpeed(0);
+    } catch (err) {
+      console.error('[match] could not put up the failure card', err);
+    }
+  }
   // Every structural frame the screen takes in — and the one place a throw
   // out of one can be caught.
   //
@@ -705,16 +729,19 @@ export async function runMatch(
       );
       if (screenBroken) return;
       screenBroken = true;
-      // The same second half the worker's fatal gets, for the same reason:
-      // a village ticking on behind a screen that stopped is a battery
+      // The same pause the worker's fatal takes, for the same reason: a
+      // village ticking on behind a screen that stopped is a battery
       // burning to carry the world further from the last frame anyone saw.
-      setSpeed(0);
+      // The worker first and by itself — a post cannot throw, and the
+      // report that follows can, being drawn by the very HUD that just
+      // failed. Ordered the other way round, a second throw here would
+      // leave the sim running and escape this catch, which is the one
+      // thing this guard may never do.
       host.setSpeed(0);
-      showFatal(
+      reportFailure(
         `The screen stopped following the village: ${
           err instanceof Error ? err.message : String(err)
         }. What you are looking at is the last frame that got through.`,
-        {menu: true, title: 'The village has stopped'},
       );
     }
   });
