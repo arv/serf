@@ -2201,6 +2201,28 @@ export class AiBrain {
         (!target || staleRival >= 0 || this.#scoutGoal >= 0) &&
         (army.length > 0 || canWalkSerf)
       ) {
+        const flees = this.#warOn(WarBehaviorIdNs.scoutFlees);
+        // Hand the errand to a soldier the moment there is one to hand it
+        // to. Picking below only fires when the slot is EMPTY, so without
+        // this a serf that took the job while the yard was bare kept it for
+        // the whole match — slower than any fighter (1.5 tiles/sec against
+        // 1.6 to 2.4) and holding the one scout slot the seat has. Measured
+        // paired over 120 seeds before this existed: walking a serf out
+        // early doubled how often the rival's address was known before
+        // first contact (16 to 42, p = 0.0002) and cost 28 matches their
+        // address entirely (82 to 54, p = 0.0005). The first number is what
+        // the serf is for; the second was this.
+        const standing =
+          this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
+        if (
+          standing &&
+          !MILITARY.has(standing.kind) &&
+          army.some(
+            u => u.task.t === UnitTaskKind.idle && !(flees && isSpent(u)),
+          )
+        ) {
+          this.#clearScout();
+        }
         if (this.#scoutId < 0) {
           // A soldier under half his blood is passed over on a seat that
           // flees its scouts: he is the man the flee branch just stood
@@ -2210,7 +2232,6 @@ export class AiBrain {
           // — flee, re-draft, flee, one of each per beat, and the soldier
           // never moved. Seats without the behavior are untouched:
           // they never stand a scout down for wounds in the first place.
-          const flees = this.#warOn(WarBehaviorIdNs.scoutFlees);
           // Soldiers first, always: a serf is what an empty yard has
           // instead of a scout, not a cheaper one. Once a fighter exists
           // the pool is the army again and this whole branch is what it

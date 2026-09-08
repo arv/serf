@@ -413,8 +413,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // and playback constructs no brains (app/simWorker.ts). The printed game is
 // bit-identical either way — the flag is off for easy and normal, which a
 // traced Mason confirms tick for tick. The hash is over raw bytes.
+// Still 54 after the scout errand learned to change hands: a serf that took
+// it while the yard was bare gives it up to the first idle soldier. Same
+// reading as every AI note above — it moves what a seat DECIDES, and
+// playback constructs no brains.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = 'a7f2b2a7c151e9e7560a83a9eadefef5';
+const EXPECTED_HASH = '54d23de6272dc820f25a19090c082c2d';
 
 /**
  * Everything a replay's playback depends on, as raw source:
