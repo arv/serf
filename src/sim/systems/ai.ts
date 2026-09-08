@@ -885,6 +885,12 @@ export class AiBrain {
   /** Whether a soldierless seat may walk a serf out to look (hard only;
    * defs/difficulty.ts `serfScouts`). */
   readonly #serfScouts: boolean;
+  /** Whether the standing scout is a serf, remembered because a dead unit
+   * is gone from the map before the death is noticed. */
+  #scoutIsSerf = false;
+  /** A serf sent to look has already died. One is a look; the next is
+   * tribute — see the walk-a-serf branch. */
+  #serfScoutLost = false;
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
@@ -1977,6 +1983,16 @@ export class AiBrain {
       this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
     const staleRival = this.#staleRival(world);
     if (this.#scoutId >= 0 && (!scout || scout.dead)) {
+      // A serf that went to look and did not come back closes the option
+      // for the rest of the match. The first one is a look; the next is
+      // tribute, which is the same reading the discovery write-off above
+      // takes of a road that killed its walker. Measured on seed 4001,
+      // hard: without this the seat lost TWENTY-FIVE serfs to the errand
+      // and never learned the rival's address at all, where the same seed
+      // without serf scouting lost none and learned it — the economy is
+      // what finds a castle, and a village bleeding hands stops looking at
+      // anything.
+      if (this.#scoutIsSerf) this.#serfScoutLost = true;
       if (this.#scoutGoal >= 0 && this.#scoutIntel < 0)
         this.#unreachable.add(this.#scoutGoal);
       if (this.#scoutIntel >= 0) {
@@ -2196,7 +2212,10 @@ export class AiBrain {
       // (defs/difficulty.ts `serfScouts`). Everywhere else this reads
       // exactly as it did: no army, no scout.
       const canWalkSerf =
-        this.#serfScouts && army.length === 0 && serfCount > s.survivalFloor;
+        this.#serfScouts &&
+        !this.#serfScoutLost &&
+        army.length === 0 &&
+        serfCount > s.survivalFloor;
       if (
         (!target || staleRival >= 0 || this.#scoutGoal >= 0) &&
         (army.length > 0 || canWalkSerf)
@@ -2255,6 +2274,7 @@ export class AiBrain {
           )[0];
           if (pick) {
             this.#scoutId = pick.id;
+            this.#scoutIsSerf = !MILITARY.has(pick.kind);
             this.#clearScoutGoal();
           }
         }

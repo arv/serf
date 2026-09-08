@@ -417,8 +417,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // it while the yard was bare gives it up to the first idle soldier. Same
 // reading as every AI note above — it moves what a seat DECIDES, and
 // playback constructs no brains.
+// Still 54 after a dead serf scout closed the option for the rest of the
+// match (systems/ai.ts `#serfScoutLost`). Brain-side, and playback builds
+// no brains.
 const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '54d23de6272dc820f25a19090c082c2d';
+const EXPECTED_HASH = '26320de4c25754fad0b25eace43d7863';
 
 /**
  * Everything a replay's playback depends on, as raw source:
