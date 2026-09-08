@@ -577,8 +577,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // storehouse. Real behavior, and 62 is this build's own bump and has
 // never shipped, so there is nothing older to break. The same reasoning
 // the "Still 60" entries above record.
+// Still 62 after a settled line of a study's bill gives up its FIFO age
+// (Copilot's read of the demand loop, and correct): the clock is per
+// (building, good) and an Abbey wants ale for a bill and for its
+// festivals, so a settled ale line handed the next barrel the age of the
+// study. Real sim behavior — it decides which tier-2 haul is served first
+// — but 62 is this build's own bump and has never shipped, so there is
+// nothing older to break. The same reasoning the "Still 60" entries above
+// record.
 const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = '69e3ccc3e11229b8055965a2a7aba582';
+const EXPECTED_HASH = '10baedd686e76d1efc8bcb92347eef38';
 
 /**
  * Everything a replay's playback depends on, as raw source:

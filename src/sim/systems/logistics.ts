@@ -260,10 +260,23 @@ function match(world: World): void {
     // halting an Abbey stops it sipping ale at festivals, it does not call
     // off the study the village is already paying for.
     if (b.researchNeeds) {
-      for (const good of GOODS) {
+      // The bill's own lines, not every good: the clear below would
+      // otherwise fire on goods this bill never asked for, and at an Abbey
+      // that means wiping the festival ale's FIFO age on every pass.
+      for (const good of goodKeys(b.researchNeeds)) {
         const want = (b.researchNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
           demands.push({...demandOf(world, b, good, want, 2), research: true});
+        } else if (want <= 0) {
+          // A line of the bill that is settled while the rest is still on
+          // the road — the four ale are in and the six silver are not. The
+          // clock has to go with it: the Abbey's other standing demand is
+          // ale for its festivals, and inheriting the study's age would
+          // put the next barrel at the head of the tier-2 queue on the
+          // strength of when the STUDY was ordered. Only a settled line
+          // clears; clearDemandAge holds the age while the bill still
+          // wants the good, which is what covers the loads in transit.
+          clearDemandAge(b, good);
         }
       }
     }

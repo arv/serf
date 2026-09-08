@@ -1,7 +1,11 @@
 import {describe, expect, it} from 'vitest';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
-import {BARRACKS_ALE_CAP, FESTIVAL_DURATION} from './defs/balance.ts';
+import {
+  BARRACKS_ALE_CAP,
+  FESTIVAL_DURATION,
+  MATCHER_INTERVAL,
+} from './defs/balance.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import {goodEntries} from './defs/goods.ts';
@@ -164,6 +168,50 @@ describe('research', () => {
     run(world, TECH_DEFS[TechId.cobbledBoots].durationTicks + 2);
     expect(world.players[0]!.techs.researched).toContain(TechId.cobbledBoots);
     expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a settled line of the bill gives up its place in the haul queue', () => {
+    // The FIFO age lives per (building, good), and an Abbey wants ale for
+    // two different reasons: a study billed in ale, and — once Festivals
+    // is in — the buff. So when the ale half of a bill is settled while
+    // the silver half is still walking, the study's clock must not be left
+    // behind for the next barrel to inherit: it would sort at the head of
+    // tier 2 on the strength of when the STUDY was ordered, in front of
+    // every mine's bread and every forge's iron asked for since.
+    //
+    // Festivals itself is the study here, precisely so the buff's own
+    // demand is NOT running: it is the one branch that would rewrite this
+    // clock either way, and a test it can satisfy proves nothing.
+    const world = bareWorld();
+    setupSchool(world);
+    world.players[0]!.techs.researched.push(TechId.irrigation, TechId.brewing);
+    const abbey = abbeyOf(world);
+    const sh = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    // No silver on the shelf, so the silver half can never be settled and
+    // the bill stays open with its ale line paid.
+    sh.stock[GoodId.silver] = 0;
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.festivals}),
+    );
+    expect(abbey.researchNeeds?.[GoodId.ale]).toBe(
+      TECH_DEFS[TechId.festivals].cost[GoodId.ale],
+    );
+
+    let guard = 20 * 120;
+    while ((abbey.researchNeeds?.[GoodId.ale] ?? 0) > 0 && guard-- > 0)
+      tickWorld(world, []);
+    expect(abbey.researchNeeds?.[GoodId.ale]).toBe(0);
+    expect(abbey.researchNeeds?.[GoodId.silver]).toBeGreaterThan(0);
+    expect(world.players[0]!.techs.active?.started).toBe(false);
+
+    // A matcher pass with the ale line settled: its clock goes, and the
+    // silver still owed keeps its own.
+    run(world, MATCHER_INTERVAL + 1);
+    expect(abbey.demandSince[GoodId.ale]).toBeUndefined();
+    expect(abbey.demandSince[GoodId.silver]).toBeDefined();
   });
 
   it('drops the order if the Abbey falls before the books open', () => {
