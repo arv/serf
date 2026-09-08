@@ -132,7 +132,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   // Same context discipline as a match: the canvas hands out one WebGL
   // context ever, so the next screen needs a fresh element.
   teardown.push(() => canvas.replaceWith(canvas.cloneNode(false)));
-  const renderer = new GameRenderer(canvas, true);
+  const renderer = new GameRenderer(canvas);
   teardown.push(() => renderer.dispose());
   // The same console handles the match and the wardrobe expose: scatter
   // and terrain forensics happen here too.

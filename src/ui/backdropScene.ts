@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {snapBuildings} from '../protocol/snapshot';
 import {loadGlbAssets} from '../render/assets';
 import {BuildingSync} from '../render/buildingSync';
-import {FramePacer, MOBILE_FPS_CAP} from '../render/framePacer';
+import {FramePacer} from '../render/framePacer';
 import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
 import {MarginMesh} from '../render/marginMesh';
@@ -99,6 +99,16 @@ const FOG_FAR = 100;
 /** Where the walk starts — chosen so the sun rakes across the keep. */
 const START_ANGLE = 2.2;
 const DRIFT_PERIOD = 96_000;
+/**
+ * The loop's cap, on every device — the match caps phones at this rate
+ * (framePacer.ts) and leaves desktop to the panel, but a menu left open
+ * has nothing to gain from a blurred backdrop at 120 Hz and a battery to
+ * lose: that drain is what makes a laptop throttle its graphics, which is
+ * where this loop starts holding the page (see RendererOptions.soft). The
+ * drift is far too slow for the skipped frames to read as judder through
+ * the glass.
+ */
+const BACKDROP_FPS = 30;
 
 export interface Backdrop {
   stop(): void;
@@ -156,7 +166,7 @@ export async function startMenuBackdrop(
   // room code in the menu above would pan the scene behind it. Soft: it is
   // seen through the blur index.html puts on the canvas, so it draws at a
   // fraction of the match's pixels (see GameRenderer's constructor).
-  const renderer = new GameRenderer(canvas, false, true);
+  const renderer = new GameRenderer(canvas, {interactive: false, soft: true});
   renderer.setWorldExtent(world.map.play, world.map.size);
   // ...and then take its fog band back: setWorldExtent cut one for the
   // match's camera, not for this one. The scene's own background is the
@@ -230,13 +240,7 @@ export async function startMenuBackdrop(
   let raf = 0;
   /** Canvas starts transparent (index.html); shown once it has a frame. */
   let lit = false;
-  // The match loop's phone cap, here on every device: a menu left open
-  // otherwise spends the GPU on a blurred backdrop at whatever rate the
-  // panel refreshes — the very thing that drains a laptop's battery until
-  // it throttles the graphics, which is where this loop starts holding the
-  // page (see the soft flag above). The drift is far too slow for the
-  // skipped frames to read as judder through the glass.
-  const pacer = new FramePacer(MOBILE_FPS_CAP);
+  const pacer = new FramePacer(BACKDROP_FPS);
   const loop = (): void => {
     if (stopped) return;
     const now = performance.now();
