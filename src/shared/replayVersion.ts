@@ -20,6 +20,36 @@
  * directly.
  */
 /**
+ * 59: the armory holds one of each arm.
+ *
+ * 59, cut as 56: main took 56 (the reachable ground rule), 57 (the
+ * fishery's footprint) and 58 (the load home) while this branch was open.
+ * Fourth number for one change, and the note below this one says the same
+ * of itself in the same words — which is the pattern worth reading rather
+ * than any one of the four.
+ *
+ * START_STOCK (defs/balance.ts) went from two spears and a sword to a
+ * spear, a sword and a bow. A building's stores are read every tick a
+ * hauler plans against them, and the opening army every seat can field
+ * before its forges stand is one soldier smaller — so a log recorded
+ * before this build musters men this one cannot, and every haul planned
+ * around the missing spear walks somewhere else.
+ *
+ * The bow is the half that could not have been spent until now: the archer
+ * waits on Archery and on a range, both of which arrived at 55. Under the
+ * old tree it would have been a good nobody could reach without buying the
+ * spear line first, which is why the same change measured badly before the
+ * roof and measures +5 campaigns in 120 after it.
+ *
+ * Two playbooks moved with it and neither needed the number — playback
+ * runs no brains (app/simWorker.ts): the Warlord buys ironworking second
+ * now, because the rack no longer carries it to a raiding party and the
+ * iron that replaces those spears has to arrive sooner; and the Fletcher's
+ * notes stopped describing an armory with two spears in it.
+ *
+ * 58's note follows.
+ */
+/**
  * 58: the load home. A serf standing at a building now takes that
  * building's own open haul before the board deals anything that needs a
  * walk (systems/logistics.ts) — the man who carried bread into the mine
@@ -840,4 +870,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 58;
+export const REPLAY_VERSION = 59;
