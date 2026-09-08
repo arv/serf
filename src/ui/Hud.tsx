@@ -9,6 +9,7 @@ import * as NetState from '../protocol/netStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
 import type {AdminAction} from '../sim/commands';
 import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
+import * as BuildingTypeIdNs from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {goodEntries} from '../sim/defs/goods';
 import type {TechId} from '../sim/defs/techs';
@@ -90,6 +91,7 @@ import {
   volume,
   type OrderMode,
 } from './store';
+import {studyProgress01} from './techProgress.ts';
 import {TechTreePanel} from './TechTreePanel';
 import {
   BuildingTip,
@@ -1920,15 +1922,29 @@ export function Hud(props: {
                   {...tooltip(() => (
                     <TextTip
                       title={techName(a().tech)}
-                      body="Being researched — click to open the tech tree."
+                      body={
+                        a().started
+                          ? `Being read at the ${buildingName(
+                              BuildingTypeIdNs.abbey,
+                            )} — click to open the tech tree.`
+                          : `Serfs are carrying its goods to the ${buildingName(
+                              BuildingTypeIdNs.abbey,
+                            )} — the reading starts when the last load lands. Click to open the tech tree.`
+                      }
                     />
                   ))}
                   onClick={() => setTechPanelOpen(true)}
                 >
+                  {/* The whole order, not half of it: ticksLeft does not
+                      move until the bill is in, so a chip keyed to it sat
+                      dead at nothing for the length of the haul — the one
+                      stretch a player most wants told about. The haul is
+                      the first half of this fill and the reading the
+                      second (studyProgress01). */}
                   <span
                     class="fill"
                     style={{
-                      width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%`,
+                      width: `${Math.round(studyProgress01(a()) * 100)}%`,
                     }}
                   />
                   <span class="label">⚗ {techName(a().tech)}</span>
