@@ -93,6 +93,19 @@ interface UnitVisual {
    * him mowing this long; a truly stalled farm still stops him inside
    * half a second. */
   mowWorkUntil?: number;
+  /** Pier-walk state (the fisherman on his deck): how far back from the
+   * tip his current stand is, the anim-clock time the stand (or the beat
+   * at the door) runs to, whether he is walking a catch in, the working
+   * flag he is watching for the batch edge that IS the catch, and — once
+   * the sim has taken him off post — the deck he is still standing on plus
+   * how far out along it he has got walking off. */
+  pierBack?: number;
+  pierUntil?: number;
+  pierHauling?: boolean;
+  pierWorking?: boolean;
+  pierOff?: PierInfo;
+  pierOffAt?: number;
+  pierOffLag?: number;
 }
 
 interface ArmChain {
@@ -121,6 +134,31 @@ const MOW_STEP = 0.55;
 
 /** How long the farm's working flag coasts (ms) — see mowWorkUntil. */
 const MOW_WORK_COAST = 400;
+
+/**
+ * How far back down the planks the fisherman's second stand sits, in world
+ * units, and how long he holds a stand before shifting to the other one.
+ * A man working a deck moves along it; one that never does is a post.
+ *
+ * Kept short and slow on purpose: both stands have to keep the line over
+ * water (the rod hangs near plumb — characters.ts fishingPoleProp), and a
+ * shuffle every few seconds at village zoom is fidgeting, not work. At a
+ * twenty-second catch this is two or three shifts a fish.
+ */
+const PIER_PACE = 0.5;
+const PIER_PACE_HOLD = 6000;
+
+/** The beat he spends at the hut door leaving the catch, ms. */
+const PIER_DROP_HOLD = 1400;
+
+/**
+ * How much further the sim may carry him while he walks the planks off
+ * before the retrace is abandoned, in world units. Walking the deck back
+ * while the sim walks him inland is a race the render loses by exactly the
+ * ground the sim covers meanwhile; past this the lag stops being worth the
+ * walk, and the de-overlap channel closes what is left as it always did.
+ */
+const PIER_LEAVE_LAG = 1.2;
 
 /** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
 function findArm(group: THREE.Group): ArmChain | null {
@@ -865,12 +903,14 @@ export class SceneSync {
         this.#spun.add(crankWell.crank);
         crankWell.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
       }
-      // The fisherman's post is the end of his pier: while he holds it
-      // (mid-batch or stalled on a full buffer alike), the render walks
-      // him out along the deck and stands him at the spot, line in the
-      // water. Render-side like the well crank — the sim keeps him parked
-      // on whatever adjacent tile the path found.
-      const pier =
+      // The fisherman's post is his pier, and the render owns the whole
+      // trip along it: out to a stand near the tip, a shift down the planks
+      // between casts, and — on the tick a batch ends, which on this
+      // building is a fish landed — back in to the hut door to leave it
+      // before he goes out again. Render-side like the well crank; the sim
+      // parks him on whatever adjacent tile the path found and leaves him
+      // there for the whole twenty seconds.
+      const post =
         !offScreen &&
         !dead &&
         !moving &&
@@ -878,9 +918,51 @@ export class SceneSync {
         workKind === WORK.fish
           ? this.#nearestPier(x, y)
           : null;
+      // Taken off post (reassigned, or the hut is gone) with his boots still
+      // on the planks: he walks the deck off rather than sliding sideways
+      // off it across open water, which is what the de-overlap channel does
+      // on its own. #pierOff is the deck he was standing on; nothing to
+      // retrace once he is out of sight or dead.
+      if (offScreen || dead) visual.pierOff = undefined;
+      const pier = post ?? visual.pierOff ?? null;
+      const leaving = post === null && pier !== null;
       let fishing = false;
       let onDeck = false;
-      if (pier) {
+      let pierStep = false;
+      if (leaving && pier) {
+        // Walking the planks off. Driven along the deck line itself rather
+        // than from where he is drawn: the sim is walking him inland under
+        // this a publish at a time, and a step taken from the drawn
+        // position would carry that drift out over the water with him.
+        const dirX = Math.sin(pier.yaw);
+        const dirZ = Math.cos(pier.yaw);
+        if (visual.pierOffAt === undefined) {
+          visual.pierOffAt =
+            (x + visual.sepX - pier.baseX) * dirX +
+            (y + visual.sepY - pier.baseZ) * dirZ;
+          visual.pierOffLag = Math.hypot(visual.sepX, visual.sepY);
+        }
+        const at = Math.max(0, visual.pierOffAt - RENDER_WALK_SPEED * dt);
+        visual.pierOffAt = at;
+        visual.sepX = this.#sepTX[i] = pier.baseX + dirX * at - x;
+        visual.sepY = this.#sepTY[i] = pier.baseZ + dirZ * at - y;
+        visual.group.rotation.y = pier.yaw + Math.PI; // back down the deck
+        onDeck = true;
+        pierStep = true;
+        if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
+        // Ashore — or given up on. The gap to the sim's own man is already
+        // most of a deck when the retrace starts (that is what standing at
+        // the tip means), so what is watched is how much the sim ADDS to it
+        // while the walk plays out, not the gap itself.
+        if (
+          at <= 0 ||
+          Math.hypot(visual.sepX, visual.sepY) >
+            (visual.pierOffLag ?? 0) + PIER_LEAVE_LAG
+        ) {
+          visual.pierOff = undefined;
+          visual.pierOffAt = undefined;
+        }
+      } else if (pier) {
         const curX = x + visual.sepX;
         const curZ = y + visual.sepY;
         const dirX = Math.sin(pier.yaw);
@@ -891,18 +973,78 @@ export class SceneSync {
           (curX - pier.baseX) * dirZ - (curZ - pier.baseZ) * dirX,
         );
         onDeck = along > -0.1 && drift < 0.3;
-        // Two legs, not a beeline: converge on the landward end first — a
-        // straight run at the tip would cut the corner through open water.
-        const tx = onDeck ? pier.spotX : pier.baseX;
-        const tz = onDeck ? pier.spotZ : pier.baseZ;
+        // The stand he casts from: the fishing spot, or PIER_PACE back down
+        // the planks from it. Clamped off the landward end so a deck the fit
+        // trimmed short still leaves him standing on boards.
+        const reach = Math.hypot(
+          pier.spotX - pier.baseX,
+          pier.spotZ - pier.baseZ,
+        );
+        const back = Math.min(visual.pierBack ?? 0, Math.max(0, reach - 0.25));
+        const standX = pier.spotX - dirX * back;
+        const standZ = pier.spotZ - dirZ * back;
+        // Two legs, not a beeline: off the planks he converges on the
+        // landward end first — a straight run at his stand would cut the
+        // corner through open water. The door is that same end (the deck is
+        // authored abutting the front wall, centered on it).
+        const home = visual.pierHauling === true;
+        const inbound = home || !onDeck;
+        const tx = inbound ? pier.baseX : standX;
+        const tz = inbound ? pier.baseZ : standZ;
         const dx = tx - curX;
         const dz = tz - curZ;
         const dist = Math.hypot(dx, dz);
-        fishing = onDeck && dist < 0.08;
+        const arrived = dist < 0.08;
+        fishing = onDeck && !home && arrived;
+        if (post) {
+          // The catch. A convert batch ends with one idle tick before the
+          // next begins — the same tick the farmer's mowWorkUntil exists to
+          // smooth over — and on a fishery that tick is a fish on the
+          // planks. So here it is read rather than smoothed: it turns him
+          // round. A stalled hut (nobody hauling, buffer full) publishes
+          // that same idle, and a man with nothing to fish for waiting by
+          // his door is the right picture anyway.
+          const working = action === ACTION.work;
+          if (visual.pierWorking && !working && !visual.pierHauling) {
+            visual.pierHauling = true;
+            visual.pierUntil = undefined;
+          }
+          visual.pierWorking = working;
+          if (visual.pierHauling) {
+            // `home` is read from before this block, so on the very frame
+            // the catch lands it is still false and `arrived` still means
+            // "at the stand". Waiting for both is what makes the beat below
+            // the one he spends at the door.
+            if (home && arrived) {
+              visual.pierUntil ??= animNow + PIER_DROP_HOLD;
+              if (animNow >= visual.pierUntil) {
+                visual.pierHauling = false;
+                visual.pierUntil = undefined;
+              }
+            }
+          } else if (fishing) {
+            visual.pierUntil ??= animNow + PIER_PACE_HOLD;
+            if (animNow >= visual.pierUntil) {
+              visual.pierBack = (visual.pierBack ?? 0) > 0 ? 0 : PIER_PACE;
+              visual.pierUntil = animNow + PIER_PACE_HOLD;
+            }
+          }
+          // Remember the deck under him, so a sim that takes him off post
+          // next frame still has planks to walk him back down. The retrace
+          // starts from scratch, so its progress mark goes with it.
+          visual.pierOff = onDeck && along > 0.15 ? post : undefined;
+          visual.pierOffAt = undefined;
+        }
         if (fishing) {
-          visual.sepX = this.#sepTX[i] = pier.spotX - x;
-          visual.sepY = this.#sepTY[i] = pier.spotZ - y;
+          visual.sepX = this.#sepTX[i] = standX - x;
+          visual.sepY = this.#sepTY[i] = standZ - y;
           visual.group.rotation.y = pier.yaw; // face the water
+        } else if (home && arrived) {
+          // At the door with the catch: hold the spot and face the hut,
+          // which is back down the deck line.
+          visual.sepX = this.#sepTX[i] = tx - x;
+          visual.sepY = this.#sepTY[i] = tz - y;
+          visual.group.rotation.y = pier.yaw + Math.PI;
         } else if (dist > 1e-4) {
           // Walk, don't slide: advance at the worker's own gait, written
           // straight through the de-overlap channel (easing toward a
@@ -911,10 +1053,16 @@ export class SceneSync {
           visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
           visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
           visual.group.rotation.y = Math.atan2(dx, dz);
+          pierStep = true;
           // Render-side walk, so no publish delta to measure: it advances
           // at exactly RENDER_WALK_SPEED, tell the legs the same.
           if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
         }
+      } else {
+        visual.pierHauling = undefined;
+        visual.pierUntil = undefined;
+        visual.pierWorking = undefined;
+        visual.pierOffAt = undefined;
       }
       // The farmer's post is his rows: while he holds it, the render
       // walks him along the field's mowing circuit — step, stroke, step,
@@ -1030,7 +1178,11 @@ export class SceneSync {
         else if (moving)
           key = heldCarry ? AnimKey.carry : gaitAnimKey(visual.char.gait);
         else if (pier)
-          key = fishing ? AnimKey.fish : gaitAnimKey(visual.char.gait);
+          key = fishing
+            ? AnimKey.fish
+            : pierStep
+              ? gaitAnimKey(visual.char.gait)
+              : AnimKey.idle;
         else if (field)
           key = mowSwing
             ? AnimKey.mow
