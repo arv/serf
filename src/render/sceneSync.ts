@@ -373,7 +373,10 @@ export class SceneSync {
 
   #nearestPier(x: number, y: number): PierInfo | null {
     let pier: PierInfo | null = null;
-    let best = 9; // parked on the ring around a 3x3 footprint: within 3 tiles
+    // Parked on the ring around the hut: within 3 tiles. Room to spare now
+    // the fishery stands on 2x2 rather than the 3x3 this was cut for, and
+    // that is the right way round — the ring is what has to be covered.
+    let best = 9;
     for (const p of this.#piers) {
       const dx = p.bx - x;
       const dz = p.bz - y;
@@ -388,7 +391,7 @@ export class SceneSync {
 
   #nearestField(x: number, y: number): FieldInfo | null {
     let field: FieldInfo | null = null;
-    let best = 9; // same ring as the pier: the farm is 3x3 too
+    let best = 9; // the same ring, and the farm really is 3x3
     for (const f of this.#fields) {
       const dx = f.bx - x;
       const dz = f.bz - y;
