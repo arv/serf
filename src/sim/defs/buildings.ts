@@ -755,10 +755,21 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // first, and a second gate that also costs a barracks' worth of waiting
     // would read as a toll rather than a choice.
     buildTicks: 18 * S,
-    // Softer than the barracks' 220 — fence and shed against a drill hall.
-    // A raid that walks past the wall can burn the bows off the plan, which
-    // is the risk that pays for the range's speed.
-    hp: 150,
+    // Still under the barracks' 220, but only just. It was 150, and the
+    // argument for the gap was that a fence and a shed are not a drill hall
+    // — a raid that walks past the wall can burn the bows off the plan, and
+    // that risk is what paid for the range's speed. The building it is now
+    // is not that building: same nine tiles as the hall, six stone of
+    // masonry in the butt and the footings. Twenty short is the fence and
+    // the open yard still costing something; seventy was the shed the range
+    // has stopped being.
+    //
+    // The speed it was supposed to pay for is still bought, by the build
+    // clock above and the nine-second archer below. Softness was never the
+    // load-bearing half of that trade: what makes the range a decision is
+    // that it is a second roof and a second bill, not that a raider can
+    // knock it over in fewer swings than the hall beside it.
+    hp: 200,
     sight: 5.5,
     // Archery rather than Soldiery: the tech that unlocks the archer unlocks
     // the roof he is trained under, so the bow is still one research, not

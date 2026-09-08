@@ -483,8 +483,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // iron and quarrying once — and its campaign still lands (aiStrategies.test.ts);
 // its quarry is second in its plan, ahead of everything but the axe, and
 // the range is well down the order behind it.
+// Still 57 for the range's hit points going 150 -> 200 with them, on that
+// same never-shipped reasoning, and it is the same decision a third time: a
+// building on the barracks' footprint at nearly the barracks' price does
+// not also get to be a shed to knock over. Real behavior — a raid that used
+// to level a range leaves it standing, and every tick of that fight lands
+// somewhere else.
 const EXPECTED_VERSION = 57;
-const EXPECTED_HASH = '32990b382c37a86fc6176ff5a4fca891';
+const EXPECTED_HASH = '3cc51269038383aac3be225146f98906';
 
 /**
  * Everything a replay's playback depends on, as raw source:

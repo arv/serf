@@ -20,12 +20,12 @@
  * directly.
  */
 /**
- * 57: the Archery Range stands on the barracks' footprint, and pays a
- * mason for it.
+ * 57: the Archery Range stands on the barracks' footprint, pays a mason
+ * for it, and takes the hit points that go with both.
  *
- * Two by two to three by three, and the stone bill two to six. Nothing
- * else about the building moves — same ten wood, same hit points, same
- * nine-second archer. The model is what started it: KayKit authors the
+ * Two by two to three by three, the stone bill two to six, and 150 hit
+ * points to 200. Nothing else about the building moves — same ten wood,
+ * same eighteen-second raising, same nine-second archer. The model is what started it: KayKit authors the
  * range as the second largest building in the pack (only the castle is bigger, and it out-measures the barracks it was
  * written as the small sibling of), and the renderer sizes every model off
  * min(w,h). At two the yard rendered a third smaller than the hall beside
@@ -40,7 +40,9 @@
  * arrive on different ticks; sight is measured from the footprint edge, so
  * a built range reveals a wider ring. The four extra stone are four more
  * hauls to the site before it rises, and a repair is billed as a share of
- * the build cost (REPAIR_COST_SHARE), so a burnt range mends dearer too. A
+ * the build cost (REPAIR_COST_SHARE), so a burnt range mends dearer too.
+ * The fifty hit points are swings: a raid that used to level a range
+ * leaves it standing, and every tick of that fight lands somewhere else. A
  * replay recorded before this build re-runs into a different world within
  * seconds of the first range going down.
  *
