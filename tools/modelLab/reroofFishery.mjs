@@ -63,23 +63,44 @@ const gltf = JSON.parse(fs.readFileSync(at(NAME + '.gltf'), 'utf8'));
 const bin = fs.readFileSync(at(gltf.buffers[0].uri));
 const prim = gltf.meshes[0].primitives[0];
 
+/** Components per element, for the accessor types this mesh is made of. */
+const WIDTH = {VEC3: 3, VEC2: 2, SCALAR: 1};
+/** Bytes per component, and how to read one, for the same. */
+const COMPONENT = {
+  5126: {bytes: 4, get: o => bin.readFloatLE(o)},
+  5123: {bytes: 2, get: o => bin.readUInt16LE(o)},
+  5125: {bytes: 4, get: o => bin.readUInt32LE(o)},
+};
+
+/**
+ * One accessor, as an array of numbers (SCALAR) or of tuples.
+ *
+ * Tightly packed only, and only the shapes this hut is exported in. An
+ * interleaved view or a component type this has not been taught would be
+ * read as nonsense and written straight back out as a corrupt .bin — the
+ * board count below would almost certainly catch that, but "almost" is the
+ * wrong guarantee when the output is a binary nobody can read a diff of.
+ * So it stops instead.
+ */
 function read(i) {
   const a = gltf.accessors[i];
   const bv = gltf.bufferViews[a.bufferView];
+  if (bv.byteStride !== undefined) {
+    throw new Error(`accessor ${i}: interleaved views are not handled`);
+  }
+  const width = WIDTH[a.type];
+  const comp = COMPONENT[a.componentType];
+  if (!width || !comp) {
+    throw new Error(
+      `accessor ${i}: ${a.type}/${a.componentType} is not handled`,
+    );
+  }
   const base = (bv.byteOffset ?? 0) + (a.byteOffset ?? 0);
-  const width = {VEC3: 3, VEC2: 2, SCALAR: 1}[a.type];
   const out = [];
   for (let k = 0; k < a.count; k++) {
     const v = [];
     for (let c = 0; c < width; c++) {
-      const o = base + (k * width + c) * (a.componentType === 5123 ? 2 : 4);
-      v.push(
-        a.componentType === 5126
-          ? bin.readFloatLE(o)
-          : a.componentType === 5123
-            ? bin.readUInt16LE(o)
-            : bin.readUInt32LE(o),
-      );
+      v.push(comp.get(base + (k * width + c) * comp.bytes));
     }
     out.push(width === 1 ? v[0] : v);
   }
@@ -242,6 +263,12 @@ order.forEach((j, i) => {
   uvBuf.writeFloatLE(uv[j][0], i * 8);
   uvBuf.writeFloatLE(uv[j][1], i * 8 + 4);
 });
+// The indices go back out as uint16, which this hut has room to spare for
+// (3.3k vertices) and which only ever shrinks here — but the write itself
+// would wrap silently rather than fail, so say so out loud.
+if (count > 0xffff) {
+  throw new Error(`${count} vertices will not fit uint16 indices`);
+}
 const idxBuf = Buffer.alloc(tris.length * 6);
 tris.forEach((t, i) =>
   t.forEach((j, c) => idxBuf.writeUInt16LE(remap.get(j), (i * 3 + c) * 2)),
