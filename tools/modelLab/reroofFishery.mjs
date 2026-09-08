@@ -37,9 +37,12 @@
  * left it; it refuses a roof it has already re-laid.
  */
 import fs from 'node:fs';
+import path from 'node:path';
 
-const dir = process.argv[2] ?? 'public/models/kaykit/';
+const dir = process.argv[2] ?? 'public/models/kaykit';
 const NAME = 'building_fishery_green';
+/** The model dir joined properly, so a trailing slash is nobody's problem. */
+const at = name => path.join(dir, name);
 
 /** Which of the 13 authored boards survive, evenly spread across a slope. */
 const KEEP = [0, 3, 6, 9, 12];
@@ -56,8 +59,8 @@ const KINK_DEG = 3.6;
 /** The atlas column the team-colour roof is cut from. */
 const ROOF_U = 0.4375;
 
-const gltf = JSON.parse(fs.readFileSync(dir + NAME + '.gltf', 'utf8'));
-const bin = fs.readFileSync(dir + gltf.buffers[0].uri);
+const gltf = JSON.parse(fs.readFileSync(at(NAME + '.gltf'), 'utf8'));
+const bin = fs.readFileSync(at(gltf.buffers[0].uri));
 const prim = gltf.meshes[0].primitives[0];
 
 function read(i) {
@@ -190,8 +193,8 @@ for (const [si, slope] of slopes.entries()) {
     // light a shade apart from the boards either side, which is the whole
     // point of doing it in geometry.
     if (!SHALLOW[si].includes(k)) return;
-    const dir = board.zc > 0 ? -1 : 1;
-    const th = (dir * KINK_DEG * Math.PI) / 180;
+    const turn = board.zc > 0 ? -1 : 1;
+    const th = (turn * KINK_DEG * Math.PI) / 180;
     const cos = Math.cos(th);
     const sin = Math.sin(th);
     const cz =
@@ -269,8 +272,8 @@ gltf.accessors = [
 ];
 const buffer = Buffer.concat(parts);
 gltf.buffers[0].byteLength = buffer.length;
-fs.writeFileSync(dir + gltf.buffers[0].uri, buffer);
-fs.writeFileSync(dir + NAME + '.gltf', JSON.stringify(gltf, null, '\t') + '\n');
+fs.writeFileSync(at(gltf.buffers[0].uri), buffer);
+fs.writeFileSync(at(NAME + '.gltf'), JSON.stringify(gltf, null, '\t') + '\n');
 console.log(
   `${KEEP.length} boards a slope (was 13), ${count} verts, ${tris.length} tris`,
 );
