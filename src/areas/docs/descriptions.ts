@@ -93,7 +93,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.weaponsmith]:
     'The Smith: the village’s only source of tools, and of every weapon. The roof is ungated so no village can lock itself out of tools — what it may forge is gated recipe by recipe.',
   [BuildingTypeId.abbey]:
-    'Where research happens and where festival ale is drunk. No resident: the serf who raises it walks away a serf.',
+    'Where research happens and where festival ale is drunk. A study’s goods are carried here first — the books open when the last load lands — so site the Abbey where your serfs can reach it. No resident: the serf who raises it walks away a serf.',
   [BuildingTypeId.barracks]:
     'Turns bread, a forged weapon and a walking serf into a soldier — knights and spearmen, the two arms that fight in reach. The rally flag on its door is where fresh recruits march.',
   [BuildingTypeId.archeryRange]:

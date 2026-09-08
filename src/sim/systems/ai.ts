@@ -1784,9 +1784,64 @@ export class AiBrain {
       const next = road ?? s.researchOrder.find(open);
       if (next && hasBuilt(BuildingTypeId.abbey)) {
         const cost = TECH_DEFS[next].cost;
-        const ok = goodEntries(cost).every(
-          ([good, n]) => (stock[good] ?? 0) >= n,
-        );
+        // A study is bought on the credit a frame is pegged out on:
+        // AI_CREDIT.paidShare of the bill already on the shelf and no line
+        // of it at zero (withinCredit, above). One rule for both bills —
+        // which matters because the sim itself has no opinion: it takes a
+        // research order the storehouse cannot cover exactly as it takes a
+        // site nobody can pay for (tick.ts), so where the shelf binds is a
+        // policy, and a lord holding two of them is a lord playing two
+        // games. The prices make the margin the big tickets only: a tenth
+        // of a six-good Cobbled Boots rounds back to the whole bill, while
+        // Archery at thirteen of fourteen and Soldiery at eleven of twelve
+        // clear the bar.
+        //
+        // It is bought at a price and the price is recorded here rather
+        // than discovered again. Dealt four-seat valleys, 90_000 ticks
+        // each — what is decided, and what is standing when it is:
+        //
+        //   whole shelf   24/24 decided, mean 21_696, 856 people, 351 soldiers, 307 techs
+        //   paidShare 0.9 21/24 decided, mean 23_670, 802 people, 279 soldiers, 299 techs
+        //   full credit   11/12 decided, mean 25_222, 334 people, 108 soldiers, 189 techs (12 seeds)
+        //
+        // So the margin costs a fifth of the army and three valleys in
+        // twenty-four that never finish, and it buys no research at all —
+        // 299 techs against 307. What it buys is the warlord reading as a
+        // warlord. Pooled over the twenty-four seeds of
+        // ai/archetypePersonality.test.ts — the acceptance test for
+        // whether a seat can tell who it is playing — the warlord is read
+        // as a rusher 0.053 of the time with the margin and 0.004 without
+        // it, and that test asserts the read happens at all. At 0.004 it
+        // is two sightings in five hundred, which is a pass mark resting
+        // on a coin; at 0.053 it is six and twenty, and it is above the
+        // 0.032 the warlord managed before studies were carried anywhere.
+        // Its village is seen seven and nine tenths buildings deep against
+        // seven. Waiting for the last load was quietly flattening the four
+        // openings into one, and telling them apart is what the deck is
+        // for.
+        //
+        // Only the rusher read is worth citing. The mirror of it — the
+        // abbot reading calmer — was measured over five pools and removed
+        // from that test as a coin flip; it inverts on main too. It moves
+        // the same way here (the abbot booms 0.145 against the warlord's
+        // 0.070 with the margin) and that is worth no more than the pool
+        // it was drawn from.
+        //
+        // The margin and nothing past it. FULL credit is a different
+        // animal: a bill is a standing demand, holding its place on the
+        // haul board by the tick it was written (FIFO by demand age), so a
+        // bill for goods the village does not have yet takes every one of
+        // them as it appears — ahead of the mill's wheat, the forge's iron,
+        // the barracks' bread — and a seat that orders on credit has one
+        // standing all match. On seed 42 that game runs past 150_000 ticks
+        // with three seats standing and eight PEOPLE between them, against
+        // 29_422 on the whole shelf. Requiring only the SILVER in hand and
+        // the rest on credit was tried too and is not the fix.
+        //
+        // No openFrames or cooldown beside the share, unlike the build
+        // order's tab: the sim allows one study at a time, so the seat
+        // cannot open a second, nor the next until this one is learned.
+        //
         // Hands first, when there are barely any. Every tech is priced in
         // silver and so is a hire, and the panic branch above only fires on
         // the beat the shelf already holds the four — so a seat rebuilding
@@ -1802,6 +1857,13 @@ export class AiBrain {
         // with nowhere to put them — silver held back for a hire there is no
         // bed for is silver held back for nothing, so a full village
         // researches.
+        //
+        // The sum reads today's shelf against a bill the study will draw
+        // down over the next minute rather than this tick, which makes it a
+        // forecast now rather than an account. It is the right forecast: an
+        // ordered study calls for its silver until it has it, so coin
+        // promised to the Abbey is coin the next hire will not see either
+        // way, only later.
         const leavesHireMoney =
           serfCount >= s.survivalFloor ||
           !room ||
@@ -1809,6 +1871,7 @@ export class AiBrain {
             (hiring ? HIRE_SERF_COST : 0) -
             (cost[GoodId.silver] ?? 0) >=
             HIRE_SERF_COST;
+        const ok = withinCredit(cost, stock);
         if (ok && leavesHireMoney)
           commands.push({kind: CommandKind.research, tech: next});
       }

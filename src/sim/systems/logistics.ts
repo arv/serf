@@ -36,7 +36,12 @@ import * as HaulPhase from '../haulPhaseEnum.ts';
 import {findPathToAdjacent} from '../path.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
-import {applyRepairMaterial, type HaulJob, type World} from '../world.ts';
+import {
+  applyRepairMaterial,
+  settleResearchBill,
+  type HaulJob,
+  type World,
+} from '../world.ts';
 import {forgeDemandRecipe} from './production.ts';
 import {trainingDemand} from './training.ts';
 
@@ -164,6 +169,10 @@ function suspended(world: World, b: Building, good: GoodId): boolean {
  */
 function clearDemandAge(b: Building, good: GoodId): void {
   if ((b.repairNeeds?.[good] ?? 0) > 0) return;
+  // Same for a study's bill, and the Abbey is where the two actually
+  // collide: a bill for Festivals wants ale, the festival buff wants ale,
+  // and the buff's branch clears the clock every pass it is satisfied.
+  if ((b.researchNeeds?.[good] ?? 0) > 0) return;
   // Only delete a key that is actually there. `delete` on an absent key is
   // already a no-op, so this is the same clear — but it is reached once per
   // good per building per matcher pass, and deleting from a building's
@@ -224,6 +233,50 @@ function match(world: World): void {
         const want = (b.repairNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
           demands.push({...demandOf(world, b, good, want, 1), repair: true});
+        }
+      }
+    }
+
+    // A study's bill rides at tier 2, with a post's inputs and the
+    // barracks' bread — NOT at tier 1 with the walls going up.
+    //
+    // Tier 1 was the first cut and it measured worse. A study is fourteen
+    // loads at the outside, and at tier 1 those loads take four hands in
+    // seven off the site queue for as long as they last (HAUL_SHARE) — so
+    // the seats whose playbooks research most are the ones whose roofs
+    // then stop going up. It shows through the fog: pooling the archetype
+    // reads of archetypePersonality.test.ts over its twenty-four seeds,
+    // where `booming` means an army of one or none behind ten standing
+    // buildings, the abbot is read as booming 0.092 of the time at tier 1
+    // against the warlord's 0.084 — the research playbook and the war one,
+    // indistinguishable — and 0.172 against 0.092 at tier 2. The rival's
+    // buildings the scouts actually see move with it, 8.89 to 9.10.
+    //
+    // Which is the whole argument for the tier: a village must not stop
+    // building because it is studying. The study waits behind the walls
+    // instead, and waits with the mill's wheat rather than in front of it.
+    //
+    // Deliberately outside the `paused` gate, exactly as a repair is —
+    // halting an Abbey stops it sipping ale at festivals, it does not call
+    // off the study the village is already paying for.
+    if (b.researchNeeds) {
+      // The bill's own lines, not every good: the clear below would
+      // otherwise fire on goods this bill never asked for, and at an Abbey
+      // that means wiping the festival ale's FIFO age on every pass.
+      for (const good of goodKeys(b.researchNeeds)) {
+        const want = (b.researchNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
+        if (want > 0 && !suspended(world, b, good)) {
+          demands.push({...demandOf(world, b, good, want, 2), research: true});
+        } else if (want <= 0) {
+          // A line of the bill that is settled while the rest is still on
+          // the road — the four ale are in and the six silver are not. The
+          // clock has to go with it: the Abbey's other standing demand is
+          // ale for its festivals, and inheriting the study's age would
+          // put the next barrel at the head of the tier-2 queue on the
+          // strength of when the STUDY was ordered. Only a settled line
+          // clears; clearDemandAge holds the age while the bill still
+          // wants the good, which is what covers the loads in transit.
+          clearDemandAge(b, good);
         }
       }
     }
@@ -397,7 +450,15 @@ function match(world: World): void {
         source = d.pinnedSource ?? nearestSupply(world, d.building, d.good);
         if (!source || availableOut(source, d.good) <= 0) break;
       }
-      createJob(world, d.good, source.id, d.building.id, d.priority, d.repair);
+      createJob(
+        world,
+        d.good,
+        source.id,
+        d.building.id,
+        d.priority,
+        d.repair,
+        d.research,
+      );
       want--;
     }
   }
@@ -413,6 +474,10 @@ interface DemandFull extends Demand {
   pinnedSource?: Building;
   /** Booked by an ordered repair — the mark rides onto the jobs it makes. */
   repair?: true;
+  /** Booked by a study's bill — same idea, and the same reason: a load
+   * whose bill is gone must let go of the good rather than stack it in an
+   * Abbey that has no shelf anything ever leaves. */
+  research?: true;
 }
 
 function demandOf(
@@ -486,6 +551,7 @@ function createJob(
   to: EntityId,
   priority: HaulPriority,
   repair?: true,
+  research?: true,
 ): void {
   const source = world.buildings.get(from)!;
   const dest = world.buildings.get(to)!;
@@ -503,6 +569,7 @@ function createJob(
     createdTick: world.tick,
     phase: HaulPhase.open,
     ...(repair ? {repair} : {}),
+    ...(research ? {research} : {}),
   });
   world.nextJobId++;
 }
@@ -551,6 +618,11 @@ function rehomeCarriedGoods(world: World): void {
       createdTick: world.tick,
       phase: HaulPhase.toDropoff,
       serfId: serf.id,
+      // Marked when it is a study's bill he is walking into, for the same
+      // reason the matcher marks its own: if the bill is torn up while he
+      // walks, reconcile has to stand him down holding the good rather
+      // than let him set it down in an Abbey that ships nothing home.
+      ...((to.researchNeeds?.[good] ?? 0) > 0 ? {research: true as const} : {}),
     };
     world.jobs.set(job.id, job);
     to.inbound[good] = (to.inbound[good] ?? 0) + 1;
@@ -575,6 +647,7 @@ function deliveryTargetFor(
       continue;
     }
     if ((b.repairNeeds?.[good] ?? 0) > (b.inbound[good] ?? 0)) return b;
+    if ((b.researchNeeds?.[good] ?? 0) > (b.inbound[good] ?? 0)) return b;
     const def = buildingDef(b.type);
     const convert = convertRecipeOf(def, b);
     const wantsInput =
@@ -1182,6 +1255,29 @@ function deliver(world: World, to: Building, good: GoodId): void {
     applyRepairMaterial(world, to, good);
     return;
   }
+  if ((to.researchNeeds?.[good] ?? 0) > 0) {
+    // A study's load is spent at the threshold — into the books, not onto
+    // a shelf.
+    //
+    // BELOW the repair and ABOVE the ale, and both places are the tiers
+    // written out: an Abbey can owe an ordered repair and a study in the
+    // same stone, and the board ranks the masons first (the repair pull
+    // even drags the loads already walking up to their tier). Taking that
+    // stone into the books at the door would undo the whole of it. The
+    // festival's ale is the other way about — while a bill for Festivals
+    // or Ale Rations is open, the barrel coming through the door is the
+    // one the scholars asked for and the party waits its turn.
+    to.researchNeeds![good] = (to.researchNeeds![good] ?? 0) - 1;
+    world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
+    // The last load opens the books on this tick rather than the next —
+    // researchSystem has already run by the time a hauler reaches the door
+    // (see settleResearchBill for the order and what the gap looks like).
+    if (
+      goodKeys(to.researchNeeds!).every(g => (to.researchNeeds![g] ?? 0) <= 0)
+    )
+      settleResearchBill(world, to);
+    return;
+  }
   const def = buildingDef(to.type);
   if (TOOL_OF[to.type] === good) {
     // The post's tool hangs in the rack until a recruit takes it up.
@@ -1247,6 +1343,14 @@ function reconcile(world: World): void {
     // The plank stays in his hands; logistics finds it another home.
     if (job.repair && (to.repairNeeds?.[job.good] ?? 0) === 0) {
       abortJob(world, job, 'reconcile: repair no longer needs good', true);
+      continue;
+    }
+    // A study haul whose bill is gone — the order was dropped with the
+    // Abbey, or the debug lever finished it. The good stays in his hands:
+    // an Abbey has no shelf that anything ever leaves from, so a load left
+    // there would be a load out of the world.
+    if (job.research && (to.researchNeeds?.[job.good] ?? 0) === 0) {
+      abortJob(world, job, 'reconcile: study no longer needs good', true);
       continue;
     }
     // Sites whose need for this good vanished (e.g. completed early or

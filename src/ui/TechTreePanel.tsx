@@ -1,7 +1,7 @@
 import {For, Show} from 'solid-js';
 import type {Enum} from '../shared/enum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import {GOODS, goodEntries} from '../sim/defs/goods';
+import {GOODS, type GoodAmounts, goodEntries} from '../sim/defs/goods';
 import {
   TECH_BRANCHES,
   TECH_DEFS,
@@ -16,7 +16,6 @@ import {
   playersMeta,
   replayMode,
   setTechPanelOpen,
-  stock,
   techs,
   viewerId,
 } from './store';
@@ -30,11 +29,30 @@ const BRANCH_LABELS: Record<string, string> = {
   warfare: 'Warfare',
 };
 
+/** Loads in a tech's whole bill, and how many of them are still to come.
+ *
+ * A snapshot with no `needs` at all is the Abbey gone rather than the bill
+ * paid (see snapPlayers), so what is left is the WHOLE bill: an unknown
+ * that read as zero would draw the study as delivered on the frame its
+ * roof fell in, which is the one thing the panel must not say. */
+function billTotal(id: TechId): number {
+  const cost = TECH_DEFS[id].cost;
+  return GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
+}
+
+function billLeft(a: {needs?: GoodAmounts}, id: TechId): number {
+  if (!a.needs) return billTotal(id);
+  return GOODS.reduce((n, g) => n + (a.needs![g] ?? 0), 0);
+}
+
 export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
   const state = (id: TechId): TechNodeState => {
     const t = techs();
     if (t.researched.includes(id)) return TechNodeStateNs.done;
-    if (t.active?.tech === id) return TechNodeStateNs.researching;
+    if (t.active?.tech === id)
+      return t.active.started
+        ? TechNodeStateNs.researching
+        : TechNodeStateNs.delivering;
     // No abbey, no research. The head-note already says so in words; the
     // node has to agree in form — 'available' dressed it in the pointer
     // cursor and hover glow while the click handler (rightly) swallowed
@@ -44,17 +62,37 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
     if (!def.prereqs.every(p => t.researched.includes(p)))
       return TechNodeStateNs.locked;
     if (t.active) return TechNodeStateNs.locked;
-    const s = stock();
-    const affordable = GOODS.every(g => (s[g] ?? 0) >= (def.cost[g] ?? 0));
-    return affordable
-      ? TechNodeStateNs.available
-      : TechNodeStateNs.unaffordable;
+    // The shelf is not consulted. A study is ordered on credit like a
+    // building is pegged out on credit — the bill goes on the Abbey and
+    // the village carries it there as it can (tick.ts) — so a node dimmed
+    // for an empty storehouse would be the build ribbon's old stock gate
+    // again, in the one place it was never true either: greying out the
+    // plan a poor village most needs to make. The cost is written on the
+    // node; what it can be paid with is the player's to read.
+    return TechNodeStateNs.available;
   };
 
   const progress = (id: TechId): number => {
     const a = techs().active;
     if (!a || a.tech !== id) return 0;
+    // Before the books open the study's progress is measured in loads, not
+    // ticks: the clock has not started, and a node that sat at 0% through
+    // a minute of hauling would read as an order the village had ignored.
+    if (!a.started) {
+      const total = billTotal(id);
+      return total > 0 ? Math.round((1 - billLeft(a, id) / total) * 100) : 0;
+    }
     return Math.round((1 - a.ticksLeft / a.totalTicks) * 100);
+  };
+
+  /** "3 of 8 carried in" — the delivering node's own line. */
+  const hauled = (id: TechId): string => {
+    const a = techs().active;
+    const total = billTotal(id);
+    const left = a ? billLeft(a, id) : total;
+    return `Serfs are carrying the goods to the ${buildingName(
+      BuildingTypeId.abbey,
+    )} — ${total - left} of ${total} in.`;
   };
 
   return (
@@ -124,11 +162,18 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
         .tech-node .desc { opacity: 0.65; font-size: 11px; margin-top: 2px; }
         .tech-node.done { border-color: #7a9a4a; background: rgba(96, 122, 60, 0.22); }
         .tech-node.researching { border-color: #dfb670; background: rgba(212, 169, 60, 0.14); }
+        /* The haul half of the same order: the same warm border, dashed,
+           because nothing is being learned yet — the fill under it counts
+           loads carried in, not ticks studied. */
+        .tech-node.delivering {
+          border-color: #dfb670; border-style: dashed;
+          background: rgba(212, 169, 60, 0.08);
+        }
+        .tech-node .haul { font-size: 11px; opacity: 0.8; margin-top: 2px; }
         .tech-node.available { border-color: #c8735a; cursor: pointer; }
         .tech-node.available:hover {
           background: rgba(176, 74, 56, 0.25); box-shadow: 0 0 6px rgba(223, 182, 112, 0.35);
         }
-        .tech-node.unaffordable { opacity: 0.7; }
         .tech-node.locked { opacity: 0.4; }
         /* A replay's tree is read, not clicked. An affordable node keeps
            its face — it says what the seat could take up next, which is
@@ -291,7 +336,12 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
                       }}
                     >
                       {/* First in the DOM so it paints behind the text. */}
-                      <Show when={state(id) === TechNodeStateNs.researching}>
+                      <Show
+                        when={
+                          state(id) === TechNodeStateNs.researching ||
+                          state(id) === TechNodeStateNs.delivering
+                        }
+                      >
                         <div class="fill" style={{width: `${progress(id)}%`}} />
                       </Show>
                       <b>
@@ -310,6 +360,9 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
                         </For>
                       </span>
                       <div class="desc">{techDesc(id)}</div>
+                      <Show when={state(id) === TechNodeStateNs.delivering}>
+                        <div class="haul">{hauled(id)}</div>
+                      </Show>
                     </div>
                   )}
                 </For>

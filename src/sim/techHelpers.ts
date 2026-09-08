@@ -6,7 +6,7 @@ import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import * as TechEffectKind from './defs/techEffectKindEnum.ts';
 import {TECH_DEFS, type TechId} from './defs/techs.ts';
 import type {UnitTypeId} from './defs/units.ts';
-import type {Owner} from './entities.ts';
+import type {Building, Owner} from './entities.ts';
 import type {World} from './world.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -84,7 +84,32 @@ export function canResearch(
     if (!t.researched.includes(p))
       return {ok: false, reason: `requires ${TECH_DEFS[p].name}`};
   }
-  let hasAbbey = false;
+  if (!researchAbbey(world, owner))
+    return {ok: false, reason: 'needs a built Abbey'};
+  return {ok: true};
+}
+
+/**
+ * The roof a study is ordered at: this owner's first standing Abbey in
+ * world order, which is the same one every time the question is asked.
+ *
+ * World order is id order here, though it is worth saying why rather than
+ * leaving it to look like luck: buildings are only ever appended to the map
+ * under a fresh ascending id (placeSite, placeBuiltBuilding) and only ever
+ * deleted from it (tick.ts drops the dead), and deleting leaves the rest of
+ * a JS Map in place. Nothing is re-inserted, so iteration cannot fall out
+ * of id order — and a save round-trips the map in that same order
+ * (save.ts). This is the convention findStorehouse and the festival's own
+ * abbeyOf already use; a seat with two Abbeys gets the elder one from all
+ * three.
+ *
+ * It is where the bill is carried (systems/logistics.ts) and what the order
+ * is pinned to for as long as the goods are on the road.
+ */
+export function researchAbbey(
+  world: World,
+  owner: Owner,
+): Building | undefined {
   for (const b of world.buildings.values()) {
     if (
       !b.dead &&
@@ -92,10 +117,8 @@ export function canResearch(
       b.state === BuildingState.built &&
       b.owner === owner
     ) {
-      hasAbbey = true;
-      break;
+      return b;
     }
   }
-  if (!hasAbbey) return {ok: false, reason: 'needs a built Abbey'};
-  return {ok: true};
+  return undefined;
 }

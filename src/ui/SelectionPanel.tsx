@@ -10,7 +10,13 @@ import {
   TRAIN_QUEUE_CAP,
 } from '../sim/defs/balance';
 import {BUILDING_DEFS, gatherRecipeOf, repairBill} from '../sim/defs/buildings';
-import {type GoodAmounts, goodEntries, goodKeys} from '../sim/defs/goods';
+import {
+  GOODS,
+  type GoodAmounts,
+  goodEntries,
+  goodKeys,
+} from '../sim/defs/goods';
+import {TECH_DEFS, type TechId} from '../sim/defs/techs';
 import {UNIT_DEFS} from '../sim/defs/units';
 import {GoodIcon, LockIcon, UnitIcon} from './icons';
 import {Key} from './shortcut';
@@ -148,6 +154,27 @@ function reachTip(
   return renews
     ? `Loads of wood still standing inside the square its woodcutter searches, and reachable. Felled tiles regrow, so a hut with room to breathe holds its number rather than running down to nothing.${shut}`
     : `Loads still in the ground inside the square its worker searches, and reachable — every one of them a trip, and none of them replaced. When it reaches zero the building is done wherever it stands.${shut}`;
+}
+
+/**
+ * A study's bill in loads: what the Abbey has been handed, out of what the
+ * whole tech costs. The snapshot carries what is *left* (TechSnap.active
+ * .needs) and only while something is left, so both counts are read off the
+ * tech's own price.
+ */
+function hauledTotal(a: {tech: TechId}): number {
+  const cost = TECH_DEFS[a.tech].cost;
+  return GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
+}
+
+function hauledIn(a: {tech: TechId; needs?: GoodAmounts}): number {
+  // No bill at all is the Abbey gone rather than the bill paid (see
+  // snapPlayers): nothing is known, so nothing is counted in. Reading the
+  // absence as zero remaining would have the row report a finished haul on
+  // the frame the roof came down.
+  if (!a.needs) return 0;
+  const left = GOODS.reduce((n, g) => n + (a.needs![g] ?? 0), 0);
+  return hauledTotal(a) - left;
 }
 
 /**
@@ -1037,12 +1064,26 @@ export function SelectionPanel(props: {
                     {a => (
                       <span style={{opacity: 0.85}}>
                         {techName(a().tech)}{' '}
-                        <span class="num">
-                          {Math.round(
-                            (1 - a().ticksLeft / a().totalTicks) * 100,
-                          )}
-                        </span>
-                        %
+                        {/* Two clocks, one order: while the bill is still
+                            on the road there is no percentage to show —
+                            the ticks have not started — so the loads
+                            carried in are what the row counts. */}
+                        <Show
+                          when={a().started}
+                          fallback={
+                            <>
+                              <span class="num">{hauledIn(a())}</span>/
+                              <span class="num">{hauledTotal(a())}</span> hauled
+                            </>
+                          }
+                        >
+                          <span class="num">
+                            {Math.round(
+                              (1 - a().ticksLeft / a().totalTicks) * 100,
+                            )}
+                          </span>
+                          %
+                        </Show>
                       </span>
                     )}
                   </Show>

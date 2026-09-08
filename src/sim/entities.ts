@@ -154,6 +154,13 @@ export interface Building {
    * carries the stone hands it to the post that is already there.
    */
   repairNeeds?: GoodAmounts;
+  /**
+   * The tech order's bill (the Abbey only): what the study still wants
+   * carried in before the books open. Read like siteNeeds — logistics
+   * raises the hauls, and the last load in clears the field and starts
+   * the clock (systems/research.ts).
+   */
+  researchNeeds?: GoodAmounts;
   /** Hit points each delivered repair material buys, fixed when the order
    * was placed: the damage then, split over the bill then. Damage taken
    * *during* a repair is therefore not mended for free — the order patches

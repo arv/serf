@@ -71,7 +71,7 @@ export function TechsPage(): JSX.Element {
     <>
       <h1>Research</h1>
       <p class="lede">
-        <Prose text="Studied at the Abbey, paid in goods and time. Three branches; a tech waits on its prerequisites and nothing else." />
+        <Prose text="Studied at the Abbey, paid in goods and time — in that order. Ordering a study writes its bill on the Abbey and the serfs carry the goods there load by load; the clock below only starts once the last one is in. Like a building site it is pegged out on credit, so a study can be ordered before the storehouse can pay for it. Three branches; a tech waits on its prerequisites and nothing else." />
       </p>
       <For each={TECH_BRANCHES}>
         {branch => (

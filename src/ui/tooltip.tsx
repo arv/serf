@@ -396,7 +396,7 @@ function recipeText(recipe: Recipe): string {
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.abbey]:
-    'Monks research the tech tree here; delivered ale throws work-speed festivals.',
+    'Monks research the tech tree here — a study’s goods are hauled in before the books open — and delivered ale throws work-speed festivals.',
   [BuildingTypeId.barracks]:
     'Trains knights and spearmen from bread and forged weapons. Archers are trained at the Archery Range.',
   [BuildingTypeId.archeryRange]:
@@ -610,6 +610,14 @@ export function TechTip(props: {tech: TechId}) {
         cost={def().cost}
         extra={`${Math.round(def().durationTicks / TICKS_PER_SECOND)}s`}
       />
+      {/* The seconds above are the study alone. The goods are carried to
+          the Abbey before any of them run, and that walk is the other half
+          of the wait — worth saying on the tip that quotes the clock. */}
+      <div class="tip-line">
+        Serfs carry the goods to the {buildingName(BuildingTypeId.abbey)} first;
+        the study starts when the last load arrives. Order it before you can pay
+        for it and the village catches up.
+      </div>
       <Show when={prereqNames().length > 0}>
         <div class="tip-warn">Requires {prereqNames()}</div>
       </Show>

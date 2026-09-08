@@ -20,6 +20,35 @@
  * directly.
  */
 /**
+ * 62: a study is carried to the Abbey before it begins.
+ *
+ * The research command used to take a tech's goods off the storehouse
+ * shelf and start its clock in the same tick. It writes the bill on the
+ * Abbey instead (tick.ts), the matcher hauls it there like a site's
+ * materials (systems/logistics.ts), each load is spent at the door, and
+ * the clock starts when the last one lands (systems/research.ts). Every
+ * tech's durationTicks was cut to 0.6 of what it was to pay for the walk.
+ *
+ * With the payment goes the gate: the command used to refuse an order the
+ * storehouse could not cover that instant, and takes it on credit now, the
+ * way a building site is pegged out on credit (buildUnlocked in
+ * ui/buildMenu.ts says the same of the ribbon). So a log can also carry a
+ * research order an older build simply threw away.
+ *
+ * Nothing about that replays: a log recorded before this build spends
+ * goods on a tick this one does not, hauls that never existed take hands
+ * off the board for a minute at a time, and every research lands on a
+ * different tick — which moves every unlock, and with it every order that
+ * waited on one.
+ *
+ * 62, written as 60: main took 60 for the Archery Range's footprint and
+ * 61 for the repair pull while this branch was in review. Third number
+ * for one change, and every note below this one says the same of itself
+ * — the number is whatever is free on the day it lands.
+ *
+ * 61's note follows.
+ */
+/**
  * 61: an ordered repair pulls the loads already walking its way up to its
  * own tier (systems/logistics.ts, repairPull/tierOf). Which hand takes
  * which job, and in what order, decides where every good in the village is
@@ -948,4 +977,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 61;
+export const REPLAY_VERSION = 62;

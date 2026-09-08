@@ -96,8 +96,9 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.ledger]: [
     {
       text:
-        'Learning happens at the Abbey and is paid in goods — one study at a ' +
-        'time. Raise it first.',
+        'Learning happens at the Abbey and is paid in goods your serfs carry ' +
+        'there — the study starts when the last load arrives. One at a ' +
+        'time. Raise it first, and keep it near the storehouse.',
       objective: 0,
     },
     {

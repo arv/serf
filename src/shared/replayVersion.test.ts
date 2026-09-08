@@ -559,8 +559,62 @@ import {REPLAY_VERSION} from './replayVersion';
 // inside one dispatch pass, and both numbers clear every good id, so the
 // pairs group exactly as they did. The hash is over raw bytes, which is
 // why it moved anyway.
-const EXPECTED_VERSION = 61;
-const EXPECTED_HASH = 'cbf447f309749acb48a0dff57151cad1';
+// 62 for a study being carried to the Abbey before it begins (tick.ts,
+// systems/logistics.ts, systems/research.ts): the research command bills
+// the Abbey instead of spending off the storehouse, the goods are hauled
+// in load by load, the clock starts when the last one lands, and every
+// tech's duration was cut to 0.6 to pay for the walk. Sim behavior in
+// every direction — goods leave the shelf on different ticks or not at
+// all, hauls that never existed take hands off the board for a minute at
+// a time, and every unlock lands somewhere else. The order is taken on
+// credit too, so a log can carry a research an older build threw away.
+// Cut as 60, landing as 62: main took 60 for the Archery Range's
+// footprint and 61 for the repair pull while the branch was open.
+// Still 62 after the shelf-promise release moved from research to hiring
+// (tick.ts): research does not spend off a shelf any more, so the guard
+// main wrote for it had no caller — and the hire, which does spend that
+// way, is the sharper case now that a study's bill pulls silver OUT of the
+// storehouse. Real behavior, and 62 is this build's own bump and has
+// never shipped, so there is nothing older to break. The same reasoning
+// the "Still 60" entries above record.
+// Still 62 after a settled line of a study's bill gives up its FIFO age
+// (Copilot's read of the demand loop, and correct): the clock is per
+// (building, good) and an Abbey wants ale for a bill and for its
+// festivals, so a settled ale line handed the next barrel the age of the
+// study. Real sim behavior — it decides which tier-2 haul is served first
+// — but 62 is this build's own bump and has never shipped, so there is
+// nothing older to break. The same reasoning the "Still 60" entries above
+// record.
+// Still 62 after the last load opens the books on the tick it lands
+// (Copilot's read of the system order, and correct): researchSystem runs
+// before logisticsSystem, so a bill settled at the Abbey's door was a
+// bill the research pass had already looked at, and `started` flipped a
+// tick late — a snapshot with nothing left to carry and the study still
+// reading as delivered. Settling the bill starts it now, in one place.
+// The study's own clock is unmoved either way; what moves is which tick
+// the flag turns over on, which is real sim state. 62 is this build's own
+// bump and has never shipped.
+// Still 62 after the masons were given the door ahead of the scholars
+// (Copilot's read of deliver(), and correct): an Abbey can owe an ordered
+// repair and a study in the same stone, the board ranks the repair first
+// and main's repair pull drags walking loads up to that tier — and the
+// study was taking the stone at the door anyway, undoing all of it. Real
+// sim behavior, and 62 is this build's own bump and has never shipped.
+// The snapshot half of the same review is protocol rather than sim: an
+// unreadable bill is now absent rather than empty, so a study whose Abbey
+// fell this tick cannot draw as fully delivered.
+// Still 62 after the study bill was added to clone and hash. clone.ts's
+// own note says it plainly — "when World or its records grow, update THIS,
+// save.ts, and hash.ts together" — and Building grew a researchNeeds this
+// branch never carried through: the clone shared it by reference (the
+// spread copies the pointer, and every other GoodAmounts on the record is
+// copied explicitly for exactly that reason), so a snapshot watched the
+// original's loads land as its own. hashWorld now mixes it beside the
+// repair bill it is the twin of. save.ts needs nothing — it serializes
+// buildings whole. Neither is replayed state, and 62 is this build's own
+// bump besides.
+const EXPECTED_VERSION = 62;
+const EXPECTED_HASH = 'd81c67a9942d60679e2c36773716c586';
 
 /**
  * Everything a replay's playback depends on, as raw source:

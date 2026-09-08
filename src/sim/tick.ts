@@ -58,7 +58,12 @@ import {
 } from './systems/training.ts';
 import {victorySystem} from './systems/victory.ts';
 import {wanderSystem} from './systems/wander.ts';
-import {canResearch, getModifier, isBuildingUnlocked} from './techHelpers.ts';
+import {
+  canResearch,
+  getModifier,
+  isBuildingUnlocked,
+  researchAbbey,
+} from './techHelpers.ts';
 import {
   clearMarchSpeed,
   clearOrders,
@@ -68,6 +73,7 @@ import {
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   canPlace,
+  settleResearchBill,
   destroyBuilding,
   killUnit,
   placeSite,
@@ -301,38 +307,30 @@ export function applyCommand(
       if (world.admin.enabled) applyAdmin(world, playerId, cmd.action);
       break;
     case CommandKind.research: {
+      // Ordering a study no longer pays for it. The bill is written on the
+      // Abbey and the village carries it there load by load, exactly like
+      // a site's materials; the clock starts when the last one lands
+      // (systems/research.ts). Nothing is spent until a good is actually
+      // handed over the Abbey's threshold, so an order that never gets its
+      // stone costs the player nothing but the slot.
+      //
+      // The stores are not a gate, for the same reason the build ribbon
+      // does not gate on them (buildUnlocked in ui/buildMenu.ts): a study
+      // is pegged out on credit like a woodcutter is, and the village
+      // catches up to the bill. Requiring the shelf to hold the whole cost
+      // first would deny the plain opening — order it now and let the
+      // silver come — to the player with the emptiest storehouse, who is
+      // exactly the one who needs to plan ahead. Tech and a standing
+      // Abbey are the whole of it (canResearch).
       if (!canResearch(world, playerId, cmd.tech).ok) break;
-      const sh = findStorehouse(world, playerId);
-      const cost = TECH_DEFS[cmd.tech].cost;
-      if (!sh) break;
-      const affordable = goodEntries(cost).every(
-        ([good, n]) => (sh.stock[good] ?? 0) >= n,
-      );
-      if (!affordable) break;
-      for (const [good, n] of goodEntries(cost)) {
-        sh.stock[good] = (sh.stock[good] ?? 0) - n;
-        world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
-        // A tech is bought off the shelf, and the shelf may already have
-        // promised what it is paying with. Reservations are the haulage
-        // board's claim on stock (`reservedOut` — see the invariants at the
-        // top of systems/logistics.ts), and nothing here ever consulted
-        // them: four iron reserved for a smith and four iron on the shelf
-        // bought Ironworking anyway, and left `reservedOut[iron]=4` over a
-        // stock of nothing.
-        //
-        // The promise is what gives, not the purchase. Every one of those
-        // hauls was going to die of this anyway — reconcile drops an open
-        // job whose source has fallen below its reservations, and a serf
-        // already walking gets "source out of stock at pickup" when he
-        // arrives — so this cancels them at the moment the shelf is spent
-        // rather than leaving the books wrong until he finds out. Research
-        // stays exactly as affordable as it was; what changes is that the
-        // carrier is told now.
-        releaseShelfPromises(world, sh, good);
-      }
+      const abbey = researchAbbey(world, playerId);
+      if (!abbey) break;
+      abbey.researchNeeds = {...TECH_DEFS[cmd.tech].cost};
       player.techs.active = {
         tech: cmd.tech,
         ticksLeft: TECH_DEFS[cmd.tech].durationTicks,
+        abbey: abbey.id,
+        started: false,
       };
       break;
     }
@@ -526,6 +524,15 @@ export function applyCommand(
         world.ledger.consumed[GoodId.silver] =
           (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
         sh.hireQueue = (sh.hireQueue ?? 0) + 1;
+        // The coin may already have been promised to a hauler — see
+        // releaseShelfPromises, which arrived on main to say the same of
+        // research. Research does not spend off the shelf any more (it
+        // bills the Abbey and the goods are carried), so the hire is the
+        // last purchase in the game that reaches past the haulage board,
+        // and it is a likelier one than research ever was: a study's own
+        // bill pulls silver OUT of the storehouse now, so the coin a hire
+        // spends is routinely coin a serf has been sent for.
+        releaseShelfPromises(world, sh, GoodId.silver);
       }
       break;
     }
@@ -545,11 +552,18 @@ export function applyCommand(
  * outbound jobs for `good`, oldest first, until `reservedOut` is inside the
  * stock again.
  *
- * The one caller is research, which is the one thing in the game that
- * spends off a shelf without asking the haulage board first. Ordinary
- * production cannot get here — a converter eats from its own inputs, and
- * every good that leaves a building for another one leaves through a job
- * that booked its reservation first.
+ * The one caller is hiring, which is the one thing left in the game that
+ * spends off a shelf without asking the haulage board first. It was
+ * written for research, which used to do the same and no longer does — a
+ * study is billed to the Abbey and carried there, so it takes its goods
+ * through the board like everything else, and takes them from whichever
+ * shelf is nearest rather than the castle's. That is also what makes the
+ * hire the sharper case of the two: silver leaves the storehouse on
+ * somebody's shoulders now, so the four coins a hire spends are often
+ * four a serf is already walking for. Ordinary production cannot get here
+ * — a converter eats from its own inputs, and every good that leaves a
+ * building for another one leaves through a job that booked its
+ * reservation first.
  *
  * Oldest first, by job id, because the sim's tie-breaks are by id
  * everywhere else and a cancellation order that depended on Map iteration
@@ -598,7 +612,16 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       break;
     case AdminAction.finishResearch: {
       const active = world.players[playerId]?.techs.active;
-      if (active) active.ticksLeft = 1;
+      if (!active) break;
+      // Settles the haul too: the cheat is "this study is done", and a
+      // study still waiting on its stone would otherwise sit at one tick
+      // left forever. The bill is torn up rather than paid — nothing was
+      // debited when it was written, so nothing is owed — and settling it
+      // is what opens the books, here as at the Abbey's door.
+      const abbey = world.buildings.get(active.abbey);
+      if (abbey) settleResearchBill(world, abbey);
+      active.started = true;
+      active.ticksLeft = 1;
       break;
     }
     case AdminAction.spawnParade: {

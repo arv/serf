@@ -44,6 +44,28 @@ export interface TechDef {
 
 const S = 20; // ticks per second
 
+/**
+ * A study's clock is the second half of its price now, not the whole of it.
+ *
+ * The goods used to leave the storehouse shelf the instant the order was
+ * given; they are carried to the Abbey load by load instead (tick.ts writes
+ * the bill, systems/logistics.ts hauls it, systems/research.ts starts the
+ * clock when the last load lands), and that walk is real time the village
+ * pays before a word is read. Measured on a bare field, storehouse to Abbey
+ * with the serfs otherwise idle: eight loads take ~11s with four hands at
+ * six tiles and ~24s at twelve, and the fourteen-load techs run ~14s and
+ * ~41s. Two hands roughly double both; a village whose serfs also have
+ * wheat and planks to move pays more again.
+ *
+ * So the durations below were cut to 0.6 of what they were — 20s to 12s,
+ * 25s to 15s, 30s to 18s, 35s to 21s, 40s to 24s. Order to effect lands at
+ * roughly 25-55s where it used to be a flat 20-40s: the haul is meant to be
+ * felt, but the tree should not take twice as long to climb. The cut is
+ * uniform on purpose. The haul adds a term proportional to the bill, so the
+ * expensive techs already grow the most, and scaling every clock by the
+ * same number leaves the tree's designed order of slow and quick intact.
+ */
+
 export const TECH_DEFS: Record<TechId, TechDef> = {
   // — Agriculture —
   [T.irrigation]: {
@@ -52,7 +74,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.agriculture,
     prereqs: [],
     cost: {[GoodId.wheat]: 5, [GoodId.silver]: 3},
-    durationTicks: 25 * S,
+    durationTicks: 15 * S,
     effects: [
       {
         kind: TechEffectKindNs.modifier,
@@ -69,7 +91,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: [T.irrigation],
     // Stone for the stones: the one agriculture tech the quarry pays for.
     cost: {[GoodId.stone]: 6, [GoodId.silver]: 5},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     // The chain's designed bottleneck is the mill (one mill serves two
     // farms), so this is the lever on bread itself. Deliberately not the
     // fishery: the shore is the poor village's option, and a late-game
@@ -89,7 +111,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.agriculture,
     prereqs: [T.irrigation],
     cost: {[GoodId.wheat]: 8, [GoodId.silver]: 4},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     effects: [
       {kind: TechEffectKindNs.unlockBuilding, building: BuildingTypeId.brewery},
     ],
@@ -101,7 +123,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.agriculture,
     prereqs: [T.brewing],
     cost: {[GoodId.ale]: 2, [GoodId.silver]: 6},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     effects: [], // enables the abbey's ale-fed festival buff
     desc: 'Ale delivered to the Abbey holds festivals: everyone works 25% faster for a while.',
   },
@@ -113,7 +135,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // Paying the unlock in ale means the brewery is already employed
     // before the effect ever lands.
     cost: {[GoodId.ale]: 4, [GoodId.silver]: 6},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     // Like festivals, a mechanic rather than a modifier: the barracks
     // stocks ale, and each soldier drinks one at training start for a
     // faster course (staffing.ts). No ale never blocks training — the
@@ -129,7 +151,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.craft,
     prereqs: [],
     cost: {[GoodId.wheat]: 4, [GoodId.silver]: 2},
-    durationTicks: 20 * S,
+    durationTicks: 12 * S,
     effects: [
       {
         kind: TechEffectKindNs.modifier,
@@ -149,7 +171,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // Cheaper and quicker for the same reason.
     prereqs: [],
     cost: {[GoodId.stone]: 4, [GoodId.silver]: 5},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     // The Smith itself is ungated (the village's only tool source must be
     // reachable from a standing start) — this opens the ore and the iron
     // recipes on its menu.
@@ -167,7 +189,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.craft,
     prereqs: [T.ironworking],
     cost: {[GoodId.iron]: 4, [GoodId.silver]: 8},
-    durationTicks: 35 * S,
+    durationTicks: 21 * S,
     effects: [
       {
         kind: TechEffectKindNs.modifier,
@@ -187,7 +209,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.craft,
     prereqs: [T.ironworking],
     cost: {[GoodId.iron]: 3, [GoodId.silver]: 6},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     // Deep Mining's rival for the post-ironworking slot: faster ore or
     // faster weapons out of the same forge. One roof, one bellows — the
     // buff covers every recipe the smith runs, bowstaves included.
@@ -206,7 +228,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.craft,
     prereqs: [T.cobbledBoots],
     cost: {[GoodId.stone]: 8, [GoodId.silver]: 4},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     effects: [{kind: TechEffectKindNs.unlockPaving}],
     desc: 'Heavily-trodden trails are paved into stone roads (+35% speed, permanent).',
   },
@@ -218,7 +240,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.warfare,
     prereqs: [],
     cost: {[GoodId.wheat]: 6, [GoodId.silver]: 6},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     effects: [
       {
         kind: TechEffectKindNs.unlockBuilding,
@@ -252,7 +274,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // the parapet.
     prereqs: [],
     cost: {[GoodId.wood]: 8, [GoodId.silver]: 6},
-    durationTicks: 30 * S,
+    durationTicks: 18 * S,
     effects: [
       {
         kind: TechEffectKindNs.unlockBuilding,
@@ -268,7 +290,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.warfare,
     prereqs: [T.soldiery],
     cost: {[GoodId.iron]: 4, [GoodId.silver]: 8},
-    durationTicks: 35 * S,
+    durationTicks: 21 * S,
     effects: [
       {
         kind: TechEffectKindNs.modifier,
@@ -284,7 +306,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: TechBranchNs.warfare,
     prereqs: [T.mailArmor],
     cost: {[GoodId.gold]: 4, [GoodId.silver]: 10},
-    durationTicks: 40 * S,
+    durationTicks: 24 * S,
     effects: [
       {
         kind: TechEffectKindNs.modifier,

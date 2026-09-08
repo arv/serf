@@ -96,6 +96,13 @@ export interface HaulJob {
    */
   repair?: true;
   /**
+   * This haul was booked by an Abbey's study bill. Same purpose as `repair`
+   * above and for the same reason: the Abbey wants wheat for a study and
+   * ale for its festivals, and at the door the two loads are otherwise the
+   * same wheat-shaped errand.
+   */
+  research?: true;
+  /**
    * Set on arrival at a source with `drawTicks` (the well): the tick the
    * hauler finishes drawing and the good is finally in its hands. Lives on
    * the job rather than the building so two haulers at one well each pay
@@ -209,7 +216,20 @@ export type GameEvent =
 
 export interface TechState {
   researched: TechId[];
-  active?: {tech: TechId; ticksLeft: number};
+  /**
+   * The one study in hand, in either of its two halves. `started` is false
+   * while the serfs are still carrying the bill to the Abbey — the ticks
+   * do not run and nothing is learned — and true from the tick the last
+   * load lands. `abbey` is the roof it was ordered at and where the goods
+   * are going; lose it before the books open and the order is dropped
+   * (systems/research.ts).
+   */
+  active?: {
+    tech: TechId;
+    ticksLeft: number;
+    abbey: EntityId;
+    started: boolean;
+  };
   /** Ticks remaining on the current festival work-speed buff. */
   festivalTicksLeft: number;
 }
@@ -1366,6 +1386,35 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
   delete b.repairNeeds;
   delete b.repairHpPerGood;
   for (const g of bill) delete b.demandSince[g];
+}
+
+/**
+ * Settle an Abbey's study bill and open the books: the last load landed,
+ * or the debug lever finished the study outright. The bill goes, and with
+ * it the waiting — this is the one place a study starts.
+ *
+ * It has to be here rather than in researchSystem, which is the natural
+ * home for it, because of the order the systems run in: research ticks
+ * BEFORE logistics (see tickWorld), so a bill settled at the Abbey's door
+ * during the haul pass is a bill the research pass has already looked at.
+ * Left for the next tick, the beat between them is observable — a snapshot
+ * carrying `started` false with nothing left to carry, which the panel
+ * draws as a study still being delivered when the last barrel is already
+ * inside.
+ *
+ * Drops the FIFO clocks with the bill for the same reason a finished
+ * repair does (see clearRepairOrder): the age of an unmet demand lives per
+ * (building, good), and an Abbey that keeps a settled bill's clock would
+ * hand the next study's first load a queue place it never stood in.
+ */
+export function settleResearchBill(world: World, b: Building): void {
+  if (!b.researchNeeds) return;
+  for (const g of goodKeys(b.researchNeeds)) delete b.demandSince[g];
+  delete b.researchNeeds;
+  // Whoever ordered it, at THIS Abbey: a seat with two of them has its
+  // study pinned to the one the bill was written on (techs.active.abbey).
+  const techs = world.players[b.owner]?.techs;
+  if (techs?.active && techs.active.abbey === b.id) techs.active.started = true;
 }
 
 /**

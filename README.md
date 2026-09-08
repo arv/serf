@@ -70,6 +70,10 @@ pnpm dev
   never leaves the post. The castle repairs too, out of the stores already
   inside it, against a notional price of its own (it cost nothing to raise).
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
+  A study is ordered, not bought: the bill goes on the Abbey and the serfs
+  carry it there load by load, and the clock only starts once the last load
+  is in — so where the Abbey stands, and how many hands are free, is part of
+  how fast you climb.
   Unlocks are real strategic forks — Ironworking (a craft root now: the tool
   economy cannot wait on boots) opens the iron mine and every iron recipe at
   the Smith, Archery opens the bow line, Masonry paves your roads, Millstones

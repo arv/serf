@@ -82,7 +82,8 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     payload: 'buildingId, index, recipeIndex',
   },
   [CommandKind.research]: {
-    summary: 'Start a research at the Abbey, paying its cost up front.',
+    summary:
+      'Order a study at the Abbey. Nothing is spent up front and the stores are not a gate — like a building site, the cost is billed to the Abbey, serfs carry it there as the village can, and the study starts when the last load lands.',
     payload: 'tech',
   },
   [CommandKind.trainUnit]: {
@@ -128,6 +129,7 @@ export const ADMIN_DOCS: Record<AdminAction, string> = {
   [AdminAction.grantGoods]: 'Drop a bundle of goods into the store.',
   [AdminAction.toggleInstantBuild]:
     'Construction completes the moment materials land.',
-  [AdminAction.finishResearch]: 'Complete the research in progress.',
+  [AdminAction.finishResearch]:
+    'Complete the research in progress — settling any goods still on the road to the Abbey.',
   [AdminAction.spawnParade]: 'March one of every unit past the castle.',
 };

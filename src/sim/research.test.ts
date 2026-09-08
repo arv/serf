@@ -1,8 +1,15 @@
 import {describe, expect, it} from 'vitest';
 import * as CommandKind from './commandKindEnum.ts';
-import {BARRACKS_ALE_CAP, FESTIVAL_DURATION} from './defs/balance.ts';
+import {checkInvariants} from './debug/invariants.ts';
+import {
+  BARRACKS_ALE_CAP,
+  FESTIVAL_DURATION,
+  MATCHER_INTERVAL,
+} from './defs/balance.ts';
+import {buildingDef} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
+import {goodEntries} from './defs/goods.ts';
 import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
@@ -16,7 +23,7 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import {tickWorld} from './tick.ts';
-import {placeBuiltBuilding, type World} from './world.ts';
+import {destroyBuilding, placeBuiltBuilding, type World} from './world.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -32,6 +39,32 @@ function setupSchool(world: World): void {
     [GoodId.iron]: 10,
   });
   placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+  // Four pairs of hands by the door: a study's goods are carried to the
+  // Abbey now, so a fixture with no serfs is a fixture where no research
+  // ever starts.
+  for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+}
+
+/** The Abbey a study was ordered at (fixtures stand exactly one). */
+function abbeyOf(world: World) {
+  return [...world.buildings.values()].find(
+    b => b.type === BuildingTypeId.abbey,
+  )!;
+}
+
+/**
+ * Tick until the serfs have carried the whole bill in and the study's own
+ * clock has started, and answer how long that took. Fails loudly rather
+ * than silently running a test against a study that never began.
+ */
+function runHaul(world: World, limit = 20 * 120): number {
+  let t = 0;
+  while (!world.players[0]!.techs.active?.started) {
+    expect(t).toBeLessThan(limit);
+    tickWorld(world, []);
+    t++;
+  }
+  return t;
 }
 
 describe('research', () => {
@@ -45,28 +78,224 @@ describe('research', () => {
     expect(world.players[0]!.techs.active).toBeUndefined();
   });
 
-  it('pays the cost, takes time, then applies', () => {
+  it('bills the Abbey, is carried there, then takes time and applies', () => {
     const world = bareWorld();
     setupSchool(world);
     const silverBefore = 50;
+    const cost = TECH_DEFS[TechId.cobbledBoots].cost;
     tickWorld(
       world,
       cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
     );
 
-    expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
+    // Ordered, but nothing is spent and nothing is learned yet: the bill
+    // is on the Abbey and the shelf is untouched until a serf lifts a load.
+    const active = world.players[0]!.techs.active!;
+    expect(active.tech).toBe(TechId.cobbledBoots);
+    expect(active.started).toBe(false);
+    expect(abbeyOf(world).researchNeeds).toEqual({...cost});
     const sh = [...world.buildings.values()].find(
       b => b.type === BuildingTypeId.storehouse,
     )!;
-    expect(sh.stock[GoodId.silver]).toBe(
-      silverBefore - (TECH_DEFS[TechId.cobbledBoots].cost[GoodId.silver] ?? 0),
+    expect(sh.stock[GoodId.silver]).toBe(silverBefore);
+
+    // The clock does not run while the goods are on the road.
+    run(world, 40);
+    expect(world.players[0]!.techs.active?.ticksLeft).toBe(
+      TECH_DEFS[TechId.cobbledBoots].durationTicks,
     );
+
+    runHaul(world);
+    // Every load is spent at the Abbey's door: the shelf is down the whole
+    // bill, and the Abbey is holding none of it.
+    expect(sh.stock[GoodId.silver]).toBe(
+      silverBefore - (cost[GoodId.silver] ?? 0),
+    );
+    expect(abbeyOf(world).researchNeeds).toBeUndefined();
+    expect(abbeyOf(world).stock[GoodId.silver] ?? 0).toBe(0);
     expect(getModifier(world, 0, ModifierKey.serfSpeed)).toBe(1);
+    expect(checkInvariants(world).violations).toEqual([]);
 
     run(world, TECH_DEFS[TechId.cobbledBoots].durationTicks + 2);
     expect(world.players[0]!.techs.researched).toContain(TechId.cobbledBoots);
     expect(world.players[0]!.techs.active).toBeUndefined();
     expect(getModifier(world, 0, ModifierKey.serfSpeed)).toBeCloseTo(1.15);
+  });
+
+  it('a study with nobody to carry it never starts', () => {
+    // The other half of the claim above: the goods are the gate, not a
+    // formality. No serfs, no loads, no clock — and still nothing spent.
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.wheat]: 50,
+      [GoodId.silver]: 50,
+    });
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    run(world, TECH_DEFS[TechId.cobbledBoots].durationTicks * 2);
+    expect(world.players[0]!.techs.active?.started).toBe(false);
+    expect(world.players[0]!.techs.researched).not.toContain(
+      TechId.cobbledBoots,
+    );
+    expect(sh.stock[GoodId.silver]).toBe(50);
+  });
+
+  it('is ordered on credit, and the study waits for the goods', () => {
+    // The build ribbon's rule, applied to the tree: a site is pegged out
+    // with an empty storehouse and the planks catch up, and a study is
+    // ordered the same way. Nothing on the shelf, an order taken all the
+    // same — and it starts the moment the goods exist and are carried in.
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {});
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
+    expect(world.players[0]!.techs.active?.started).toBe(false);
+
+    // The silver and wheat turn up later, from wherever.
+    const cost = TECH_DEFS[TechId.cobbledBoots].cost;
+    for (const [good, n] of goodEntries(cost)) {
+      sh.stock[good] = n;
+      world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
+    }
+    runHaul(world);
+    run(world, TECH_DEFS[TechId.cobbledBoots].durationTicks + 2);
+    expect(world.players[0]!.techs.researched).toContain(TechId.cobbledBoots);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('the study begins on the tick the last load lands', () => {
+    // researchSystem runs BEFORE logisticsSystem in a tick (tick.ts), so a
+    // bill settled at the Abbey's door during the haul pass is a bill the
+    // research pass has already looked at. Left to the next tick, the beat
+    // between them is observable: a snapshot with `started` false and
+    // nothing left to carry, which is a study the panel draws as still
+    // being delivered when the last barrel is already inside.
+    const world = bareWorld();
+    setupSchool(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    const abbey = abbeyOf(world);
+    let guard = 20 * 120;
+    while (abbey.researchNeeds && guard-- > 0) tickWorld(world, []);
+    expect(abbey.researchNeeds).toBeUndefined();
+    expect(world.players[0]!.techs.active?.started).toBe(true);
+  });
+
+  it('a settled line of the bill gives up its place in the haul queue', () => {
+    // The FIFO age lives per (building, good), and an Abbey wants ale for
+    // two different reasons: a study billed in ale, and — once Festivals
+    // is in — the buff. So when the ale half of a bill is settled while
+    // the silver half is still walking, the study's clock must not be left
+    // behind for the next barrel to inherit: it would sort at the head of
+    // tier 2 on the strength of when the STUDY was ordered, in front of
+    // every mine's bread and every forge's iron asked for since.
+    //
+    // Festivals itself is the study here, precisely so the buff's own
+    // demand is NOT running: it is the one branch that would rewrite this
+    // clock either way, and a test it can satisfy proves nothing.
+    const world = bareWorld();
+    setupSchool(world);
+    world.players[0]!.techs.researched.push(TechId.irrigation, TechId.brewing);
+    const abbey = abbeyOf(world);
+    const sh = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    // No silver on the shelf, so the silver half can never be settled and
+    // the bill stays open with its ale line paid.
+    sh.stock[GoodId.silver] = 0;
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.festivals}),
+    );
+    expect(abbey.researchNeeds?.[GoodId.ale]).toBe(
+      TECH_DEFS[TechId.festivals].cost[GoodId.ale],
+    );
+
+    let guard = 20 * 120;
+    while ((abbey.researchNeeds?.[GoodId.ale] ?? 0) > 0 && guard-- > 0)
+      tickWorld(world, []);
+    expect(abbey.researchNeeds?.[GoodId.ale]).toBe(0);
+    expect(abbey.researchNeeds?.[GoodId.silver]).toBeGreaterThan(0);
+    expect(world.players[0]!.techs.active?.started).toBe(false);
+
+    // A matcher pass with the ale line settled: its clock goes, and the
+    // silver still owed keeps its own.
+    run(world, MATCHER_INTERVAL + 1);
+    expect(abbey.demandSince[GoodId.ale]).toBeUndefined();
+    expect(abbey.demandSince[GoodId.silver]).toBeDefined();
+  });
+
+  it('the masons take the stone before the scholars do', () => {
+    // An Abbey can owe two bills in the same good at once: an ordered
+    // repair (tier 1) and a study billed in stone (tier 2). The board
+    // ranks them and main's repair pull goes further still, dragging the
+    // loads already walking up to the repair's tier — all of which is
+    // undone at the door if the study takes whatever arrives. One stone in
+    // the whole world, so which bill gets it is not a matter of timing.
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.stone]: 1,
+      [GoodId.silver]: 20,
+    });
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    abbey.hp = buildingDef(BuildingTypeId.abbey).hp * 0.2;
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    tickWorld(
+      world,
+      cmds(
+        {
+          kind: CommandKind.setBuildingRepair,
+          buildingId: abbey.id,
+          repair: true,
+        },
+        {kind: CommandKind.research, tech: TechId.ironworking},
+      ),
+    );
+    // Both want stone, and there is one to be had.
+    expect(abbey.repairNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    const repairWanted = abbey.repairNeeds![GoodId.stone]!;
+    const studyWanted = abbey.researchNeeds![GoodId.stone]!;
+
+    // Until the stone is through a door, not merely off the shelf: the
+    // storehouse empties at the pickup and there is a walk after that.
+    const owed = (): number =>
+      (abbey.repairNeeds?.[GoodId.stone] ?? 0) +
+      (abbey.researchNeeds?.[GoodId.stone] ?? 0);
+    const before = owed();
+    let guard = 20 * 120;
+    while (owed() === before && guard-- > 0) tickWorld(world, []);
+    expect(sh.stock[GoodId.stone] ?? 0).toBe(0);
+
+    expect(abbey.repairNeeds?.[GoodId.stone]).toBe(repairWanted - 1);
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBe(studyWanted);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('drops the order if the Abbey falls before the books open', () => {
+    const world = bareWorld();
+    setupSchool(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    destroyBuilding(world, abbeyOf(world));
+    run(world, 2);
+    // The slot is free again — with no Abbey standing the order cannot be
+    // re-given, but nothing is left pinned to a roof that is gone.
+    expect(world.players[0]!.techs.active).toBeUndefined();
+    run(world, 20);
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('enforces prereqs and one-at-a-time', () => {
@@ -109,6 +338,7 @@ describe('research', () => {
     tickWorld(world, cmds({kind: CommandKind.research, tech: TechId.archery}));
     expect(world.players[0]!.techs.active?.tech).toBe(TechId.archery);
 
+    runHaul(world);
     run(world, TECH_DEFS[TechId.archery].durationTicks + 2);
     expect(world.players[0]!.techs.researched).toContain(TechId.archery);
     expect(world.players[0]!.techs.researched).not.toContain(TechId.soldiery);
@@ -152,6 +382,7 @@ describe('research', () => {
     expect(world.players[0]!.pavingUnlocked).toBe(false);
     world.players[0]!.techs.researched.push(TechId.cobbledBoots);
     tickWorld(world, cmds({kind: CommandKind.research, tech: TechId.masonry}));
+    runHaul(world);
     run(world, TECH_DEFS[TechId.masonry].durationTicks + 2);
     expect(world.players[0]!.pavingUnlocked).toBe(true);
   });
@@ -164,10 +395,15 @@ describe('research', () => {
       TechId.brewing,
       TechId.festivals,
     );
-    const tera = [...world.buildings.values()].find(
-      b => b.type === BuildingTypeId.abbey,
-    )!;
+    const tera = abbeyOf(world);
     tera.inputs[GoodId.ale] = 1;
+    // Exactly one barrel in the world, so this is one festival and not a
+    // standing party: the fixture's serfs would otherwise keep the Abbey
+    // topped up from the shelf and the buff would never lapse.
+    const sh = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    sh.stock[GoodId.ale] = 0;
 
     tickWorld(world, []);
     expect(world.players[0]!.techs.festivalTicksLeft).toBeGreaterThan(0);
