@@ -658,8 +658,12 @@ function takeStandingJobs(
     // building's own is the job's — and it is the one a serf must match.
     const idle = idleByOwner.get(b.owner);
     if (!idle || idle.length === 0) continue;
-    // Most urgent first, then the board's own FIFO — the same order the
-    // dispatch loop below would have taken them in.
+    // Most urgent first, then the board's own FIFO. Not what the loop below
+    // would have done with them: that picks a TIER by how far it sits below
+    // its share of the hands and only then sorts within it, so an imbalanced
+    // board deals a tier 3 load ahead of a tier 1 one by design. This is the
+    // order that is right for a man already standing here — the building's
+    // most urgent load first, since none of them costs him a walk.
     jobs.sort(
       (a, z) =>
         a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
@@ -761,6 +765,17 @@ function dispatch(world: World): void {
 
   // The load home, before the board is dealt at all (see takeStandingJobs).
   takeStandingJobs(world, open, idleByOwner);
+  // ...which can have taken the last free hand. The check above no longer
+  // covers the sort below, so it is asked again: the buckets survive, but
+  // every man in them may have just walked off with a load.
+  let anyIdle = false;
+  for (const bucket of idleByOwner.values()) {
+    if (bucket.length > 0) {
+      anyIdle = true;
+      break;
+    }
+  }
+  if (!anyIdle) return;
 
   // Sort only once we know somebody can actually claim a job — this runs
   // every tick, and most ticks have no idle serfs. Oldest first; the tier is

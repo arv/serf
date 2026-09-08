@@ -465,7 +465,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // re-siting rule's condition, which is brain-side the way every other
 // economy rule is — playback never runs a brain.
 const EXPECTED_VERSION = 57;
-const EXPECTED_HASH = '5470c544bdbf06a8a53fcd6eed81ebfe';
+const EXPECTED_HASH = '7c7f56bca6f3a874d268440427c8cc1a';
 
 /**
  * Everything a replay's playback depends on, as raw source:
