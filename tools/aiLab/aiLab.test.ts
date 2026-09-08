@@ -84,9 +84,13 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 }
 
 const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
-/** The full-match fixture, and how deep it has to run. Seat 1 razes seat 0
- * at tick 14880 unadvised and at 11299 advised, so the bound sits above the
- * slower of the two with room to spare.
+/** The full-match fixture, and how deep it has to run. The two ticks it
+ * turns on — the war's end unadvised and advised — belong to whichever seed
+ * is pinned, so they are kept beside that pin at the end of this comment
+ * rather than repeated up here. This sentence used to carry them and went
+ * stale three re-seedings running, most recently reading 14_880 and 11_299
+ * (seed 1's) while the pin was already elsewhere. A summary that restates
+ * a number tracked below is a summary that will be wrong.
  *
  * It has to run this deep at all because the steward's growth knobs sit
  * behind its growthAfter research and its war knobs behind a mustered
