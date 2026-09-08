@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {snapBuildings} from '../protocol/snapshot';
 import {loadGlbAssets} from '../render/assets';
 import {BuildingSync} from '../render/buildingSync';
-import {batteryFramePacer} from '../render/framePacer';
+import {FramePacer, MOBILE_FPS_CAP} from '../render/framePacer';
 import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
 import {MarginMesh} from '../render/marginMesh';
@@ -153,8 +153,10 @@ export async function startMenuBackdrop(
   });
 
   // Not interactive: the rig must not bind keys or the wheel, or typing a
-  // room code in the menu above would pan the scene behind it.
-  const renderer = new GameRenderer(canvas, false);
+  // room code in the menu above would pan the scene behind it. Soft: it is
+  // seen through the blur index.html puts on the canvas, so it draws at a
+  // fraction of the match's pixels (see GameRenderer's constructor).
+  const renderer = new GameRenderer(canvas, false, true);
   renderer.setWorldExtent(world.map.play, world.map.size);
   // ...and then take its fog band back: setWorldExtent cut one for the
   // match's camera, not for this one. The scene's own background is the
@@ -228,10 +230,13 @@ export async function startMenuBackdrop(
   let raf = 0;
   /** Canvas starts transparent (index.html); shown once it has a frame. */
   let lit = false;
-  // Same 30 fps phone cap as the match loop — a menu left open on a phone
-  // otherwise drains the battery on a blurred backdrop, and the drift is
-  // far too slow for the skipped frames to read as judder through the glass.
-  const pacer = batteryFramePacer();
+  // The match loop's phone cap, here on every device: a menu left open
+  // otherwise spends the GPU on a blurred backdrop at whatever rate the
+  // panel refreshes — the very thing that drains a laptop's battery until
+  // it throttles the graphics, which is where this loop starts holding the
+  // page (see the soft flag above). The drift is far too slow for the
+  // skipped frames to read as judder through the glass.
+  const pacer = new FramePacer(MOBILE_FPS_CAP);
   const loop = (): void => {
     if (stopped) return;
     const now = performance.now();
