@@ -664,30 +664,50 @@ function takeStandingJobs(
       (a, z) =>
         a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
     );
+    // Whoever is standing here and still cannot reach the door — a man
+    // sealed into a pocket at the wall. Remembered across this building's
+    // jobs, because it is the same walk every time and asking twice only
+    // spends the pathfinder (the dispatch loop keeps the same memo, for
+    // the same reason).
+    let refused: Set<number> | undefined;
     for (const job of jobs) {
       // Reservations should make this hold; if they somehow do not, leave
       // the job on the board for reconcile rather than walk a man onto an
       // empty shelf.
       if ((b.stock[job.good] ?? 0) < 1) continue;
-      const i = idle.findIndex(u => atBuilding(u, b));
-      if (i < 0) break; // nobody left standing here
-      const serf = idle[i]!;
-      // The same walk the dispatch loop below would hand him, and for a man
-      // already on the ring the pathfinder returns it empty without a
-      // search — so this costs nothing, and he goes through arrival like
-      // everybody else rather than drawing from the shelf a tick early.
-      const path = findPathToAdjacent(
-        world.map,
-        Math.floor(serf.x),
-        Math.floor(serf.y),
-        b.x,
-        b.y,
-        b.w,
-        b.h,
-      );
-      // Standing next to it and still walled off from it: leave the whole
-      // building to the loop below, which knows how to back a job off.
-      if (!path) break;
+      // The first man standing here who can actually get to the door. Not
+      // simply the first standing here: one sealed-in serf must not answer
+      // for the building and send every load in it back to the ordinary
+      // board, which is the bug PATH_TRIES records below in its own words
+      // — the nearest man's bad luck becoming the job's.
+      let serf: Unit | undefined;
+      let path: number[] | null = null;
+      let i = -1;
+      for (let k = 0; k < idle.length; k++) {
+        const cand = idle[k]!;
+        if (refused?.has(cand.id) || !atBuilding(cand, b)) continue;
+        // The same walk the dispatch loop below would hand him, and for a
+        // man already on the ring the pathfinder returns it empty without
+        // a search — so this costs nothing in the ordinary case, and he
+        // goes through arrival like everybody else rather than drawing
+        // from the shelf a tick early.
+        path = findPathToAdjacent(
+          world.map,
+          Math.floor(cand.x),
+          Math.floor(cand.y),
+          b.x,
+          b.y,
+          b.w,
+          b.h,
+        );
+        if (path) {
+          serf = cand;
+          i = k;
+          break;
+        }
+        (refused ??= new Set()).add(cand.id);
+      }
+      if (!serf || !path) break; // nobody left here who can reach it
       idle.splice(i, 1);
       job.phase = HaulPhase.toPickup;
       job.serfId = serf.id;

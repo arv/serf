@@ -298,6 +298,51 @@ describe('the load home', () => {
     expectClean(world, initial);
   });
 
+  it('passes over a man sealed in at the wall, and takes the next', () => {
+    // One serf's bad luck is not the building's. Standing at a building is
+    // a matter of distance, and a man can be within arm's reach of a mine
+    // and still have no way round to its door — so the scan steps past him
+    // to the next man standing there rather than handing the whole mine
+    // back to the ordinary board. The dispatch loop learned this the hard
+    // way once already; PATH_TRIES is its note about it.
+    const world = bareWorld();
+    addStorehouse(world, 20, 30, {[GoodId.wood]: 10});
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      34,
+      30,
+    );
+    mine.stock[GoodId.silver] = 2;
+    addSite(world, 24, 30); // the tier-1 pull that wins him otherwise
+
+    // Walled into a pocket one tile off the ring: near enough to count as
+    // standing at the mine, with no way onto it.
+    const sealed = addSerf(world, 34, 33);
+    for (const [x, y] of [
+      [33, 32],
+      [34, 32],
+      [35, 32],
+      [33, 33],
+      [35, 33],
+      [33, 34],
+      [34, 34],
+      [35, 34],
+    ] as const) {
+      world.map.blocked[tileIdx(x, y, world.map.size)] = 1;
+    }
+    // Spawned second, so the scan reaches him only by stepping over the
+    // first — which is the whole assertion.
+    const free = addSerf(world, 36, 31);
+
+    run(world, 1);
+    expect(sealed.jobId).toBeUndefined();
+    const job = world.jobs.get(free.jobId!);
+    expect(job?.good).toBe(GoodId.silver);
+    expect(job?.from).toBe(mine.id);
+  });
+
   it('does not hold a hand a starved site is waiting on', () => {
     // The standing job is dealt before the tier shares, but never before
     // the recruitment sweep: a serf has to be idle for the beat after a

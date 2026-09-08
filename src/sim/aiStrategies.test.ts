@@ -239,7 +239,7 @@ describe('the AI playbooks', () => {
     // playbooks do not separate on within the budget (11 held it until the
     // pan clamp took a share of the scenery ring, and left the warlord
     // digging one seam rather than two; 13 until the load home re-timed
-    // every haul in the game, replay 56, and left the fletcher's SECOND
+    // every haul in the game, replay 57, and left the fletcher's SECOND
     // research past the budget on that valley — the four seats still play
     // four different games there, but Soldiery never lands, at 12k or at
     // 26k). What is asserted is that the bow line is taken first and the

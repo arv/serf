@@ -56,7 +56,7 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * seeds cannot carry a 56% edge; these two read 7/8 each on that build,
  * and what they pin is an inversion, not the size of the edge.
  *
- * Re-pinned to 101 and 108 for the load home (replay 56) — on 157 the
+ * Re-pinned to 101 and 108 for the load home (replay 57) — on 157 the
  * abbot then loses a valley to easy outright. Read the sweeps before
  * trusting this pair, because that swap hides something the headline
  * above no longer describes. Twelve seeds a range, both arms, measured
