@@ -20,7 +20,6 @@
  * directly.
  */
 /**
-/**
  * 61: an ordered repair pulls the loads already walking its way up to its
  * own tier (systems/logistics.ts, repairPull/tierOf). Which hand takes
  * which job, and in what order, decides where every good in the village is
