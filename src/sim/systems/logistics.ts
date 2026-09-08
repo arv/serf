@@ -1249,11 +1249,24 @@ function deliver(world: World, to: Building, good: GoodId): void {
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
     return;
   }
+  if ((to.repairNeeds?.[good] ?? 0) > 0) {
+    // A repair material goes to the masons where it lands, never onto the
+    // shelf: it buys its hp now and the walls climb over the next ticks.
+    applyRepairMaterial(world, to, good);
+    return;
+  }
   if ((to.researchNeeds?.[good] ?? 0) > 0) {
     // A study's load is spent at the threshold — into the books, not onto
-    // a shelf. Checked ahead of the ale below on purpose: while a bill for
-    // Festivals or Ale Rations is open, the ale walking through the door
-    // is the one the scholars asked for, and the party waits its turn.
+    // a shelf.
+    //
+    // BELOW the repair and ABOVE the ale, and both places are the tiers
+    // written out: an Abbey can owe an ordered repair and a study in the
+    // same stone, and the board ranks the masons first (the repair pull
+    // even drags the loads already walking up to their tier). Taking that
+    // stone into the books at the door would undo the whole of it. The
+    // festival's ale is the other way about — while a bill for Festivals
+    // or Ale Rations is open, the barrel coming through the door is the
+    // one the scholars asked for and the party waits its turn.
     to.researchNeeds![good] = (to.researchNeeds![good] ?? 0) - 1;
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
     // The last load opens the books on this tick rather than the next —
@@ -1263,12 +1276,6 @@ function deliver(world: World, to: Building, good: GoodId): void {
       goodKeys(to.researchNeeds!).every(g => (to.researchNeeds![g] ?? 0) <= 0)
     )
       settleResearchBill(world, to);
-    return;
-  }
-  if ((to.repairNeeds?.[good] ?? 0) > 0) {
-    // A repair material goes to the masons where it lands, never onto the
-    // shelf: it buys its hp now and the walls climb over the next ticks.
-    applyRepairMaterial(world, to, good);
     return;
   }
   const def = buildingDef(to.type);

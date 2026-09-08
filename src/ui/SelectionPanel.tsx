@@ -168,7 +168,12 @@ function hauledTotal(a: {tech: TechId}): number {
 }
 
 function hauledIn(a: {tech: TechId; needs?: GoodAmounts}): number {
-  const left = GOODS.reduce((n, g) => n + (a.needs?.[g] ?? 0), 0);
+  // No bill at all is the Abbey gone rather than the bill paid (see
+  // snapPlayers): nothing is known, so nothing is counted in. Reading the
+  // absence as zero remaining would have the row report a finished haul on
+  // the frame the roof came down.
+  if (!a.needs) return 0;
+  const left = GOODS.reduce((n, g) => n + (a.needs![g] ?? 0), 0);
   return hauledTotal(a) - left;
 }
 

@@ -6,6 +6,7 @@ import {
   FESTIVAL_DURATION,
   MATCHER_INTERVAL,
 } from './defs/balance.ts';
+import {buildingDef} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import {goodEntries} from './defs/goods.ts';
@@ -232,6 +233,53 @@ describe('research', () => {
     run(world, MATCHER_INTERVAL + 1);
     expect(abbey.demandSince[GoodId.ale]).toBeUndefined();
     expect(abbey.demandSince[GoodId.silver]).toBeDefined();
+  });
+
+  it('the masons take the stone before the scholars do', () => {
+    // An Abbey can owe two bills in the same good at once: an ordered
+    // repair (tier 1) and a study billed in stone (tier 2). The board
+    // ranks them and main's repair pull goes further still, dragging the
+    // loads already walking up to the repair's tier — all of which is
+    // undone at the door if the study takes whatever arrives. One stone in
+    // the whole world, so which bill gets it is not a matter of timing.
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.stone]: 1,
+      [GoodId.silver]: 20,
+    });
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    abbey.hp = buildingDef(BuildingTypeId.abbey).hp * 0.2;
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    tickWorld(
+      world,
+      cmds(
+        {
+          kind: CommandKind.setBuildingRepair,
+          buildingId: abbey.id,
+          repair: true,
+        },
+        {kind: CommandKind.research, tech: TechId.ironworking},
+      ),
+    );
+    // Both want stone, and there is one to be had.
+    expect(abbey.repairNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    const repairWanted = abbey.repairNeeds![GoodId.stone]!;
+    const studyWanted = abbey.researchNeeds![GoodId.stone]!;
+
+    // Until the stone is through a door, not merely off the shelf: the
+    // storehouse empties at the pickup and there is a walk after that.
+    const owed = (): number =>
+      (abbey.repairNeeds?.[GoodId.stone] ?? 0) +
+      (abbey.researchNeeds?.[GoodId.stone] ?? 0);
+    const before = owed();
+    let guard = 20 * 120;
+    while (owed() === before && guard-- > 0) tickWorld(world, []);
+    expect(sh.stock[GoodId.stone] ?? 0).toBe(0);
+
+    expect(abbey.repairNeeds?.[GoodId.stone]).toBe(repairWanted - 1);
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBe(studyWanted);
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('drops the order if the Abbey falls before the books open', () => {

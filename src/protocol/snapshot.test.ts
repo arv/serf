@@ -1,7 +1,10 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as TechId from '../sim/defs/techIdEnum.ts';
+import {TECH_DEFS} from '../sim/defs/techs.ts';
 import {UNIT_DEFS} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
@@ -12,9 +15,16 @@ import {
   addResourceTile,
   addStorehouse,
   bareWorld,
+  cmds,
 } from '../sim/testUtils.ts';
+import {tickWorld} from '../sim/tick.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
-import {placeBuiltBuilding, spawnUnit, type World} from '../sim/world.ts';
+import {
+  destroyBuilding,
+  placeBuiltBuilding,
+  spawnUnit,
+  type World,
+} from '../sim/world.ts';
 import type {UnitSnapshot} from './sabLayout.ts';
 import {
   snapBuilding,
@@ -29,6 +39,38 @@ import {
  * worker — a number that counts a tree the worker may not touch is worse
  * than no number, because the hut then stands idle in front of it.
  */
+/**
+ * A study's bill on the wire. The panel counts an unstarted study in loads
+ * carried in, so what it is told about the bill decides what it draws —
+ * and the one state that must not read as "delivered" is the one where
+ * nothing is known.
+ */
+describe('the study bill in a snapshot', () => {
+  it('omits the bill when the Abbey holding it is gone', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {
+      [GoodId.wheat]: 20,
+      [GoodId.silver]: 20,
+    });
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    expect(snapPlayers(world)[0]!.techs.active?.needs).toEqual(
+      TECH_DEFS[TechId.cobbledBoots].cost,
+    );
+
+    // The roof comes down mid-tick: researchSystem runs early and has not
+    // dropped the order yet, so the study is still active and unstarted
+    // with no Abbey to read a bill from.
+    destroyBuilding(world, abbey);
+    const active = snapPlayers(world)[0]!.techs.active;
+    expect(active?.started).toBe(false);
+    expect(active?.needs).toBeUndefined();
+  });
+});
+
 describe('snapBuilding: resourceLeft', () => {
   it('sums the workable tiles inside the search square and nothing outside it', () => {
     const world = bareWorld();

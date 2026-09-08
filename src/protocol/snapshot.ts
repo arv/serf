@@ -333,6 +333,19 @@ export function snapPlayers(world: World): PlayerSnap[] {
   return world.players.map(p => {
     const storehouse = storehouses.get(p.id);
     const hasAbbey = abbeyOwners.has(p.id);
+    // The study's outstanding bill, while it has one — undefined once the
+    // books are open, and undefined too when the Abbey holding it can no
+    // longer be read (see below).
+    const billAbbey = p.techs.active?.started
+      ? undefined
+      : world.buildings.get(p.techs.active?.abbey ?? -1);
+    // Gone means what researchSystem means by it, dead roofs included: a
+    // destroyed building stays in the map with its fields on it, and the
+    // bill written on one is a bill nobody is carrying to anywhere.
+    const bill =
+      billAbbey && !billAbbey.dead && billAbbey.state === BuildingState.built
+        ? billAbbey.researchNeeds
+        : undefined;
     return {
       id: p.id,
       kind: p.kind,
@@ -354,14 +367,15 @@ export function snapPlayers(world: World): PlayerSnap[] {
               // What the Abbey is still owed, while it is still owed
               // anything: the panel counts the study's progress in loads
               // before it counts it in ticks.
-              ...(p.techs.active.started
-                ? {}
-                : {
-                    needs: {
-                      ...world.buildings.get(p.techs.active.abbey)
-                        ?.researchNeeds,
-                    },
-                  }),
+              //
+              // Absent rather than empty when the bill cannot be read at
+              // all — the Abbey went down this tick and researchSystem has
+              // not yet dropped the order (it runs early; see
+              // settleResearchBill). An empty bill means "nothing left to
+              // carry", which is the one thing this is not: nothing is
+              // KNOWN, and a reader that spread `{}` would draw the study
+              // as fully delivered on the frame its roof fell in.
+              ...(bill ? {needs: {...bill}} : {}),
             }
           : undefined,
         festivalTicksLeft: p.techs.festivalTicksLeft,

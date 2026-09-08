@@ -594,8 +594,17 @@ import {REPLAY_VERSION} from './replayVersion';
 // The study's own clock is unmoved either way; what moves is which tick
 // the flag turns over on, which is real sim state. 62 is this build's own
 // bump and has never shipped.
+// Still 62 after the masons were given the door ahead of the scholars
+// (Copilot's read of deliver(), and correct): an Abbey can owe an ordered
+// repair and a study in the same stone, the board ranks the repair first
+// and main's repair pull drags walking loads up to that tier — and the
+// study was taking the stone at the door anyway, undoing all of it. Real
+// sim behavior, and 62 is this build's own bump and has never shipped.
+// The snapshot half of the same review is protocol rather than sim: an
+// unreadable bill is now absent rather than empty, so a study whose Abbey
+// fell this tick cannot draw as fully delivered.
 const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = '9535a70f73d793883b0385e3609dfa1f';
+const EXPECTED_HASH = 'b85e443941510c631c3336befb4a9bbf';
 
 /**
  * Everything a replay's playback depends on, as raw source:

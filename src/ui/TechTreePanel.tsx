@@ -1,7 +1,7 @@
 import {For, Show} from 'solid-js';
 import type {Enum} from '../shared/enum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import {GOODS, goodEntries} from '../sim/defs/goods';
+import {GOODS, type GoodAmounts, goodEntries} from '../sim/defs/goods';
 import {
   TECH_BRANCHES,
   TECH_DEFS,
@@ -28,6 +28,22 @@ const BRANCH_LABELS: Record<string, string> = {
   craft: 'Craft',
   warfare: 'Warfare',
 };
+
+/** Loads in a tech's whole bill, and how many of them are still to come.
+ *
+ * A snapshot with no `needs` at all is the Abbey gone rather than the bill
+ * paid (see snapPlayers), so what is left is the WHOLE bill: an unknown
+ * that read as zero would draw the study as delivered on the frame its
+ * roof fell in, which is the one thing the panel must not say. */
+function billTotal(id: TechId): number {
+  const cost = TECH_DEFS[id].cost;
+  return GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
+}
+
+function billLeft(a: {needs?: GoodAmounts}, id: TechId): number {
+  if (!a.needs) return billTotal(id);
+  return GOODS.reduce((n, g) => n + (a.needs![g] ?? 0), 0);
+}
 
 export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
   const state = (id: TechId): TechNodeState => {
@@ -63,10 +79,8 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
     // ticks: the clock has not started, and a node that sat at 0% through
     // a minute of hauling would read as an order the village had ignored.
     if (!a.started) {
-      const cost = TECH_DEFS[id].cost;
-      const total = GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
-      const left = GOODS.reduce((n, g) => n + (a.needs?.[g] ?? 0), 0);
-      return total > 0 ? Math.round((1 - left / total) * 100) : 0;
+      const total = billTotal(id);
+      return total > 0 ? Math.round((1 - billLeft(a, id) / total) * 100) : 0;
     }
     return Math.round((1 - a.ticksLeft / a.totalTicks) * 100);
   };
@@ -74,9 +88,8 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
   /** "3 of 8 carried in" — the delivering node's own line. */
   const hauled = (id: TechId): string => {
     const a = techs().active;
-    const cost = TECH_DEFS[id].cost;
-    const total = GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
-    const left = GOODS.reduce((n, g) => n + (a?.needs?.[g] ?? 0), 0);
+    const total = billTotal(id);
+    const left = a ? billLeft(a, id) : total;
     return `Serfs are carrying the goods to the ${buildingName(
       BuildingTypeId.abbey,
     )} — ${total - left} of ${total} in.`;
