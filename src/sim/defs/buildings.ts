@@ -726,13 +726,30 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // shoot at.
     w: 3,
     h: 3,
-    // Timber and a token course of stone for the butt. Deliberately cheap in
-    // the one material the bow line is already short of: a guard tower is
-    // twelve stone, and the range now stands between Archery and the men who
-    // climb it. Making the range cost stone too would have priced the whole
-    // tower plan out of reach of the seat built around it (the Fletcher digs
-    // no iron and quarries only once).
-    cost: {[GoodId.wood]: 10, [GoodId.stone]: 2},
+    // Timber and a real course of stone — half a guard tower's twelve — for
+    // the butt the yard shoots at and the footings the fence stands on. It
+    // was two, a token, on the argument that the range sits between Archery
+    // and the men who climb the tower and that charging it stone would
+    // price the whole tower plan out of reach of the seat built around it
+    // (the Fletcher digs no iron and quarries only once). Six is that
+    // argument's other half: a nine-tile yard bought for one course of
+    // masonry was the cheapest large footprint in the game, and a second
+    // roof that costs a village nothing is not the choice the range was
+    // added to be. The Fletcher's plan still lands — it quarries first,
+    // ahead of everything but the axe, and the range is well down its
+    // order — but the stone is now a queue the bow line waits in rather
+    // than a rounding error.
+    //
+    // Measured on both halves of the change together, over two ranges of
+    // 32 campaigns (tools/aiLab/balance.ts 32, and again at offset 200),
+    // because that old note was a prediction about this seat and predictions
+    // about seats are decided in the aggregate or not at all: the Fletcher
+    // reads 27/32 against 26 on the first range and 30/32 against 30 on the
+    // second, and the Abbot — the other playbook that raises a range — 29
+    // against 27 and 30 against 29. Noise either way by that file's own
+    // rule, which is the finding: six stone does not cost the seat built
+    // around the bow its map.
+    cost: {[GoodId.wood]: 10, [GoodId.stone]: 6},
     // Faster up than the barracks' twenty-five seconds, for the same reason
     // it is cheaper: it is the second roof on the military line, not the
     // first, and a second gate that also costs a barracks' worth of waiting
