@@ -254,6 +254,119 @@ describe('logistics matcher', () => {
   });
 });
 
+describe('the load home', () => {
+  /**
+   * The trip the village kept failing to make. A serf carries the miners'
+   * bread out, sets it down, and stands at the mine with silver on the
+   * shelf at his feet — and the board sends him back to the castle empty
+   * for an errand that outranks it, because it deals the job first and
+   * looks for the nearest man second. Two crossings for a load already in
+   * reach.
+   */
+  it('leaves the mine with its silver, not empty-handed', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 20, 30, {[GoodId.wood]: 10});
+    // Unstaffed on purpose: a mine evacuates its shelf whether or not
+    // anyone is down the shaft, and a fixture that mines no ore is a
+    // fixture with nothing to time against.
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      34,
+      30,
+    );
+    mine.stock[GoodId.silver] = 2;
+    // The pull the other way, and the one that beats everything: a site's
+    // planks are tier 1, and take four hands in seven against the silver's
+    // two. With one serf free it is not a share at all — the site takes
+    // him, and it used to take him from where he was standing.
+    addSite(world, 24, 30);
+    const serf = addSerf(world, 34, 32); // at the mine, bread just set down
+    const initial = countGoods(world);
+
+    run(world, 1);
+    const job = world.jobs.get(serf.jobId!);
+    expect(job?.good).toBe(GoodId.silver);
+    expect(job?.from).toBe(mine.id);
+
+    // And it gets home, rather than riding back out on the next errand.
+    let guard = 0;
+    while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 900)
+      tickWorld(world, []);
+    expect(sh.stock[GoodId.silver]).toBe(1);
+    expectClean(world, initial);
+  });
+
+  it('passes over a man sealed in at the wall, and takes the next', () => {
+    // One serf's bad luck is not the building's. Standing at a building is
+    // a matter of distance, and a man can be within arm's reach of a mine
+    // and still have no way round to its door — so the scan steps past him
+    // to the next man standing there rather than handing the whole mine
+    // back to the ordinary board. The dispatch loop learned this the hard
+    // way once already; PATH_TRIES is its note about it.
+    const world = bareWorld();
+    addStorehouse(world, 20, 30, {[GoodId.wood]: 10});
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      34,
+      30,
+    );
+    mine.stock[GoodId.silver] = 2;
+    addSite(world, 24, 30); // the tier-1 pull that wins him otherwise
+
+    // Walled into a pocket one tile off the ring: near enough to count as
+    // standing at the mine, with no way onto it.
+    const sealed = addSerf(world, 34, 33);
+    for (const [x, y] of [
+      [33, 32],
+      [34, 32],
+      [35, 32],
+      [33, 33],
+      [35, 33],
+      [33, 34],
+      [34, 34],
+      [35, 34],
+    ] as const) {
+      world.map.blocked[tileIdx(x, y, world.map.size)] = 1;
+    }
+    // Spawned second, so the scan reaches him only by stepping over the
+    // first — which is the whole assertion.
+    const free = addSerf(world, 36, 31);
+
+    run(world, 1);
+    expect(sealed.jobId).toBeUndefined();
+    const job = world.jobs.get(free.jobId!);
+    expect(job?.good).toBe(GoodId.silver);
+    expect(job?.from).toBe(mine.id);
+  });
+
+  it('lets the site it just supplied recruit the man who supplied it', () => {
+    // The narrow case, and the one the standing job could quietly break: a
+    // serf lands the last plank at a site and is standing at the very
+    // building that wants a builder. If claiming a standing job ran as the
+    // delivery landed, he would never be idle and the site could never
+    // have him — the whole reason takeStandingJobs is a pass over the
+    // board instead (systems/staffing.ts recruits after logistics).
+    //
+    // Deliberately not a test of the BUILDER_STARVED_TICKS bound itself:
+    // one serf and one site raise no sustained haul pressure, so nothing
+    // here is starved. builderStarvation.test.ts is what measures the
+    // bound, under six mills' worth of pressure, and it is the test the
+    // inline version of this change failed.
+    const world = bareWorld();
+    addStorehouse(world, 20, 30, {[GoodId.wood]: 40});
+    const site = addSite(world, 34, 30);
+    addSerf(world, 21, 32);
+
+    let guard = 0;
+    while (site.workerId === undefined && guard++ < 4000) tickWorld(world, []);
+    expect(site.workerId).toBeDefined();
+  });
+});
+
 describe('cancellation table', () => {
   function setupHaul(): {world: World; initial: GoodAmounts} {
     const world = bareWorld();

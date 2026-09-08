@@ -186,6 +186,13 @@ export interface BuildingDef {
    * side. Fine for the mines, which are cut into a hillside and sit alone
    * out at the rock; it would be wrong for anything that stands shoulder to
    * shoulder in the village.
+   *
+   * Under 1 it would do the opposite; nothing wants that today. Either way
+   * it moves the decor placed around the model too (BUILDING_DECOR is in
+   * the model's own unit square), so a piece with its own reason to be the
+   * size it is has to be authored back up — see PIER_TILES in assets.ts,
+   * which is how the fishery's jetty survives both this and a change of
+   * footprint.
    */
   modelScale?: number;
   /** Must be researched before this building can be placed (an array
@@ -436,8 +443,18 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.fishery]: {
     id: B.fishery,
     name: 'Fishery',
-    w: 3,
-    h: 3,
+    // A hut and a hand, on a hut's worth of ground. It stood on 3x3 — the
+    // barracks' and the castle's footprint — from the day it went in, and
+    // drawn to that (makeGlbBuilding sizes a model by the short side of its
+    // footprint) the hut came out wider than a family's house. Nothing
+    // about it wanted the room either: the jetty is decor hanging off the
+    // front, authored in tiles rather than in footprints (PIER_TILES in
+    // assets.ts), so it runs the same planks to the same water from a 2x2.
+    // What the extra ring did do was ask a shoreline for nine tiles of
+    // buildable bank instead of four — a tax on the ragged shores, not on
+    // the smooth ones.
+    w: 2,
+    h: 2,
     cost: {[GoodId.wood]: 12, [GoodId.stone]: 4},
     buildTicks: 20 * S,
     hp: 150,
@@ -457,7 +474,11 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // a fishery made 5.0 per hand and beat the whole chain outright, and
     // there is no scarcity to hold it back — a map carries four hundred-odd
     // legal shore sites against a thousand-odd field sites. Two huts would
-    // have retired the bakery.
+    // have retired the bakery. (The 2x2 footprint bought a tenth more of
+    // those shore sites again — 379 to 416 on seed 1, measured with
+    // tools/modelLab/_pier.html — which loosens a scarcity that was never
+    // holding the rate back anyway. What holds it back is the twenty
+    // seconds.)
     //
     // (A hen yard stood beside these two for a while, wheat straight to
     // food. Cut: two food sources are a choice, three were a menu, and the
