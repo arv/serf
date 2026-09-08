@@ -150,12 +150,18 @@ export function tileBlocks(terrain: number, res: number): boolean {
 
 /** A gather recipe's resource name, as the tile code the map stores. */
 /**
- * Nearest tile a gatherer can work, searched outward in rings to `radius`.
+ * Nearest tile of `code` standing inside a gatherer's search square, in
+ * ring order — the square alone, with no word on whether a worker could
+ * walk to it.
  *
- * This is the search the resident worker runs at the start of every trip —
- * and, run against a prospective footprint's center, the placement rule that
- * refuses a woodcutter with no trees in reach. One function, so a hut can
- * never be legal to build in a spot where its worker would stand idle.
+ * That makes it the cheap first half of the real question rather than the
+ * whole of it: the reach searches below run this to rule out a square with
+ * nothing in it at all before paying for a flood, and every caller that
+ * has to know a worker could REACH the tile asks `canWorkResourceNear`
+ * instead. This used to BE the whole question — the placement rule and the
+ * gather loop both stopped here — which is how a quarry came to be legal
+ * to build, and legal to keep, in a spot whose only rock was ringed by
+ * trees.
  *
  * `resourceAmt` is sim-only (the mirrored MapView carries no amounts), but a
  * tile worked dry has its resource code cleared as well, so the code alone
@@ -170,9 +176,9 @@ export function findResourceNear(
 ): number {
   // A direct scan rather than findResourcesNear(..., 1): this runs under
   // canPlace on every build-cursor move, and the single answer should not
-  // buy an array per frame. The twin below must keep walking the same
-  // rings in the same order — the gather loop's first candidate has to be
-  // exactly this function's answer.
+  // buy an array per frame. The twins below must keep walking the same
+  // rings in the same order, so that filtering a ring scan by reach is all
+  // the difference between "standing there" and "a trip".
   for (let r = 1; r <= radius; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -193,12 +199,16 @@ export function findResourceNear(
 }
 
 /**
- * The nearest workable tiles in ring order, up to `limit` of them. The
- * gather loop asks for a handful rather than one: the nearest tile can be
- * permanently unreachable — a tree walled in by its own grove, a seam tile
- * pinched shut by construction — and a worker that only ever retries the
- * nearest starves in front of workable ground it could have walked to
- * (see gatherStep in systems/production.ts).
+ * The nearest tiles of `code` standing in the square, in ring order, up to
+ * `limit` of them — the plural of the scan above, and reach-blind in the
+ * same way.
+ *
+ * Still the list the gather loop picks its trip from, because nearest by
+ * ring is the trip a hut wants — but it asks `canWorkResourceNear` first,
+ * and does not spend a path search on this list at all when the answer is
+ * no. Ring order is why the filtering is not folded in here: the flood
+ * finds tiles in walking order, and reordering every hut's trips is a
+ * change to the game that fixing a stalled quarry has no business making.
  */
 export function findResourcesNear(
   map: MapView & {resourceAmt?: ArrayLike<number>},
@@ -228,15 +238,278 @@ export function findResourcesNear(
 }
 
 /**
+ * A gatherer's footprint, as the reach searches read it: where its worker
+ * steps out from. Structurally a `Building`, and a prospective one under
+ * the build cursor is the same four numbers.
+ */
+export interface Footprint {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * How far past its own search square the reach flood may look for a way
+ * around, as a multiple of the search radius.
+ *
+ * A worker paths on the whole map, so "can he get there" is exactly a
+ * question about the walkable component he stands in — and answering that
+ * exactly means flooding the whole component, which is the same unbounded
+ * work an unreachable A* does (path.ts `search`, whose runaway cap says
+ * how much that is). The bound buys a fixed, small cost instead.
+ *
+ * It costs almost nothing real: a detour that leaves the square by more
+ * than the whole radius the worker searches is a longer walk than his
+ * entire reach, and gatherers in this game stand in open ground. What it
+ * buys is that every question about the ground — the gather loop's next
+ * trip, the card's readout, the placement rule, a seat's re-siting rule —
+ * is answered by this one flood, so none of them can promise a harvest
+ * another one refuses to make.
+ */
+const REACH_DETOUR = 1;
+
+/**
+ * Scratch for the reach flood, shared by every call in the process, on the
+ * same contract as the pathfinder's (path.ts): one caller at a time, run to
+ * completion, no state kept across calls. Generation stamps rather than
+ * clearing, for the same reason.
+ *
+ * Sized for the widest box any gather radius can ask for. The radii live in
+ * defs/buildings.ts (8 for the surface gatherers, 4 for the mines); the
+ * bound below is well clear of them and asserted where the box is built,
+ * so a wider recipe fails loudly rather than reading a neighbour's tile.
+ */
+const REACH_MAX_RADIUS = 12;
+const REACH_SIDE = 2 * (REACH_MAX_RADIUS * (1 + REACH_DETOUR)) + 1;
+const reachSeen = new Int32Array(REACH_SIDE * REACH_SIDE);
+const reachQueue = new Int32Array(REACH_SIDE * REACH_SIDE);
+/** Workable tiles already collected, so a tile ringed by six reached
+ * neighbours is reported once rather than six times. Stamped like the
+ * others; a linear scan of the results would be quadratic on a full grove. */
+const reachTaken = new Int32Array(REACH_SIDE * REACH_SIDE);
+let reachGeneration = 0;
+
+/**
+ * The tiles of `code` inside a gatherer's search square that its worker can
+ * actually get to, up to `limit` of them (in no particular order — no
+ * caller wants one; the two below want "any?" and "how much?").
+ *
+ * A breadth-first flood of the walkable ground around the hut, seeded from
+ * the ring its own door opens onto and bounded to REACH_DETOUR past the
+ * square, picking up workable tiles as it passes them. Three things make
+ * the answer agree with the pathfinder rather than merely resemble it:
+ *
+ * - the step set is 8-directional with corner cutting forbidden, exactly as
+ *   path.ts steps;
+ * - the hut's own footprint is impassable even when the caller is a ghost
+ *   the map has not blocked yet, so a spot cannot test workable under the
+ *   cursor and stop being workable when the walls go up;
+ * - a tile counts as workable when the flood reaches any of the eight
+ *   around it, which is the goal ring the gather loop's own
+ *   findPathToAdjacent(..., 1, 1) asks for. The tile itself never counts —
+ *   a standing resource blocks it.
+ *
+ * Where it is not the pathfinder is the seeding: the whole walkable ring
+ * around the footprint goes in, which takes for granted that a worker
+ * standing outside can get to any of it. A ring tile sealed into a pocket
+ * of its own — open to the hut's walls and to nothing else — breaks that,
+ * and the flood then claims ground reached from inside the pocket. The
+ * error only ever runs one way, toward claiming too much, and its whole
+ * cost is the behaviour this file already had: the gather loop is handed a
+ * candidate, its own path search says no, and the trip is retried. It can
+ * never stop a hut that is working, and the pathfinder still has the last
+ * word on every actual walk.
+ *
+ * The asymmetry between the two answers is what makes this cheap. Proving
+ * one tile reachable is a short flood, and `canWorkResourceNear` stops at
+ * the first — which is the answer under a build cursor sweeping ground with
+ * trees on it, and the answer a working hut gives. Only "no way to any of
+ * it" needs the whole box to be sure, and that is a hut that has stopped
+ * working: rare, and the case that wants noticing.
+ */
+function reachScan(
+  map: MapView & {resourceAmt?: ArrayLike<number>},
+  cx: number,
+  cy: number,
+  hut: Footprint,
+  code: TileResourceKind,
+  radius: number,
+  limit: number,
+): number[] {
+  // Before anything, including the early-out below: a recipe wider than
+  // the scratch must fail on every call, not only on the calls that would
+  // have flooded.
+  if (radius > REACH_MAX_RADIUS) {
+    throw new Error(
+      `gather radius ${radius} exceeds REACH_MAX_RADIUS ${REACH_MAX_RADIUS}`,
+    );
+  }
+  const out: number[] = [];
+  // Nothing of the kind standing in the square at all: the common answer
+  // under a build cursor sweeping open ground, and it must not buy a flood.
+  if (findResourceNear(map, cx, cy, code, radius) < 0) return out;
+
+  const reach = radius * (1 + REACH_DETOUR);
+  const x0 = cx - reach;
+  const y0 = cy - reach;
+  const side = 2 * reach + 1;
+  const gen = ++reachGeneration;
+  const size = map.size;
+
+  /** Inside the hut's own walls — never walkable, ghost or not. */
+  const inHut = (x: number, y: number): boolean =>
+    x >= hut.x && x < hut.x + hut.w && y >= hut.y && y < hut.y + hut.h;
+  /** Walkable, inside the box, and not the hut itself. */
+  const open = (x: number, y: number): boolean =>
+    x - x0 >= 0 &&
+    x - x0 < side &&
+    y - y0 >= 0 &&
+    y - y0 < side &&
+    inBounds(x, y, size) &&
+    !map.blocked[tileIdx(x, y, size)] &&
+    !inHut(x, y);
+
+  let head = 0;
+  let tail = 0;
+
+  /** Harvest the workable tiles a freshly reached tile stands next to. */
+  const collect = (x: number, y: number): void => {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const rx = x + dx;
+        const ry = y + dy;
+        // Inside the search square, which is the reach-blind ring walk
+        // above expressed as a bound: rings 1..radius around the origin,
+        // never the origin tile itself (it is the footprint's own and
+        // holds nothing).
+        const ring = Math.max(Math.abs(rx - cx), Math.abs(ry - cy));
+        if (ring < 1 || ring > radius) continue;
+        // Always inside the box: the square is `radius` around the origin
+        // and the box is REACH_DETOUR times that again. Checked anyway,
+        // because a stamp read off the end of the row is a wrong answer
+        // rather than a crash.
+        const lx = rx - x0;
+        const ly = ry - y0;
+        if (lx < 0 || lx >= side || ly < 0 || ly >= side) continue;
+        const local = ly * side + lx;
+        if (reachTaken[local] === gen) continue;
+        if (!inPlayArea(map, rx, ry)) continue;
+        const i = tileIdx(rx, ry, size);
+        if (map.resource[i] !== code) continue;
+        if (map.resourceAmt && map.resourceAmt[i]! <= 0) continue;
+        reachTaken[local] = gen;
+        out.push(i);
+      }
+    }
+  };
+
+  /** Reach a tile: queue it, and take whatever it now puts within arm's
+   * length. Collecting here rather than on the pop is what lets the flood
+   * stop early — a workable tile is found the moment the ground beside it
+   * is, not a whole ring later. */
+  const push = (x: number, y: number): void => {
+    const local = (y - y0) * side + (x - x0);
+    if (reachSeen[local] === gen) return;
+    reachSeen[local] = gen;
+    reachQueue[tail++] = local;
+    // Only ground that could be standing next to the square is worth
+    // frisking: the flood runs REACH_DETOUR times the radius out looking
+    // for a way around, and out there it is walking, not harvesting. This
+    // skips the collect on roughly two thirds of the box.
+    if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) <= radius + 1)
+      collect(x, y);
+  };
+
+  // The doorstep: the walkable ring around the footprint, which is the very
+  // set findPathToAdjacent walks a hauler to.
+  for (let y = hut.y - 1; y <= hut.y + hut.h; y++) {
+    for (let x = hut.x - 1; x <= hut.x + hut.w; x++) {
+      if (open(x, y)) push(x, y);
+    }
+  }
+
+  while (head < tail && out.length < limit) {
+    const local = reachQueue[head++]!;
+    const cxi = (local % side) + x0;
+    const cyi = ((local / side) | 0) + y0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = cxi + dx;
+        const ny = cyi + dy;
+        if (!open(nx, ny)) continue;
+        // No corner cutting, exactly as the pathfinder steps.
+        if (dx !== 0 && dy !== 0) {
+          if (!open(cxi + dx, cyi) || !open(cxi, cyi + dy)) continue;
+        }
+        push(nx, ny);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Can this gatherer work anything at all where it stands?
+ *
+ * The honest form of the question the whole file used to answer with
+ * `findResourceNear`, and the reason it exists is a quarry that stood dead
+ * for eight minutes of a match in front of ten loads of rock. Its last tile
+ * in reach was ringed by its own grove, so every trip-start pathed at it,
+ * failed, and idled forty ticks — while the card read "in reach: 10", the
+ * seat's re-siting rule saw ground still standing and held its hand, and
+ * the placement rule would have raised a second quarry on the same spot.
+ * "Something of the kind is inside the square" and "the worker has a trip
+ * to make" are different sentences, and everything that acts on the ground
+ * wants the second one.
+ */
+export function canWorkResourceNear(
+  map: MapView & {resourceAmt?: ArrayLike<number>},
+  cx: number,
+  cy: number,
+  hut: Footprint,
+  code: TileResourceKind,
+  radius: number,
+): boolean {
+  return reachScan(map, cx, cy, hut, code, radius, 1).length > 0;
+}
+
+/**
+ * The loads this gatherer can actually fetch: `countResourceNear` over the
+ * tiles its worker can reach. This is the number the card reports, because
+ * it is the number of trips the hut has left in it — ground it cannot walk
+ * to is scenery.
+ */
+export function countWorkableResourceNear(
+  map: MapView & {resourceAmt: ArrayLike<number>},
+  cx: number,
+  cy: number,
+  hut: Footprint,
+  code: TileResourceKind,
+  radius: number,
+): number {
+  let total = 0;
+  // No limit: the sum is over every workable tile, so this is the one
+  // caller that always pays for the whole flood.
+  for (const i of reachScan(map, cx, cy, hut, code, radius, Infinity)) {
+    total += map.resourceAmt[i]!;
+  }
+  return total;
+}
+
+/**
  * Everything the ground inside a gatherer's reach still holds, summed —
  * the number of loads that hut, quarry or mine can still take out of it
- * wherever it stands.
+ * wherever it stands, whether or not its worker can get to any of it.
  *
  * Walks the same square, in the same play-area-only terms, as the two
- * searches above: what this counts is exactly what they will hand a
- * worker, so the readout on the card can never promise a harvest the
- * gather loop refuses to make. (The center tile is the footprint's own
- * and holds nothing; the searches skip it by starting at r = 1.)
+ * searches above. What it does NOT ask is whether a worker can walk to
+ * the tile, so this is the ground's number and not the hut's: use
+ * `countWorkableResourceNear` for anything a worker has to act on. (The
+ * center tile is the footprint's own and holds nothing; the searches skip
+ * it by starting at r = 1.)
  */
 export function countResourceNear(
   map: PlayArea & {resource: ArrayLike<number>; resourceAmt: ArrayLike<number>},

@@ -459,8 +459,46 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
-const EXPECTED_VERSION = 56;
-const EXPECTED_HASH = '6b27e299e1a00f13c57f5b6f9146ecbb';
+// 58 for the armory holding one of each arm (START_STOCK in
+// sim/defs/balance.ts): two spears and a sword became a spear, a sword and
+// a bow, so every seat's opening army is one soldier smaller and the hauls
+// planned around the missing spear walk elsewhere. A balance number in the
+// plainest sense, the same kind the Monument's bread was.
+//
+// Cut as 56, landing as 58: main took 56 for the reachable-ground rule and
+// 57 for the fishery's footprint while the branch was open. Three notes in
+// a row now carry a line like this one, which is what a busy default
+// branch does to a number every branch has to claim.
+//
+// The playbook half rode it for free, as playbook data always does: the
+// Warlord's ironworking moved second (the rack no longer carries it to a
+// raiding party) and the Fletcher's notes stopped describing two spears.
+// 56 for a gatherer answering only for ground it can walk to: canPlace
+// refuses a hut whose only resource is walled in (map.ts
+// canWorkResourceNear), so a placeSite command that used to be accepted is
+// now refusable and every AI valley lays its foundations somewhere else.
+// The gather loop asks the same question, but only as a guard on its own
+// search — a hut that can reach anything picks its trip in the ring order
+// it always did — so the sim's day-to-day is untouched and the only
+// outcome that moves is the hut whose ground lies past a detour longer
+// than its whole radius. Behavior either way, so old logs stop playing.
+// Cut as 54, landing as 56: main took 54 for the Monument's bread and 55
+// for the Archery Range while the branch was open.
+// The rest of the arc is outside the surface: the card's two numbers and
+// its tooltip (protocol/, ui/), the reach outline (render/), and the
+// re-siting rule's condition, which is brain-side the way every other
+// economy rule is — playback never runs a brain.
+// 57 for the fishery's footprint, 3x3 down to 2x2 (defs/buildings.ts):
+// canPlace measures the ground and the water against it, placeBuilding
+// blocks the tiles it covers, and both answer differently now — shores
+// that could not take a fishery can (416 legal sites on seed 1 against
+// 379), and the four tiles a standing one blocks are not the nine it
+// blocked. Sim in the plainest sense; see replayVersion.ts. Cut as 55,
+// landing as 57: main took 55 for the Archery Range and 56 for the
+// reachable-ground rule while the branch was open. (The hut it carries got
+// smaller in the same commit, and that half is render only.)
+const EXPECTED_VERSION = 58;
+const EXPECTED_HASH = '92e849c4ffe7cda5a880395deb0dfd5b';
 
 /**
  * Everything a replay's playback depends on, as raw source:

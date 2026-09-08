@@ -20,7 +20,13 @@
  * directly.
  */
 /**
- * 56: the armory holds one of each arm.
+ * 58: the armory holds one of each arm.
+ *
+ * 58 and not 56, which is the number this was cut as: main took 56 (the
+ * reachable-ground rule) and 57 (the fishery's footprint) while the branch
+ * was open, and two builds cannot share a number. The third time running
+ * that this branch's line has had to move up under it, and the notes below
+ * record the same thing happening to theirs.
  *
  * START_STOCK (defs/balance.ts) went from two spears and a sword to a
  * spear, a sword and a bow. A building's stores are read every tick a
@@ -40,6 +46,70 @@
  * now, because the rack no longer carries it to a raiding party and the
  * iron that replaces those spears has to arrive sooner; and the Fletcher's
  * notes stopped describing an armory with two spears in it.
+ *
+ * 57's note follows.
+ */
+/**
+ * 57: the fishery stands on 2x2.
+ *
+ * 57 and not 55, which is the number this was cut as: main took 55 (the
+ * Archery Range) and 56 (the reachable-ground rule) while the branch was
+ * open, and two builds cannot share a number — the same renumbering the
+ * two notes below record about themselves.
+ *
+ * A footprint is sim, not decoration. `canPlace` measures the flat ground
+ * under it and the water within a tile of it, `placeBuilding` blocks the
+ * tiles it covers, and every serf walking past one paths around what it
+ * blocked. A shoreline that had to give nine tiles of buildable bank gives
+ * four now — on seed 1 that is 416 legal fishery sites where there were
+ * 379 — so a log recorded before this re-runs into a valley whose shores
+ * take fisheries the old one refused, and where one already stands it
+ * stands on different ground with different tiles walkable around it.
+ *
+ * (The hut drawn on that footprint got smaller with it, and its jetty was
+ * re-authored in tiles so the planks still reach the water. That half is
+ * render only — assets.ts — and nothing in a tick can see it.)
+ *
+ * 56's note follows.
+ */
+/**
+ * 56: a gatherer answers only for ground it can walk to.
+ *
+ * 56 and not 54, which is the number this was cut as: main took 54 (the
+ * Monument's bread) and then 55 (the Archery Range) while the branch was
+ * open, and two builds cannot share a number. Nothing about the change is
+ * different for it — the same reasoning the 55 note below records about
+ * itself.
+ *
+ * Every question this game asked about the ground under a hut was the same
+ * question — is there anything of the kind inside the search square? — and
+ * none of them was the question that matters, which is whether the worker
+ * can get to it. A quarry in a real match found its last rock ringed by its
+ * own grove and stood dead for eight minutes in front of it: the trip-start
+ * pathed at that tile, failed, and idled forty ticks; the card read "in
+ * reach: 10"; the seat's re-siting rule saw ground still standing and held
+ * its hand; and the placement rule would have raised the next quarry on the
+ * same spot. The barracks it fed waited on five stone that were never
+ * coming.
+ *
+ * There is one answer now (map.ts `canWorkResourceNear`): a bounded flood
+ * of the walkable ground around the hut, seeded from its own doorstep and
+ * stepping exactly as the pathfinder steps. One thing a tick does with it
+ * is sim behavior:
+ *
+ * - `canPlace` refuses a gatherer whose only resource is walled in, so a
+ *   placeSite command that used to raise a hut can now be refused, and a
+ *   valley full of AI seats lays its foundations somewhere else.
+ *
+ * The gather loop asks it too, but only as a guard on its own search: a hut
+ * that can reach anything picks its trip in the ring order it always did
+ * and paths to it exactly as before, so a working village is untouched. A
+ * hut that can reach nothing idles without paying for the eight failed A*
+ * searches it used to run every forty ticks forever — the same outcome, at
+ * a bounded price. The one place that changes an outcome is the hut whose
+ * only reachable ground lies past a detour longer than its whole search
+ * radius, which the flood's bound gives up on and the old search would have
+ * walked to.
  *
  * 55's note follows.
  *
@@ -783,4 +853,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 56;
+export const REPLAY_VERSION = 58;
