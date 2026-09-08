@@ -346,6 +346,20 @@ function reportFatal(err: unknown): void {
   fatalReported = true;
   const message = err instanceof Error ? err.message : String(err);
   console.error(`[sim worker] could not post a structural frame: ${message}`);
+  // Stop here rather than wait to be told. The main thread pauses us when
+  // it takes the message, but that is a round trip, and in the case worth
+  // caring about — a frame that fails before runMatch has registered for
+  // it — the message is latched and the pause does not come until the
+  // asset loads finish, seconds later. Every tick in that window is a tick
+  // nobody can be shown: the roster this world would need to explain
+  // itself is exactly what just failed, so the sim would only run further
+  // from the last frame the player actually saw, on a phone's battery.
+  //
+  // `speed` and not the timer alone: stopPump by itself is undone by the
+  // next startPump (an unhide would do it), while a zero speed puts the
+  // pump straight back to sleep on its first pass, whoever wakes it.
+  speed = 0;
+  stopPump();
   post({type: WorkerToMainKind.fatal, message});
 }
 
