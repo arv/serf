@@ -244,8 +244,16 @@ describe('the tick the catch is read from', () => {
       30,
     );
     const worker = staffBuilding(world, fishery);
+    // Both the run length and what is asserted about it come off the def, so
+    // a rebalance carries the test with it and only a change in SHAPE fails.
+    // Three batches and change, however long a batch is.
+    const recipe = BUILDING_DEFS[BuildingTypeId.fishery].recipe;
+    expect(recipe?.kind).toBe(RecipeKind.convert); // ...a batch, not a gather
+    const batch =
+      recipe?.kind === RecipeKind.convert ? recipe.durationTicks : 0;
+    expect(batch).toBeGreaterThan(0);
     const runs: {work: boolean; ticks: number}[] = [];
-    for (let t = 0; t < 20 * 70; t++) {
+    for (let t = 0; t < batch * 3 + batch / 2; t++) {
       tickWorld(world, []);
       for (const s of unitSnapshots(world)) {
         if (s.id !== worker.id) continue;
@@ -256,13 +264,8 @@ describe('the tick the catch is read from', () => {
         else runs.push({work, ticks: 1});
       }
     }
-    // Work for the recipe's whole duration, one tick off, work again —
-    // read off the def rather than written down, so a rebalance moves this
-    // with it and only a change in SHAPE fails.
-    const recipe = BUILDING_DEFS[BuildingTypeId.fishery].recipe;
-    expect(recipe?.kind).toBe(RecipeKind.convert); // ...a batch, not a gather
-    const batch =
-      recipe?.kind === RecipeKind.convert ? recipe.durationTicks : 0;
+    // Work for the recipe's whole duration, one tick off, work again — so
+    // three batches is work/idle/work/idle/work and a tail.
     expect(runs.length).toBeGreaterThan(4);
     for (const [i, run] of runs.entries()) {
       if (!run.work) expect(run.ticks).toBe(1);
