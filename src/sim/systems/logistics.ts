@@ -609,9 +609,18 @@ function deliveryTargetFor(
  */
 const PATH_TRIES = 3;
 
-/** One key per (destination, good). Goods are a short enum, so a stride
- * well clear of the last of them keys the pair in a single number. */
-const PULL_STRIDE = 64;
+/**
+ * One key per (destination, good), as `id * PULL_STRIDE + good`.
+ *
+ * Derived from the goods themselves rather than written down as a number
+ * with room to spare. The key is only unique while every good id is under
+ * the stride, and a good that broke that would not announce itself: two
+ * different (building, good) pairs would quietly share one budget, and a
+ * repair somewhere would pull the wrong loads for reasons nothing in the
+ * logs could explain. A constant makes that a thing to remember when the
+ * nineteenth good becomes the sixty-fourth; this makes it impossible.
+ */
+const PULL_STRIDE = Math.max(...GOODS) + 1;
 
 /**
  * How many loads of each good an ordered repair may pull up to its own

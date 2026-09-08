@@ -496,8 +496,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // reachable-ground rule, 57 for the fishery's footprint, 58 for the load
 // home and 59 for the armory while the branch was open — the same drift
 // every note above records of itself.
+// Still 60 after PULL_STRIDE was derived from the goods rather than
+// written as 64: the stride only ever keys a scratch map built and spent
+// inside one dispatch pass, and both numbers clear every good id, so the
+// pairs group exactly as they did. The hash is over raw bytes, which is
+// why it moved anyway.
 const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = 'b36b96491ae6066bb152d64701042be0';
+const EXPECTED_HASH = 'c1818c76979940db8898f73dedf8ec5c';
 
 /**
  * Everything a replay's playback depends on, as raw source:
