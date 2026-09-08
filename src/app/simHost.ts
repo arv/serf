@@ -149,9 +149,22 @@ export class WorkerSimHost implements SimHost {
       // true. So past that point the failure goes to #fatalCb instead,
       // which is the half of the app that can actually say so on the glass.
       this.#worker.onerror = e => {
-        console.error(`[sim worker] ${e.message} (${e.filename}:${e.lineno})`);
-        if (this.#started) this.#fatal(e.message);
-        else reject(new Error(`sim worker failed: ${e.message}`));
+        const where = `[sim worker] ${e.message} (${e.filename}:${e.lineno})`;
+        if (!this.#started) {
+          console.error(where);
+          reject(new Error(`sim worker failed: ${e.message}`));
+          return;
+        }
+        // Once, however often the interval that threw comes round again.
+        // The worker's pump is a timer, and an error thrown out of it
+        // fires this every time it ticks — a thousand copies of one line,
+        // with the first (the only one that names anything) scrolled off
+        // the top. Asked before #fatal rather than inside it, because a
+        // fatal the worker reported itself has already written its own
+        // line over there and does not want a second here.
+        if (this.#fatalTold) return;
+        console.error(where);
+        this.#fatal(e.message);
       };
       this.#worker.onmessage = (e: MessageEvent<WorkerToMain>) => {
         const msg = e.data;

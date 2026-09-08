@@ -18,6 +18,7 @@ import {
   buildingDef,
   gatherOrigin,
   gatherRecipeOf,
+  type BuildingDef,
 } from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
@@ -219,7 +220,14 @@ const undescribed = new Set<number>();
  * the one building this build cannot speak for is the far smaller wrong.
  */
 function describable(b: Building): boolean {
-  if (buildingDef(b.type) !== undefined) return true;
+  // Widened on purpose. buildingDef's signature promises a def always
+  // comes back; the table behind it does not, and returns undefined for a
+  // number no BUILDING_DEFS entry answers to — which is the whole case
+  // this guard exists for. Against the narrow type the test below reads as
+  // dead code, and a type-aware lint may one day agree and say so; naming
+  // the wider type here is what keeps it the runtime question it is.
+  const def: BuildingDef | undefined = buildingDef(b.type);
+  if (def !== undefined) return true;
   if (!undescribed.has(b.type)) {
     undescribed.add(b.type);
     console.error(

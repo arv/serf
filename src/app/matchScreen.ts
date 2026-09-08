@@ -659,7 +659,15 @@ export async function runMatch(
   // failed: the roster is only ever posted when it changes, so nothing
   // will ever re-send what was missed.
   host.onFatal(message => {
+    // Both halves of the pause, the way the briefing's does it above: the
+    // store's setter is the HUD's gear face and nothing more, so on its
+    // own it would leave the worker ticking a world nobody will ever be
+    // shown again — burning a phone's battery behind a card that says the
+    // village has stopped, and carrying the sim further from the last
+    // frame the player actually saw. (Playback's pause needs no second
+    // half: there the worker stops itself at the log's end.)
     setSpeed(0);
+    host.setSpeed(0);
     showFatal(
       `The simulation stopped: ${message}. The village on screen is no ` +
         'longer being updated — what you are looking at is the last frame ' +
