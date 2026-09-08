@@ -154,15 +154,13 @@ function renderTip(t: TipState): JSX.Element {
   // nothing left to point at is not drawn at all. The layer's effect takes
   // the empty panel down on the same update.
   if (!t.target.isConnected) return null;
-  let node: JSX.Element;
   // The trigger's owner, so the tip reads the context its trigger reads.
   // Listener is null inside a root, so the layer subscribes to nothing the
   // tip touches — the tip's own reads are its own to answer for.
-  createRoot(dispose => {
+  return createRoot(dispose => {
     disposeTip = dispose;
-    node = t.content();
+    return t.content();
   }, t.owner ?? undefined);
-  return node;
 }
 
 export function tooltip(content: () => JSX.Element): {

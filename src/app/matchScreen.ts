@@ -684,19 +684,31 @@ export async function runMatch(
    *
    * Both callers reach here from a failure whose cause may be the HUD
    * itself, and both have already stopped the worker by the one channel
-   * that has no HUD in it. What is left is drawing, in this order for a
-   * reason: showFatal is raw DOM precisely so it can come up when Solid is
-   * what failed, and the gear is a signal write — the same kind of write
-   * that threw. If reporting the failure threw, it would take the report
-   * with it and, from the structural handler's catch, escape the guard
-   * whose whole job is to be the last stop.
+   * that has no HUD in it. What is left is drawing, and drawing is what
+   * may be broken: showFatal reaches for the page's #fatal element, and
+   * the gear is a signal write — the same kind of write that threw. If
+   * reporting the failure threw, it would take the report with it and,
+   * from the structural handler's catch, escape the guard whose whole job
+   * is to be the last stop.
+   *
+   * A try each, rather than one around both. They are two independent
+   * best-efforts and neither is worth the other: a page missing #fatal
+   * would otherwise leave the gear reading 3× over a village that has
+   * stopped, and a HUD too broken to take the write would leave the card
+   * off a page that could have shown it. The card goes first because it
+   * is the half that says anything — raw DOM, built that way precisely
+   * for the moment Solid is what failed.
    */
   function reportFailure(message: string): void {
     try {
       showFatal(message, {menu: true, title: 'The village has stopped'});
-      setSpeed(0);
     } catch (err) {
       console.error('[match] could not put up the failure card', err);
+    }
+    try {
+      setSpeed(0);
+    } catch (err) {
+      console.error('[match] could not take the gear off the throttle', err);
     }
   }
   // Every structural frame the screen takes in — and the one place a throw
