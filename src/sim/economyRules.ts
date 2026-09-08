@@ -345,22 +345,23 @@ function canLose(def: BuildingDef, b: Building): boolean {
  *
  * What it sells is the SMALLEST roof that closes the gap — the least wood
  * back that still reaches the hut's price — among those a village can lose
- * and still be a village. Biggest-refund-first was the obvious rule and it
- * is wrong: a seat one plank short of six sold its barracks for six, which
- * on the lab's own war fixture (aiLab.test.ts) traded a war it was winning
- * for a woodcutter it needed a single log for. Least damage that actually
- * works is the trade; a well at two planks back is the right answer to
- * being one short. Only when nothing on its own reaches the price does it
- * fall back to the biggest refund standing, because then the point is to
- * make progress and come back next beat.
+ * and still be a village. Both halves of that were learned by getting them
+ * wrong, in the lab, one after the other.
  *
- * The exclusions below are the other half of not overpaying. That exclusion is not fastidiousness, it is
- * the first version of this rule failing in the lab: told to take the
- * largest refund full stop, the Abbot sold its barracks, its abbey, its
- * BAKERY, its range and its smith inside twelve hundred ticks, and a seat
- * that had been stuck at nineteen serfs finished the match with two. It
- * traded a wood famine for a bread famine. So three kinds of roof are off
- * the table however much timber they would give back:
+ * Biggest refund first was the obvious rule, and it overpays: a seat one
+ * plank short of six sold its BARRACKS for six, which on the war fixture
+ * (aiLab.test.ts) traded a war it was winning for a woodcutter it needed a
+ * single log for. A guard tower at three back is the right answer to being
+ * one short. Only when nothing standing reaches the price on its own does
+ * it fall back to the biggest refund, because then the point is to make
+ * progress and come back next beat.
+ *
+ * Biggest refund among ANY roof was the version before that, and it is how
+ * the exclusions below were found: the Abbot sold its barracks, its abbey,
+ * its BAKERY, its range and its smith inside twelve hundred ticks, and a
+ * seat that had been stuck at nineteen serfs finished the match with two.
+ * It traded a wood famine for a bread famine. So three kinds of roof are
+ * off the table however much timber they would give back:
  *
  * - anything that gathers — that is the income this whole rule exists to
  *   restore, and the quarry and the mines are the next ones it would need;

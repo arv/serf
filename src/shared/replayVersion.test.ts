@@ -533,8 +533,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // reserved for a smith bought Ironworking anyway and left reservedOut over
 // a stock of nothing (checkInvariants caught it in ai.test.ts once the
 // range's footprint re-timed seed 11 into the collision).
+// Still 60 after a review pass untangled a run-on in sellForTheWoodcutter's
+// doc comment — and corrected the example inside it, which offered a well as
+// the cheap roof to sell when the well is one of the three the rule refuses
+// to touch. Comment only; the hash is over raw bytes, which is why it moved.
 const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = 'eceff2388b1a137a00dfb5ef98ee53ed';
+const EXPECTED_HASH = '172c8f03b8784a0b82a8f8f89fc251ae';
 
 /**
  * Everything a replay's playback depends on, as raw source:
