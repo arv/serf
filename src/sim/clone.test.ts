@@ -52,6 +52,24 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
     expect(hashWorld(viaSave)).toBe(hashWorld(world));
   });
 
+  it('isolates a study bill in flight — researchNeeds must not be shared', () => {
+    // The same hazard as the repair bill below, and for the same reason:
+    // researchNeeds is decremented in place at the Abbey's door (deliver in
+    // systems/logistics.ts), so a clone sharing it by reference watches the
+    // original's loads land as if they were its own.
+    const world = createWorld({seed: 5, players: [{kind: PlayerKind.ai}]});
+    run(world, 200);
+    const b = [...world.buildings.values()].find(
+      x => x.state === BuildingState.built,
+    )!;
+    b.researchNeeds = {[GoodId.wood]: 3};
+    const snap = cloneWorld(world);
+    b.researchNeeds[GoodId.wood] = 2; // the original takes a load in
+    expect(snap.buildings.get(b.id)!.researchNeeds).toEqual({
+      [GoodId.wood]: 3,
+    });
+  });
+
   it('isolates a repair bill in flight — repairNeeds must not be shared', () => {
     // repairNeeds is the one GoodAmounts the repair flow decrements in
     // place (applyRepairMaterial), so a clone sharing it by reference sees

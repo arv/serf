@@ -90,10 +90,21 @@ export function canResearch(
 }
 
 /**
- * The roof a study is ordered at: this owner's first standing Abbey, by id,
- * so the same one is picked every time the question is asked. It is where
- * the bill is carried (systems/logistics.ts) and what the order is pinned
- * to for as long as the goods are on the road.
+ * The roof a study is ordered at: this owner's first standing Abbey in
+ * world order, which is the same one every time the question is asked.
+ *
+ * World order is id order here, though it is worth saying why rather than
+ * leaving it to look like luck: buildings are only ever appended to the map
+ * under a fresh ascending id (placeSite, placeBuiltBuilding) and only ever
+ * deleted from it (tick.ts drops the dead), and deleting leaves the rest of
+ * a JS Map in place. Nothing is re-inserted, so iteration cannot fall out
+ * of id order — and a save round-trips the map in that same order
+ * (save.ts). This is the convention findStorehouse and the festival's own
+ * abbeyOf already use; a seat with two Abbeys gets the elder one from all
+ * three.
+ *
+ * It is where the bill is carried (systems/logistics.ts) and what the order
+ * is pinned to for as long as the goods are on the road.
  */
 export function researchAbbey(
   world: World,

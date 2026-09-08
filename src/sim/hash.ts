@@ -127,6 +127,11 @@ export function hashWorld(world: World): number {
       // An ordered repair steers hauls for many ticks before it moves the
       // hp above; a save that lost the order must not hash as the same world.
       mix(b.repairNeeds?.[good] ?? 0);
+      // The Abbey's study bill, for the same reason as the repair's: it is
+      // the outstanding half of an order the player gave, it is decremented
+      // in place as loads land, and two worlds that disagree about it will
+      // open the books on different ticks.
+      mix(b.researchNeeds?.[good] ?? 0);
     }
     // The miners' bread: loads still covered by what the post has already
     // eaten. It steers whether the shaft runs for the next few trips, so a

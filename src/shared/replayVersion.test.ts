@@ -603,8 +603,18 @@ import {REPLAY_VERSION} from './replayVersion';
 // The snapshot half of the same review is protocol rather than sim: an
 // unreadable bill is now absent rather than empty, so a study whose Abbey
 // fell this tick cannot draw as fully delivered.
+// Still 62 after the study bill was added to clone and hash. clone.ts's
+// own note says it plainly — "when World or its records grow, update THIS,
+// save.ts, and hash.ts together" — and Building grew a researchNeeds this
+// branch never carried through: the clone shared it by reference (the
+// spread copies the pointer, and every other GoodAmounts on the record is
+// copied explicitly for exactly that reason), so a snapshot watched the
+// original's loads land as its own. hashWorld now mixes it beside the
+// repair bill it is the twin of. save.ts needs nothing — it serializes
+// buildings whole. Neither is replayed state, and 62 is this build's own
+// bump besides.
 const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = 'b85e443941510c631c3336befb4a9bbf';
+const EXPECTED_HASH = 'd81c67a9942d60679e2c36773716c586';
 
 /**
  * Everything a replay's playback depends on, as raw source:
