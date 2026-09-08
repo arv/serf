@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 60: a study is carried to the Abbey before it begins.
+ * 62: a study is carried to the Abbey before it begins.
  *
  * The research command used to take a tech's goods off the storehouse
  * shelf and start its clock in the same tick. It writes the bill on the
@@ -40,6 +40,89 @@
  * off the board for a minute at a time, and every research lands on a
  * different tick — which moves every unlock, and with it every order that
  * waited on one.
+ *
+ * 62, written as 60: main took 60 for the Archery Range's footprint and
+ * 61 for the repair pull while this branch was in review. Third number
+ * for one change, and every note below this one says the same of itself
+ * — the number is whatever is free on the day it lands.
+ *
+ * 61's note follows.
+ */
+/**
+ * 61: an ordered repair pulls the loads already walking its way up to its
+ * own tier (systems/logistics.ts, repairPull/tierOf). Which hand takes
+ * which job, and in what order, decides where every good in the village is
+ * a second later — this is as behavioral as a change gets, and a log
+ * recorded before it re-runs into a different world within a few hundred
+ * ticks.
+ *
+ * 61, written as 55: main took 55, then 56, 57, 58 and 59, and then 60 for
+ * the Archery Range's footprint while this branch sat in review — six
+ * numbers for one change. Every note below says the same of itself, which
+ * by now is the pattern rather than the accident: the number is whatever
+ * is free on the day it lands.
+ *
+ * What it fixes: the matcher books a repair at construction priority and
+ * then nets what it asks for against `inbound`. At the storehouse — where
+ * every producer in the village evacuates to, so inbound is permanently
+ * thick with priority-3 hauls — that netting always came out at or below
+ * zero, no tier-1 job was ever booked, and the order's priority was
+ * silently discarded. A recorded match had the castle repaired at 60%
+ * health and the order still reading "wants 3 wood, 2 stone" 3,700 ticks
+ * later, when the building was destroyed under it. The same match now
+ * settles the bill 711 ticks after it is ordered.
+ *
+ * A pull rather than a fresh booking, because the netting is right about
+ * quantity: a load already walking in feeds the mend when it lands
+ * (deliver puts any good arriving at a building with an outstanding
+ * repairNeeds straight into the walls), so booking a second would haul a
+ * plank nobody needed moved. Only the rank was wrong, and only the rank
+ * moves.
+ *
+ * 60's note follows.
+ */
+/**
+ * 60: the Archery Range stands on the barracks' footprint, pays a mason
+ * for it, and takes the hit points that go with both.
+ *
+ * Two by two to three by three, the stone bill two to six, and 150 hit
+ * points to 200. Nothing else about the building moves — same ten wood,
+ * same eighteen-second raising, same nine-second archer.
+ *
+ * 60 and not 57, which is the number this was cut as: main took 57 (the
+ * fishery's own footprint, whose note reasons about a footprint in exactly
+ * these terms), 58 (the load home) and now 59 (the armory's one of each,
+ * below) while the branch was open. Fourth number for one change, and the
+ * note below says the same of itself in the same words — by now the
+ * pattern rather than the accident.
+ *
+ * The model is what started it. KayKit authors the range as the second
+ * largest building in the pack — only the castle is bigger, and it
+ * out-measures the barracks it was written as the small sibling of — and
+ * the renderer sizes every model off min(w,h). At two the yard rendered a
+ * third smaller than the hall beside it and read as a shed. The other two
+ * numbers follow the ground: nine tiles bought for one token course of
+ * masonry was the cheapest large footprint in the game, and 150 hit points
+ * were written for a fence and a shed rather than for a building on the
+ * barracks' plot at nearly the barracks' price.
+ *
+ * All three are sim, not costume, which is what earns the bump. Nine tiles
+ * of flat ground instead of four is a placement an old log's `placeSite`
+ * could have been given and this build refuses; the nine tiles block
+ * movement, so haulers and soldiers walk around a wider obstacle and
+ * arrive on different ticks; sight is measured from the footprint edge, so
+ * a built range reveals a wider ring. The four extra stone are four more
+ * hauls to the site before it rises, and a repair is billed as a share of
+ * the build cost (REPAIR_COST_SHARE), so a burnt range mends dearer too.
+ * The fifty hit points are swings: a raid that used to level a range
+ * leaves it standing, and every tick of that fight lands somewhere else. A
+ * replay recorded before this build re-runs into a different world within
+ * seconds of the first range going down.
+ *
+ * (Riding it unbumped, because a rule inside a brain has never moved this
+ * number: `sellForTheWoodcutter` in economyRules.ts, which is what the
+ * standoff the footprint exposed turned out to need. Playback replays the
+ * commands a seat issued, not the reasoning that issued them.)
  *
  * 59's note follows.
  */
@@ -894,4 +977,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 60;
+export const REPLAY_VERSION = 62;

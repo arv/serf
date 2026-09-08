@@ -18,6 +18,7 @@ import {
   buildingDef,
   gatherOrigin,
   gatherRecipeOf,
+  type BuildingDef,
 } from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
@@ -196,10 +197,61 @@ function outWaitingSinceOf(world: World, b: Building): number | undefined {
   return oldest;
 }
 
+/**
+ * Types already complained about, so the line is printed once rather than
+ * four times a second for as long as the building stands.
+ *
+ * Once per PROCESS, not per match, and the difference is worth stating
+ * because this module is the server's too (see the header): a long-lived
+ * node process serving match after match says it the first time it meets
+ * the type and never again. That is the right lifetime — the same unknown
+ * type in a second match is the same news, and a server repeating itself
+ * every game is the noise this set exists to stop — but an operator
+ * grepping the logs for a second match's copy should know there isn't one.
+ */
+const undescribed = new Set<number>();
+
+/**
+ * Can this build say what that building IS?
+ *
+ * Everything below reads its answers out of BUILDING_DEFS — the beds a
+ * house holds, whether a hut is a storehouse, what a post forges — and a
+ * building whose type has no entry there answers none of them. That is not
+ * hypothetical: a save carries raw type numbers, so a village saved by a
+ * build that knew one more building than this one hands exactly that.
+ *
+ * The whole structural frame is the stake. It is the only channel the HUD
+ * has for the building roster, the players, stock, techs, research, the
+ * events, the outcome and the selected building's card — and it is posted
+ * only when something changes, so a frame lost is never re-sent. One
+ * undescribable building used to throw out of these passes and take every
+ * one of those with it, permanently, while the units carried on walking
+ * about on the SAB: a HUD frozen mid-match with no word of why. Dropping
+ * the one building this build cannot speak for is the far smaller wrong.
+ */
+function describable(b: Building): boolean {
+  // Widened on purpose. buildingDef's signature promises a def always
+  // comes back; the table behind it does not, and returns undefined for a
+  // number no BUILDING_DEFS entry answers to — which is the whole case
+  // this guard exists for. Against the narrow type the test below reads as
+  // dead code, and a type-aware lint may one day agree and say so; naming
+  // the wider type here is what keeps it the runtime question it is.
+  const def: BuildingDef | undefined = buildingDef(b.type);
+  if (def !== undefined) return true;
+  if (!undescribed.has(b.type)) {
+    undescribed.add(b.type);
+    console.error(
+      `[snapshot] no definition for building type ${b.type}; leaving it out ` +
+        'of the roster. A save from a newer build?',
+    );
+  }
+  return false;
+}
+
 export function snapBuildings(world: World): BuildingSnap[] {
   const out: BuildingSnap[] = [];
   for (const b of world.buildings.values()) {
-    if (!b.dead) out.push(snapBuilding(world, b));
+    if (!b.dead && describable(b)) out.push(snapBuilding(world, b));
   }
   return out;
 }
@@ -227,11 +279,23 @@ export function snapPlayers(world: World): PlayerSnap[] {
   const heads = new Map<Owner, number>();
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
+    // Heads first, ahead of the describable gate, because counting them
+    // needs no definition: a garrison and a started recruit are plain
+    // fields on the building. Behind the gate they went missing exactly
+    // where this build is least able to afford it — a save from a newer
+    // build whose unknown building happens to hold men (a trainer, say,
+    // which is what an unknown 2x2 with a rally flag usually is) would
+    // report a population below the sim's own, since populationOf counts
+    // them either way. That is the same disagreement the note above
+    // records being fixed once already, and it ends with the castle
+    // offering a hire the sim then refuses.
     let held = b.garrison ?? 0;
     if (b.trainQueue) {
       for (const item of b.trainQueue) if (item.started) held++;
     }
     if (held) heads.set(b.owner, (heads.get(b.owner) ?? 0) + held);
+    // Everything below reads BUILDING_DEFS, so it is the gate's business.
+    if (!describable(b)) continue;
     if (b.state === BuildingState.site) {
       // A site still owed its borrowed hammer counts as a hammer want.
       if (

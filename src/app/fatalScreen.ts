@@ -32,7 +32,7 @@ const BUTTON_CSS =
 
 export function showFatal(
   message: string,
-  opts?: {retry?: boolean; menu?: boolean},
+  opts?: {retry?: boolean; menu?: boolean; title?: string},
 ): void {
   if (fatalShown) return;
   fatalShown = true;
@@ -44,9 +44,15 @@ export function showFatal(
   // screen that fails an hour into a session is a different sentence — and
   // the menu button is what says which this is: it is offered exactly when
   // the app is up and one screen could not be built.
-  title.textContent = opts?.menu
-    ? 'That screen could not be opened'
-    : 'Serf Valley cannot start';
+  //
+  // A third case names itself: a match that came up and then broke needs a
+  // headline of its own, because both of the standing two say the screen
+  // never opened, and this one is being read over the village it opened on.
+  title.textContent =
+    opts?.title ??
+    (opts?.menu
+      ? 'That screen could not be opened'
+      : 'Serf Valley cannot start');
   const body = document.createElement('p');
   // Text, never markup. Relay error messages land here (runLobby's fail
   // rejects with them and boot's catch brings them straight in), and the

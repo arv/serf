@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants, checkLedger, countGoods} from './debug/invariants.ts';
-import {REPAIR_MEND_TICKS} from './defs/balance.ts';
+import {MATCHER_INTERVAL, REPAIR_MEND_TICKS} from './defs/balance.ts';
 import {buildingDef, repairBill} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
@@ -462,5 +462,71 @@ describe('the repair bill', () => {
       [GoodId.stone]: 1,
     });
     expect(repairBill(BuildingTypeId.barracks, 0)).toEqual({});
+  });
+});
+
+/**
+ * A repair ordered on the storehouse — the one building whose `inbound` is
+ * never quiet, because every producer in the village evacuates to it.
+ *
+ * The matcher nets a repair's demand against inbound, so at the storehouse
+ * it nets to nothing and no tier-1 job is ever booked. The loads that will
+ * feed the mend are the ordinary evacuations already queued, and they are
+ * served behind everything standing in front of them. In a recorded match
+ * that left the castle's order sitting at "wants 3 wood, 2 stone" for
+ * 3,700 ticks, until the building was destroyed under it. dispatch pulls
+ * those loads up to the repair's own tier instead.
+ */
+describe('a repair ordered on the storehouse', () => {
+  it('pulls its materials past the errands queued ahead of them', () => {
+    const world = bareWorld();
+    // Stone enough to settle its half of the bill off the shelf, so the
+    // wood is the only part of the mend anybody has to carry.
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.wood]: 0,
+      [GoodId.stone]: 20,
+    });
+    // One pair of hands, so the queue's order is the whole story.
+    addSerf(world, 30, 34);
+
+    // Six posts across the valley whose axes the castle owes them: a
+    // standing priority-2 queue, and older than anything below.
+    for (let i = 0; i < 6; i++) {
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 20 + i * 3, 44);
+    }
+    run(world, MATCHER_INTERVAL * 2);
+
+    // ...and then, newest in the queue and lowest in rank, the wood.
+    const grove = placeBuiltBuilding(
+      world,
+      BuildingTypeId.woodcutter,
+      0,
+      34,
+      30,
+    );
+    grove.stock[GoodId.wood] = 8;
+    run(world, MATCHER_INTERVAL * 2);
+
+    const max = buildingDef(BuildingTypeId.storehouse).hp;
+    sh.hp = max * 0.9;
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.setBuildingRepair,
+        buildingId: sh.id,
+        repair: true,
+      }),
+    );
+    // The shape the bug needs: a real want, and an inbound that already
+    // covers it — which is exactly why the matcher books nothing for it.
+    expect(sh.repairNeeds?.[GoodId.wood]).toBe(1);
+    expect(sh.inbound[GoodId.wood]).toBeGreaterThan(1);
+
+    // Cleared in ~390; unpulled it is still outstanding at twice that,
+    // stuck behind four axes and seven older loads of wood.
+    runRepair(world, sh.id, 600);
+    expect(sh.repairNeeds).toBeUndefined();
+    expect(sh.hp).toBe(max);
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 });

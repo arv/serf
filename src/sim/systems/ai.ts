@@ -1653,10 +1653,19 @@ export class AiBrain {
     // Soldiers ride along in the same sweep: garrisonIsEnough needs the
     // count and a scan of its own per beat would be the whole cost of it.
     let soldierCount = 0;
+    // And what the seat's hands are holding, for the same reason and in
+    // the same pass: a good in transit has already left the building it
+    // came from (logistics decrements the source's stock at pickup and
+    // parks the load on the serf), so a rule that adds up buildings alone
+    // reads a village mid-haul as poorer than it is.
+    const carried: GoodAmounts = {};
     for (const u of world.units.values()) {
       if (u.dead || u.owner !== this.playerId) continue;
       if (u.kind === UnitTypeId.serf) serfCount++;
       else if (UNIT_DEFS[u.kind].combat) soldierCount++;
+      if (u.carrying !== undefined) {
+        carried[u.carrying] = (carried[u.carrying] ?? 0) + 1;
+      }
     }
     const researchPending = s.researchOrder.some(
       id => !techs.researched.includes(id),
@@ -1727,6 +1736,7 @@ export class AiBrain {
       stock,
       serfCount,
       soldierCount,
+      carried,
       stalled,
       placed,
       strategy: s,
@@ -1796,16 +1806,26 @@ export class AiBrain {
         //
         // So the margin costs a fifth of the army and three valleys in
         // twenty-four that never finish, and it buys no research at all —
-        // 299 techs against 307. What it buys is the seats reading as
-        // themselves. Pooled over the twenty-four seeds of
-        // ai/archetypePersonality.test.ts, the warlord is read as a rusher
-        // 0.053 of the time with the margin against 0.004 without it —
-        // above even the 0.032 it managed before studies were carried at
-        // all — and its village is seen seven and a nine-tenths buildings
-        // deep against seven. The abbot keeps the calm read against it,
-        // 0.145 booming to 0.070. Waiting for the last load was quietly
-        // flattening the four openings into one, and that is the thing
-        // this deck is for.
+        // 299 techs against 307. What it buys is the warlord reading as a
+        // warlord. Pooled over the twenty-four seeds of
+        // ai/archetypePersonality.test.ts — the acceptance test for
+        // whether a seat can tell who it is playing — the warlord is read
+        // as a rusher 0.053 of the time with the margin and 0.004 without
+        // it, and that test asserts the read happens at all. At 0.004 it
+        // is two sightings in five hundred, which is a pass mark resting
+        // on a coin; at 0.053 it is six and twenty, and it is above the
+        // 0.032 the warlord managed before studies were carried anywhere.
+        // Its village is seen seven and nine tenths buildings deep against
+        // seven. Waiting for the last load was quietly flattening the four
+        // openings into one, and telling them apart is what the deck is
+        // for.
+        //
+        // Only the rusher read is worth citing. The mirror of it — the
+        // abbot reading calmer — was measured over five pools and removed
+        // from that test as a coin flip; it inverts on main too. It moves
+        // the same way here (the abbot booms 0.145 against the warlord's
+        // 0.070 with the margin) and that is worth no more than the pool
+        // it was drawn from.
         //
         // The margin and nothing past it. FULL credit is a different
         // animal: a bill is a standing demand, holding its place on the

@@ -27,6 +27,7 @@ import {
 } from './defs/units.ts';
 import {BANDIT, type Building, type Owner} from './entities.ts';
 import * as GameEventKind from './gameEventKindEnum.ts';
+import * as HaulPhase from './haulPhaseEnum.ts';
 import {findPath, nearestWalkable} from './path.ts';
 import {hasRoomToHire} from './population.ts';
 import {banditsSystem} from './systems/bandits.ts';
@@ -523,6 +524,15 @@ export function applyCommand(
         world.ledger.consumed[GoodId.silver] =
           (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
         sh.hireQueue = (sh.hireQueue ?? 0) + 1;
+        // The coin may already have been promised to a hauler — see
+        // releaseShelfPromises, which arrived on main to say the same of
+        // research. Research does not spend off the shelf any more (it
+        // bills the Abbey and the goods are carried), so the hire is the
+        // last purchase in the game that reaches past the haulage board,
+        // and it is a likelier one than research ever was: a study's own
+        // bill pulls silver OUT of the storehouse now, so the coin a hire
+        // spends is routinely coin a serf has been sent for.
+        releaseShelfPromises(world, sh, GoodId.silver);
       }
       break;
     }
@@ -534,6 +544,46 @@ export function applyCommand(
       if (sh && !sh.dead) cancelHire(world, sh, cmd.index);
       break;
     }
+  }
+}
+
+/**
+ * Give back the haulage promises a building can no longer keep: cancel its
+ * outbound jobs for `good`, oldest first, until `reservedOut` is inside the
+ * stock again.
+ *
+ * The one caller is hiring, which is the one thing left in the game that
+ * spends off a shelf without asking the haulage board first. It was
+ * written for research, which used to do the same and no longer does — a
+ * study is billed to the Abbey and carried there, so it takes its goods
+ * through the board like everything else, and takes them from whichever
+ * shelf is nearest rather than the castle's. That is also what makes the
+ * hire the sharper case of the two: silver leaves the storehouse on
+ * somebody's shoulders now, so the four coins a hire spends are often
+ * four a serf is already walking for. Ordinary production cannot get here
+ * — a converter eats from its own inputs, and every good that leaves a
+ * building for another one leaves through a job that booked its
+ * reservation first.
+ *
+ * Oldest first, by job id, because the sim's tie-breaks are by id
+ * everywhere else and a cancellation order that depended on Map iteration
+ * would be a determinism bug waiting for a rewrite. The carrier keeps
+ * whatever is already in his hands: a job in `toDropoff` holds no
+ * reservation here (it was released at pickup), so it is never a candidate
+ * — but a serf walking TO the shelf is stood down with nothing lost.
+ */
+function releaseShelfPromises(world: World, b: Building, good: GoodId): void {
+  const over = (): number => (b.reservedOut[good] ?? 0) - (b.stock[good] ?? 0);
+  if (over() <= 0) return;
+  const promises = [...world.jobs.values()]
+    .filter(
+      j =>
+        j.from === b.id && j.good === good && j.phase !== HaulPhase.toDropoff,
+    )
+    .sort((x, y) => x.id - y.id);
+  for (const job of promises) {
+    if (over() <= 0) break;
+    abortJob(world, job, 'the shelf spent what this haul was promised', true);
   }
 }
 
