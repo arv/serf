@@ -15,7 +15,12 @@ import {
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import {placeBuiltBuilding, spawnUnit, type World} from '../sim/world.ts';
 import type {UnitSnapshot} from './sabLayout.ts';
-import {snapBuilding, snapPlayers, unitSnapshots} from './snapshot.ts';
+import {
+  snapBuilding,
+  snapBuildings,
+  snapPlayers,
+  unitSnapshots,
+} from './snapshot.ts';
 
 /**
  * The reach readout: what a gatherer's card says is left in the ground
@@ -215,5 +220,35 @@ describe('snapPlayers: pop', () => {
     const [me] = snapPlayers(world);
     expect(me!.pop).toBe(3 + 2 + 1);
     expect(me!.pop).toBe(populationOf(world, 0));
+  });
+});
+
+/**
+ * The roster is the HUD's only account of the world's buildings — and of
+ * the players, the stock, the techs and the selected building's card, all
+ * of which ride the same structural frame. So a building this build cannot
+ * describe must cost the roster that building and nothing else. Whole-frame
+ * failure was the shape of a real freeze: a save carrying a building type
+ * a later build had added threw out of the roster, took the frame with it,
+ * and left every panel in the HUD showing its last value forever while the
+ * units carried on walking about on the other channel.
+ */
+describe('snapBuildings: a building the definitions cannot describe', () => {
+  it('leaves that one off the roster and still describes the rest', () => {
+    const world = bareWorld();
+    const home = addStorehouse(world, 10, 10, {});
+    const hut = addBuiltHut(world, 30, 30, false);
+    // A type no BUILDING_DEFS entry answers to — what a save written by a
+    // build with one more building in it hands this one.
+    const stranger = addBuiltHut(world, 40, 40, false);
+    (stranger as {type: number}).type = 9999;
+
+    const roster = snapBuildings(world);
+
+    const byId = (a: number, z: number): number => a - z;
+    expect(roster.map(b => b.id).sort(byId)).toEqual(
+      [home.id, hut.id].sort(byId),
+    );
+    expect(roster.some(b => b.id === stranger.id)).toBe(false);
   });
 });

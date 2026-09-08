@@ -165,10 +165,44 @@ function outWaitingSinceOf(world: World, b: Building): number | undefined {
   return oldest;
 }
 
+/** Types already complained about, so the line is printed once rather than
+ * four times a second for the rest of the match. */
+const undescribed = new Set<number>();
+
+/**
+ * Can this build say what that building IS?
+ *
+ * Everything below reads its answers out of BUILDING_DEFS — the beds a
+ * house holds, whether a hut is a storehouse, what a post forges — and a
+ * building whose type has no entry there answers none of them. That is not
+ * hypothetical: a save carries raw type numbers, so a village saved by a
+ * build that knew one more building than this one hands exactly that.
+ *
+ * The whole structural frame is the stake. It is the only channel the HUD
+ * has for the building roster, the players, stock, techs, research, the
+ * events, the outcome and the selected building's card — and it is posted
+ * only when something changes, so a frame lost is never re-sent. One
+ * undescribable building used to throw out of these passes and take every
+ * one of those with it, permanently, while the units carried on walking
+ * about on the SAB: a HUD frozen mid-match with no word of why. Dropping
+ * the one building this build cannot speak for is the far smaller wrong.
+ */
+function describable(b: Building): boolean {
+  if (buildingDef(b.type) !== undefined) return true;
+  if (!undescribed.has(b.type)) {
+    undescribed.add(b.type);
+    console.error(
+      `[snapshot] no definition for building type ${b.type}; leaving it out ` +
+        'of the roster. A save from a newer build?',
+    );
+  }
+  return false;
+}
+
 export function snapBuildings(world: World): BuildingSnap[] {
   const out: BuildingSnap[] = [];
   for (const b of world.buildings.values()) {
-    if (!b.dead) out.push(snapBuilding(world, b));
+    if (!b.dead && describable(b)) out.push(snapBuilding(world, b));
   }
   return out;
 }
@@ -195,7 +229,7 @@ export function snapPlayers(world: World): PlayerSnap[] {
   // the two archers up the tower were the two missing heads.
   const heads = new Map<Owner, number>();
   for (const b of world.buildings.values()) {
-    if (b.dead) continue;
+    if (b.dead || !describable(b)) continue;
     let held = b.garrison ?? 0;
     if (b.trainQueue) {
       for (const item of b.trainQueue) if (item.started) held++;

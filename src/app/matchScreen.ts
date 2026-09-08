@@ -72,7 +72,7 @@ import {
   setBriefingOpen,
 } from '../ui/store';
 import {DamageAlerts} from './damageAlerts';
-import {fatal} from './fatalScreen';
+import {fatal, showFatal} from './fatalScreen';
 import {stampName} from './fileStore';
 import type {GameConfig} from './gameConfig';
 import {openWithRetry} from './glContext';
@@ -649,6 +649,24 @@ export async function runMatch(
   });
 
   host.onNetStatus(status => setNetStatus(status));
+  // The sim stopped being able to describe the world. The map goes on
+  // moving — the unit positions ride a different channel, and that one is
+  // still being written — so without this the player is left reading a HUD
+  // that has silently stopped changing: a building card that will not
+  // update or close, a goods strip frozen mid-match, buttons whose state
+  // never moves however often they are pressed. Say it plainly instead,
+  // and offer the way out, because there is no recovering the frame that
+  // failed: the roster is only ever posted when it changes, so nothing
+  // will ever re-send what was missed.
+  host.onFatal(message => {
+    setSpeed(0);
+    showFatal(
+      `The simulation stopped: ${message}. The village on screen is no ` +
+        'longer being updated — what you are looking at is the last frame ' +
+        'that arrived.',
+      {menu: true, title: 'The village has stopped'},
+    );
+  });
   host.onStructural(msg => {
     // A reconnect resync carries the seat's ever-seen grid afresh.
     if (msg.explored) fog.seedExplored(msg.explored);

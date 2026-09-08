@@ -302,12 +302,51 @@ function pump(): void {
       }
     }
   }
+  // Both of these are guarded, and the tick loop above deliberately is
+  // not: a tick that throws is a sim bug, and swallowing it would leave a
+  // half-stepped world running. These two are read-only projections of a
+  // world that has already ticked cleanly, and a projection that fails is
+  // worth strictly less than the match it used to take down with it.
+  //
+  // Unguarded, one bad projection threw out of pump() on every interval —
+  // and it threw AFTER the ticks and after publish(), so the units kept
+  // walking about on the SAB while the HUD's only structural channel was
+  // dead. Every panel fed by that channel (the building roster, the
+  // players, stock, techs, research, the selected building's card) froze
+  // at its last value for the rest of the match, and nothing anywhere said
+  // so — simHost's worker.onerror answered by rejecting a promise that had
+  // resolved long before. A frozen HUD over a moving world is the worst of
+  // the outcomes available here, worse than a missed frame and worse than
+  // an error card, precisely because it still looks like a working game.
   if (ran) {
-    publish();
+    try {
+      publish();
+    } catch (err) {
+      reportFatal(err);
+    }
+    // Guards itself — see postStructural.
     if (world.tick % MATCHER_INTERVAL === 0 || world.pendingDeltas.length > 0) {
       postStructural();
     }
   }
+}
+
+/**
+ * The frame could not be drawn up. Say so once — to the console for
+ * whoever is debugging, and to the main thread, which is the half that can
+ * actually tell the player their HUD has stopped being true.
+ *
+ * Once, not once per interval: this fires at up to 40 Hz, and a report per
+ * failure would bury the first one (the only one that names the cause)
+ * under thousands of copies of itself.
+ */
+let fatalReported = false;
+function reportFatal(err: unknown): void {
+  if (fatalReported) return;
+  fatalReported = true;
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`[sim worker] could not post a structural frame: ${message}`);
+  post({type: WorkerToMainKind.fatal, message});
 }
 
 /** The logged commands for one tick — players' and AI seats' alike — as a
@@ -332,7 +371,25 @@ let lastBuildingsBody = '';
 let lastPlayersBody = '';
 let lastMiscBody = '';
 
+/**
+ * Draw up and post a structural frame, and never throw out of it.
+ *
+ * Guarded here rather than at each of the three call sites, because the
+ * one that matters most is the hardest to see: init() posts the opening
+ * frame, and a throw there escapes through init's own rethrow into
+ * worker.onerror — the same path a boot failure takes, at a moment when
+ * the match has already reported itself ready. Every route into this
+ * function ends the same way, so the guard belongs on the function.
+ */
 function postStructural(): void {
+  try {
+    postStructuralOrThrow();
+  } catch (err) {
+    reportFatal(err);
+  }
+}
+
+function postStructuralOrThrow(): void {
   if (!world) return;
   // A village changes its rosters far less often than the struct cadence,
   // yet each full frame made the main thread — the battery-relevant one —
