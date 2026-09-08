@@ -345,7 +345,14 @@ function reportFatal(err: unknown): void {
   if (fatalReported) return;
   fatalReported = true;
   const message = err instanceof Error ? err.message : String(err);
-  console.error(`[sim worker] could not post a structural frame: ${message}`);
+  // The thrown value beside the line, not just the message read off it:
+  // the stack is the half that says WHERE the frame came apart, and this
+  // is the one report anybody gets. Losing it in the error path whose
+  // whole job is making a failure diagnosable would be a poor joke.
+  console.error(
+    `[sim worker] could not post a structural frame: ${message}`,
+    err,
+  );
   // Stop here rather than wait to be told. The main thread pauses us when
   // it takes the message, but that is a round trip, and in the case worth
   // caring about — a frame that fails before runMatch has registered for

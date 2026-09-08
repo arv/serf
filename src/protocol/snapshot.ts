@@ -197,8 +197,18 @@ function outWaitingSinceOf(world: World, b: Building): number | undefined {
   return oldest;
 }
 
-/** Types already complained about, so the line is printed once rather than
- * four times a second for the rest of the match. */
+/**
+ * Types already complained about, so the line is printed once rather than
+ * four times a second for as long as the building stands.
+ *
+ * Once per PROCESS, not per match, and the difference is worth stating
+ * because this module is the server's too (see the header): a long-lived
+ * node process serving match after match says it the first time it meets
+ * the type and never again. That is the right lifetime — the same unknown
+ * type in a second match is the same news, and a server repeating itself
+ * every game is the noise this set exists to stop — but an operator
+ * grepping the logs for a second match's copy should know there isn't one.
+ */
 const undescribed = new Set<number>();
 
 /**
