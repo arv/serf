@@ -394,7 +394,19 @@ const sellForTheWoodcutter: EconomyRule = {
       // a salvage pile is the goods themselves.
       if (def.storage || def.isRoad || def.systemOnly) continue;
       if (!canLose(def, b)) continue;
-      const refund = Math.floor((def.cost[GoodId.wood] ?? 0) / 2);
+      // What the sale would ADD, which is not the same as what it yields.
+      // `sellBuilding` piles half the build cost plus everything the place
+      // is holding — its output stock AND its recipe inputs (tick.ts). The
+      // stock is already in `wood` above, since a producer's pile is the
+      // seat's and logistics is carrying it home anyway; the inputs are
+      // not, because a smith's planks are spoken for by its recipe and
+      // reach nobody until the walls come down. So the inputs are exactly
+      // the difference a sale makes, and leaving them out understated the
+      // yield of the one building most likely to be holding wood: a
+      // weaponsmith on bowstaves sits on three.
+      const refund =
+        Math.floor((def.cost[GoodId.wood] ?? 0) / 2) +
+        (b.inputs?.[GoodId.wood] ?? 0);
       if (refund > 0) losable.push({b, refund});
     }
     if (wood >= WOODCUTTER_WOOD || WOOD_TILE === undefined) return null;

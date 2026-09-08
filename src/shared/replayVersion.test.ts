@@ -537,8 +537,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // doc comment — and corrected the example inside it, which offered a well as
 // the cheap roof to sell when the well is one of the three the rule refuses
 // to touch. Comment only; the hash is over raw bytes, which is why it moved.
+// Still 60 after sellForTheWoodcutter learned that a sale returns what the
+// building is HOLDING as well as half its price (Copilot's read of
+// tick.ts's sellBuilding, and correct): a weaponsmith on bowstaves sits on
+// three planks that the rule was not counting, so it could reach past the
+// smallest sale that would actually have covered the shortfall. Rule
+// behavior, which is brain-side — but it changes which building a seat
+// tears down, so it is named here rather than left to the hash.
 const EXPECTED_VERSION = 60;
-const EXPECTED_HASH = '172c8f03b8784a0b82a8f8f89fc251ae';
+const EXPECTED_HASH = '3946549a2291cb2c39c3aeb7060a09f3';
 
 /**
  * Everything a replay's playback depends on, as raw source:

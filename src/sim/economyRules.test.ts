@@ -385,6 +385,29 @@ describe('sellForTheWoodcutter: paying for the axe with a roof', () => {
     expect(rule.fire(contextFor(world))?.claims).toEqual([smith.id]);
   });
 
+  it('counts the planks a roof is holding, not just half its price', () => {
+    // A sale returns what the building is holding as well as half its
+    // price, and a weaponsmith on bowstaves sits on three planks. Half a
+    // smith is five and half a range is five, so on price alone NEITHER
+    // reaches six and the rule falls back to the biggest — taking the
+    // range, which does not solve anything. With its inputs the smith
+    // frees eight, which does.
+    const world = bareWorld();
+    addStorehouse(world, 60, 60, {[GoodId.wood]: 0});
+    placeBuiltBuilding(world, BuildingTypeId.archeryRange, 0, 40, 40);
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      30,
+      30,
+    );
+    smith.inputs = {[GoodId.wood]: 3};
+    addResourceTile(world, 58, 58, TileResource.Wood);
+
+    expect(rule.fire(contextFor(world))?.claims).toEqual([smith.id]);
+  });
+
   it('will not sell the bread out of the village to buy an axe', () => {
     // The first version of this rule took the biggest refund full stop and
     // sold the Abbot's bakery, trading a wood famine for a bread famine.
