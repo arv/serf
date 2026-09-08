@@ -1020,7 +1020,12 @@ export class SceneSync {
             // the one he spends at the door.
             if (home && arrived) {
               visual.pierUntil ??= animNow + PIER_DROP_HOLD;
-              if (animNow >= visual.pierUntil) {
+              // ...and he only picks the rod back up once there is fishing
+              // to go back out FOR. A stalled hut publishes the same idle
+              // the catch does and never stops, so a beat that expired on
+              // the clock alone would walk him out to cast at a hut that
+              // has nowhere to put the fish.
+              if (working && animNow >= visual.pierUntil) {
                 visual.pierHauling = false;
                 visual.pierUntil = undefined;
               }

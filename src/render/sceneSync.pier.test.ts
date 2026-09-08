@@ -174,6 +174,23 @@ describe('the fisherman on his deck', () => {
     expect(along(r.where())).toBeGreaterThan(0.5);
   });
 
+  it('waits at the door while the hut is stalled, and goes out when it is not', () => {
+    const r = rig();
+    r.step(240);
+    // A stalled hut (buffer full, nobody hauling) publishes the same idle
+    // the catch does, and never stops. He walks in on the first of them and
+    // stays: the beat at the door runs out on the clock, but there is
+    // nothing to go back out and cast for.
+    r.step(300, ACTION.idle);
+    expect(along(r.where())).toBeLessThan(0.1);
+    // Well past PIER_DROP_HOLD, and still there.
+    r.step(300, ACTION.idle);
+    expect(along(r.where())).toBeLessThan(0.1);
+    // Fishing again: the beat expires and he goes back out.
+    r.step(180);
+    expect(along(r.where())).toBeGreaterThan(1.0);
+  });
+
   it('retraces the deck when the sim takes him off post', () => {
     const r = rig();
     r.step(240);
