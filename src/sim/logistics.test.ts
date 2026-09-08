@@ -257,7 +257,7 @@ describe('logistics matcher', () => {
 describe('the load home', () => {
   /**
    * The trip the village kept failing to make. A serf carries the miners'
-   * bread out, sets it down, and stands in the mine with silver on the
+   * bread out, sets it down, and stands at the mine with silver on the
    * shelf at his feet — and the board sends him back to the castle empty
    * for an errand that outranks it, because it deals the job first and
    * looks for the nearest man second. Two crossings for a load already in
@@ -343,13 +343,19 @@ describe('the load home', () => {
     expect(job?.from).toBe(mine.id);
   });
 
-  it('does not hold a hand a starved site is waiting on', () => {
-    // The standing job is dealt before the tier shares, but never before
-    // the recruitment sweep: a serf has to be idle for the beat after a
-    // dropoff, or a site past its builder-starvation bound can never claim
-    // the hand that frees up (systems/staffing.ts). Delivering into the
-    // site itself is the sharpest case — he lands the last plank standing
-    // in the very building that wants him.
+  it('lets the site it just supplied recruit the man who supplied it', () => {
+    // The narrow case, and the one the standing job could quietly break: a
+    // serf lands the last plank at a site and is standing at the very
+    // building that wants a builder. If claiming a standing job ran as the
+    // delivery landed, he would never be idle and the site could never
+    // have him — the whole reason takeStandingJobs is a pass over the
+    // board instead (systems/staffing.ts recruits after logistics).
+    //
+    // Deliberately not a test of the BUILDER_STARVED_TICKS bound itself:
+    // one serf and one site raise no sustained haul pressure, so nothing
+    // here is starved. builderStarvation.test.ts is what measures the
+    // bound, under six mills' worth of pressure, and it is the test the
+    // inline version of this change failed.
     const world = bareWorld();
     addStorehouse(world, 20, 30, {[GoodId.wood]: 40});
     const site = addSite(world, 34, 30);

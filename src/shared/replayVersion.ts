@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 58: the load home. A serf standing in a building now takes that
+ * 58: the load home. A serf standing at a building now takes that
  * building's own open haul before the board deals anything that needs a
  * walk (systems/logistics.ts) — the man who carried bread into the mine
  * leaves with its silver instead of walking back to the castle empty and
