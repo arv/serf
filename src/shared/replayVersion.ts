@@ -20,13 +20,13 @@
  * directly.
  */
 /**
- * 58: the armory holds one of each arm.
+ * 59: the armory holds one of each arm.
  *
- * 58 and not 56, which is the number this was cut as: main took 56 (the
- * reachable-ground rule) and 57 (the fishery's footprint) while the branch
- * was open, and two builds cannot share a number. The third time running
- * that this branch's line has had to move up under it, and the notes below
- * record the same thing happening to theirs.
+ * 59, cut as 56: main took 56 (the reachable ground rule), 57 (the
+ * fishery's footprint) and 58 (the load home) while this branch was open.
+ * Fourth number for one change, and the note below this one says the same
+ * of itself in the same words — which is the pattern worth reading rather
+ * than any one of the four.
  *
  * START_STOCK (defs/balance.ts) went from two spears and a sword to a
  * spear, a sword and a bow. A building's stores are read every tick a
@@ -46,6 +46,23 @@
  * now, because the rack no longer carries it to a raiding party and the
  * iron that replaces those spears has to arrive sooner; and the Fletcher's
  * notes stopped describing an armory with two spears in it.
+ *
+ * 58's note follows.
+ */
+/**
+ * 58: the load home. A serf standing at a building now takes that
+ * building's own open haul before the board deals anything that needs a
+ * walk (systems/logistics.ts) — the man who carried bread into the mine
+ * leaves with its silver instead of walking back to the castle empty and
+ * being sent out again for it.
+ *
+ * 58, cut as 55: main took 55, 56 and 57 while this branch was in review.
+ * Fourth number, same reason the three notes below give for their own
+ * renumbering, and by now the pattern is the note worth reading.
+ *
+ * Which serf claims which job changes on the first delivery of a match,
+ * and every haul after it is re-timed, so a log recorded before this build
+ * diverges within seconds of the opening.
  *
  * 57's note follows.
  */
@@ -853,4 +870,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 58;
+export const REPLAY_VERSION = 59;

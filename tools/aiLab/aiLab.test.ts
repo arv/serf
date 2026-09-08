@@ -114,25 +114,35 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * war then ran 1_077 ticks LATER than the control, which asserts the
  * opposite of what it is here to assert. On 1 seat 1 wins either way, at
  * 14_880 unadvised and at 11_299 marching at four, so the bound again sits
- * above the slower of the two with room to spare.
- * ...and to 13 when the armory went to one of each arm (START_STOCK in
- * sim/defs/balance.ts), which takes a spear off every opening and so
- * re-times every war in the deck. On 1 the two runs then ended on the SAME
- * tick — 19_235 either way, the advice no longer buying a single beat —
- * which asserts nothing at all. On 13 seat 1 wins both ways, at 15_294
- * unadvised and 12_431 marching at four.
+ * above the slower of the two with room to spare; and to 20 when the load
+ * home (replay 58) re-timed every haul in the game — on 1 the two wars
+ * then ended on the SAME tick, 13_758 apiece, which is the one outcome
+ * this fixture cannot use. On 20 seat 0 takes the valley at 13_910
+ * unadvised and seat 1 marching at four ends it at 11_844.
  *
- * The bound went 16_000 -> 18_000 with it, and not because 13 needs it:
- * 15_294 already fits. It is margin bought on purpose. Every re-seeding
- * above happened because a change re-timed a valley into the bound, and a
- * fixture that sits 706 ticks under its ceiling is one balance change away
- * from the next one. 2_706 is cheap here — three matches, on the one
- * fixture in this file that runs a war to its end.
+ * ...and to 11 when the armory went to one of each arm (START_STOCK in
+ * sim/defs/balance.ts), which takes a spear off every opening and so
+ * re-times every war again. That change and the load home were written
+ * over each other: each re-seeded this fixture on its own branch — 20
+ * above, and 13 on the armory's — and NEITHER pick survives the two
+ * together. On 20 the control now runs to 25_283, far past this bound; on
+ * 13 the advised war ends 909 ticks LATER than the control, which asserts
+ * the opposite of what this test is for. On 11 seat 1 wins both ways, at
+ * 19_874 unadvised and 16_276 marching at four.
+ *
+ * The bound went 16_000 -> 22_000 with it. 11 needs 20_000 of that; the
+ * rest is margin bought on purpose. This fixture has now been re-seeded
+ * four times and every one of them was a balance change re-timing a valley
+ * into the ceiling or squeezing the gap between the two runs shut. 11 is
+ * picked for having room on both counts — 2_126 ticks under the bound and
+ * 3_598 between the runs — rather than for being the cheapest seed that
+ * passes today. Seed 5 was the cheapest (14_985 and 14_104, inside the old
+ * bound) and is exactly the thin margin that keeps bringing us back here.
  *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 13;
-const FULL_MATCH_TICKS = 18_000;
+const FULL_MATCH_SEED = 11;
+const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {
   it('never reads a clean sweep as certainty', () => {
