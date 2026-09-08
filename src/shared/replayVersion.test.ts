@@ -24,6 +24,10 @@ import {REPLAY_VERSION} from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
+// 55 for the repair pull (systems/logistics.ts): which hand takes which
+// haul, and in what order, is sim behavior of the plainest kind — every
+// good in the village is somewhere else a second later. The note in
+// replayVersion.ts says what it fixes and why it pulls rather than books.
 // Still 49 after the Mason: a fifth playbook, an economy rule that stands a
 // full garrison's barracks down, and a build-order anchor that counts spoil.
 // Playbook data and the rule layer that reads it are brain-side, and
@@ -407,8 +411,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // that had not seen the Monument's bread yet — the bread is a consumed
 // cost and did move the number, so the two meet at 54 rather than at
 // either one alone.
-const EXPECTED_VERSION = 54;
-const EXPECTED_HASH = '6f38808aa1d2cfe7275f1e3c6e163713';
+const EXPECTED_VERSION = 55;
+const EXPECTED_HASH = '0d60957027d59da47853b7284b5593f1';
 
 /**
  * Everything a replay's playback depends on, as raw source:

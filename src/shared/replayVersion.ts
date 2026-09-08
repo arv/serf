@@ -713,6 +713,30 @@
  * freed hand to idle (#94).
  */
 /**
+ * 55: an ordered repair pulls the loads already walking its way up to its
+ * own tier (systems/logistics.ts, repairPull/tierOf). Which hand takes
+ * which job, and in what order, decides where every good in the village is
+ * a second later — this is as behavioral as a change gets, and a log
+ * recorded before it re-runs into a different world within a few hundred
+ * ticks.
+ *
+ * What it fixes: the matcher books a repair at construction priority and
+ * then nets what it asks for against `inbound`. At the storehouse — where
+ * every producer in the village evacuates to, so inbound is permanently
+ * thick with priority-3 hauls — that netting always came out at or below
+ * zero, no tier-1 job was ever booked, and the order's priority was
+ * silently discarded. A recorded match had the castle repaired at 60%
+ * health and the order still reading "wants 3 wood, 2 stone" 3,700 ticks
+ * later, when the building was destroyed under it. The same match now
+ * settles the bill 711 ticks after it is ordered.
+ *
+ * A pull rather than a fresh booking, because the netting is right about
+ * quantity: a load already walking in feeds the mend when it lands
+ * (deliver puts any good arriving at a building with an outstanding
+ * repairNeeds straight into the walls), so booking a second would haul a
+ * plank nobody needed moved. Only the rank was wrong, and only the rank
+ * moves.
+ *
  * 54: the Monument's bread halved, twenty loaves to ten
  * (defs/buildings.ts). A building's cost is consumed as its site rises, so
  * every tick after the first delivery carries different stores — a balance
@@ -726,4 +750,4 @@
  * and a logged command still executes as it did. The bread is why this is
  * 54.
  */
-export const REPLAY_VERSION = 54;
+export const REPLAY_VERSION = 55;
