@@ -4,30 +4,33 @@
  *
  *   node tools/modelLab/reroofFishery.mjs [modelDir]
  *
- * The hut came out of Blender with its roof boarded at the modeller's
- * pitch: 13 boards a slope, 0.066 wide with a 0.006 groove between them,
- * and every board sampling the atlas column at its own offset. Against the
- * pack that is a slatted deck, not a roof. Two numbers say why:
+ * The hut came out of Blender boarded at the modeller's pitch — 13 boards a
+ * slope, 0.066 wide with a 0.006 groove between them, every one of them at a
+ * dead 45 degrees. Against the pack that is a slatted deck rather than a
+ * roof, and it is wrong in both directions at once:
  *
- * - **Board pitch, measured after `normalize`** — every building is fitted
- *   to the unit square before it is drawn (assets.ts), so a raw model width
- *   says nothing on its own. The hut normalizes by 0.643 (its bbox is 1.55
- *   across, the boat off the gable owning most of that), which put its
- *   boards at 0.047 of the footprint against 0.082 on home_A, 0.064 on
- *   home_B, 0.061 on the church. Half the pack's board is twice the pack's
- *   line work.
- * - **Shade jitter** — the roof column is a ramp (u = 0.4375, v running
- *   0.80..0.92 eave to ridge), and each board was laid on it at its own v,
- *   the spread across boards reaching a third of a board's own span. Every
- *   seam therefore came with a step in tone on top of the groove, which is
- *   what read as stripes at village zoom. Kay's roofs sample one continuous
- *   ramp: on home_A the whole roof is a single welded surface.
+ * - **Too many lines.** Board width has to be measured after `normalize`,
+ *   which fits every building to the unit square before it is drawn
+ *   (assets.ts). The hut normalizes by 0.643 — its bbox is 1.55 across, the
+ *   boat off the gable owning most of that — which put its boards at 0.047
+ *   of the footprint against 0.082 on home_A, 0.064 on home_B, 0.061 on the
+ *   church. Half the pack's board is twice the pack's line work.
+ * - **No bands.** A KayKit roof carries two tones, and they are made of
+ *   geometry: the main face is 45 degrees and a section of every slope sits
+ *   at 41.4 (measured on home_A — see the STRIPS note in procBuildings.ts),
+ *   so the surface kinks and the two halves take the light a shade apart.
+ *   A roof of boards all at one pitch cannot have that at any width. It has
+ *   to be the normals, because the roof column lands inside TEAM_SWATCH_UV:
+ *   a faction-owned roof is drawn in one flat Lambert colour and its UVs
+ *   never reach a pixel.
  *
- * So: keep 5 boards a slope (0.120 of the footprint — a shade wider than
- * home_A's, which is the point, this is a plank roof and it should say so),
- * spread to cover the same span the 13 did, and put every board on one
- * shared v ramp. The boards kept are the modeller's own, jitter in height
- * and length intact, so the roof still reads as laid rather than extruded.
+ * So: 5 boards a slope (0.120 of the footprint — a shade wider than home_A's,
+ * which is the point, this is a plank roof and should say so), spread across
+ * the span the 13 covered, and one board on each slope swung to Kay's 41.4.
+ * The boards kept are the modeller's own, jitter in height and length
+ * intact, so the roof still reads as laid rather than extruded. Their v
+ * offsets are levelled onto one ramp while we are here — inert on a
+ * faction roof, but it is what the bandit-grey stock material would show.
  *
  * Written down as a script rather than done by hand because the alternative
  * is an unreviewable diff in a .bin. It runs once, on the model as Blender
@@ -42,6 +45,14 @@ const NAME = 'building_fishery_green';
 const KEEP = [0, 3, 6, 9, 12];
 /** The groove left between two boards, in model units (was 0.006). */
 const GAP = 0.004;
+/**
+ * Which of the kept boards are laid at Kay's shallower pitch, per slope —
+ * the +z slope first. Off-centre and different on the two, because his
+ * roofs are not symmetrical either.
+ */
+const SHALLOW = [[1], [3]];
+/** How much shallower, in degrees: 45 down to Kay's 41.4. */
+const KINK_DEG = 3.6;
 /** The atlas column the team-colour roof is cut from. */
 const ROOF_U = 0.4375;
 
@@ -156,7 +167,7 @@ const ramp = [
 ];
 
 const dropped = new Set();
-for (const slope of slopes) {
+for (const [si, slope] of slopes.entries()) {
   const x0 = slope[0].x0;
   const pitch = (slope.at(-1).x1 - x0) / KEEP.length;
   slope.forEach((board, i) => {
@@ -172,6 +183,32 @@ for (const slope of slopes) {
       pos[j][0] = pos[j][0] < mid ? left : right;
       const along = (uv[j][1] - board.vmin) / (board.vmax - board.vmin);
       uv[j][1] = ramp[0] + along * (ramp[1] - ramp[0]);
+    }
+    // Kay's kink: swing this board shallower about its own middle, in the
+    // plane the slope falls through. Its ridge end tucks under the cap and
+    // its eave end lifts, and — normals turning with it — it takes the
+    // light a shade apart from the boards either side, which is the whole
+    // point of doing it in geometry.
+    if (!SHALLOW[si].includes(k)) return;
+    const dir = board.zc > 0 ? -1 : 1;
+    const th = (dir * KINK_DEG * Math.PI) / 180;
+    const cos = Math.cos(th);
+    const sin = Math.sin(th);
+    const cz =
+      [...board.piece.verts].reduce((a, j) => a + pos[j][2], 0) /
+      board.piece.verts.size;
+    const cy =
+      [...board.piece.verts].reduce((a, j) => a + pos[j][1], 0) /
+      board.piece.verts.size;
+    const spin = (v, oz, oy) => {
+      const z = v[2] - oz;
+      const y = v[1] - oy;
+      v[2] = oz + z * cos - y * sin;
+      v[1] = oy + z * sin + y * cos;
+    };
+    for (const j of board.piece.verts) {
+      spin(pos[j], cz, cy);
+      spin(nrm[j], 0, 0);
     }
   });
 }
