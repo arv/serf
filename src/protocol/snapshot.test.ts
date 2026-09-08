@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units.ts';
@@ -47,6 +48,50 @@ describe('snapBuilding: resourceLeft', () => {
     world.map.resourceAmt[33 + 33 * world.map.size] = 0;
     expect(snapBuilding(world, hut).resourceLeft).toBe(0);
     expect(findResourceNear(world.map, 31, 31, TileResource.Wood, 8)).toBe(-1);
+  });
+
+  it('counts only what the worker can walk to, and says how much is shut out', () => {
+    // The readout the docstring above promises, made true. A quarry whose
+    // last rock sat ringed by its own grove reported "in reach: 10" for
+    // the eight minutes it stood dead, because the count walked the square
+    // and never asked whether anything could be walked to. Ten loads and
+    // no trips are different facts and the card has to carry both: nothing
+    // reachable and nothing standing is a hut to sell, nothing reachable
+    // with loads shut out is a grove to fell.
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30, false);
+    const size = world.map.size;
+    addResourceTile(world, 35, 31, TileResource.Wood, 6); // open ground: countable
+    addResourceTile(world, 27, 31, TileResource.Wood, 4); // sealed, below
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const i = tileIdx(27 + dx, 31 + dy, size);
+        world.map.resource[i] = TileResource.Rock;
+        world.map.resourceAmt[i] = 6;
+        world.map.blocked[i] = 1;
+      }
+    }
+    expect(snapBuilding(world, hut).resourceLeft).toBe(6);
+    expect(snapBuilding(world, hut).resourceBlocked).toBe(4);
+
+    // With the open grove gone the hut has no trips left in it at all, and
+    // still must not read as worked out: the four loads are standing right
+    // there, and felling one tree of the ring gives them back.
+    world.map.resource[tileIdx(35, 31, size)] = TileResource.None;
+    world.map.resourceAmt[tileIdx(35, 31, size)] = 0;
+    world.map.blocked[tileIdx(35, 31, size)] = 0;
+    expect(snapBuilding(world, hut).resourceLeft).toBe(0);
+    expect(snapBuilding(world, hut).resourceBlocked).toBe(4);
+  });
+
+  it('says nothing is shut out when nothing is', () => {
+    // Absent rather than zero: the roster ships on its serialized body
+    // changing, so a field that is always there is always in the diff.
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30, false);
+    addResourceTile(world, 35, 31, TileResource.Wood, 6);
+    expect(snapBuilding(world, hut).resourceBlocked).toBeUndefined();
   });
 
   it('is absent for buildings that work no land', () => {

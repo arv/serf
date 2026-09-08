@@ -20,6 +20,117 @@
  * directly.
  */
 /**
+ * 57: the fishery stands on 2x2.
+ *
+ * 57 and not 55, which is the number this was cut as: main took 55 (the
+ * Archery Range) and 56 (the reachable-ground rule) while the branch was
+ * open, and two builds cannot share a number — the same renumbering the
+ * two notes below record about themselves.
+ *
+ * A footprint is sim, not decoration. `canPlace` measures the flat ground
+ * under it and the water within a tile of it, `placeBuilding` blocks the
+ * tiles it covers, and every serf walking past one paths around what it
+ * blocked. A shoreline that had to give nine tiles of buildable bank gives
+ * four now — on seed 1 that is 416 legal fishery sites where there were
+ * 379 — so a log recorded before this re-runs into a valley whose shores
+ * take fisheries the old one refused, and where one already stands it
+ * stands on different ground with different tiles walkable around it.
+ *
+ * (The hut drawn on that footprint got smaller with it, and its jetty was
+ * re-authored in tiles so the planks still reach the water. That half is
+ * render only — assets.ts — and nothing in a tick can see it.)
+ *
+ * 56's note follows.
+ */
+/**
+ * 56: a gatherer answers only for ground it can walk to.
+ *
+ * 56 and not 54, which is the number this was cut as: main took 54 (the
+ * Monument's bread) and then 55 (the Archery Range) while the branch was
+ * open, and two builds cannot share a number. Nothing about the change is
+ * different for it — the same reasoning the 55 note below records about
+ * itself.
+ *
+ * Every question this game asked about the ground under a hut was the same
+ * question — is there anything of the kind inside the search square? — and
+ * none of them was the question that matters, which is whether the worker
+ * can get to it. A quarry in a real match found its last rock ringed by its
+ * own grove and stood dead for eight minutes in front of it: the trip-start
+ * pathed at that tile, failed, and idled forty ticks; the card read "in
+ * reach: 10"; the seat's re-siting rule saw ground still standing and held
+ * its hand; and the placement rule would have raised the next quarry on the
+ * same spot. The barracks it fed waited on five stone that were never
+ * coming.
+ *
+ * There is one answer now (map.ts `canWorkResourceNear`): a bounded flood
+ * of the walkable ground around the hut, seeded from its own doorstep and
+ * stepping exactly as the pathfinder steps. One thing a tick does with it
+ * is sim behavior:
+ *
+ * - `canPlace` refuses a gatherer whose only resource is walled in, so a
+ *   placeSite command that used to raise a hut can now be refused, and a
+ *   valley full of AI seats lays its foundations somewhere else.
+ *
+ * The gather loop asks it too, but only as a guard on its own search: a hut
+ * that can reach anything picks its trip in the ring order it always did
+ * and paths to it exactly as before, so a working village is untouched. A
+ * hut that can reach nothing idles without paying for the eight failed A*
+ * searches it used to run every forty ticks forever — the same outcome, at
+ * a bounded price. The one place that changes an outcome is the hut whose
+ * only reachable ground lies past a detour longer than its whole search
+ * radius, which the flood's bound gives up on and the old search would have
+ * walked to.
+ *
+ * 55's note follows.
+ *
+ * 55: the bow gets its own roof — the Archery Range.
+ *
+ * 55 and not 54 because main took 54 while this branch was open (the
+ * Monument's bread, halved; its note follows below). Two builds cannot
+ * share a number — the whole point of it is that a file stamped 54 names
+ * one world of behavior — so the later of the two to land moves up.
+ * Nothing about the change below is different for it.
+ *
+ * The archer left the barracks' roster for a building of his own (2x2, 10
+ * wood and 2 stone, unlocked by Archery rather than by a gate of its own)
+ * and trains there in nine seconds instead of twelve. Three things move at
+ * once because of it. A barracks that used to answer `trainUnit archer`
+ * now refuses it, which is a command whose meaning changed. The AI's
+ * `keepTheQueueWarm` reads every hall a seat owns instead of the first
+ * building whose type is `barracks`, and warms each against that hall's own
+ * roster — so the orders two of the five playbooks issue differ from the
+ * first beat their range stands, and their build orders carry a roof that
+ * did not exist. And the range itself is a building id no earlier build
+ * ever wrote, which is format as much as behavior.
+ *
+ * The rule layer is brain-side and a replay stores commands rather than
+ * re-deriving them, so on its own that half would not have bumped this
+ * (see the "Still 49 after the Mason" entry in replayVersion.test.ts). The
+ * roster change is not brain-side: a log recorded before this build carries
+ * archer orders aimed at a barracks, and this build drops every one of
+ * them — the army that log musters never exists here.
+ *
+ * The save format is untouched: a building id is already a number in a
+ * save, and no file written before this can contain a 22, so
+ * WORLD_SAVE_VERSION stays at 9 and old saves still open.
+ *
+ * 54's note follows.
+ *
+ * 54: the Monument's bread halved, twenty loaves to ten
+ * (defs/buildings.ts). A building's cost is consumed as its site rises, so
+ * every tick after the first delivery carries different stores — a balance
+ * number in the plainest sense, and a replay recorded before that build
+ * spends a larder it no longer has.
+ *
+ * The same commit lets the Monument be PLACED before its price is banked,
+ * and that half needed no number: nothing in the sim ever asked a
+ * placement to be paid for, so what moved there was two policies deciding
+ * when to send a command — a lord's build order and a player's button —
+ * and a logged command still executes as it did. The bread is why that is
+ * 54.
+ *
+ * 53's note follows.
+ *
  * 53: the kite costs the archer something.
  *
  * A ranged unit backing away from a closing melee man used to loose an
@@ -712,32 +823,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-/**
- * 54: the Monument's bread halved, twenty loaves to ten
- * (defs/buildings.ts). A building's cost is consumed as its site rises, so
- * every tick after the first delivery carries different stores — a balance
- * number in the plainest sense, and a replay recorded before this build
- * spends a larder it no longer has.
- *
- * The same commit lets the Monument be PLACED before its price is banked,
- * and that half needed no number: nothing in the sim ever asked a
- * placement to be paid for, so what moved there was two policies deciding
- * when to send a command — a lord's build order and a player's button —
- * and a logged command still executes as it did. The bread is why this is
- * 54.
- */
-/**
- * 55: the fishery stands on 2x2 (defs/buildings.ts).
- *
- * A footprint is sim, not decoration: `canPlace` measures the ground under
- * it and the water within a tile of it, `placeBuilding` blocks the tiles it
- * covers, and every serf who walks past one paths around what it blocked.
- * A shore that was nine tiles of buildable bank is four now, so a log
- * recorded before this re-runs into a village whose shoreline takes
- * fisheries the old one refused — and where one already stands, it stands
- * on different ground with different tiles walkable around it.
- *
- * (The same commit drew the hut smaller and re-authored its jetty, which
- * is render only — 54's note above is the last thing the sim did.)
- */
-export const REPLAY_VERSION = 55;
+export const REPLAY_VERSION = 57;

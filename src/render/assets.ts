@@ -70,6 +70,12 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.goldMine]: 'building_mine_green.gltf',
   [BuildingTypeId.weaponsmith]: 'building_blacksmith_green.gltf',
   [BuildingTypeId.barracks]: 'building_barracks_green.gltf',
+  // The pack shipped a range and nothing ever placed it: a fenced
+  // shooting lane with straw butts at the far end and a rack of staves
+  // under the shed. It reads apart from the barracks at village zoom on
+  // the fence alone, which is the whole reason the two can stand next to
+  // each other in a yard.
+  [BuildingTypeId.archeryRange]: 'building_archeryrange_green.gltf',
   [BuildingTypeId.abbey]: 'building_church_green.gltf',
   [BuildingTypeId.banditCamp]: 'building_tower_B_red.gltf',
   // The pack ships four towers and only this one is a watchtower: a plain

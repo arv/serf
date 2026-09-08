@@ -229,9 +229,11 @@ describe('barracks training', () => {
   it('gates gated units until their tech lands', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {[GoodId.food]: 10, [GoodId.bow]: 2});
-    const barracks = placeBuiltBuilding(
+    // The range rather than the barracks: the bow is trained under its own
+    // roof now, so the roof is where the tech gate has to be seen working.
+    const range = placeBuiltBuilding(
       world,
-      BuildingTypeId.barracks,
+      BuildingTypeId.archeryRange,
       0,
       36,
       30,
@@ -240,12 +242,42 @@ describe('barracks training', () => {
       world,
       cmds({
         kind: CommandKind.trainUnit,
-        buildingId: barracks.id,
+        buildingId: range.id,
         unit: UnitTypeId.archer,
       }),
     );
-    expect(barracks.trainQueue ?? []).toEqual([]);
+    expect(range.trainQueue ?? []).toEqual([]);
 
+    // Archery ALONE, and the omission is the assertion. Archery used to sit
+    // behind Soldiery, so granting both said nothing about which one opened
+    // the door; now that warfare has two roots, a bow plan that never buys
+    // the spear line has to reach its own archer. Adding Soldiery back here
+    // would let a reintroduced dependency pass unnoticed.
+    world.players[0]!.techs.researched.push(TechId.archery);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.trainUnit,
+        buildingId: range.id,
+        unit: UnitTypeId.archer,
+      }),
+    );
+    expect(range.trainQueue?.length).toBe(1);
+  });
+
+  it("the barracks refuses the bow: that roster is the range's", () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {[GoodId.food]: 10, [GoodId.bow]: 2});
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
+    // Both roots here, unlike the test above, and deliberately: the claim is
+    // that a barracks which is in every way entitled to train — its own tech
+    // in, the bow's tech in, bows on the shelf — still refuses the archer.
     world.players[0]!.techs.researched.push(TechId.soldiery, TechId.archery);
     tickWorld(
       world,
@@ -255,7 +287,10 @@ describe('barracks training', () => {
         unit: UnitTypeId.archer,
       }),
     );
-    expect(barracks.trainQueue?.length).toBe(1);
+    // Unlocked, armed, and still refused — the split is a roster and not a
+    // second tech gate, which is the whole difference between "not yet" and
+    // "not here".
+    expect(barracks.trainQueue ?? []).toEqual([]);
   });
 
   it('a stuck head does not block trainable units behind it (skip-ahead)', () => {
