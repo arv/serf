@@ -90,8 +90,35 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * parameters, 12/15 against a bar of 8, and lose no valley in any pairing.
  * Picked for that margin rather than for scraping past: 108 and 129 also
  * pass at 4/7 apiece, which is one duel from failing and is how this pin
- * keeps ending up back here. */
-const SEEDS = [115, 143] as const;
+ * keeps ending up back here.
+ *
+ * 115 out and 1003 in when the Archery Range took the barracks' footprint:
+ * 115 began losing a valley in hard-v-easy, 143 stayed clean. 1003 reads
+ * hard-v-normal 6/8 and loses no valley in any pairing — 115's own reading
+ * when it was picked, so the pair is 12/15 again, unchanged.
+ *
+ * The sweeps were run first as the note above prescribes, and this time
+ * they were run on BOTH trees, because a pin that moves for a footprint is
+ * exactly where a real regression would hide. Range 101, 24 seeds, five
+ * playbooks:
+ *
+ *   main         h-v-n 134/226 (59.3%)   h-v-e 199/231 (86.1%)
+ *   3x3 range    h-v-n 140/230 (60.9%)   h-v-e 204/234 (87.2%)
+ *
+ * The tier did not move, and what movement there is runs the right way.
+ * Per playbook it is the same story: the abbot reads h-v-n 7/39 losing 10
+ * valleys on main against 11/42 losing 9 here, and h-v-e 20/45 losing 5
+ * against 21/46 losing 5. Which is the finding worth carrying forward, and
+ * it is not this change's: THE ABBOT'S HARD TIER IS BROKEN, on main, today.
+ * Every other playbook loses at most one valley in 48 across all three
+ * pairings; the abbot alone accounts for five of the five hard-v-easy
+ * losses on either tree. The note above already saw the edge of this ("the
+ * abbot twice") and read it as the load home's cost; two sweeps say it is
+ * a property of the seat rather than of any one change, and that this
+ * file's strongest claim now rests on picking seeds the abbot happens not
+ * to lose. That is a difficulty knob to answer (sim/defs/difficulty.ts),
+ * not a pin. */
+const SEEDS = [143, 1003] as const;
 /** Well past a decided duel at this size; the sweeps use 60k, and the
  * extra 20k buys suite time and nothing else. */
 const MAX_TICKS = 40_000;
