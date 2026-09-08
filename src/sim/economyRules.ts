@@ -343,8 +343,18 @@ function canLose(def: BuildingDef, b: Building): boolean {
  *   and under six planks" is a sentence about a village that has already
  *   lived a while and lost something.
  *
- * What it sells is the biggest wood refund among the roofs a village can
- * lose and still be a village. That exclusion is not fastidiousness, it is
+ * What it sells is the SMALLEST roof that closes the gap — the least wood
+ * back that still reaches the hut's price — among those a village can lose
+ * and still be a village. Biggest-refund-first was the obvious rule and it
+ * is wrong: a seat one plank short of six sold its barracks for six, which
+ * on the lab's own war fixture (aiLab.test.ts) traded a war it was winning
+ * for a woodcutter it needed a single log for. Least damage that actually
+ * works is the trade; a well at two planks back is the right answer to
+ * being one short. Only when nothing on its own reaches the price does it
+ * fall back to the biggest refund standing, because then the point is to
+ * make progress and come back next beat.
+ *
+ * The exclusions below are the other half of not overpaying. That exclusion is not fastidiousness, it is
  * the first version of this rule failing in the lab: told to take the
  * largest refund full stop, the Abbot sold its barracks, its abbey, its
  * BAKERY, its range and its smith inside twelve hundred ticks, and a seat
@@ -360,9 +370,8 @@ function canLose(def: BuildingDef, b: Building): boolean {
  *   or the well's water. Wheat is a gatherer and already covered.
  *
  * What is left is the military and the luxuries — a barracks, a range, a
- * tower, an abbey, a smith, a brewery — which is the right answer anyway.
- * A seat that cannot cut a log is not about to win a fight, and the build
- * order rebuilds losses on its own once the logs are coming again.
+ * tower, an abbey, a smith, a brewery — and the build order rebuilds
+ * losses on its own once the logs are coming again.
  *
  * Ties break by building id, ascending, so the choice is deterministic.
  */
@@ -372,8 +381,7 @@ const sellForTheWoodcutter: EconomyRule = {
   phase: RulePhaseNs.recovery,
   fire(ctx) {
     let wood = ctx.carried[GoodId.wood] ?? 0;
-    let best: Building | undefined;
-    let bestRefund = 0;
+    const losable: {b: Building; refund: number}[] = [];
     for (const b of ctx.mine) {
       if (b.type === BuildingTypeId.woodcutter) return null;
       wood += b.stock?.[GoodId.wood] ?? 0;
@@ -386,14 +394,32 @@ const sellForTheWoodcutter: EconomyRule = {
       if (def.storage || def.isRoad || def.systemOnly) continue;
       if (!canLose(def, b)) continue;
       const refund = Math.floor((def.cost[GoodId.wood] ?? 0) / 2);
-      if (refund > bestRefund) {
+      if (refund > 0) losable.push({b, refund});
+    }
+    if (wood >= WOODCUTTER_WOOD || WOOD_TILE === undefined) return null;
+    // Cheapest sale that actually reaches the price; failing that, the
+    // biggest one standing. `losable` is in ctx.mine's order, which is
+    // ascending id, and both scans keep the first of an equal pair — so
+    // the tie-break is by id without a sort.
+    const short = WOODCUTTER_WOOD - wood;
+    let best: Building | undefined;
+    let bestRefund = 0;
+    for (const {b, refund} of losable) {
+      if (refund < short) continue;
+      if (best === undefined || refund < bestRefund) {
         best = b;
         bestRefund = refund;
       }
     }
-    if (wood >= WOODCUTTER_WOOD || !best || WOOD_TILE === undefined) {
-      return null;
+    if (!best) {
+      for (const {b, refund} of losable) {
+        if (refund > bestRefund) {
+          best = b;
+          bestRefund = refund;
+        }
+      }
     }
+    if (!best) return null;
     if (
       nearestClaimableResource(
         ctx.world,

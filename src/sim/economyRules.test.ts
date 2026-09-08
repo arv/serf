@@ -347,6 +347,44 @@ describe('sellForTheWoodcutter: paying for the axe with a roof', () => {
     expect(rule.fire(contextFor(world, {[GoodId.wood]: 6}))).toBeNull();
   });
 
+  it('sells the cheapest roof that closes the gap, not the biggest', () => {
+    // One plank short, with a tower worth three back and a barracks worth
+    // six. Taking the biggest refund is what the first version did, and on
+    // the lab's war fixture it sold a seat's barracks to buy a single log
+    // — trading a war it was winning for a woodcutter.
+    const world = bareWorld();
+    addStorehouse(world, 60, 60, {[GoodId.wood]: 5});
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 30, 30);
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      34,
+      30,
+    );
+    addResourceTile(world, 58, 58, TileResource.Wood);
+
+    expect(rule.fire(contextFor(world))?.claims).toEqual([tower.id]);
+  });
+
+  it('falls back to the biggest roof when nothing alone reaches the price', () => {
+    // Nothing here refunds the whole six, so the rule takes the most it
+    // can get and comes back next beat rather than standing still.
+    const world = bareWorld();
+    addStorehouse(world, 60, 60, {[GoodId.wood]: 0});
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      30,
+      30,
+    );
+    placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 34, 30);
+    addResourceTile(world, 58, 58, TileResource.Wood);
+
+    expect(rule.fire(contextFor(world))?.claims).toEqual([smith.id]);
+  });
+
   it('will not sell the bread out of the village to buy an axe', () => {
     // The first version of this rule took the biggest refund full stop and
     // sold the Abbot's bakery, trading a wood famine for a bread famine.
