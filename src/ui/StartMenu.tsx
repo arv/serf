@@ -39,6 +39,7 @@ import {fullscreen} from './fullscreen';
 import {LockIcon} from './icons';
 import {releaseMenuBackdrop} from './menuBackdrop';
 import {Glide, spotlight} from './menuChrome';
+import {loadSkirmishPrefs, saveSkirmishPrefs} from './skirmishPrefs';
 import {muted, toggleMuted} from './store';
 
 /**
@@ -537,17 +538,55 @@ export function StartMenu(props: StartMenuProps) {
     carryCardHeight(from);
   };
   const [mp, setMp] = createSignal<MpMode>(props.start.mp);
-  const [ai, setAi] = createSignal(2);
+  // How this player set the valley up last time. A returning player
+  // almost always wants the match they played before, and re-picking three
+  // rows to get it is three chances to launch the wrong one by accident.
+  // (The ceiling travels with the read so a record from a build that
+  // offered more seats cannot select a pill this screen does not show.)
+  const setup = loadSkirmishPrefs(OPTIONS.maxOpponents);
+  const [ai, setAi] = createSignal(setup.ai);
   // One roll per visit to this screen, which is one roll per launch:
-  // launching leaves the menu, and coming back builds it again.
+  // launching leaves the menu, and coming back builds it again. Not
+  // remembered with the rows below, on purpose: the seed is the one part
+  // of the setup a player wants different every time.
   const seed = rollSeed();
-  const [bandits, setBandits] = createSignal(true);
+  const [bandits, setBandits] = createSignal(setup.bandits);
   // One tier for the whole table. The sim stores it per seat (a future
   // picker could field one hard lord and two easy ones); nothing here has
   // ever wanted to ask a player for three answers to one question.
   const [difficulty, setDifficulty] = createSignal<DifficultyId>(
-    DifficultyIdNs.normal,
+    setup.difficulty,
   );
+  /**
+   * Write the three remembered rows as they stand. Called from the rows
+   * themselves rather than from an effect, and never from launch: a choice
+   * is made when the player makes it, and a player who set hard, thought
+   * better of it and walked away has still said something worth keeping.
+   *
+   * The difficulty row is shared with the campaign pane — it is one control
+   * on one screen — so a tier picked there is remembered too. That is the
+   * honest reading of a single picker: whichever pane it was set from, the
+   * player can see what it says before they launch.
+   */
+  const remember = (): void =>
+    saveSkirmishPrefs({
+      v: 1,
+      ai: ai(),
+      difficulty: difficulty(),
+      bandits: bandits(),
+    });
+  const pickAi = (n: number): void => {
+    setAi(n);
+    remember();
+  };
+  const pickDifficulty = (id: DifficultyId): void => {
+    setDifficulty(id);
+    remember();
+  };
+  const toggleBandits = (): void => {
+    setBandits(!bandits());
+    remember();
+  };
   const [room, setRoom] = createSignal('');
   const [vis, setVis] = createSignal<Visibility>('open');
   const [picked, setPicked] = createSignal<string | null>(null);
@@ -1271,7 +1310,7 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
                 <DifficultyRow
                   value={difficulty()}
-                  onChange={setDifficulty}
+                  onChange={pickDifficulty}
                   hint={difficultyHint('campaign')}
                 />
               </Show>
@@ -1443,7 +1482,7 @@ export function StartMenu(props: StartMenuProps) {
                       {n => (
                         <button
                           class={ai() === n ? 'on' : ''}
-                          onClick={() => setAi(n)}
+                          onClick={() => pickAi(n)}
                         >
                           {n}
                         </button>
@@ -1454,7 +1493,7 @@ export function StartMenu(props: StartMenuProps) {
 
                 <DifficultyRow
                   value={difficulty()}
-                  onChange={setDifficulty}
+                  onChange={pickDifficulty}
                   hint={difficultyHint(ai() === 0 ? 'sandbox' : 'skirmish')}
                 />
               </Show>
@@ -1472,7 +1511,7 @@ export function StartMenu(props: StartMenuProps) {
                     role="switch"
                     aria-checked={bandits()}
                     aria-label="Bandit raids"
-                    onClick={() => setBandits(!bandits())}
+                    onClick={toggleBandits}
                   >
                     <span />
                   </button>
