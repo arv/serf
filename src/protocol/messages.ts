@@ -130,13 +130,25 @@ export interface BuildingSnap {
    * Same convention as `working` above: `false` is never sent. */
   firing?: true;
   /**
-   * Loads still standing on the ground this gatherer can reach — the sum
-   * of what every workable tile inside its search square holds. Present
-   * only for buildings that work the land (woodcutter, quarry, the three
-   * mines); the amounts themselves are sim-only and reach the client
+   * Loads this gatherer's worker can actually fetch — the sum of what
+   * every tile inside its search square holds that he can also walk to.
+   * Present only for buildings that work the land (woodcutter, quarry, the
+   * three mines); the amounts themselves are sim-only and reach the client
    * nowhere else.
    */
   resourceLeft?: number;
+  /**
+   * Loads standing inside the same square that no worker can get to: rock
+   * ringed by its own grove, a seam pinched shut by construction. Absent
+   * when nothing is shut out, which is the ordinary case.
+   *
+   * Split from `resourceLeft` because the two ask for different moves. A
+   * hut with neither is finished where it stands and wants selling; a hut
+   * with nothing reachable and loads shut out is one felled tree away from
+   * working again, and saying "worked out" to that player sells a quarry
+   * that did not need selling.
+   */
+  resourceBlocked?: number;
   /**
    * The tick the oldest unclaimed pickup FROM this building was booked —
    * a haul on the board that no free hand has come for. Absent when

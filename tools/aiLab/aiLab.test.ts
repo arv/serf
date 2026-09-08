@@ -84,9 +84,13 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 }
 
 const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
-/** The full-match fixture, and how deep it has to run. Seat 0 razes seat 1
- * at tick 17024 unadvised and at 16570 advised, so the bound sits above the
- * slower of the two with room to spare.
+/** The full-match fixture, and how deep it has to run. The two ticks it
+ * turns on — the war's end unadvised and advised — belong to whichever seed
+ * is pinned, so they are kept beside that pin at the end of this comment
+ * rather than repeated up here. This sentence used to carry them and went
+ * stale three re-seedings running, most recently reading 14_880 and 11_299
+ * (seed 1's) while the pin was already elsewhere. A summary that restates
+ * a number tracked below is a summary that will be wrong.
  *
  * It has to run this deep at all because the steward's growth knobs sit
  * behind its growthAfter research and its war knobs behind a mustered
@@ -107,13 +111,42 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * marching at four still ends it 454 ticks sooner); and to 15 / 16_000 when
  * the mines started eating (replay 48) and the playbooks stopped gating the
  * bread chain behind the barracks — the ration slows every seat's ore, and
- * on 20 both wars then ran past 18_500 undecided. On 15 seat 0 takes the
- * valley at 15_388 unadvised and seat 1 marching at four ends it at 11_970,
- * so the bound again sits above the slower of the two with room to spare.
+ * on 20 both wars then ran past 18_500 undecided. On 15 seat 0 took the
+ * valley at 15_388 unadvised and seat 1 marching at four ended it at
+ * 11_970; and to 1 when the fishery's footprint came down to 2x2 (replay
+ * 55), which re-times every valley with a shore in it — on 15 the advised
+ * war then ran 1_077 ticks LATER than the control, which asserts the
+ * opposite of what it is here to assert. On 1 seat 1 wins either way, at
+ * 14_880 unadvised and at 11_299 marching at four, so the bound again sits
+ * above the slower of the two with room to spare; and to 20 when the load
+ * home (replay 58) re-timed every haul in the game — on 1 the two wars
+ * then ended on the SAME tick, 13_758 apiece, which is the one outcome
+ * this fixture cannot use. On 20 seat 0 takes the valley at 13_910
+ * unadvised and seat 1 marching at four ends it at 11_844.
+ *
+ * ...and to 11 when the armory went to one of each arm (START_STOCK in
+ * sim/defs/balance.ts), which takes a spear off every opening and so
+ * re-times every war again. That change and the load home were written
+ * over each other: each re-seeded this fixture on its own branch — 20
+ * above, and 13 on the armory's — and NEITHER pick survives the two
+ * together. On 20 the control now runs to 25_283, far past this bound; on
+ * 13 the advised war ends 909 ticks LATER than the control, which asserts
+ * the opposite of what this test is for. On 11 seat 1 wins both ways, at
+ * 19_874 unadvised and 16_276 marching at four.
+ *
+ * The bound went 16_000 -> 22_000 with it. 11 needs 20_000 of that; the
+ * rest is margin bought on purpose. This fixture has now been re-seeded
+ * four times and every one of them was a balance change re-timing a valley
+ * into the ceiling or squeezing the gap between the two runs shut. 11 is
+ * picked for having room on both counts — 2_126 ticks under the bound and
+ * 3_598 between the runs — rather than for being the cheapest seed that
+ * passes today. Seed 5 was the cheapest (14_985 and 14_104, inside the old
+ * bound) and is exactly the thin margin that keeps bringing us back here.
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 15;
-const FULL_MATCH_TICKS = 16_000;
+const FULL_MATCH_SEED = 11;
+const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {
   it('never reads a clean sweep as certainty', () => {
@@ -328,8 +361,8 @@ describe('a headless match', () => {
 
   it('plays a different war than unadvised — but only if the advice lands in time', async () => {
     // Advise seat 1: the seat whose march the advice moves on this fixture.
-    // It musters at four instead of seven, marches earlier, and loses the
-    // war it would have lost anyway — sooner. Which seat the advice reaches
+    // It musters at four instead of seven, marches earlier, and wins the
+    // war it would have won anyway — sooner. Which seat the advice reaches
     // matters, and is itself the kind of truth the bake-off's mirrored arms
     // exist to average out.
     const control = await playMatch(
@@ -358,7 +391,7 @@ describe('a headless match', () => {
       {playerId: 1, engine: expect.any(String)},
     ]);
     // Marching at four instead of seven ends the same war sooner — for the
-    // seat that marched, in this valley, by losing it sooner.
+    // seat that marched, in this valley, by winning it sooner.
     expect(advised.decided).toBe(true);
     expect(advised.ticks).toBeLessThan(control.ticks);
     expect(digestOf(advised)).not.toBe(digestOf(control));

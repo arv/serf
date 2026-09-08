@@ -69,6 +69,85 @@ describe('gather production', () => {
     expect(world.map.resourceAmt[open]!).toBeLessThan(6);
   });
 
+  it('a hut whose only tile is walled in makes nothing, and picks up when the wall comes down', () => {
+    // The case the test above stops one step short of, and the one that
+    // cost a real match its stone: the sealed tile is not merely the
+    // NEAREST workable ground, it is the ONLY workable ground. There is no
+    // second candidate to fall back to, so the trip-start has nothing to
+    // pick and the hut is finished where it stands — silently, in front of
+    // a full grove, for as long as the player leaves it there.
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30);
+    const walled = plantGrove(world, 33, 31, 6);
+    const wall: number[] = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const i = tileIdx(33 + dx, 31 + dy, world.map.size);
+        world.map.resource[i] = TileResource.Rock;
+        world.map.resourceAmt[i] = 6;
+        world.map.blocked[i] = 1;
+        wall.push(i);
+      }
+    }
+    run(world, 3000);
+
+    // Nothing chopped, nothing produced, and the tree untouched — the hut
+    // is not confused about what it can do, it simply cannot do it.
+    expect(hut.stock[GoodId.wood] ?? 0).toBe(0);
+    expect(world.ledger.produced[GoodId.wood] ?? 0).toBe(0);
+    expect(world.map.resourceAmt[walled]).toBe(6);
+
+    // Fell one tree of the ring — a woodcutter working the same grove, a
+    // building sold — and the trip is on again without anything having to
+    // notice or reset the hut. The stall is a reading of the ground, not a
+    // state the hut latched. The corner rather than the tile due east:
+    // that one is a pocket whose only opening faces the hut's own walls,
+    // and a worker walks around his post, not through it.
+    const gap = tileIdx(32, 32, world.map.size);
+    world.map.resource[gap] = TileResource.None;
+    world.map.resourceAmt[gap] = 0;
+    world.map.blocked[gap] = 0;
+    run(world, 3000);
+
+    expect(hut.stock[GoodId.wood] ?? 0).toBeGreaterThan(0);
+    expect(world.map.resourceAmt[walled]!).toBeLessThan(6);
+  });
+
+  it('a tile reachable only through the hut itself is not workable', () => {
+    // The hut's own walls block: a worker steps out of the door and walks
+    // around, he does not walk through his own post. This is the rule that
+    // makes the ghost under the build cursor and the built hut agree —
+    // without it a spot tests workable while it is a ghost (the footprint
+    // is not blocked yet) and stops being workable the moment it is real.
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30);
+    const size = world.map.size;
+    // A pocket north of the hut's own 2x2, whose only opening faces the
+    // footprint: everything around it is rock but the two tiles the hut
+    // stands on.
+    const tree = plantGrove(world, 30, 29, 6);
+    for (const [x, y] of [
+      [29, 28],
+      [30, 28],
+      [31, 28],
+      [29, 29],
+      [31, 29],
+      [29, 30],
+      [32, 29],
+      [32, 30],
+    ] as const) {
+      const i = tileIdx(x, y, size);
+      world.map.resource[i] = TileResource.Rock;
+      world.map.resourceAmt[i] = 6;
+      world.map.blocked[i] = 1;
+    }
+    run(world, 3000);
+
+    expect(hut.stock[GoodId.wood] ?? 0).toBe(0);
+    expect(world.map.resourceAmt[tree]).toBe(6);
+  });
+
   it('full output buffer stalls production (Settlers rule)', () => {
     const world = bareWorld();
     const hut = addBuiltHut(world, 30, 30);

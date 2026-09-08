@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import type {Enum} from '../shared/enum.ts';
-import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
+import {
+  BUILDING_DEFS,
+  BUILDING_TYPES,
+  type BuildingDef,
+} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
 import {makeBakehouse, makeFarmstead, makeMonument} from './procBuildings';
@@ -51,8 +55,10 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // scenery, not a workplace. The farmstead is ours now, BUILT_BUILDINGS.)
   [BuildingTypeId.mill]: 'building_windmill_green.gltf',
   // (No bakery: it is the one building we model ourselves — BUILT_BUILDINGS.)
-  // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
-  // quay. The one food building that needed nothing built by hand.
+  // Ours, modeled in the pack's own construction language rather than
+  // played by a pack model: a fisherman's hut with a boat by the gable, an
+  // anchor at the door and a net on its drying stand. (It wore the EXTRA
+  // shipyard before that, with the sailing ship cut off its roof.)
   [BuildingTypeId.fishery]: 'building_fishery_green.gltf',
   [BuildingTypeId.brewery]: 'building_tavern_green.gltf',
   // The quarry and the three mines all play this one model — the pack's
@@ -64,6 +70,12 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.goldMine]: 'building_mine_green.gltf',
   [BuildingTypeId.weaponsmith]: 'building_blacksmith_green.gltf',
   [BuildingTypeId.barracks]: 'building_barracks_green.gltf',
+  // The pack shipped a range and nothing ever placed it: a fenced
+  // shooting lane with straw butts at the far end and a rack of staves
+  // under the shed. It reads apart from the barracks at village zoom on
+  // the fence alone, which is the whole reason the two can stand next to
+  // each other in a yard.
+  [BuildingTypeId.archeryRange]: 'building_archeryrange_green.gltf',
   [BuildingTypeId.abbey]: 'building_church_green.gltf',
   [BuildingTypeId.banditCamp]: 'building_tower_B_red.gltf',
   // The pack ships four towers and only this one is a watchtower: a plain
@@ -172,6 +184,62 @@ const POST_R = 0.2;
 /** POST_R split across x and z, for the two posts on the diagonal. */
 const POST_D = POST_R / Math.SQRT2;
 
+/**
+ * How big a building's template is drawn, in tiles.
+ *
+ * Templates are unit-square and origin-centered whatever they were modeled
+ * at (normalize), so this one number is what puts a model on the ground at
+ * the size the village sees — and what everything authored in template
+ * units is multiplied by on its way out. Sizing by the SHORT side of the
+ * footprint is what makes a squat model stay squat; the few the pack
+ * authors too low to read at village zoom carry a modelScale to lift them
+ * out of it (BuildingDef.modelScale).
+ *
+ * The 1.06 is a hair of overhang, so walls meet the ground they stand on
+ * rather than floating inside their own footprint.
+ */
+function templateScale(def: BuildingDef): number {
+  return Math.min(def.w, def.h) * 1.06 * (def.modelScale ?? 1);
+}
+
+/**
+ * Where the fishery's deck meets the hut, in the template's unit square.
+ *
+ * The landward end rides the hut's own front wall, so it is the one part of
+ * the jetty that SHOULD move with the hut's scale — authored in template
+ * units and left to shrink with it.
+ */
+const PIER_BASE = 0.2;
+
+/**
+ * How far that deck runs from there, in tiles of world — the length the
+ * planks have to be, whatever the hut in front of them is.
+ *
+ * Decor is placed in the template's unit square, so everything here is
+ * scaled by the hut's own size (`templateScale`) on its way into the world.
+ * That is right for a barrel by the door and wrong for a jetty: a deck is
+ * sized by how far the water is, not by how big the house is, and placement
+ * only promises water within a tile of the footprint. So this one is
+ * authored in tiles and divided back out below — shrink the hut or drop it
+ * a footprint size and the planks are the same planks over the same water.
+ *
+ * 2.54 is what the deck measured when it was authored as 0.8 of a 3x3
+ * template, which is the length every fit number in buildingSync was tuned
+ * against (PIER_TRIM_STEP and the rest). On the 2x2 hut it runs from the
+ * front wall to about two tiles past the footprint, against the one tile
+ * placement promises.
+ *
+ * On seed 1: 416 legal sites, 134 whose deck ends on grass as authored, 0
+ * still dry once #measurePier has aimed them. Change this and re-run
+ * tools/modelLab/_pier.html, which is where those numbers come from —
+ * `?stranded=1` renders whatever the last of them are.
+ */
+const PIER_TILES = 2.54;
+
+/** PIER_TILES back in the template units a Decor entry is placed in. */
+const PIER_RUN =
+  PIER_TILES / templateScale(BUILDING_DEFS[BuildingTypeId.fishery]);
+
 const DECOR_PROP_FILES = [
   'wheelbarrow',
   'sack',
@@ -230,10 +298,10 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
     // it toward the water (see Building.facing). Long enough to overhang the
-    // footprint on purpose — nearly two tiles past it, where placement only
-    // promises water within one, so the reach here is an aim rather than a
-    // guarantee. Neither is the facing: it is a quarter turn, and most
-    // shorelines do not run square to the grid. So this is the deck's
+    // footprint on purpose — some two tiles past it (PIER_TILES), where
+    // placement only promises water within one, so the reach here is an aim
+    // rather than a guarantee. Neither is the facing: it is a quarter turn,
+    // and most shorelines do not run square to the grid. So this is the deck's
     // AUTHORED placement, and buildingSync fits it to the water from here
     // (#measurePier): a turn rotates the whole fishery about the footprint
     // center — hut and jetty stay square — while a trim shortens the deck
@@ -245,9 +313,9 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
       // The attach point abuts the hut's front wall, centered on the door.
       // It is derived from the MODEL's bounding box (normalize() centers by
       // bbox, and the boat off the gable skews it): door at template
-      // [0.025, 0.19], deck 0.8 long. Recompute if the model changes shape.
-      at: [0.03, 0.6],
-      span: 0.8,
+      // [0.025, 0.19]. Recompute if the model changes shape.
+      at: [0.03, PIER_BASE + PIER_RUN / 2],
+      span: PIER_RUN,
       size: 1,
       rot: -Math.PI / 2,
       // buildingSync finds the pier by name and tells sceneSync where it
@@ -271,7 +339,12 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // from it.) The y here is template-space only: the waterline is a world
     // plane below the shore, so buildingSync re-seats the group under it
     // once the building stands on real terrain.
-    {make: prop => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1},
+    {
+      make: prop => makeShoal(prop),
+      at: [0, PIER_BASE + PIER_RUN + 0.02],
+      y: 0.02,
+      size: 1,
+    },
   ],
   // Two marks on the tower's roof deck, and nothing to see: buildingSync
   // finds them by name and stands a live archer on each one for every man
@@ -1197,10 +1270,9 @@ export function makeGlbBuilding(
     });
   }
   // Templates are unit-square and origin-centered, matching the hand-built
-  // models (buildingSync positions the root at the footprint center). Sizing
-  // by footprint is what makes a squat model stay squat, so the few the pack
-  // authors too low to read carry a modelScale to lift them out of it.
-  group.scale.setScalar(Math.min(def.w, def.h) * 1.06 * (def.modelScale ?? 1));
+  // models (buildingSync positions the root at the footprint center), so the
+  // footprint is the whole of the size — see templateScale.
+  group.scale.setScalar(templateScale(def));
   return group;
 }
 

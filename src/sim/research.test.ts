@@ -93,6 +93,32 @@ describe('research', () => {
     expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
   });
 
+  it('lets a village research Archery without ever buying Soldiery', () => {
+    // The two-root claim, tested where prereqs are actually enforced.
+    // `canResearch` is the only place that reads TechDef.prereqs, and only
+    // the research COMMAND reaches it — a test that pushes an id into
+    // `techs.researched` bypasses the check entirely, which is why the
+    // Archery Range's own gate test in combat.test.ts cannot stand for this
+    // one however few techs it grants.
+    //
+    // Soldiery is never bought here. If Archery goes back behind it, the
+    // command is refused and `active` stays undefined.
+    const world = bareWorld();
+    setupSchool(world);
+    expect(world.players[0]!.techs.researched).not.toContain(TechId.soldiery);
+    tickWorld(world, cmds({kind: CommandKind.research, tech: TechId.archery}));
+    expect(world.players[0]!.techs.active?.tech).toBe(TechId.archery);
+
+    run(world, TECH_DEFS[TechId.archery].durationTicks + 2);
+    expect(world.players[0]!.techs.researched).toContain(TechId.archery);
+    expect(world.players[0]!.techs.researched).not.toContain(TechId.soldiery);
+    // And the roof the bow trains under comes with it, so the whole line is
+    // reachable from this root alone.
+    expect(isBuildingUnlocked(world, 0, BuildingTypeId.archeryRange)).toBe(
+      true,
+    );
+  });
+
   it('gates buildings until researched', () => {
     const world = bareWorld();
     setupSchool(world);

@@ -28,7 +28,7 @@ import {UNIT_DEFS, carryingCode} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
-import {countResourceNear} from '../sim/map.ts';
+import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import type {Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
@@ -112,7 +112,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     // On cooldown means it loosed within the last volley's worth of ticks,
     // which is exactly the window the roof should be drawing a bow in.
     firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,
-    resourceLeft: reachableResource(world, b),
+    ...reachStock(world, b),
     outWaitingSince: outWaitingSinceOf(world, b),
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue
@@ -123,25 +123,56 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
 
 /**
  * What the ground inside a gatherer's reach still holds, for the card that
- * reports it. Undefined for everything that doesn't work the land.
+ * reports it: the loads its worker can actually fetch, and — separately —
+ * the loads standing in the square that he cannot get to at all. Both
+ * undefined for everything that doesn't work the land.
  *
- * Cheap enough to run per snapshot: a few hundred tile reads per gatherer,
- * a few times a second. It is also stable — a number that only moves when
- * a tile is worked or a grove grows back — so putting it in the roster does
- * not make an idle village ship its buildings every frame.
+ * Two numbers because they ask the player for different moves, and because
+ * one number told a lie. This used to be `countResourceNear` alone, which
+ * counts the ground and never asks whether a worker can walk to it, so a
+ * quarry whose last rock was ringed by its own grove read "in reach: 10"
+ * for the eight minutes it stood dead — the one readout the player had,
+ * saying the hut was fine. A hut that has run out of ground wants selling;
+ * a hut walled in by a grove wants the grove felled, and gets its trips
+ * back for free when that happens. The card can only tell those apart if
+ * the snapshot does.
+ *
+ * Cheap enough to run per snapshot: one bounded flood plus a few hundred
+ * tile reads per gatherer, a few times a second. Both numbers are stable —
+ * they move only when a tile is worked, a grove grows back, or something
+ * opens or closes a way through — so putting them in the roster does not
+ * make an idle village ship its buildings every frame.
  */
-function reachableResource(world: World, b: Building): number | undefined {
+function reachStock(
+  world: World,
+  b: Building,
+): {resourceLeft?: number; resourceBlocked?: number} {
   const def = buildingDef(b.type);
   const gather = gatherRecipeOf(def);
-  if (!gather) return undefined;
+  if (!gather) return {};
   const origin = gatherOrigin(def, b.x, b.y);
-  return countResourceNear(
+  const standing = countResourceNear(
     world.map,
     origin.x,
     origin.y,
     gather.resource,
     gather.radius,
   );
+  const left = countWorkableResourceNear(
+    world.map,
+    origin.x,
+    origin.y,
+    b,
+    gather.resource,
+    gather.radius,
+  );
+  // Absent rather than zero when nothing is shut out: the roster ships on
+  // its serialized body changing, and a field that is always present is a
+  // field always in the diff.
+  const blocked = standing - left;
+  return blocked > 0
+    ? {resourceLeft: left, resourceBlocked: blocked}
+    : {resourceLeft: left};
 }
 
 /**
@@ -154,7 +185,7 @@ function reachableResource(world: World, b: Building): number | undefined {
  * standing wait does not re-serialize the whole roster every structural
  * frame (see BuildingSnap.outWaitingSince). The scan is world.jobs whole,
  * per building; a village runs dozens of jobs, so the pass costs far
- * less than the tile square reachableResource walks above.
+ * less than the tile square reachStock walks above.
  */
 function outWaitingSinceOf(world: World, b: Building): number | undefined {
   let oldest: number | undefined;

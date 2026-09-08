@@ -496,8 +496,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // line is written for. (tools/aiLab/balance.ts)
     researchOrder: [
       TechId.soldiery,
-      TechId.cobbledBoots,
       TechId.ironworking,
+      TechId.cobbledBoots,
       TechId.deepMining,
       TechId.mailArmor,
       TechId.gildedArms,
@@ -603,6 +603,17 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         anchor: BuildAnchorNs.base,
         after: TechId.ironworking,
         needs: BuildingTypeId.barracks,
+      },
+      // The bow's own roof, and the first thing Archery buys now: the
+      // towers below swallow four archers outright and this plan's field
+      // line is knight-and-archer, so without a range this seat researches
+      // Archery and trains not one bowman. Ahead of the towers on purpose —
+      // stone laid in a parapet nobody can climb is stone wasted.
+      {
+        type: BuildingTypeId.archeryRange,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        after: TechId.archery,
       },
       // The towers this plan is now built around, and the reason it learns
       // archery at all. Two of them, still gated on the bow now that the
@@ -806,6 +817,23 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         count: 1,
         anchor: BuildAnchorNs.base,
       },
+      // The range, and for this seat it is the plan: every soldier it means
+      // to field is a bowman, so the barracks above is now a spear hall it
+      // barely uses and this is where its army comes from.
+      //
+      // Listed ahead of the forges that cut its staves, which is where a
+      // seat's own army belongs on its own plan — but not a tuned position:
+      // moved up from below the iron mine it measured as a wash over 24
+      // seeds, 20/24 either way and the same median. The walker skips a
+      // step it cannot afford or place rather than stopping at it
+      // (systems/ai.ts), so order here is priority and not sequence, and
+      // Archery lands second in this seat's research either way.
+      {
+        type: BuildingTypeId.archeryRange,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        after: TechId.archery,
+      },
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
       {
@@ -813,7 +841,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         count: 2,
         anchor: BuildAnchorNs.base,
         after: TechId.archery,
-        needs: BuildingTypeId.barracks,
+        // The range, not the barracks. The old gate was "weapons need
+        // somewhere to train their bearers", and for this seat's bowstaves
+        // that somewhere is the range — gating on a barracks it now buys
+        // second would hold the staves behind the other arm's research.
+        needs: BuildingTypeId.archeryRange,
       },
       // One seam, late, and not for weapons: the bows stay pure wood, but
       // axes, picks and scythes are ironwork, and a seat that cannot forge
@@ -836,12 +868,30 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // wall first — tens of ticks of villagers across a whole campaign,
       // and none at all on this seat. They are a human's answer to being
       // rushed, not the AI's.
+      // Gated on Soldiery, which reads oddly on the seat that opens with
+      // the bow and is the point: this gate is the playbook's now, because
+      // the building's own is gone. The tower used to require Soldiery to
+      // exist at all, and with this seat researching Archery first that
+      // rule was what held its tower back a research. Ungating the
+      // building for players removed the brake as a side effect, and
+      // merging the build-order credit rule (AI_CREDIT in systems/ai.ts) is
+      // what made that matter: a seat may now lay a foundation the shelf is
+      // a load short of, and a tower arriving a research early is enough to
+      // hang seed 42 — the standoff aiStrategies.test.ts exists to catch —
+      // past 90k ticks with no ending.
+      //
+      // Tried and rejected on that test before landing here: moving this
+      // entry last in the plan (the walker skips what it cannot place, so
+      // last is not late), and raising the tower's own price to 18 stone.
+      // Neither is the lever; the timing is. What a player may raise
+      // whenever they like and when a playbook should queue it are
+      // different questions, and only the second belongs in a build order.
       {
         type: BuildingTypeId.guardTower,
         count: 1,
         anchor: BuildAnchorNs.base,
-        after: TechId.archery,
-        needs: BuildingTypeId.barracks,
+        after: TechId.soldiery,
+        needs: BuildingTypeId.archeryRange,
       },
       // No fishery here, and none in the Abbot's plan either. Both run their
       // last step on a purse the iron seats never touch — the Fletcher pays
@@ -855,15 +905,42 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // researches it can staff nothing past the starter kit. Last, because
     // the opening kit carries the first posts and the bows cannot wait.
     researchOrder: [
-      TechId.soldiery,
+      // The bow first, which it could not be until Archery stopped hanging
+      // off Soldiery: a seat named for its archers was buying the spear
+      // line's research to reach its own. Not free — Soldiery is 6 wheat
+      // and 6 silver against a starting larder of 12 wheat nothing else
+      // wants that early, while Archery is 8 wood, the one material this
+      // opening is short of. First research lands around 10.5k rather than
+      // inside 9k (aiStrategies.test.ts pins it). Worth it: 21/24 against
+      // 20/24 over 24 seeds, +2 population and +0.6 army.
+      //
+      // Soldiery still second, and dropping it has been tried twice, on
+      // either side of the armory going to one of each arm (START_STOCK in
+      // defs/balance.ts). Under two spears and a sword, a Fletcher with no
+      // barracks at all — mono-archer, the pure reading of the two roots —
+      // took 16/24 and died in 8: it lost the opening spearmen those two
+      // spears were for, and with them every answer to the light column
+      // that eats bowmen. Under one of each it takes 20/24 against this
+      // plan's 21, which is a win inside the noise.
+      //
+      // So the hedge is now marginal rather than decisive, and it is worth
+      // knowing why: one spear buys one spearman, and the barracks is
+      // twelve wood and eight stone for him. It stays because it still
+      // measures no worse and because a seat whose whole army is bows has
+      // nothing else to answer a light rush with — but the next hand to
+      // touch this seat should know the margin is a single game, not the
+      // five it used to be.
       TechId.archery,
+      TechId.soldiery,
       TechId.cobbledBoots,
       TechId.ironworking,
     ],
     researchReserve: 8,
     serfTarget: 11,
     survivalFloor: 3,
-    growthAfter: TechId.soldiery,
+    // Archery, not Soldiery: growth waited on "the first research this seat
+    // buys", and which research that is has changed.
+    growthAfter: TechId.archery,
     housingHeadroom: 3,
     houseLimit: 4,
     // The skirmisher's cascade: the raid stance's short cooldown keeps the
@@ -892,8 +969,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     harass: {size: 3, cooldown: 900, maxAge: 800},
     retreats: false,
     weaponMix: [2], // every forge on bowstaves
-    // The spear in the armory arms the first defender; after that the queue
-    // waits on bows, since no iron chain is coming.
+    // The armory arms the opening twice over now: its one spear is this
+    // seat's only spearman ever — no iron chain is coming to forge another
+    // — and its one bow is an archer the moment the range stands, without
+    // waiting on a forge at all. After those two the queue waits on
+    // bowstaves like everything else.
     trainPreference: [UnitTypeId.archer, UnitTypeId.spearman],
     trainFallback: UnitTypeId.archer,
     barracksQueueDepth: 3,

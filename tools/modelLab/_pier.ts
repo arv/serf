@@ -12,6 +12,7 @@ import {ScatterMesh} from '../../src/render/scatterMesh';
 import {TerrainMesh} from '../../src/render/terrainMesh';
 import {WaterMesh} from '../../src/render/waterMesh';
 import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
+import {BUILDING_DEFS} from '../../src/sim/defs/buildings.ts';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import {WATER_LEVEL} from '../../src/sim/map';
 import {canPlace, createWorld, waterFacing} from '../../src/sim/world';
@@ -47,12 +48,23 @@ const COUNT = Number(q.get('n') ?? 8);
 const CELL = Number(q.get('cell') ?? 300);
 const FIT = q.get('fit') !== 'none';
 const WORST = q.get('worst') === '1';
+/** Only the sites the fit could not save — the ones the tally counts as
+ * "dry after the fit". They are the shores a change to the deck's length or
+ * to the footprint has to answer for, and they are otherwise unfindable:
+ * every other filter here picks from the decks that START dry. */
+const STRANDED = q.get('stranded') === '1';
 const ALL = q.get('all') === '1';
 const AT = q.get('at')?.split(',').map(Number);
 const YAW =
   q.get('yaw') !== null ? (Number(q.get('yaw')) * Math.PI) / 180 : CAMERA_YAW;
 /** Tiles across the frame — village zoom, the bar decor has to clear. */
 const VIEW = Number(q.get('view') ?? 12);
+
+/** The fishery's own footprint, so the page follows a change to it rather
+ * than standing 3x3 huts a 2x2 game would never place. */
+const FISHERY = BUILDING_DEFS[BuildingTypeId.fishery];
+/** Its center, from the footprint origin. */
+const MID = FISHERY.w / 2;
 
 const world = createWorld(SEED);
 const map = world.map;
@@ -103,11 +115,11 @@ function snap(id: number, x: number, y: number): BuildingSnap {
     owner: 0,
     x,
     y,
-    w: 3,
-    h: 3,
+    w: FISHERY.w,
+    h: FISHERY.h,
     // The sim's own answer, or the deck would start out pointing +z on
     // every site and the fit would be judged against a straw man.
-    facing: waterFacing(map, x, y, 3, 3, 1),
+    facing: waterFacing(map, x, y, FISHERY.w, FISHERY.h, 1),
     hp: 150,
     maxHp: 150,
     state: BuildingState.built,
@@ -129,13 +141,13 @@ function measure(
   sync.update(sites.map((s, i) => snap(i + 1, s.x, s.y)));
   const out = new Map<string, PierInfo>();
   for (const p of sync.fisheryPiers())
-    out.set(`${Math.round(p.bx - 1.5)},${Math.round(p.bz - 1.5)}`, p);
+    out.set(`${Math.round(p.bx - MID)},${Math.round(p.bz - MID)}`, p);
   return out;
 }
 
 const sites: {x: number; y: number}[] = [];
-for (let y = 0; y < map.size - 3; y++)
-  for (let x = 0; x < map.size - 3; x++)
+for (let y = 0; y < map.size - FISHERY.h; y++)
+  for (let x = 0; x < map.size - FISHERY.w; x++)
     if (canPlace(map, BuildingTypeId.fishery, x, y)) sites.push({x, y});
 
 const asAuthored = measure(sites, filledIn);
@@ -173,9 +185,11 @@ console.log(
 const picked: typeof rows = [];
 for (const r of (AT
   ? rows.filter(r => r.x === AT[0] && r.y === AT[1])
-  : ALL
-    ? [...rows]
-    : dry
+  : STRANDED
+    ? rows.filter(r => r.dryFitted)
+    : ALL
+      ? [...rows]
+      : dry
 ).sort((a, b) =>
   WORST
     ? Math.abs(b.turn) + b.trim * 60 - (Math.abs(a.turn) + a.trim * 60)
@@ -217,8 +231,8 @@ app.appendChild(grid);
 
 const cam = new THREE.OrthographicCamera();
 for (const s of picked) {
-  const cx = s.x + 1.5;
-  const cz = s.y + 1.5;
+  const cx = s.x + MID;
+  const cz = s.y + MID;
   cam.left = -VIEW / 2;
   cam.right = VIEW / 2;
   cam.top = VIEW / 2;

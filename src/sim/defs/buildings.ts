@@ -186,6 +186,13 @@ export interface BuildingDef {
    * side. Fine for the mines, which are cut into a hillside and sit alone
    * out at the rock; it would be wrong for anything that stands shoulder to
    * shoulder in the village.
+   *
+   * Under 1 it would do the opposite; nothing wants that today. Either way
+   * it moves the decor placed around the model too (BUILDING_DECOR is in
+   * the model's own unit square), so a piece with its own reason to be the
+   * size it is has to be authored back up — see PIER_TILES in assets.ts,
+   * which is how the fishery's jetty survives both this and a change of
+   * footprint.
    */
   modelScale?: number;
   /** Must be researched before this building can be placed (an array
@@ -436,8 +443,18 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.fishery]: {
     id: B.fishery,
     name: 'Fishery',
-    w: 3,
-    h: 3,
+    // A hut and a hand, on a hut's worth of ground. It stood on 3x3 — the
+    // barracks' and the castle's footprint — from the day it went in, and
+    // drawn to that (makeGlbBuilding sizes a model by the short side of its
+    // footprint) the hut came out wider than a family's house. Nothing
+    // about it wanted the room either: the jetty is decor hanging off the
+    // front, authored in tiles rather than in footprints (PIER_TILES in
+    // assets.ts), so it runs the same planks to the same water from a 2x2.
+    // What the extra ring did do was ask a shoreline for nine tiles of
+    // buildable bank instead of four — a tax on the ragged shores, not on
+    // the smooth ones.
+    w: 2,
+    h: 2,
     cost: {[GoodId.wood]: 12, [GoodId.stone]: 4},
     buildTicks: 20 * S,
     hp: 150,
@@ -457,7 +474,11 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // a fishery made 5.0 per hand and beat the whole chain outright, and
     // there is no scarcity to hold it back — a map carries four hundred-odd
     // legal shore sites against a thousand-odd field sites. Two huts would
-    // have retired the bakery.
+    // have retired the bakery. (The 2x2 footprint bought a tenth more of
+    // those shore sites again — 379 to 416 on seed 1, measured with
+    // tools/modelLab/_pier.html — which loosens a scarcity that was never
+    // holding the rate back anyway. What holds it back is the twenty
+    // seconds.)
     //
     // (A hen yard stood beside these two for a while, wheat straight to
     // food. Cut: two food sources are a choice, three were a menu, and the
@@ -692,6 +713,10 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 220,
     sight: 5.5,
     requiresTech: TechId.soldiery,
+    // Steel only. The bow moved out to the Archery Range below, which is
+    // what makes the hall a choice instead of a menu: a village that wants
+    // both arms of the triangle now raises both roofs, and the two queues
+    // run side by side rather than one behind the other.
     trains: [
       // Soldiers march on bread, not on raw grain: the barracks is the far
       // end of mill -> bakery, and wheat is a crop again.
@@ -705,10 +730,46 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
         cost: {[GoodId.food]: 2, [GoodId.spear]: 1},
         durationTicks: 10 * S,
       },
+    ],
+  },
+  [B.archeryRange]: {
+    id: B.archeryRange,
+    name: 'Archery Range',
+    // Two by two where the barracks is three: a fenced lane, a shed for the
+    // staves and a butt at the end of it is not a drill hall.
+    w: 2,
+    h: 2,
+    // Timber and a token course of stone for the butt. Deliberately cheap in
+    // the one material the bow line is already short of: a guard tower is
+    // twelve stone, and the range now stands between Archery and the men who
+    // climb it. Making the range cost stone too would have priced the whole
+    // tower plan out of reach of the seat built around it (the Fletcher digs
+    // no iron and quarries only once).
+    cost: {[GoodId.wood]: 10, [GoodId.stone]: 2},
+    // Faster up than the barracks' twenty-five seconds, for the same reason
+    // it is cheaper: it is the second roof on the military line, not the
+    // first, and a second gate that also costs a barracks' worth of waiting
+    // would read as a toll rather than a choice.
+    buildTicks: 18 * S,
+    // Softer than the barracks' 220 — fence and shed against a drill hall.
+    // A raid that walks past the wall can burn the bows off the plan, which
+    // is the risk that pays for the range's speed.
+    hp: 150,
+    sight: 5.5,
+    // Archery rather than Soldiery: the tech that unlocks the archer unlocks
+    // the roof he is trained under, so the bow is still one research, not
+    // two. What it now also costs is a building.
+    requiresTech: TechId.archery,
+    trains: [
+      // Nine seconds against the barracks' twelve. The dedicated butt is
+      // what the extra roof buys: a plan that commits to the bow trains it
+      // a quarter faster than the mixed hall ever did, so the range is a
+      // trade rather than a tax. The bill itself is unchanged — two bread
+      // and a bow, exactly what the barracks charged.
       {
         unit: UnitTypeId.archer,
         cost: {[GoodId.food]: 2, [GoodId.bow]: 1},
-        durationTicks: 12 * S,
+        durationTicks: 9 * S,
       },
     ],
   },
@@ -725,10 +786,21 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // A tower is built to be looked out of. Short of the castle's nine,
     // well past the five and a half every workshop sees.
     sight: 8,
-    // Gated with the barracks rather than with the bow: raising the tower
-    // is the decision to defend a line, and it can stand empty and waiting
-    // while the archers who will man it are still a research away.
-    requiresTech: TechId.soldiery,
+    // Ungated. It was Soldiery's, on the reasoning that raising a tower is
+    // the decision to defend a line and may stand empty while the archers
+    // who will man it are still a research away — but Soldiery is one of
+    // two warfare roots now, and a village that opens on the bow was being
+    // asked to buy the OTHER arm's research to raise a wall its own arm
+    // mans. Left as it was, the one thing crossing between the two lines
+    // was the tower.
+    //
+    // Nothing is given away by opening it. The tower is expensive in the
+    // material a young village has least of (12 stone against the
+    // barracks' 8), and what stands in it before there are archers is the
+    // levy: villagers with stones off the parapet, at about a quarter of
+    // two bowmen's output. A tower raised on turn one is a quarry's worth
+    // of stone spent on that, and the men in it are hands not carrying
+    // anything.
     // Half again the damage and two tiles further than the same archer
     // standing in the field. Deliberately short of doubling either: two men
     // in a tower already beat two men on the grass by being unkillable
@@ -1005,6 +1077,7 @@ export const BUILDING_TYPES: readonly BuildingTypeId[] = [
   B.weaponsmith,
   B.abbey,
   B.barracks,
+  B.archeryRange,
   B.guardTower,
   B.roadSite,
   B.salvage,
@@ -1030,6 +1103,7 @@ export const BUILDING_KEYS: Readonly<Record<BuildingTypeId, string>> = {
   [B.weaponsmith]: 'weaponsmith',
   [B.abbey]: 'abbey',
   [B.barracks]: 'barracks',
+  [B.archeryRange]: 'archeryRange',
   [B.guardTower]: 'guardTower',
   [B.roadSite]: 'roadSite',
   [B.salvage]: 'salvage',

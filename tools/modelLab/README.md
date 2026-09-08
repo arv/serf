@@ -97,9 +97,10 @@ against the real terrain mesh, the real water plane and the real scatter.
 pnpm dev   # then /tools/modelLab/_pier.html
 ```
 
-It prints the tally to the console (`379 legal sites, 161 dry as authored, 0
+It prints the tally to the console (`416 legal sites, 134 dry as authored, 0
 dry after the fit` on seed 1), which is the number a change to the fit's
-turn and trim limits has to be measured by. "Dry" there means what the fit
+turn and trim limits — or to the fishery's footprint, which the page reads
+from the def rather than assuming — has to be measured by. "Dry" there means what the fit
 means by it, at both of the points it judges: a deck counts as wet only if
 its tip AND the spot the fisherman casts from are both under the waterline.
 Scoring the spot alone would let a deck that strides a narrow channel and
@@ -111,9 +112,11 @@ out as the model places it, which is the before shot. Just over, and not
 level with it, because the field is float32: `WATER_LEVEL` rounds into it a
 hair low, and a bed filled to exactly that reads back as a puddle deep
 enough to fit a deck to. `?worst=1` picks the sites the fit has to distort
-most instead of the first ones it finds, `?all=1` includes the sites that
-were already wet, `?at=x,y` blows one site up, `?seed=<n>` trawls a
-different world, and `?n`/`?cell`/`?view`/`?yaw` set how many, how big,
+most instead of the first ones it finds, `?stranded=1` picks the ones it
+could not save at all (the tally's last column, and otherwise unfindable —
+every other filter draws from the decks that START dry), `?all=1` includes
+the sites that were already wet, `?at=x,y` blows one site up, `?seed=<n>`
+trawls a different world, and `?n`/`?cell`/`?view`/`?yaw` set how many, how big,
 how close and from where. Turn the camera before calling a deck wrong: at
 some yaws a deck that runs behind its hut is mostly occluded by the roof
 and reads as a staircase.
@@ -263,3 +266,26 @@ judging anything the audit's heuristics summarize away:
 ```sh
 node tools/modelLab/animImpacts.mjs curve Rig_Medium_Tools.glb Chopping handslot.r
 ```
+
+## The hut roof
+
+`reroofFishery.mjs` re-lays the fisherman's hut roof in the pack's grain.
+Blender left it at 13 boards a slope, all at a dead 45 degrees; measured
+after `normalize` those were 0.047 of the footprint where home_A's are
+0.082 — half the pack's board with twice its line work. The script keeps 5
+a slope, spread across the same span, and swings one board on each to Kay's
+41.4 degrees.
+
+That last part is where a KayKit roof's two tones come from, and it has to
+be geometry: the roof column lands inside `TEAM_SWATCH_UV`, so a
+faction-owned roof is drawn in one flat Lambert colour and its UVs never
+reach a pixel. The kinked board reads 7/255 against its neighbours, against
+6/255 for home_A's own band.
+
+```sh
+node tools/modelLab/reroofFishery.mjs
+```
+
+It runs once, on the model as Blender left it, and refuses a roof it has
+already re-laid. The script is in the tree because the alternative is an
+unreviewable diff in a `.bin`.

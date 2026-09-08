@@ -11,13 +11,14 @@ import {
   gatherOrigin,
   gatherRecipeOf,
   OUTPUT_CAP,
+  type BuildingDef,
 } from './defs/buildings.ts';
 import {goodKeys, type GoodAmounts, goodEntries} from './defs/goods.ts';
 import type {TechId} from './defs/techs.ts';
 import {WEAPON_OF, type UnitTypeId} from './defs/units.ts';
 import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
 import type {Building, EntityId, Owner} from './entities.ts';
-import {countResourceNear, findResourcesNear} from './map.ts';
+import {countResourceNear, canWorkResourceNear} from './map.ts';
 import {findSpot, nearestClaimableResource} from './siting.ts';
 import {isUnitUnlocked} from './techHelpers.ts';
 import type {World} from './world.ts';
@@ -214,7 +215,7 @@ export interface EconomyRule {
  */
 const resiteExtractor: EconomyRule = {
   id: EconomyRuleIdNs.resiteExtractor,
-  when: 'a gatherer has exhausted everything inside its radius',
+  when: 'a gatherer can no longer work anything inside its radius',
   phase: RulePhaseNs.recovery,
   fire(ctx) {
     for (const b of ctx.mine) {
@@ -224,10 +225,16 @@ const resiteExtractor: EconomyRule = {
       if (!recipe) continue;
       const code = recipe.resource;
       const c = gatherOrigin(def, b.x, b.y);
-      if (
-        findResourcesNear(ctx.world.map, c.x, c.y, code, recipe.radius, 1)
-          .length > 0
-      )
+      // Workable, not merely standing. This asked `findResourcesNear` —
+      // is there anything of the kind inside the square — which is a
+      // different question from the one the hut's worker fails at, and a
+      // single tile he cannot walk to answers it "yes" forever. A quarry
+      // whose last rock sat ringed by its own grove was therefore dead and
+      // unsellable at once: the gather loop found nothing to path to, and
+      // this rule saw ground still standing and held its hand. Same flood
+      // as the gather loop's now (map.ts), so a hut that cannot work is a
+      // hut this rule can move.
+      if (canWorkResourceNear(ctx.world.map, c.x, c.y, b, code, recipe.radius))
         continue;
       // Nowhere to go — on this seat's own side of the valley. A live seam
       // in a rival's yard is not somewhere the build order will re-site
@@ -319,6 +326,16 @@ const openReserveMine: EconomyRule = {
       const recipe = gatherRecipeOf(def);
       if (!recipe) return 0;
       const c = gatherOrigin(def, b.x, b.y);
+      // Loads standing, deliberately, and not the reach-filtered count the
+      // rest of this file moved to. This rule fires on a THRESHOLD, ahead
+      // of the seam running out, so it can afford the ground's number: the
+      // worst a walled-in seam costs it is a reserve opened late. The case
+      // where reach is the whole question — a mine that can work nothing at
+      // all — belongs to `resiteExtractor` above, which fires at zero and
+      // sells, and which does ask the exact question. Paying for a reach
+      // flood here instead would be the most expensive call in the sim's
+      // headless bakeoffs (it has no early exit to take: a sum wants every
+      // tile) for an answer this rule cannot act on any better.
       return countResourceNear(map, c.x, c.y, recipe.resource, recipe.radius);
     };
     for (const b of ctx.mine) {
@@ -1100,7 +1117,7 @@ const garrisonIsEnough: EconomyRule = {
 };
 
 /**
- * Keep the barracks queue warm, and unjam it when it sticks.
+ * Keep every training queue warm, and unjam one when it sticks.
  *
  * The counter unit jumps the queue when its weapon is at hand — `around` is
  * the feasibility test, so a counter the economy cannot arm falls straight
@@ -1114,83 +1131,112 @@ const garrisonIsEnough: EconomyRule = {
  * An empty-handed queue keeps its entries: unstarted orders are what summon
  * their weapons at all (`trainingDemand` reads them), so a seat with nothing
  * in reach must hold its place in line rather than clear it.
+ *
+ * Every hall, not the first barracks. This rule used to `find` the one
+ * building whose type was `barracks`, which was true of the whole game when
+ * it was written and is not any more: the bow trains at the Archery Range,
+ * so a seat that read only its barracks would forge bowstaves it never
+ * ordered anybody to carry. Each hall is warmed against its OWN roster —
+ * `trainable` now asks whether this building trains the unit at all, not
+ * merely whether the tech is in — which also closes the Abbot's old hole
+ * from the other side: a preference no hall can fill is no order, and the
+ * rule falls through to one that can instead of re-issuing a refusal every
+ * beat. `barracksQueueDepth` is per hall, because a queue is what it
+ * describes and an idle range is as useless as an idle barracks.
  */
 const keepTheQueueWarm: EconomyRule = {
   id: EconomyRuleIdNs.keepTheQueueWarm,
-  when: 'the barracks queue is short, or stuck behind a weapon nobody can make',
+  when: 'a training queue is short, or stuck behind a weapon nobody can make',
   phase: RulePhaseNs.production,
   fire(ctx) {
-    const barracks = ctx.mine.find(
-      b =>
-        b.type === BuildingTypeId.barracks && b.state === BuildingState.built,
-    );
-    if (!barracks) return null;
-    const around = (good: GoodId): boolean =>
-      (ctx.stock[good] ?? 0) +
-        (barracks.inputs[good] ?? 0) +
-        (barracks.inbound[good] ?? 0) >
-      0;
-    const prefs: readonly UnitTypeId[] = ctx.counter
-      ? [ctx.counter.unit, ...ctx.strategy.trainPreference]
-      : ctx.strategy.trainPreference;
-    // Only what the seat can actually train. `enqueueTraining` refuses a
-    // unit whose tech is not in and says nothing about it, so an order for
-    // one is not a slow order — it is no order at all, and the queue it was
-    // meant to fill stays empty. The Abbot walks straight into this: its
-    // fallback is the archer, gated behind Archery, so from the beat its
-    // barracks opens until that research lands it re-orders the same
-    // refused archer every beat — a hundred of them inside twenty thousand
-    // ticks on the seed this was found on — while the barracks stands with
-    // an empty queue. And an empty queue is not merely idle: unstarted
-    // orders are what summon their own ingredients (trainingDemand), so
-    // nothing hauls bread or a weapon there either.
-    const trainable = (unit: UnitTypeId): boolean =>
-      isUnitUnlocked(ctx.world, ctx.owner, unit);
-    const ready = prefs.find(unit => {
-      const weapon = WEAPON_OF[unit];
-      return weapon !== undefined && around(weapon) && trainable(unit);
-    });
-    // What to hold the slot with when no weapon is in reach: the playbook's
-    // fallback, or — when that is the locked one — the first preference the
-    // seat can actually put in the queue. None trainable at all and there
-    // is no order worth giving.
-    const warm = trainable(ctx.strategy.trainFallback)
-      ? ctx.strategy.trainFallback
-      : prefs.find(trainable);
-
     const commands: SimCommand[] = [];
-    let cancelled = 0;
-    if (ready !== undefined) {
-      const staleIdx = (barracks.trainQueue ?? []).findIndex(item => {
-        if (item.started) return false;
-        const weapon = WEAPON_OF[item.unit];
-        return weapon !== undefined && !around(weapon);
-      });
-      if (staleIdx >= 0) {
-        commands.push({
-          kind: CommandKind.cancelTraining,
-          buildingId: barracks.id,
-          index: staleIdx,
-          unit: barracks.trainQueue![staleIdx]!.unit,
-        });
-        cancelled = 1;
-      }
+    const claims: EntityId[] = [];
+    for (const hall of ctx.mine) {
+      if (hall.state !== BuildingState.built) continue;
+      const roster = BUILDING_DEFS[hall.type as BuildingTypeId].trains;
+      if (roster === undefined) continue;
+      keepOneQueueWarm(ctx, hall, roster, commands, claims);
     }
-    const order = ready ?? warm;
-    if (
-      order !== undefined &&
-      (barracks.trainQueue?.length ?? 0) - cancelled <
-        ctx.strategy.barracksQueueDepth
-    ) {
-      commands.push({
-        kind: CommandKind.trainUnit,
-        buildingId: barracks.id,
-        unit: order,
-      });
-    }
-    return commands.length > 0 ? {commands, claims: [barracks.id]} : null;
+    return commands.length > 0 ? {commands, claims} : null;
   },
 };
+
+/** One hall's beat of `keepTheQueueWarm`, appending to the shared lists. */
+function keepOneQueueWarm(
+  ctx: RuleContext,
+  hall: Building,
+  roster: NonNullable<BuildingDef['trains']>,
+  commands: SimCommand[],
+  claims: EntityId[],
+): void {
+  const before = commands.length;
+  const around = (good: GoodId): boolean =>
+    (ctx.stock[good] ?? 0) +
+      (hall.inputs[good] ?? 0) +
+      (hall.inbound[good] ?? 0) >
+    0;
+  const prefs: readonly UnitTypeId[] = ctx.counter
+    ? [ctx.counter.unit, ...ctx.strategy.trainPreference]
+    : ctx.strategy.trainPreference;
+  // Only what the seat can actually train. `enqueueTraining` refuses a
+  // unit whose tech is not in and says nothing about it, so an order for
+  // one is not a slow order — it is no order at all, and the queue it was
+  // meant to fill stays empty. The Abbot walks straight into this: its
+  // fallback is the archer, gated behind Archery, so from the beat its
+  // barracks opens until that research lands it re-orders the same
+  // refused archer every beat — a hundred of them inside twenty thousand
+  // ticks on the seed this was found on — while the barracks stands with
+  // an empty queue. And an empty queue is not merely idle: unstarted
+  // orders are what summon their own ingredients (trainingDemand), so
+  // nothing hauls bread or a weapon there either.
+  const trainable = (unit: UnitTypeId): boolean =>
+    roster.some(o => o.unit === unit) &&
+    isUnitUnlocked(ctx.world, ctx.owner, unit);
+  const ready = prefs.find(unit => {
+    const weapon = WEAPON_OF[unit];
+    return weapon !== undefined && around(weapon) && trainable(unit);
+  });
+  // What to hold the slot with when no weapon is in reach: the playbook's
+  // fallback, or — when that is the locked one — the first preference the
+  // seat can actually put in the queue. None trainable at all and there
+  // is no order worth giving.
+  const warm = trainable(ctx.strategy.trainFallback)
+    ? ctx.strategy.trainFallback
+    : prefs.find(trainable);
+
+  let cancelled = 0;
+  if (ready !== undefined) {
+    const staleIdx = (hall.trainQueue ?? []).findIndex(item => {
+      if (item.started) return false;
+      const weapon = WEAPON_OF[item.unit];
+      return weapon !== undefined && !around(weapon);
+    });
+    if (staleIdx >= 0) {
+      commands.push({
+        kind: CommandKind.cancelTraining,
+        buildingId: hall.id,
+        index: staleIdx,
+        unit: hall.trainQueue![staleIdx]!.unit,
+      });
+      cancelled = 1;
+    }
+  }
+  const order = ready ?? warm;
+  if (
+    order !== undefined &&
+    (hall.trainQueue?.length ?? 0) - cancelled < ctx.strategy.barracksQueueDepth
+  ) {
+    commands.push({
+      kind: CommandKind.trainUnit,
+      buildingId: hall.id,
+      unit: order,
+    });
+  }
+  // Claimed only when this beat actually spoke for the hall: a claim lasts
+  // one beat and silences every rule after this one, so claiming a queue
+  // nothing was said about would be a hold nobody asked for.
+  if (commands.length > before) claims.push(hall.id);
+}
 
 /**
  * The table. Order is priority: an earlier rule's claims win, and an earlier

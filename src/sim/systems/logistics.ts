@@ -687,6 +687,126 @@ function tierOf(job: HaulJob, pull: Map<number, number> | null): HaulPriority {
 
 // --- Serf claiming ---------------------------------------------------------
 
+/**
+ * The load home: an idle serf already standing at a building takes that
+ * building's own open job before anything else is handed out. At, not in —
+ * the test is atBuilding, a reach measured to the footprint, so the man on
+ * the doorstep counts and nobody is ever inside the walls.
+ *
+ * This is the trip the village kept failing to make. A serf carries bread
+ * to the mine, sets it down, and stands there with silver on the shelf at
+ * his feet; the loop below then deals the oldest job of whichever tier is
+ * short of hands, and hands it to whoever is nearest *it* — which is him,
+ * because he is the only one free. So he walks back to the castle empty,
+ * and the silver waits for somebody to walk out for it. Two crossings for
+ * a load that was already in reach.
+ *
+ * Dealing these first is not a thumb on the scale for the tiers: the share
+ * they split (HAUL_SHARE) rations *walks*, and a job picked up where the
+ * man is standing costs none. He takes the building's most urgent load
+ * first — for its own reason, not because the loop below would have
+ * ordered them that way. It would not: it picks a tier by how far that
+ * tier sits below its share of the hands before it sorts within one. Here
+ * there is no walk to ration between them, so urgency is all that is left
+ * to sort on.
+ *
+ * Deliberately a pass over the board rather than something progress() does
+ * on the tick a delivery lands: a serf has to be genuinely idle for the
+ * beat after a dropoff or he is invisible to the recruitment sweep, which
+ * runs later in the same tick — and a site starved of its builder claims
+ * the next hand to come free precisely there (systems/staffing.ts). So he
+ * stands, is offered to the village first, and picks the load up on the
+ * next pass if nobody wanted him.
+ */
+function takeStandingJobs(
+  world: World,
+  open: HaulJob[],
+  idleByOwner: Map<Owner, Unit[]>,
+): void {
+  // Grouped by source: a building's jobs come up together, and the men
+  // standing at it are found once for all of them rather than once each.
+  const bySource = new Map<EntityId, HaulJob[]>();
+  for (const job of open) {
+    if (!idleByOwner.has(job.owner)) continue;
+    let jobs = bySource.get(job.from);
+    if (!jobs) bySource.set(job.from, (jobs = []));
+    jobs.push(job);
+  }
+
+  for (const [from, jobs] of bySource) {
+    const b = world.buildings.get(from);
+    if (!b || b.dead) continue; // reconcile will clean it up
+    // Source and destination share an owner by construction, so the
+    // building's own is the job's — and it is the one a serf must match.
+    const idle = idleByOwner.get(b.owner);
+    if (!idle || idle.length === 0) continue;
+    // Most urgent first, then the board's own FIFO. Not what the loop below
+    // would have done with them: that picks a TIER by how far it sits below
+    // its share of the hands and only then sorts within it, so an imbalanced
+    // board deals a tier 3 load ahead of a tier 1 one by design. This is the
+    // order that is right for a man already standing here — the building's
+    // most urgent load first, since none of them costs him a walk.
+    jobs.sort(
+      (a, z) =>
+        a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
+    );
+    // Whoever is standing here and still cannot reach the door — a man
+    // sealed into a pocket at the wall. Remembered across this building's
+    // jobs, because it is the same walk every time and asking twice only
+    // spends the pathfinder (the dispatch loop keeps the same memo, for
+    // the same reason).
+    let refused: Set<number> | undefined;
+    for (const job of jobs) {
+      // Reservations should make this hold; if they somehow do not, leave
+      // the job on the board for reconcile rather than walk a man onto an
+      // empty shelf.
+      if ((b.stock[job.good] ?? 0) < 1) continue;
+      // The first man standing here who can actually get to the door. Not
+      // simply the first standing here: one sealed-in serf must not answer
+      // for the building and send every load in it back to the ordinary
+      // board, which is the bug PATH_TRIES records below in its own words
+      // — the nearest man's bad luck becoming the job's.
+      let serf: Unit | undefined;
+      let path: number[] | null = null;
+      let i = -1;
+      for (let k = 0; k < idle.length; k++) {
+        const cand = idle[k]!;
+        if (refused?.has(cand.id) || !atBuilding(cand, b)) continue;
+        // The same walk the dispatch loop below would hand him, and for a
+        // man already on the ring the pathfinder returns it empty without
+        // a search — so this costs nothing in the ordinary case, and he
+        // goes through arrival like everybody else rather than drawing
+        // from the shelf a tick early.
+        path = findPathToAdjacent(
+          world.map,
+          Math.floor(cand.x),
+          Math.floor(cand.y),
+          b.x,
+          b.y,
+          b.w,
+          b.h,
+        );
+        if (path) {
+          serf = cand;
+          i = k;
+          break;
+        }
+        (refused ??= new Set()).add(cand.id);
+      }
+      if (!serf || !path) break; // nobody left here who can reach it
+      idle.splice(i, 1);
+      job.phase = HaulPhase.toPickup;
+      job.serfId = serf.id;
+      job.blockedCount = 0; // claimed, so the unreachable tally starts over
+      serf.jobId = job.id;
+      serf.path = path;
+      serf.pathIdx = 0;
+      serf.task = {t: UnitTaskKind.haul};
+      if (idle.length === 0) break;
+    }
+  }
+}
+
 function dispatch(world: World): void {
   // Collect open, unblocked jobs in claim order.
   const open: HaulJob[] = [];
@@ -725,6 +845,20 @@ function dispatch(world: World): void {
   }
   if (idleByOwner.size === 0) return;
 
+  // The load home, before the board is dealt at all (see takeStandingJobs).
+  takeStandingJobs(world, open, idleByOwner);
+  // ...which can have taken the last free hand. The check above no longer
+  // covers the sort below, so it is asked again: the buckets survive, but
+  // every man in them may have just walked off with a load.
+  let anyIdle = false;
+  for (const bucket of idleByOwner.values()) {
+    if (bucket.length > 0) {
+      anyIdle = true;
+      break;
+    }
+  }
+  if (!anyIdle) return;
+
   // Sort only once we know somebody can actually claim a job — this runs
   // every tick, and most ticks have no idle serfs. Oldest first; the tier is
   // chosen below, per hand, and this is the order within it.
@@ -749,6 +883,10 @@ function dispatch(world: World): void {
     b[tierOf(job, pull) - 1]!++;
   }
   for (const job of open) {
+    // Taken by takeStandingJobs, which ran above — and counted in `busy`
+    // just now, since it has a carrier. Skipping it here is also what
+    // keeps it from spending the repair's pull a second time.
+    if (job.phase !== HaulPhase.open) continue;
     if (!idleByOwner.has(job.owner)) continue;
     let q = queues.get(job.owner);
     if (!q) queues.set(job.owner, (q = [[], [], []]));
