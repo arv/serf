@@ -8,6 +8,15 @@ import {
   WORK,
   type UnitSnapshot,
 } from '../protocol/sabLayout';
+import {unitSnapshots} from '../protocol/snapshot.ts';
+import {tileIdx} from '../shared/grid.ts';
+import {BUILDING_DEFS} from '../sim/defs/buildings.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import {bareWorld, staffBuilding} from '../sim/testUtils.ts';
+import {tickWorld} from '../sim/tick.ts';
+import {placeBuiltBuilding} from '../sim/world.ts';
 import type {PierInfo} from './buildingSync';
 import type {HeightField} from './heightField';
 
@@ -174,20 +183,20 @@ describe('the fisherman on his deck', () => {
     expect(along(r.where())).toBeGreaterThan(0.5);
   });
 
-  it('waits at the door while the hut is stalled, and goes out when it is not', () => {
+  it('holds the door for as long as the work flag stays down', () => {
     const r = rig();
     r.step(240);
-    // A stalled hut (buffer full, nobody hauling) publishes the same idle
-    // the catch does, and never stops. He walks in on the first of them and
-    // stays: the beat at the door runs out on the clock, but there is
-    // nothing to go back out and cast for.
+    // The trip in is started by work going away and finished by it coming
+    // back — not by the clock. Today's sim always has it back long before
+    // he reaches the door (the catch is one tick in four hundred, pinned
+    // below), so this is the rule rather than a scene from a match: a work
+    // flag that DID stay down leaves him at his door instead of pacing out
+    // to cast for nothing.
     r.step(300, ACTION.idle);
     expect(along(r.where())).toBeLessThan(0.1);
-    // Well past PIER_DROP_HOLD, and still there.
-    r.step(300, ACTION.idle);
+    r.step(300, ACTION.idle); // well past PIER_DROP_HOLD, still there
     expect(along(r.where())).toBeLessThan(0.1);
-    // Fishing again: the beat expires and he goes back out.
-    r.step(180);
+    r.step(180); // working again: the beat expires and he goes back out
     expect(along(r.where())).toBeGreaterThan(1.0);
   });
 
@@ -207,5 +216,58 @@ describe('the fisherman on his deck', () => {
     // sim's own inland walk cannot drag him off the side of it.
     expect(worst).toBeLessThan(0.01);
     expect(along(r.where())).toBeLessThan(1.3); // and he did walk in
+  });
+});
+
+/**
+ * The catch is read off the sim's own publish, so what that publish looks
+ * like is load-bearing for everything above: no batch edge, no trip to the
+ * door. Nothing else pins it, and it is the kind of shape a change to
+ * production.ts could round off without anyone noticing the fisherman had
+ * quietly stopped walking his fish in.
+ */
+describe('the tick the catch is read from', () => {
+  it('is one non-work tick between two convert batches, and only that', () => {
+    const world = bareWorld();
+    // A shore along the footprint's north edge, which is what a fishery
+    // needs to stand at all (chains.test.ts covers the placement rule).
+    for (let tx = 25; tx < 40; tx++) {
+      const i = tileIdx(tx, 29, world.map.size);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    const fishery = placeBuiltBuilding(
+      world,
+      BuildingTypeId.fishery,
+      0,
+      30,
+      30,
+    );
+    const worker = staffBuilding(world, fishery);
+    const runs: {work: boolean; ticks: number}[] = [];
+    for (let t = 0; t < 20 * 70; t++) {
+      tickWorld(world, []);
+      for (const s of unitSnapshots(world)) {
+        if (s.id !== worker.id) continue;
+        expect(s.workKind).toBe(WORK.fish); // ...and he never stops being a fisherman
+        const work = s.action === ACTION.work;
+        const last = runs.at(-1);
+        if (last && last.work === work) last.ticks++;
+        else runs.push({work, ticks: 1});
+      }
+    }
+    // Work for the recipe's whole duration, one tick off, work again —
+    // read off the def rather than written down, so a rebalance moves this
+    // with it and only a change in SHAPE fails.
+    const recipe = BUILDING_DEFS[BuildingTypeId.fishery].recipe;
+    expect(recipe?.kind).toBe(RecipeKind.convert); // ...a batch, not a gather
+    const batch =
+      recipe?.kind === RecipeKind.convert ? recipe.durationTicks : 0;
+    expect(runs.length).toBeGreaterThan(4);
+    for (const [i, run] of runs.entries()) {
+      if (!run.work) expect(run.ticks).toBe(1);
+      // The last run is cut off by the end of the loop, not by a batch.
+      else if (i < runs.length - 1) expect(run.ticks).toBe(batch);
+    }
   });
 });

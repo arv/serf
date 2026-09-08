@@ -95,14 +95,12 @@ interface UnitVisual {
   mowWorkUntil?: number;
   /** Pier-walk state (the fisherman on his deck): how far back from the
    * tip his current stand is, the anim-clock time the stand (or the beat
-   * at the door) runs to, whether he is walking a catch in, the working
-   * flag he is watching for the batch edge that IS the catch, and — once
-   * the sim has taken him off post — the deck he is still standing on plus
-   * how far out along it he has got walking off. */
+   * at the door) runs to, whether he is walking a catch in, and — once the
+   * sim has taken him off post — the deck he is still standing on plus how
+   * far out along it he has got walking off. */
   pierBack?: number;
   pierUntil?: number;
   pierHauling?: boolean;
-  pierWorking?: boolean;
   pierOff?: PierInfo;
   pierOffAt?: number;
   pierOffLag?: number;
@@ -1000,19 +998,23 @@ export class SceneSync {
         const arrived = dist < 0.08;
         fishing = onDeck && !home && arrived;
         if (post) {
-          // The catch. A convert batch ends with one idle tick before the
-          // next begins — the same tick the farmer's mowWorkUntil exists to
-          // smooth over — and on a fishery that tick is a fish on the
-          // planks. So here it is read rather than smoothed: it turns him
-          // round. A stalled hut (nobody hauling, buffer full) publishes
-          // that same idle, and a man with nothing to fish for waiting by
-          // his door is the right picture anyway.
+          // The catch. A convert batch ends with ONE non-work tick before
+          // the next begins — the same tick the farmer's mowWorkUntil
+          // exists to smooth over — and on a fishery that tick is a fish on
+          // the planks. So here it is read rather than smoothed: it turns
+          // him round. Measured, and pinned in sceneSync.pier.test.ts,
+          // because the whole trip hangs off it: 400 ticks of work, one
+          // idle, 400 more.
+          //
+          // A hut nobody hauls from does NOT show up here. Its buffer fills
+          // and the resident goes on publishing work — the catch tick is
+          // simply the thing that stops arriving — so he keeps fishing at
+          // his stand, which is what the sim says he is doing.
           const working = action === ACTION.work;
-          if (visual.pierWorking && !working && !visual.pierHauling) {
+          if (!working && !visual.pierHauling) {
             visual.pierHauling = true;
             visual.pierUntil = undefined;
           }
-          visual.pierWorking = working;
           if (visual.pierHauling) {
             // `home` is read from before this block, so on the very frame
             // the catch lands it is still false and `arrived` still means
@@ -1020,11 +1022,12 @@ export class SceneSync {
             // the one he spends at the door.
             if (home && arrived) {
               visual.pierUntil ??= animNow + PIER_DROP_HOLD;
-              // ...and he only picks the rod back up once there is fishing
-              // to go back out FOR. A stalled hut publishes the same idle
-              // the catch does and never stops, so a beat that expired on
-              // the clock alone would walk him out to cast at a hut that
-              // has nowhere to put the fish.
+              // ...and he picks the rod back up only with work running
+              // under him. Today's sim always has it back by the time he
+              // reaches the door — the catch tick is one tick out of four
+              // hundred — so this never holds him; it is here so that a
+              // work flag that DID stay down would leave him at his door
+              // rather than pacing out to cast for nothing.
               if (working && animNow >= visual.pierUntil) {
                 visual.pierHauling = false;
                 visual.pierUntil = undefined;
@@ -1069,7 +1072,6 @@ export class SceneSync {
       } else {
         visual.pierHauling = undefined;
         visual.pierUntil = undefined;
-        visual.pierWorking = undefined;
         visual.pierOffAt = undefined;
       }
       // The farmer's post is his rows: while he holds it, the render
