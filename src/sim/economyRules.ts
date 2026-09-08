@@ -18,7 +18,7 @@ import type {TechId} from './defs/techs.ts';
 import {WEAPON_OF, type UnitTypeId} from './defs/units.ts';
 import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
 import type {Building, EntityId, Owner} from './entities.ts';
-import {countResourceNear, findResourcesNear} from './map.ts';
+import {countResourceNear, canWorkResourceNear} from './map.ts';
 import {findSpot, nearestClaimableResource} from './siting.ts';
 import {isUnitUnlocked} from './techHelpers.ts';
 import type {World} from './world.ts';
@@ -215,7 +215,7 @@ export interface EconomyRule {
  */
 const resiteExtractor: EconomyRule = {
   id: EconomyRuleIdNs.resiteExtractor,
-  when: 'a gatherer has exhausted everything inside its radius',
+  when: 'a gatherer can no longer work anything inside its radius',
   phase: RulePhaseNs.recovery,
   fire(ctx) {
     for (const b of ctx.mine) {
@@ -225,10 +225,16 @@ const resiteExtractor: EconomyRule = {
       if (!recipe) continue;
       const code = recipe.resource;
       const c = gatherOrigin(def, b.x, b.y);
-      if (
-        findResourcesNear(ctx.world.map, c.x, c.y, code, recipe.radius, 1)
-          .length > 0
-      )
+      // Workable, not merely standing. This asked `findResourcesNear` —
+      // is there anything of the kind inside the square — which is a
+      // different question from the one the hut's worker fails at, and a
+      // single tile he cannot walk to answers it "yes" forever. A quarry
+      // whose last rock sat ringed by its own grove was therefore dead and
+      // unsellable at once: the gather loop found nothing to path to, and
+      // this rule saw ground still standing and held its hand. Same flood
+      // as the gather loop's now (map.ts), so a hut that cannot work is a
+      // hut this rule can move.
+      if (canWorkResourceNear(ctx.world.map, c.x, c.y, b, code, recipe.radius))
         continue;
       // Nowhere to go — on this seat's own side of the valley. A live seam
       // in a rival's yard is not somewhere the build order will re-site
@@ -320,6 +326,16 @@ const openReserveMine: EconomyRule = {
       const recipe = gatherRecipeOf(def);
       if (!recipe) return 0;
       const c = gatherOrigin(def, b.x, b.y);
+      // Loads standing, deliberately, and not the reach-filtered count the
+      // rest of this file moved to. This rule fires on a THRESHOLD, ahead
+      // of the seam running out, so it can afford the ground's number: the
+      // worst a walled-in seam costs it is a reserve opened late. The case
+      // where reach is the whole question — a mine that can work nothing at
+      // all — belongs to `resiteExtractor` above, which fires at zero and
+      // sells, and which does ask the exact question. Paying for a reach
+      // flood here instead would be the most expensive call in the sim's
+      // headless bakeoffs (it has no early exit to take: a sum wants every
+      // tile) for an answer this rule cannot act on any better.
       return countResourceNear(map, c.x, c.y, recipe.resource, recipe.radius);
     };
     for (const b of ctx.mine) {

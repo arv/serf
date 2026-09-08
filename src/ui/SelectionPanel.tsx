@@ -117,22 +117,37 @@ function hireSlots(queued: number | undefined): boolean[] {
 /**
  * What "in reach" means for this building, in the terms that decide what
  * the player does about it: a spent seam is a mine to tear down, a thin
- * grove is a woodcutter that will pick up again on its own.
+ * grove is a woodcutter that will pick up again on its own — and ground
+ * its worker cannot walk to is a third case that reads like the first and
+ * asks for the opposite.
  */
 function reachTip(
   type: BuildingTypeId,
   resource: TileResourceKind,
   left: number,
+  blocked: number,
 ): string {
   const renews = resource === TileResource.Wood;
+  const name = buildingName(type).toLowerCase();
+  // Shut in: the ground is there and the walk is not. Said first, because
+  // every word of the worked-out case below would be wrong here — nothing
+  // is spent, selling is not the move, and the hut starts again the moment
+  // something opens a way through.
+  if (left <= 0 && blocked > 0) {
+    return `${blocked} still standing inside the search square, and no way to walk to any of it — ringed by trees, or shut in by what has been built around it. This ${name} makes nothing until a way opens. Fell what is in the way, or sell it and put the next one on open ground.`;
+  }
   if (left <= 0) {
     return renews
       ? 'Every tree inside the search square is down. Stumps grow back in time, slowly — this hut will start again on its own, but a forest is where it belongs.'
-      : `Nothing workable is left inside the search square, and none of it comes back. This ${buildingName(type).toLowerCase()} is finished where it stands — sell it and put the next one on fresh ground.`;
+      : `Nothing workable is left inside the search square, and none of it comes back. This ${name} is finished where it stands — sell it and put the next one on fresh ground.`;
   }
+  const shut =
+    blocked > 0
+      ? ` (${blocked} more stands inside the square with no way to walk to it, and counts for nothing until something opens one.)`
+      : '';
   return renews
-    ? 'Loads of wood still standing inside the square its woodcutter searches. Felled tiles regrow, so a hut with room to breathe holds its number rather than running down to nothing.'
-    : 'Loads still in the ground inside the square its worker searches — every one of them a trip, and none of them replaced. When it reaches zero the building is done wherever it stands.';
+    ? `Loads of wood still standing inside the square its woodcutter searches, and reachable. Felled tiles regrow, so a hut with room to breathe holds its number rather than running down to nothing.${shut}`
+    : `Loads still in the ground inside the square its worker searches, and reachable — every one of them a trip, and none of them replaced. When it reaches zero the building is done wherever it stands.${shut}`;
 }
 
 /**
@@ -1307,6 +1322,7 @@ export function SelectionPanel(props: {
                             b().type,
                             g().resource,
                             b().resourceLeft ?? 0,
+                            b().resourceBlocked ?? 0,
                           )}
                         />
                       )}
@@ -1320,7 +1336,29 @@ export function SelectionPanel(props: {
                         >
                           {b().resourceLeft ?? 0}
                         </span>
-                        <Show when={(b().resourceLeft ?? 0) <= 0}>
+                        {/* Worked out and walled in are the same zero and
+                            opposite problems: one hut is finished, the
+                            other is one felled tree from working again.
+                            Saying "worked out" over ground that is still
+                            standing there is the reading that let a
+                            quarry sit dead for eight minutes. */}
+                        <Show
+                          when={
+                            (b().resourceLeft ?? 0) <= 0 &&
+                            (b().resourceBlocked ?? 0) > 0
+                          }
+                        >
+                          <span class="sel-label spent">
+                            {' '}
+                            · walled in ({b().resourceBlocked})
+                          </span>
+                        </Show>
+                        <Show
+                          when={
+                            (b().resourceLeft ?? 0) <= 0 &&
+                            (b().resourceBlocked ?? 0) <= 0
+                          }
+                        >
                           <span class="sel-label spent"> · worked out</span>
                         </Show>
                       </span>

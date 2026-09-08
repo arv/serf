@@ -282,6 +282,68 @@ describe('gatherer placement', () => {
     expect(canPlace(world.map, BuildingTypeId.quarry, 30, 30)).toBe(true);
   });
 
+  it('refuses a spot whose only resource is walled in', () => {
+    // Range is not reach. This rule used to ask only whether something of
+    // the kind stood inside the square, which a tile ringed by its own
+    // grove answers yes to forever — so the ghost went green over ground
+    // that could never be worked, and a player who had just watched one
+    // quarry die there could raise the next one on the same spot.
+    const world = bareWorld();
+    const size = world.map.size;
+    addResourceTile(world, 35, 31, TileResource.Rock);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        addResourceTile(world, 35 + dx, 31 + dy, TileResource.Wood);
+      }
+    }
+    expect(placementRefusal(world.map, BuildingTypeId.quarry, 30, 30)).toBe(
+      'resource',
+    );
+
+    // A woodcutter on the same spot is fine — the ring that seals the rock
+    // in is eight loads of the timber IT works, all of it walkable-to.
+    expect(canPlace(world.map, BuildingTypeId.woodcutter, 30, 30)).toBe(true);
+
+    // Fell one of the ring and the quarry has its way in.
+    const gap = tileIdx(34, 31, size);
+    world.map.resource[gap] = TileResource.None;
+    world.map.resourceAmt[gap] = 0;
+    world.map.blocked[gap] = 0;
+    expect(canPlace(world.map, BuildingTypeId.quarry, 30, 30)).toBe(true);
+  });
+
+  it("counts the ghost's own footprint as blocking, so the answer survives the walls", () => {
+    // A worker walks around his post, not through it. If the test let the
+    // ghost's footprint stand open — it is not blocked until the site goes
+    // down — a spot would read workable under the cursor and stop being
+    // workable the moment the building was real, which is the one answer a
+    // placement rule must never give.
+    const world = bareWorld();
+    const size = world.map.size;
+    // A pocket reachable only across the tiles a 2x2 at (30,30) would
+    // stand on: the rock at (30,29) opens to (30,30) and (31,30), and
+    // everything else around it is sealed.
+    addResourceTile(world, 30, 29, TileResource.Rock);
+    for (const [x, y] of [
+      [29, 28],
+      [30, 28],
+      [31, 28],
+      [29, 29],
+      [31, 29],
+      [29, 30],
+    ] as const) {
+      addResourceTile(world, x, y, TileResource.Wood);
+    }
+    expect(placementRefusal(world.map, BuildingTypeId.quarry, 30, 30)).toBe(
+      'resource',
+    );
+    // Standing one tile clear of the pocket's mouth, the same rock is
+    // workable and the same ghost is legal.
+    expect(tileIdx(30, 29, size)).toBeGreaterThan(0);
+    expect(canPlace(world.map, BuildingTypeId.quarry, 30, 31)).toBe(true);
+  });
+
   it('draws the line exactly where the worker stops walking', () => {
     const world = bareWorld();
     const radius = 8; // woodcutter's gather radius

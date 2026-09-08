@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type {BuildingSnap} from '../protocol/messages';
 import {buildingDef, gatherOrigin, gatherRecipeOf} from '../sim/defs/buildings';
 import {
-  findResourceNear,
+  canWorkResourceNear,
+  type Footprint,
   type MapView,
   type TileResourceKind,
 } from '../sim/map';
@@ -183,6 +184,8 @@ export class SelectedReach {
   #search: {
     x: number;
     y: number;
+    /** The footprint the flood steps out from — see map.ts Footprint. */
+    hut: Footprint;
     code: TileResourceKind;
     radius: number;
   } | null = null;
@@ -213,6 +216,7 @@ export class SelectedReach {
       this.#search = {
         x: origin.x,
         y: origin.y,
+        hut: {x: building.x, y: building.y, w: def.w, h: def.h},
         code: gather.resource,
         radius: gather.radius,
       };
@@ -223,10 +227,21 @@ export class SelectedReach {
     // the answer changes under the player as the last trees come down, and
     // an outline that only asked once would stay green over bare ground.
     // A hit is usually a ring or two out, and a miss — the case that scans
-    // the whole square — is a few hundred array reads.
-    const rich =
-      findResourceNear(map, search.x, search.y, search.code, search.radius) >=
-      0;
+    // the whole square, then floods for a way through it — is a few
+    // thousand array reads.
+    //
+    // The worker's own means reach and not just range (map.ts): ground he
+    // cannot walk to paints the square SPENT, because it buys him exactly
+    // as many trips as bare ground does. The card says which of the two it
+    // is; the outline only has one colour to say it with.
+    const rich = canWorkResourceNear(
+      map,
+      search.x,
+      search.y,
+      search.hut,
+      search.code,
+      search.radius,
+    );
     if (rich === this.#rich) return;
     this.#rich = rich;
     this.#outline.moveTo(search.x + 0.5, search.y + 0.5, rich ? RICH : SPENT);
