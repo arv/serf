@@ -55,6 +55,28 @@ const SHADOW_PAD = 8;
  */
 const SHADOW_HALF_STEP = 4;
 
+export interface RendererOptions {
+  /**
+   * Whether the rig binds the keyboard and wheel. Off for a scene that
+   * sits behind a form — the menu backdrop — or typing into the form would
+   * pan it. Default true.
+   */
+  interactive?: boolean;
+  /**
+   * For a canvas nobody sees sharp — the menu backdrop, which index.html
+   * blurs before it reaches the eye. Draws at one pixel per CSS pixel with
+   * no multisampling: on a Retina display that is a quarter of the
+   * fragments the match pays for, and behind a 2.5px blur the difference
+   * is not there to see. What is there to see is the cost. Chrome hands a
+   * WebGL frame to the compositor by blocking the main thread until the
+   * GPU has taken it, and a GPU that is running slow — a laptop that has
+   * cut the graphics clock on a low battery — holds the whole page,
+   * buttons included, for as long as the frame takes to draw. A menu drawn
+   * at a quarter of the pixels is held a quarter as long. Default false.
+   */
+  soft?: boolean;
+}
+
 /**
  * Owns the WebGL context, scene, lights, and camera rig. Content (terrain,
  * scatter, entity visuals) is added to `scene` by the composition root.
@@ -85,13 +107,19 @@ export class GameRenderer {
   #bounds: ViewBounds = {minX: 0, maxX: 0, minZ: 0, maxZ: 0};
   #centreScratch = new THREE.Vector3();
 
-  constructor(canvas: HTMLCanvasElement, interactive = true) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    {interactive = true, soft = false}: RendererOptions = {},
+  ) {
     // Phones and tablets render the same scene on a far smaller GPU: trade
     // resolution and shadow crispness for framerate. Desktop is unchanged.
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-    this.#webgl = new THREE.WebGLRenderer({canvas, antialias: !coarse});
+    this.#webgl = new THREE.WebGLRenderer({
+      canvas,
+      antialias: !coarse && !soft,
+    });
     this.#webgl.setPixelRatio(
-      Math.min(window.devicePixelRatio, coarse ? 1.5 : 2),
+      soft ? 1 : Math.min(window.devicePixelRatio, coarse ? 1.5 : 2),
     );
     // Construction sites reveal their model with a clip plane.
     this.#webgl.localClippingEnabled = true;
