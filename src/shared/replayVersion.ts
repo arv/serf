@@ -20,18 +20,19 @@
  * directly.
  */
 /**
- * 59: the Archery Range stands on the barracks' footprint, pays a mason
+ * 60: the Archery Range stands on the barracks' footprint, pays a mason
  * for it, and takes the hit points that go with both.
  *
  * Two by two to three by three, the stone bill two to six, and 150 hit
  * points to 200. Nothing else about the building moves — same ten wood,
  * same eighteen-second raising, same nine-second archer.
  *
- * 59 and not 57, which is the number this was cut as: main took 57 (the
- * fishery's own footprint, whose note is below and reasons about a
- * footprint in exactly these terms) and 58 (the load home) while the
- * branch was open. Third build in a row to renumber for the same reason,
- * which is by now the pattern rather than the accident.
+ * 60 and not 57, which is the number this was cut as: main took 57 (the
+ * fishery's own footprint, whose note reasons about a footprint in exactly
+ * these terms), 58 (the load home) and now 59 (the armory's one of each,
+ * below) while the branch was open. Fourth number for one change, and the
+ * note below says the same of itself in the same words — by now the
+ * pattern rather than the accident.
  *
  * The model is what started it. KayKit authors the range as the second
  * largest building in the pack — only the castle is bigger, and it
@@ -55,6 +56,41 @@
  * leaves it standing, and every tick of that fight lands somewhere else. A
  * replay recorded before this build re-runs into a different world within
  * seconds of the first range going down.
+ *
+ * (Riding it unbumped, because a rule inside a brain has never moved this
+ * number: `sellForTheWoodcutter` in economyRules.ts, which is what the
+ * standoff the footprint exposed turned out to need. Playback replays the
+ * commands a seat issued, not the reasoning that issued them.)
+ *
+ * 59's note follows.
+ */
+/**
+ * 59: the armory holds one of each arm.
+ *
+ * 59, cut as 56: main took 56 (the reachable ground rule), 57 (the
+ * fishery's footprint) and 58 (the load home) while this branch was open.
+ * Fourth number for one change, and the note below this one says the same
+ * of itself in the same words — which is the pattern worth reading rather
+ * than any one of the four.
+ *
+ * START_STOCK (defs/balance.ts) went from two spears and a sword to a
+ * spear, a sword and a bow. A building's stores are read every tick a
+ * hauler plans against them, and the opening army every seat can field
+ * before its forges stand is one soldier smaller — so a log recorded
+ * before this build musters men this one cannot, and every haul planned
+ * around the missing spear walks somewhere else.
+ *
+ * The bow is the half that could not have been spent until now: the archer
+ * waits on Archery and on a range, both of which arrived at 55. Under the
+ * old tree it would have been a good nobody could reach without buying the
+ * spear line first, which is why the same change measured badly before the
+ * roof and measures +5 campaigns in 120 after it.
+ *
+ * Two playbooks moved with it and neither needed the number — playback
+ * runs no brains (app/simWorker.ts): the Warlord buys ironworking second
+ * now, because the rack no longer carries it to a raiding party and the
+ * iron that replaces those spears has to arrive sooner; and the Fletcher's
+ * notes stopped describing an armory with two spears in it.
  *
  * 58's note follows.
  */
@@ -879,4 +915,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 59;
+export const REPLAY_VERSION = 60;

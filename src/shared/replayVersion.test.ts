@@ -473,7 +473,22 @@ import {REPLAY_VERSION} from './replayVersion';
 // landing as 57: main took 55 for the Archery Range and 56 for the
 // reachable-ground rule while the branch was open. (The hut it carries got
 // smaller in the same commit, and that half is render only.)
-// 59 for the Archery Range taking the barracks' footprint (2x2 -> 3x3, in
+// 59 for the armory holding one of each arm (START_STOCK in
+// sim/defs/balance.ts): two spears and a sword became a spear, a sword and
+// a bow, so every seat's opening army is one soldier smaller and the hauls
+// planned around the missing spear walk elsewhere. A balance number in the
+// plainest sense, the same kind the Monument's bread was.
+//
+// Cut as 56, landing as 59: main took 56 for the reachable-ground rule, 57
+// for the fishery's footprint and 58 for the load home while the branch
+// was open. Four numbers for one change, and the notes above carry the
+// same line about themselves — which is the pattern worth reading rather
+// than any one of the four.
+//
+// The playbook half rode it for free, as playbook data always does: the
+// Warlord's ironworking moved second (the rack no longer carries it to a
+// raiding party) and the Fletcher's notes stopped describing two spears.
+// 60 for the Archery Range taking the barracks' footprint (2x2 -> 3x3, in
 // defs/buildings.ts). What started it is the model — KayKit authors the
 // range larger than the barracks and the renderer scales off min(w,h), so
 // at two it read as a shed — but a footprint is not costume, on exactly the
@@ -481,10 +496,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // tiles of flat ground instead of four makes a placeSite an old log could
 // have carried refusable, nine blocked tiles re-route every hauler that
 // walks past it, and sight measured from the footprint edge reveals a wider
-// ring. Behavior, so old logs stop playing. Cut as 57, landing as 59: main
-// took 57 for the fishery and 58 for the load home while the branch was
-// open.
-// Still 59 for the range's stone going 2 -> 6 alongside it: a build cost is
+// ring. Behavior, so old logs stop playing. Cut as 57, landing as 60: main
+// took 57 for the fishery, 58 for the load home and 59 for the armory while
+// the branch was open.
+// Still 60 for the range's stone going 2 -> 6 alongside it: a build cost is
 // behavior of the plainest kind — four more hauls before the site rises,
 // and a dearer repair with it (REPAIR_COST_SHARE) — but 59 is this build's
 // own bump and has never shipped, so there is nothing older to break. The
@@ -495,13 +510,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // iron and quarrying once — and its campaign still lands
 // (aiStrategies.test.ts); its quarry is second in its plan, ahead of
 // everything but the axe, and the range is well down the order behind it.
-// Still 59 for the range's hit points going 150 -> 200 with them, on that
+// Still 60 for the range's hit points going 150 -> 200 with them, on that
 // same never-shipped reasoning, and it is the same decision a third time: a
 // building on the barracks' footprint at nearly the barracks' price does
 // not also get to be a shed to knock over. Real behavior — a raid that used
 // to level a range leaves it standing, and every tick of that fight lands
 // somewhere else.
-// Still 59 after sellForTheWoodcutter (economyRules.ts, and its id): a rule
+// Still 60 after sellForTheWoodcutter (economyRules.ts, and its id): a rule
 // inside a brain, which is the one kind of change this file has never had to
 // bump for — playback replays the commands a seat issued, not the reasoning
 // that issued them (app/replay.ts), so a seat that would now tear down its
@@ -509,8 +524,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // same reasoning the "Still 49 after the Mason" and "Still 54 after the lone
 // anvil's counter" entries above record. The hash is over raw bytes, which is
 // why it moved anyway.
-const EXPECTED_VERSION = 59;
-const EXPECTED_HASH = 'e62373f4dbae1b2242ff616ab40c8a30';
+const EXPECTED_VERSION = 60;
+const EXPECTED_HASH = '157d5adef1a45d54777ce50fc8532499';
 
 /**
  * Everything a replay's playback depends on, as raw source:

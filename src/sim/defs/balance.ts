@@ -21,8 +21,20 @@ export const TICK_MS = 1000 / TICKS_PER_SECOND;
 // 8 is the tested floor: at 6 the campaign AI falls to the raids and AI-vs-AI
 // stalemates, even with the silver-first build order (see ai.ts).
 export const START_SERFS = 8;
-// The village armory holds a few old weapons so a Soldiery rush can field
-// defenders before the first raid without the full iron chain.
+// The village armory holds a few old weapons so a rush can field defenders
+// before the first raid without the full iron chain.
+//
+// One of each arm rather than two spears and a sword. The rack is a sample
+// of the triangle now, not a levy of one corner of it: whichever way the
+// opening is read, the weapon for it is on the peg and never two of
+// anything.
+//
+// The bow is the odd one and worth naming as such. It cannot be spent the
+// day the match opens — the archer waits on Archery and on a range — so it
+// is not an opening defender the way the spear is. It is the one bowstave
+// a village never has to cut, which is what makes the turn to archery a
+// decision about a roof rather than about the forge, and it is why the bow
+// playbooks changed with this number (defs/aiStrategies.ts).
 export const START_STOCK: GoodAmounts = {
   [GoodId.wood]: 36,
   [GoodId.stone]: 15,
@@ -33,8 +45,9 @@ export const START_STOCK: GoodAmounts = {
   [GoodId.wheat]: 12,
   [GoodId.food]: 8,
   [GoodId.silver]: 20,
-  [GoodId.spear]: 2,
+  [GoodId.spear]: 1,
   [GoodId.sword]: 1,
+  [GoodId.bow]: 1,
   // The tool shed: one of each post's tool plus spares for the two the
   // opening leans on hardest, so the first village staffs itself exactly
   // as it did before tools existed — the squeeze is meant to arrive with

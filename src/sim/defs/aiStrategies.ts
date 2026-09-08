@@ -496,8 +496,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // line is written for. (tools/aiLab/balance.ts)
     researchOrder: [
       TechId.soldiery,
-      TechId.cobbledBoots,
       TechId.ironworking,
+      TechId.cobbledBoots,
       TechId.deepMining,
       TechId.mailArmor,
       TechId.gildedArms,
@@ -914,12 +914,22 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // inside 9k (aiStrategies.test.ts pins it). Worth it: 21/24 against
       // 20/24 over 24 seeds, +2 population and +0.6 army.
       //
-      // Soldiery still second, and dropping it was tried. A Fletcher with
-      // no barracks at all — mono-archer, the pure reading of the two
-      // roots — takes 16/24 and dies in 8: it loses the opening spearmen
-      // its two armory spears were for, and with them every answer to the
-      // light column that eats bowmen. The barracks is a hedge this plan
-      // needs even though it is not what the plan is about.
+      // Soldiery still second, and dropping it has been tried twice, on
+      // either side of the armory going to one of each arm (START_STOCK in
+      // defs/balance.ts). Under two spears and a sword, a Fletcher with no
+      // barracks at all — mono-archer, the pure reading of the two roots —
+      // took 16/24 and died in 8: it lost the opening spearmen those two
+      // spears were for, and with them every answer to the light column
+      // that eats bowmen. Under one of each it takes 20/24 against this
+      // plan's 21, which is a win inside the noise.
+      //
+      // So the hedge is now marginal rather than decisive, and it is worth
+      // knowing why: one spear buys one spearman, and the barracks is
+      // twelve wood and eight stone for him. It stays because it still
+      // measures no worse and because a seat whose whole army is bows has
+      // nothing else to answer a light rush with — but the next hand to
+      // touch this seat should know the margin is a single game, not the
+      // five it used to be.
       TechId.archery,
       TechId.soldiery,
       TechId.cobbledBoots,
@@ -959,8 +969,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     harass: {size: 3, cooldown: 900, maxAge: 800},
     retreats: false,
     weaponMix: [2], // every forge on bowstaves
-    // The spear in the armory arms the first defender; after that the queue
-    // waits on bows, since no iron chain is coming.
+    // The armory arms the opening twice over now: its one spear is this
+    // seat's only spearman ever — no iron chain is coming to forge another
+    // — and its one bow is an archer the moment the range stands, without
+    // waiting on a forge at all. After those two the queue waits on
+    // bowstaves like everything else.
     trainPreference: [UnitTypeId.archer, UnitTypeId.spearman],
     trainFallback: UnitTypeId.archer,
     barracksQueueDepth: 3,
