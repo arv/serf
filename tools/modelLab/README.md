@@ -266,3 +266,26 @@ judging anything the audit's heuristics summarize away:
 ```sh
 node tools/modelLab/animImpacts.mjs curve Rig_Medium_Tools.glb Chopping handslot.r
 ```
+
+## The hut roof
+
+`reroofFishery.mjs` re-lays the fisherman's hut roof in the pack's grain.
+Blender left it at 13 boards a slope, all at a dead 45 degrees; measured
+after `normalize` those were 0.047 of the footprint where home_A's are
+0.082 — half the pack's board with twice its line work. The script keeps 5
+a slope, spread across the same span, and swings one board on each to Kay's
+41.4 degrees.
+
+That last part is where a KayKit roof's two tones come from, and it has to
+be geometry: the roof column lands inside `TEAM_SWATCH_UV`, so a
+faction-owned roof is drawn in one flat Lambert colour and its UVs never
+reach a pixel. The kinked board reads 7/255 against its neighbours, against
+6/255 for home_A's own band.
+
+```sh
+node tools/modelLab/reroofFishery.mjs
+```
+
+It runs once, on the model as Blender left it, and refuses a roof it has
+already re-laid. The script is in the tree because the alternative is an
+unreviewable diff in a `.bin`.
