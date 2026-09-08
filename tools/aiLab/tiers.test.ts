@@ -36,8 +36,22 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * range 101 and 100/187 (53.5%) on range 1000 — pooled 55.8%, interval
  * clear of 50 — against 111/184 and 105/185 on the main it merged. Two
  * seeds cannot carry a 56% edge; these two read 7/8 each on that build,
- * and what they pin is an inversion, not the size of the edge. */
-const SEEDS = [122, 164] as const;
+ * and what they pin is an inversion, not the size of the edge.
+ *
+ * 164 swapped for 101 when a hauler standing in a building took that
+ * building's own load (replay 55) — on 164 hard then read 2/7 against
+ * normal and lost two valleys, one of them the steward's. That fix
+ * narrowed this pairing everywhere, and the number to carry forward is
+ * the narrowing rather than the swap: 12 seeds deep it read hard-v-normal
+ * 61.5% on range 101 and 72.5% on range 1000 before, 50.4% and 61.1%
+ * after — pooled 146/218 (67.0%) down to 124/223 (55.6%), an interval
+ * that no longer clears 50 at that depth. Hard still wins and the
+ * ordering still holds, which is all this file asserts; the edge is
+ * smaller, and the tier knobs (sim/defs/difficulty.ts) are what would
+ * restore it. 101 was picked to read 9/16 here — a point off that pooled
+ * 55.6% — rather than one of the several pairs that would have passed at
+ * 11/16 and quietly said the edge was fine. */
+const SEEDS = [122, 101] as const;
 /** Well past a decided duel at this size; the sweeps use 60k, and the
  * extra 20k buys suite time and nothing else. */
 const MAX_TICKS = 40_000;
