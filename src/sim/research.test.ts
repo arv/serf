@@ -170,6 +170,26 @@ describe('research', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it('the study begins on the tick the last load lands', () => {
+    // researchSystem runs BEFORE logisticsSystem in a tick (tick.ts), so a
+    // bill settled at the Abbey's door during the haul pass is a bill the
+    // research pass has already looked at. Left to the next tick, the beat
+    // between them is observable: a snapshot with `started` false and
+    // nothing left to carry, which is a study the panel draws as still
+    // being delivered when the last barrel is already inside.
+    const world = bareWorld();
+    setupSchool(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    const abbey = abbeyOf(world);
+    let guard = 20 * 120;
+    while (abbey.researchNeeds && guard-- > 0) tickWorld(world, []);
+    expect(abbey.researchNeeds).toBeUndefined();
+    expect(world.players[0]!.techs.active?.started).toBe(true);
+  });
+
   it('a settled line of the bill gives up its place in the haul queue', () => {
     // The FIFO age lives per (building, good), and an Abbey wants ale for
     // two different reasons: a study billed in ale, and — once Festivals

@@ -43,18 +43,19 @@ export function researchSystem(world: World): void {
     const t = p.techs;
 
     // Waiting on the haul: the study is ordered, the bill is on the Abbey,
-    // and nothing happens until the serfs have carried all of it in.
+    // and nothing happens until the serfs have carried all of it in. What
+    // ends the wait is the last load itself (settleResearchBill, called
+    // from the Abbey's door), not a check here — this pass runs before
+    // logistics does, so it would always be a tick behind the delivery it
+    // was watching for. All that is left here is the other way a wait
+    // ends: the roof came down (or was sold) with the books still on the
+    // road. The order dies with it and the slot opens again — order it at
+    // another Abbey. Whatever was already carried in is spent; it was
+    // consumed at the door, like a repair's stone.
     if (t.active && !t.active.started) {
       const abbey = world.buildings.get(t.active.abbey);
-      if (!abbey || abbey.dead || abbey.state !== BuildingState.built) {
-        // The roof came down (or was sold) with the books still on the
-        // road. The order dies with it and the slot opens again — order
-        // it at another Abbey. Whatever was already carried in is spent;
-        // it was consumed at the door, like a repair's stone.
+      if (!abbey || abbey.dead || abbey.state !== BuildingState.built)
         t.active = undefined;
-      } else if (!abbey.researchNeeds) {
-        t.active.started = true;
-      }
     }
 
     if (t.active?.started) {

@@ -1389,18 +1389,32 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
 }
 
 /**
- * Tear up an Abbey's study bill — the last load landed, the order was
- * dropped with the roof, or the debug lever finished it outright.
+ * Settle an Abbey's study bill and open the books: the last load landed,
+ * or the debug lever finished the study outright. The bill goes, and with
+ * it the waiting — this is the one place a study starts.
  *
- * Drops the FIFO clocks with it for the same reason a finished repair
- * does (see clearRepairOrder): the age of an unmet demand lives per
- * (building, good), and an Abbey that keeps a cleared bill's clock would
+ * It has to be here rather than in researchSystem, which is the natural
+ * home for it, because of the order the systems run in: research ticks
+ * BEFORE logistics (see tickWorld), so a bill settled at the Abbey's door
+ * during the haul pass is a bill the research pass has already looked at.
+ * Left for the next tick, the beat between them is observable — a snapshot
+ * carrying `started` false with nothing left to carry, which the panel
+ * draws as a study still being delivered when the last barrel is already
+ * inside.
+ *
+ * Drops the FIFO clocks with the bill for the same reason a finished
+ * repair does (see clearRepairOrder): the age of an unmet demand lives per
+ * (building, good), and an Abbey that keeps a settled bill's clock would
  * hand the next study's first load a queue place it never stood in.
  */
-export function clearResearchBill(b: Building): void {
+export function settleResearchBill(world: World, b: Building): void {
   if (!b.researchNeeds) return;
   for (const g of goodKeys(b.researchNeeds)) delete b.demandSince[g];
   delete b.researchNeeds;
+  // Whoever ordered it, at THIS Abbey: a seat with two of them has its
+  // study pinned to the one the bill was written on (techs.active.abbey).
+  const techs = world.players[b.owner]?.techs;
+  if (techs?.active && techs.active.abbey === b.id) techs.active.started = true;
 }
 
 /**

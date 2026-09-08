@@ -38,7 +38,7 @@ import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {
   applyRepairMaterial,
-  clearResearchBill,
+  settleResearchBill,
   type HaulJob,
   type World,
 } from '../world.ts';
@@ -1256,12 +1256,13 @@ function deliver(world: World, to: Building, good: GoodId): void {
     // is the one the scholars asked for, and the party waits its turn.
     to.researchNeeds![good] = (to.researchNeeds![good] ?? 0) - 1;
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
-    // Cleared here rather than in the research system so the study starts
-    // on the tick the last load lands, whichever ran first this tick.
+    // The last load opens the books on this tick rather than the next —
+    // researchSystem has already run by the time a hauler reaches the door
+    // (see settleResearchBill for the order and what the gap looks like).
     if (
       goodKeys(to.researchNeeds!).every(g => (to.researchNeeds![g] ?? 0) <= 0)
     )
-      clearResearchBill(to);
+      settleResearchBill(world, to);
     return;
   }
   if ((to.repairNeeds?.[good] ?? 0) > 0) {

@@ -73,7 +73,7 @@ import {
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   canPlace,
-  clearResearchBill,
+  settleResearchBill,
   destroyBuilding,
   killUnit,
   placeSite,
@@ -616,9 +616,10 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       // Settles the haul too: the cheat is "this study is done", and a
       // study still waiting on its stone would otherwise sit at one tick
       // left forever. The bill is torn up rather than paid — nothing was
-      // debited when it was written, so nothing is owed.
+      // debited when it was written, so nothing is owed — and settling it
+      // is what opens the books, here as at the Abbey's door.
       const abbey = world.buildings.get(active.abbey);
-      if (abbey) clearResearchBill(abbey);
+      if (abbey) settleResearchBill(world, abbey);
       active.started = true;
       active.ticksLeft = 1;
       break;

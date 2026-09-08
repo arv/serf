@@ -585,8 +585,17 @@ import {REPLAY_VERSION} from './replayVersion';
 // — but 62 is this build's own bump and has never shipped, so there is
 // nothing older to break. The same reasoning the "Still 60" entries above
 // record.
+// Still 62 after the last load opens the books on the tick it lands
+// (Copilot's read of the system order, and correct): researchSystem runs
+// before logisticsSystem, so a bill settled at the Abbey's door was a
+// bill the research pass had already looked at, and `started` flipped a
+// tick late — a snapshot with nothing left to carry and the study still
+// reading as delivered. Settling the bill starts it now, in one place.
+// The study's own clock is unmoved either way; what moves is which tick
+// the flag turns over on, which is real sim state. 62 is this build's own
+// bump and has never shipped.
 const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = '10baedd686e76d1efc8bcb92347eef38';
+const EXPECTED_HASH = '9535a70f73d793883b0385e3609dfa1f';
 
 /**
  * Everything a replay's playback depends on, as raw source:
