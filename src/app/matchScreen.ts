@@ -9,7 +9,7 @@ import {
 } from '../audio/audio';
 import {Controls} from '../input/controls';
 import {installMouseCapture} from '../input/mouseCapture';
-import type {NetInfo} from '../protocol/messages';
+import type {NetInfo, StructuralUpdate} from '../protocol/messages';
 import {Arrows} from '../render/arrows';
 import {loadGlbAssets, setSeatFigures} from '../render/assets';
 import {BuildingSync} from '../render/buildingSync';
@@ -675,14 +675,66 @@ export async function runMatch(
       {menu: true, title: 'The village has stopped'},
     );
   });
+  // Every structural frame the screen takes in — and the one place a throw
+  // out of one can be caught.
+  //
+  // The worker's half of this promise is already kept (postStructural guards
+  // itself and reports a frame it could not draw up), and this is the other
+  // half: the frame arrives fine and the SCREEN cannot take it. The signal
+  // writes below are not the inert assignments they look like — each one
+  // flushes Solid's queue, so anything the HUD draws can throw through them,
+  // and what escapes here is lost for the rest of the match. A section is
+  // posted only when it changed, so the frame is never re-sent; and Solid
+  // leaves the computations still queued behind the throw marked stale,
+  // which is the one state a signal write will not queue again. That is the
+  // bug this guard is here for, reported three times as the same thing: a
+  // panel that keeps its buttons, follows nothing, and says nothing is
+  // wrong.
+  /** One card is enough: a screen that fails once fails every frame. */
+  let screenBroken = false;
   host.onStructural(msg => {
+    try {
+      applyStructural(msg);
+    } catch (err) {
+      // Every frame, to the console — a screen failing in a loop is worth
+      // seeing all of. Once, to the player: a card over the village saying
+      // the picture has stopped following it beats a HUD that lies quietly.
+      console.error(
+        '[match] the screen could not take a structural frame',
+        err,
+      );
+      if (screenBroken) return;
+      screenBroken = true;
+      // The same second half the worker's fatal gets, for the same reason:
+      // a village ticking on behind a screen that stopped is a battery
+      // burning to carry the world further from the last frame anyone saw.
+      setSpeed(0);
+      host.setSpeed(0);
+      showFatal(
+        `The screen stopped following the village: ${
+          err instanceof Error ? err.message : String(err)
+        }. What you are looking at is the last frame that got through.`,
+        {menu: true, title: 'The village has stopped'},
+      );
+    }
+  });
+
+  function applyStructural(msg: StructuralUpdate): void {
     // A reconnect resync carries the seat's ever-seen grid afresh.
     if (msg.explored) fog.seedExplored(msg.explored);
-    // HUD state first, scene sync second. These signal writes cannot
-    // throw, while the render sync below can — and when it does, the
-    // damage must stay on the canvas. With the old order an exception
-    // there silently froze stock, outcome and the selection panel for the
-    // rest of the match while the sim ran on.
+    // HUD state first, scene sync second: the render sync below is the
+    // likelier of the two to throw, and when it does the damage must stay
+    // on the canvas rather than taking the panels with it. With the old
+    // order an exception there froze stock, outcome and the selection
+    // panel for the rest of the match while the sim ran on.
+    //
+    // Likelier, not the only one — the note here used to say these writes
+    // could not throw at all, and the frozen building card is what that
+    // cost. A signal write flushes Solid's queue, so it carries out
+    // whatever the HUD does with the new value, and any of that can throw
+    // back through the setter. Hence the guard at the registration above:
+    // the order is a matter of how much a bad frame costs, never of one
+    // half being safe.
     // Rosters are optional: a frame that carries only map news leaves the
     // HUD's signals (and their subscribers) untouched.
     setSimTick(msg.tick);
@@ -867,7 +919,7 @@ export async function runMatch(
       roster = msg.buildings;
       feedWells();
     }
-  });
+  }
 
   const unmountHud = mountHud(host, {
     selectArmy: () => controls.selectArmy(),

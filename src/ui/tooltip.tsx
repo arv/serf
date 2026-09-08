@@ -2,9 +2,12 @@ import {
   For,
   Show,
   createEffect,
+  createRoot,
   createSignal,
+  getOwner,
   onCleanup,
   type JSX,
+  type Owner,
   type ParentProps,
 } from 'solid-js';
 import type {Enum} from '../shared/enum.ts';
@@ -81,15 +84,85 @@ const ANCHOR = '--tip-anchor';
 interface TipState {
   target: HTMLElement;
   content: () => JSX.Element;
+  /**
+   * The reactive owner the trigger was rendered under. The tip is drawn in
+   * a scope beneath it rather than in the layer's, which is what ties a
+   * tip's lifetime to the thing it describes — see renderTip.
+   */
+  owner: Owner | null;
 }
 
 const [tip, setTip] = createSignal<TipState | null>(null);
 let showTimer: ReturnType<typeof setTimeout> | undefined;
+/** Whose tip the timer above is counting down for, while it runs. */
+let pendingContent: (() => JSX.Element) | null = null;
+/** Throws away the reads behind the tip on screen — see renderTip. */
+let disposeTip: (() => void) | null = null;
 
 /** Take the tip down, and call off one that was still on its way up. */
 function hideTip(): void {
   clearTimeout(showTimer);
+  pendingContent = null;
+  dropTip();
   setTip(null);
+}
+
+/** Drop the drawn tip's own scope, if one is standing. */
+function dropTip(): void {
+  const dispose = disposeTip;
+  disposeTip = null;
+  dispose?.();
+}
+
+/**
+ * Draw a tip's content in a scope of its own, under the owner that raised
+ * its trigger.
+ *
+ * The layer is one panel for the whole HUD, so without this a tip was drawn
+ * as part of the LAYER — and a tip's content is a closure written where the
+ * trigger stands, over whatever that place has in scope. When the two
+ * lifetimes came apart, the closure was still there to be run after the
+ * thing it described had gone.
+ *
+ * That is not a rare corner. The building card is a `<Show>` over the
+ * selected building, and its buttons' tips read that block's accessor. Sell
+ * the building (or lose it, or press Escape) with the pointer resting on one
+ * of them and the card's `<Show>` closes while the tip is still up: the
+ * layer's copy of the closure re-ran on that same update, read an accessor
+ * whose block was gone, and Solid threw its stale-read error out of the
+ * setter — out of the structural frame handler, in the case that reported
+ * this. Solid drops the rest of the update on the way out and leaves the
+ * computations still queued behind the throw marked stale, and a stale
+ * computation is never queued again: the card froze on screen for the rest
+ * of the match, keeping its buttons and following nothing. The building was
+ * gone from the sim; the window over it was not.
+ *
+ * So the tip gets a scope, dropped two ways. The trigger's own disposal
+ * takes it (`tooltip` below hides a tip its trigger no longer stands
+ * behind), which lands during the very tear-down that used to strand it —
+ * before the update reaches the reads, so they never happen. And the layer
+ * takes it when the tip moves on, which is what a root rather than plain
+ * ownership buys: owned outright by a trigger that outlives twenty hovers,
+ * every tip ever shown from it would still be subscribed and recomputing.
+ */
+function renderTip(t: TipState): JSX.Element {
+  dropTip();
+  // A trigger can go between the hover and the tip: the delay is a timer,
+  // and 130ms is long enough for a building to be sold out from under the
+  // card. Drawing the closure then is the same stale read by the other road
+  // — on the tip's FIRST run rather than a later one — so a tip with
+  // nothing left to point at is not drawn at all. The layer's effect takes
+  // the empty panel down on the same update.
+  if (!t.target.isConnected) return null;
+  let node: JSX.Element;
+  // The trigger's owner, so the tip reads the context its trigger reads.
+  // Listener is null inside a root, so the layer subscribes to nothing the
+  // tip touches — the tip's own reads are its own to answer for.
+  createRoot(dispose => {
+    disposeTip = dispose;
+    node = t.content();
+  }, t.owner ?? undefined);
+  return node;
 }
 
 export function tooltip(content: () => JSX.Element): {
@@ -100,11 +173,27 @@ export function tooltip(content: () => JSX.Element): {
   onPointerUp: () => void;
   onPointerCancel: () => void;
 } {
+  // Captured while the trigger renders, which is the whole point: this is
+  // the owner the tip is drawn under (renderTip), and the one whose disposal
+  // takes the tip down below.
+  const owner = getOwner();
   const show = (target: HTMLElement, delay: number): void => {
     clearTimeout(showTimer);
-    showTimer = setTimeout(() => setTip({target, content}), delay);
+    pendingContent = content;
+    showTimer = setTimeout(() => {
+      pendingContent = null;
+      setTip({target, content, owner});
+    }, delay);
   };
   const hide = hideTip;
+  // A trigger that goes takes its tip with it. The layer already drops a tip
+  // whose target left the page, but only when the tip signal itself changes
+  // — and nothing changes it when the card underneath is torn down. Guarded
+  // by identity so a trigger unmounting elsewhere in the HUD cannot pull down
+  // the tip some other trigger is showing.
+  onCleanup(() => {
+    if (tip()?.content === content || pendingContent === content) hideTip();
+  });
   // Where a touch started, so a press that turns into a scroll gives the
   // gesture back to the list instead of popping a tip over it.
   let from: {x: number; y: number} | null = null;
@@ -186,6 +275,9 @@ export function TooltipLayer() {
     window.removeEventListener('pointerdown', hideTip, {capture: true});
     window.removeEventListener('blur', hideTip);
     setAnchor(null);
+    // The layer goes with the match; the scope behind the tip it was
+    // showing is detached from it and would otherwise stay subscribed.
+    dropTip();
   });
 
   return (
@@ -256,7 +348,7 @@ export function TooltipLayer() {
           auto popover would light-dismiss on the very press that opens a
           touch tip. */}
       <div ref={el} popover="manual" class="panel tip" role="tooltip">
-        <Show when={tip()}>{t => t().content()}</Show>
+        <Show when={tip()}>{t => renderTip(t())}</Show>
       </div>
     </>
   );
