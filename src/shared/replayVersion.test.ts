@@ -501,8 +501,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // not also get to be a shed to knock over. Real behavior — a raid that used
 // to level a range leaves it standing, and every tick of that fight lands
 // somewhere else.
+// Still 59 after sellForTheWoodcutter (economyRules.ts, and its id): a rule
+// inside a brain, which is the one kind of change this file has never had to
+// bump for — playback replays the commands a seat issued, not the reasoning
+// that issued them (app/replay.ts), so a seat that would now tear down its
+// barracks to buy an axe replays as whatever it actually did that day. The
+// same reasoning the "Still 49 after the Mason" and "Still 54 after the lone
+// anvil's counter" entries above record. The hash is over raw bytes, which is
+// why it moved anyway.
 const EXPECTED_VERSION = 59;
-const EXPECTED_HASH = '18e6e3af2c18e4d0bedcdd96b3d548ab';
+const EXPECTED_HASH = 'e62373f4dbae1b2242ff616ab40c8a30';
 
 /**
  * Everything a replay's playback depends on, as raw source:

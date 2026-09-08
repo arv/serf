@@ -3,6 +3,7 @@ import type {Enum} from '../shared/enum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
 import * as EconomyRuleId from './economyRuleIdEnum.ts';
 import {
   ALL_ECONOMY_RULES,
@@ -14,7 +15,7 @@ import {
 import * as RulePhase from './rulePhaseEnum.ts';
 import {addResourceTile, addStorehouse, bareWorld} from './testUtils.ts';
 import * as TileResource from './tileResourceEnum.ts';
-import {placeBuiltBuilding, type World} from './world.ts';
+import {placeBuiltBuilding, spawnSalvage, type World} from './world.ts';
 
 type EconomyRuleId = Enum<typeof EconomyRuleId>;
 
@@ -251,5 +252,93 @@ describe('resiteExtractor: what counts as dead ground', () => {
     expect(fired?.commands).toEqual([
       {kind: CommandKind.sellBuilding, buildingId: quarry.id},
     ]);
+  });
+});
+
+/**
+ * The trap: every gatherer in the game is priced in wood, and the only
+ * building that makes wood is the woodcutter. A seat whose last hut burns
+ * on an empty shelf therefore cannot buy the one thing that would let it
+ * buy anything — and nothing before this rule ever reached for the sale
+ * that would break it. Found on seed 42 at four seats, where it froze an
+ * Abbot sitting on bread, iron and stone for sixty thousand ticks with
+ * three hundred tree tiles inside twenty of its castle, and left the match
+ * with no possible ending.
+ */
+describe('sellForTheWoodcutter: paying for the axe with a roof', () => {
+  const rule = ECONOMY_RULES.find(
+    r => r.id === EconomyRuleId.sellForTheWoodcutter,
+  )!;
+
+  function contextFor(world: World): RuleContext {
+    return {
+      world,
+      owner: 0,
+      mine: [...world.buildings.values()].filter(b => b.owner === 0),
+    } as RuleContext;
+  }
+
+  /** A seat with trees in reach, a barracks to sell, and whatever wood the
+   * caller says is on the shelf. */
+  function strandedSeat(wood: number): World {
+    const world = bareWorld();
+    addStorehouse(world, 60, 60, {[GoodId.wood]: wood});
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 30, 30);
+    addResourceTile(world, 58, 58, TileResource.Wood);
+    return world;
+  }
+
+  it('sells a roof when the last woodcutter is gone and the shelf is bare', () => {
+    const world = strandedSeat(0);
+    const barracks = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.barracks,
+    )!;
+    const fired = rule.fire(contextFor(world));
+
+    expect(fired?.claims).toEqual([barracks.id]);
+    expect(fired?.commands).toEqual([
+      {kind: CommandKind.sellBuilding, buildingId: barracks.id},
+    ]);
+  });
+
+  it('holds its hand while the seat can still afford the hut itself', () => {
+    // Six wood is the woodcutter's price: a seat holding it is not
+    // stranded, it is one build order away from cutting again.
+    expect(rule.fire(contextFor(strandedSeat(6)))).toBeNull();
+  });
+
+  it('holds its hand while a woodcutter still stands, empty shelf or not', () => {
+    const world = strandedSeat(0);
+    placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 40, 40);
+    expect(rule.fire(contextFor(world))).toBeNull();
+  });
+
+  it('counts the wood on the ground, so one sale is not five', () => {
+    // The salvage a sale leaves is the seat's wood as much as the shelf is,
+    // and counting it is what makes the rule self-limiting: the pile lands
+    // the instant the wreckers finish, and the next beat sees a seat that
+    // can pay.
+    const world = strandedSeat(0);
+    spawnSalvage(world, 0, 50, 50, 1, 1, {[GoodId.wood]: 6});
+    expect(rule.fire(contextFor(world))).toBeNull();
+  });
+
+  it('will not sell the bread out of the village to buy an axe', () => {
+    // The first version of this rule took the biggest refund full stop and
+    // sold the Abbot's bakery, trading a wood famine for a bread famine.
+    // With nothing but the larder standing, it says nothing at all.
+    const world = bareWorld();
+    addStorehouse(world, 60, 60, {[GoodId.wood]: 0});
+    placeBuiltBuilding(world, BuildingTypeId.bakery, 0, 30, 30);
+    placeBuiltBuilding(world, BuildingTypeId.house, 0, 34, 30);
+    addResourceTile(world, 58, 58, TileResource.Wood);
+    expect(rule.fire(contextFor(world))).toBeNull();
+  });
+
+  it('holds its hand where there is no grove left to stand a hut by', () => {
+    const world = bareWorld();
+    addStorehouse(world, 60, 60, {[GoodId.wood]: 0});
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 30, 30);
+    expect(rule.fire(contextFor(world))).toBeNull();
   });
 });

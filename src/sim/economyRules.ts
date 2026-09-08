@@ -251,6 +251,153 @@ const resiteExtractor: EconomyRule = {
 };
 
 /**
+ * The wood a woodcutter costs — the bootstrap price of this whole economy,
+ * read off the def rather than written down twice.
+ */
+const WOODCUTTER_WOOD =
+  BUILDING_DEFS[BuildingTypeId.woodcutter].cost[GoodId.wood] ?? 0;
+
+/** The tile code a woodcutter works, off its own recipe rather than named
+ * again here — the same way `resiteExtractor` reads the code of the hut it
+ * is about to move. */
+const WOOD_TILE = gatherRecipeOf(
+  BUILDING_DEFS[BuildingTypeId.woodcutter],
+)?.resource;
+
+/**
+ * The goods the larder is made of. A converter that makes any of them is a
+ * link in the bread chain — the bakery's food, the mill's flour, the
+ * well's water — and selling a link starves the village the sale was meant
+ * to save. Wheat is not here because the farm that grows it gathers, and
+ * gatherers are excluded outright.
+ */
+const LARDER: readonly GoodId[] = [GoodId.food, GoodId.flour, GoodId.water];
+
+/**
+ * May the village lose this roof and still be a village? Income, beds and
+ * bread say no; everything else is timber the recovery may spend.
+ */
+function canLose(def: BuildingDef, b: Building): boolean {
+  if (gatherRecipeOf(def)) return false;
+  if (def.housing) return false;
+  const convert = convertRecipeOf(def, b);
+  if (convert && LARDER.some(g => (convert.outputs[g] ?? 0) > 0)) return false;
+  return true;
+}
+
+/**
+ * Tear a roof down to pay for the woodcutter, when the last one is gone
+ * and there is no wood left to raise another.
+ *
+ * The trap this exists for is a real one and it is absorbing: every
+ * gatherer in the game is priced in wood (the woodcutter and the quarry
+ * both cost 6), and the only building that MAKES wood is the woodcutter.
+ * So a seat whose last hut burns while its shelf happens to be empty
+ * cannot buy the one thing that would let it buy anything — not because
+ * the valley is spent, but because the six planks that would restart it
+ * are the six planks it hasn't got. Found on seed 42 at four seats: an
+ * Abbot sitting on 217 bread, 102 iron and 34 stone, with three hundred
+ * tree tiles inside twenty of its castle, frozen for sixty thousand ticks
+ * because a spear is one iron and TWO WOOD and it had none. Three husks
+ * with a building apiece and nobody able to finish them: the match simply
+ * never ended.
+ *
+ * The way out already exists and no seat had ever reached for it. A sale
+ * refunds half a building's materials onto the ground (`sellBuilding` in
+ * tick.ts), and half of any of the ten-wood roofs this seat is standing in
+ * is most of a woodcutter. `resiteExtractor` is the neighbour rule and a
+ * different case: that one moves a hut that has outlived its grove, and it
+ * needs the seat to still HAVE the hut. This one is for when there is
+ * nothing left to move.
+ *
+ * What keeps it from firing in a healthy village:
+ *
+ * - **A woodcutter in any state stands the rule down**, scaffold included.
+ *   A seat with one going up is not stranded, it is waiting.
+ * - **Wood anywhere on the seat's ground** is counted, not just the
+ *   shelf — piles included, since a sale's own salvage is what the next
+ *   beat must see if this is to sell one roof rather than the village. It
+ *   is the pile that makes the rule self-limiting: the wood lands on the
+ *   ground the instant the wreckers finish, so the condition is false
+ *   again before the serfs have carried a plank home.
+ * - **Somewhere to put the replacement.** `nearestClaimableResource` is
+ *   the same question `resiteExtractor` asks before it sells: a roof
+ *   traded for a hut with no grove to stand by buys nothing.
+ * - The opening cannot trip it. A village starts on 36 wood
+ *   (START_STOCK) and its first step is the woodcutter, so "no woodcutter
+ *   and under six planks" is a sentence about a village that has already
+ *   lived a while and lost something.
+ *
+ * What it sells is the biggest wood refund among the roofs a village can
+ * lose and still be a village. That exclusion is not fastidiousness, it is
+ * the first version of this rule failing in the lab: told to take the
+ * largest refund full stop, the Abbot sold its barracks, its abbey, its
+ * BAKERY, its range and its smith inside twelve hundred ticks, and a seat
+ * that had been stuck at nineteen serfs finished the match with two. It
+ * traded a wood famine for a bread famine. So three kinds of roof are off
+ * the table however much timber they would give back:
+ *
+ * - anything that gathers — that is the income this whole rule exists to
+ *   restore, and the quarry and the mines are the next ones it would need;
+ * - anything with beds under it, which is the population the recovery has
+ *   to be carried out by;
+ * - anything on the way to bread: a converter whose output is food, flour
+ *   or the well's water. Wheat is a gatherer and already covered.
+ *
+ * What is left is the military and the luxuries — a barracks, a range, a
+ * tower, an abbey, a smith, a brewery — which is the right answer anyway.
+ * A seat that cannot cut a log is not about to win a fight, and the build
+ * order rebuilds losses on its own once the logs are coming again.
+ *
+ * Ties break by building id, ascending, so the choice is deterministic.
+ */
+const sellForTheWoodcutter: EconomyRule = {
+  id: EconomyRuleIdNs.sellForTheWoodcutter,
+  when: 'the last woodcutter is gone and there is no wood left to raise another',
+  phase: RulePhaseNs.recovery,
+  fire(ctx) {
+    let wood = 0;
+    let best: Building | undefined;
+    let bestRefund = 0;
+    for (const b of ctx.mine) {
+      if (b.type === BuildingTypeId.woodcutter) return null;
+      wood += b.stock?.[GoodId.wood] ?? 0;
+      if (b.state !== BuildingState.built) continue;
+      const def = BUILDING_DEFS[b.type as BuildingTypeId];
+      // The sale's own refusals, asked here so the rule cannot spend its
+      // beat ordering a demolition tick.ts will drop on the floor: the
+      // storehouse is the elimination token, roads are not buildings, and
+      // a salvage pile is the goods themselves.
+      if (def.storage || def.isRoad || def.systemOnly) continue;
+      if (!canLose(def, b)) continue;
+      const refund = Math.floor((def.cost[GoodId.wood] ?? 0) / 2);
+      if (refund > bestRefund) {
+        best = b;
+        bestRefund = refund;
+      }
+    }
+    if (wood >= WOODCUTTER_WOOD || !best || WOOD_TILE === undefined) {
+      return null;
+    }
+    if (
+      nearestClaimableResource(
+        ctx.world,
+        ctx.owner,
+        WOOD_TILE,
+        best.x,
+        best.y,
+      ) < 0
+    ) {
+      return null;
+    }
+    return {
+      commands: [{kind: CommandKind.sellBuilding, buildingId: best.id}],
+      claims: [best.id],
+    };
+  },
+};
+
+/**
  * How little a mine may have left in reach before the seat goes looking
  * for its next seam — counted in loads, which is exactly what
  * `countResourceNear` returns.
@@ -1252,6 +1399,11 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   freeCappedHauler,
   resumeDrainedPost,
   resiteExtractor,
+  // After resiteExtractor, which is the same recovery one loss earlier: a
+  // seat that still HAS the hut moves it rather than selling a roof for a
+  // new one. Both claim what they sell, and a claim only silences the
+  // rules below it.
+  sellForTheWoodcutter,
   openReserveMine,
   keepTheToolsComing,
   forgeTheCounter,
@@ -1307,6 +1459,7 @@ export function runEconomyRules(
 /** The spelling of each rule id, for the lab's --rules flag and its traces. */
 export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
   [EconomyRuleIdNs.resiteExtractor]: 'resiteExtractor',
+  [EconomyRuleIdNs.sellForTheWoodcutter]: 'sellForTheWoodcutter',
   [EconomyRuleIdNs.openReserveMine]: 'openReserveMine',
   [EconomyRuleIdNs.freeCappedHauler]: 'freeCappedHauler',
   [EconomyRuleIdNs.resumeDrainedPost]: 'resumeDrainedPost',
