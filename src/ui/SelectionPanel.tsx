@@ -10,13 +10,7 @@ import {
   TRAIN_QUEUE_CAP,
 } from '../sim/defs/balance';
 import {BUILDING_DEFS, gatherRecipeOf, repairBill} from '../sim/defs/buildings';
-import {
-  GOODS,
-  type GoodAmounts,
-  goodEntries,
-  goodKeys,
-} from '../sim/defs/goods';
-import {TECH_DEFS, type TechId} from '../sim/defs/techs';
+import {type GoodAmounts, goodEntries, goodKeys} from '../sim/defs/goods';
 import {UNIT_DEFS} from '../sim/defs/units';
 import {GoodIcon, LockIcon, UnitIcon} from './icons';
 import {Key} from './shortcut';
@@ -67,6 +61,7 @@ import {
 } from './names';
 import * as OrderMode from './orderModeEnum.ts';
 import {ROSTER_TILES, hpFraction, hpTone, rosterGroups} from './roster';
+import {hauledIn, hauledTotal, studyProgress01} from './techProgress.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
@@ -154,27 +149,6 @@ function reachTip(
   return renews
     ? `Loads of wood still standing inside the square its woodcutter searches, and reachable. Felled tiles regrow, so a hut with room to breathe holds its number rather than running down to nothing.${shut}`
     : `Loads still in the ground inside the square its worker searches, and reachable — every one of them a trip, and none of them replaced. When it reaches zero the building is done wherever it stands.${shut}`;
-}
-
-/**
- * A study's bill in loads: what the Abbey has been handed, out of what the
- * whole tech costs. The snapshot carries what is *left* (TechSnap.active
- * .needs) and only while something is left, so both counts are read off the
- * tech's own price.
- */
-function hauledTotal(a: {tech: TechId}): number {
-  const cost = TECH_DEFS[a.tech].cost;
-  return GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
-}
-
-function hauledIn(a: {tech: TechId; needs?: GoodAmounts}): number {
-  // No bill at all is the Abbey gone rather than the bill paid (see
-  // snapPlayers): nothing is known, so nothing is counted in. Reading the
-  // absence as zero remaining would have the row report a finished haul on
-  // the frame the roof came down.
-  if (!a.needs) return 0;
-  const left = GOODS.reduce((n, g) => n + (a.needs![g] ?? 0), 0);
-  return hauledTotal(a) - left;
 }
 
 /**
@@ -354,6 +328,13 @@ export function SelectionPanel(props: {
            under it never learns that anything happened. */
         .sel-line { min-height: 1.35em; line-height: 1.35; font-size: 12.5px; }
         .sel-line .num { min-width: 2ch; }
+        /* The abbey's study line: one line, always, so a longer tech
+           name on a narrow card cannot wrap it into two. */
+        .sel-study {
+          opacity: 0.85;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .sel-study .idle { opacity: 0.7; }
         .sel-status .good { color: #9fb06a; }
         .sel-status .bad { color: #d98a6a; }
         .sel-status .note { color: #e5c469; }
@@ -1060,31 +1041,46 @@ export function SelectionPanel(props: {
                   <button onClick={() => setTechPanelOpen(true)}>
                     <Key label="Research…" k={RESEARCH_KEY} />
                   </button>
-                  <Show when={techs().active}>
+                </div>
+                {/* The study, on a reserved line of its own rather than
+                    trailing off the end of the button's row. It used to
+                    appear only once something was being studied, which
+                    made ordering one the thing that grew the card — and
+                    this card hangs off the bottom of the window, so a
+                    line that arrives lifts every button above it. Held
+                    empty-but-standing, the way the forge's line is. */}
+                <div class="sel-line sel-study">
+                  <Show
+                    when={techs().active}
+                    fallback={<span class="idle">no study ordered</span>}
+                  >
                     {a => (
-                      <span style={{opacity: 0.85}}>
+                      <>
                         {techName(a().tech)}{' '}
                         {/* Two clocks, one order: while the bill is still
                             on the road there is no percentage to show —
                             the ticks have not started — so the loads
-                            carried in are what the row counts. */}
+                            carried in are what the line counts. Once the
+                            books open the percentage picks up where the
+                            haul left off (studyProgress01), so it agrees
+                            with the bar filling the tech panel's node
+                            instead of starting over at nothing. */}
                         <Show
                           when={a().started}
                           fallback={
                             <>
                               <span class="num">{hauledIn(a())}</span>/
-                              <span class="num">{hauledTotal(a())}</span> hauled
+                              <span class="num">{hauledTotal(a().tech)}</span>{' '}
+                              hauled
                             </>
                           }
                         >
                           <span class="num">
-                            {Math.round(
-                              (1 - a().ticksLeft / a().totalTicks) * 100,
-                            )}
+                            {Math.round(studyProgress01(a()) * 100)}
                           </span>
                           %
                         </Show>
-                      </span>
+                      </>
                     )}
                   </Show>
                 </div>

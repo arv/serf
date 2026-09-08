@@ -1,7 +1,8 @@
 import {For, Show} from 'solid-js';
 import type {Enum} from '../shared/enum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import {GOODS, type GoodAmounts, goodEntries} from '../sim/defs/goods';
+import {goodEntries} from '../sim/defs/goods';
+import * as TechBranchNs from '../sim/defs/techBranchEnum.ts';
 import {
   TECH_BRANCHES,
   TECH_DEFS,
@@ -20,30 +21,33 @@ import {
   viewerId,
 } from './store';
 import * as TechNodeStateNs from './techNodeStateEnum.ts';
+import {hauledIn, hauledTotal, studyProgress01} from './techProgress.ts';
 import {TechTip, tooltip} from './tooltip';
 export type TechNodeState = Enum<typeof TechNodeStateNs>;
+type TechBranch = Enum<typeof TechBranchNs>;
 
-const BRANCH_LABELS: Record<string, string> = {
-  agriculture: 'Agriculture',
-  craft: 'Craft',
-  warfare: 'Warfare',
+/**
+ * Both of these keep the panel's numbers and its stylesheet in the same
+ * language. TechBranch and TechNodeState are JS enum modules — values of
+ * 1..n, not the words — so a record keyed by the word (and a classList
+ * keyed by the value) silently produced an empty <h3> and a class called
+ * "3", which is a legal class name and matches none of the rules below.
+ * Written as Records over the enum so a state added to either module
+ * fails the typecheck here rather than going quietly unstyled.
+ */
+const BRANCH_LABELS: Record<TechBranch, string> = {
+  [TechBranchNs.agriculture]: 'Agriculture',
+  [TechBranchNs.craft]: 'Craft',
+  [TechBranchNs.warfare]: 'Warfare',
 };
 
-/** Loads in a tech's whole bill, and how many of them are still to come.
- *
- * A snapshot with no `needs` at all is the Abbey gone rather than the bill
- * paid (see snapPlayers), so what is left is the WHOLE bill: an unknown
- * that read as zero would draw the study as delivered on the frame its
- * roof fell in, which is the one thing the panel must not say. */
-function billTotal(id: TechId): number {
-  const cost = TECH_DEFS[id].cost;
-  return GOODS.reduce((n, g) => n + (cost[g] ?? 0), 0);
-}
-
-function billLeft(a: {needs?: GoodAmounts}, id: TechId): number {
-  if (!a.needs) return billTotal(id);
-  return GOODS.reduce((n, g) => n + (a.needs![g] ?? 0), 0);
-}
+const NODE_CLASS: Record<TechNodeState, string> = {
+  [TechNodeStateNs.done]: 'done',
+  [TechNodeStateNs.researching]: 'researching',
+  [TechNodeStateNs.delivering]: 'delivering',
+  [TechNodeStateNs.available]: 'available',
+  [TechNodeStateNs.locked]: 'locked',
+};
 
 export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
   const state = (id: TechId): TechNodeState => {
@@ -72,27 +76,37 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
     return TechNodeStateNs.available;
   };
 
+  /** One bar for the whole order: the haul is its first half, the reading
+   * its second (see studyProgress01). */
   const progress = (id: TechId): number => {
     const a = techs().active;
     if (!a || a.tech !== id) return 0;
-    // Before the books open the study's progress is measured in loads, not
-    // ticks: the clock has not started, and a node that sat at 0% through
-    // a minute of hauling would read as an order the village had ignored.
-    if (!a.started) {
-      const total = billTotal(id);
-      return total > 0 ? Math.round((1 - billLeft(a, id) / total) * 100) : 0;
-    }
-    return Math.round((1 - a.ticksLeft / a.totalTicks) * 100);
+    return Math.round(studyProgress01(a) * 100);
   };
 
-  /** "3 of 8 carried in" — the delivering node's own line. */
-  const hauled = (id: TechId): string => {
+  /**
+   * The order in words, on the panel's own reserved line.
+   *
+   * It used to be a line inside the delivering node, which meant clicking
+   * a node grew it and shoved every node under it down the column — a
+   * layout shift on the one click the panel exists for. A seat studies one
+   * thing at a time, so this was never a per-node fact anyway: it belongs
+   * in the head, where the ✕ has already paid for the height. Empty when
+   * nothing is being studied, and the line is kept either way.
+   */
+  const studyLine = (): string => {
     const a = techs().active;
-    const total = billTotal(id);
-    const left = a ? billLeft(a, id) : total;
-    return `Serfs are carrying the goods to the ${buildingName(
-      BuildingTypeId.abbey,
-    )} — ${total - left} of ${total} in.`;
+    if (!a) return '';
+    if (!a.started) {
+      return `${techName(a.tech)} — ${hauledIn(a)} of ${hauledTotal(
+        a.tech,
+      )} loads carried to the ${buildingName(BuildingTypeId.abbey)}.`;
+    }
+    // The same number the node's bar is drawing — the whole order, not
+    // the reading on its own, so the words and the fill never disagree.
+    return `${techName(a.tech)} — goods all in; ${Math.round(
+      studyProgress01(a) * 100,
+    )}% done.`;
   };
 
   return (
@@ -126,6 +140,13 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
         .tech-head {
           display: flex; align-items: center; justify-content: space-between;
           gap: 18px; min-height: 26px;
+        }
+        /* Both of the head's words stack on its left: the standing note
+           about this tree, and under it the running line about the order
+           in hand. min-width:0 so a long note shrinks rather than pushing
+           the ✕ off the sheet. */
+        .tech-headlines {
+          display: flex; flex-direction: column; gap: 2px; min-width: 0;
         }
         /* A square icon button, sized rather than padded. #ui button's
            10px radius on a chip this small rounded it most of the way
@@ -169,7 +190,6 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
           border-color: #dfb670; border-style: dashed;
           background: rgba(212, 169, 60, 0.08);
         }
-        .tech-node .haul { font-size: 11px; opacity: 0.8; margin-top: 2px; }
         .tech-node.available { border-color: #c8735a; cursor: pointer; }
         .tech-node.available:hover {
           background: rgba(176, 74, 56, 0.25); box-shadow: 0 0 6px rgba(223, 182, 112, 0.35);
@@ -193,6 +213,17 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
           background: rgba(223, 182, 112, 0.22); pointer-events: none;
         }
         .tech-note { font-size: 11.5px; opacity: 0.75; }
+        /* One reserved line, kept whether or not anything is being
+           studied — the same bargain the selection card's status line
+           makes. Ordering a study must not move the tree under the
+           cursor that ordered it, and one line held empty is cheaper
+           than fourteen nodes each holding one. Never wraps, for the
+           same reason: the head is a fixed height or it is nothing. */
+        .tech-status {
+          font-size: 11.5px; opacity: 0.85;
+          min-height: 1.35em; line-height: 1.35;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
 
         /* A small screen, either way up: three side-by-side branches
            can't fit, and a flex row just runs off-screen. Become a
@@ -280,32 +311,36 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
         }
       `}</style>
         <div class="tech-head">
-          {/* Phrased around the name rather than in front of it: the
-              old line hard-coded "a" ahead of an interpolated building
-              and read "Build a Abbey". "The" agrees with anything the
-              defs care to call it. */}
-          <div class="tech-note">
-            {/* Whose tree this is, in a replay — the HUD's seat chip says
-                so too, but a sheet this size covers it. "Build one to
-                begin" is advice, and there is nobody here to take it:
-                a seat without an Abbey is simply reported as such. */}
-            <Show
-              when={replayMode()}
-              fallback={
-                <Show when={!techs().hasAbbey}>
-                  The {buildingName(BuildingTypeId.abbey)} opens this tree —
-                  build one to begin.
-                </Show>
-              }
-            >
-              {viewerId() === myPlayerId()
-                ? 'Your studies'
-                : `${seatName(viewerId(), playersMeta())}'s studies`}
-              {techs().hasAbbey
-                ? ''
-                : ` — no ${buildingName(BuildingTypeId.abbey)} standing yet`}
-              . A recording takes no orders.
-            </Show>
+          <div class="tech-headlines">
+            {/* Phrased around the name rather than in front of it: the
+                old line hard-coded "a" ahead of an interpolated building
+                and read "Build a Abbey". "The" agrees with anything the
+                defs care to call it. */}
+            <div class="tech-note">
+              {/* Whose tree this is, in a replay — the HUD's seat chip
+                  says so too, but a sheet this size covers it. "Build one
+                  to begin" is advice, and there is nobody here to take it:
+                  a seat without an Abbey is simply reported as such. */}
+              <Show
+                when={replayMode()}
+                fallback={
+                  <Show when={!techs().hasAbbey}>
+                    The {buildingName(BuildingTypeId.abbey)} opens this tree —
+                    build one to begin.
+                  </Show>
+                }
+              >
+                {viewerId() === myPlayerId()
+                  ? 'Your studies'
+                  : `${seatName(viewerId(), playersMeta())}'s studies`}
+                {techs().hasAbbey
+                  ? ''
+                  : ` — no ${buildingName(BuildingTypeId.abbey)} standing yet`}
+                . A recording takes no orders.
+              </Show>
+            </div>
+            {/* Always rendered — see .tech-status. */}
+            <div class="tech-status">{studyLine()}</div>
           </div>
           <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
             ✕
@@ -321,7 +356,10 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
                 >
                   {id => (
                     <div
-                      classList={{'tech-node': true, [state(id)]: true}}
+                      classList={{
+                        'tech-node': true,
+                        [NODE_CLASS[state(id)]]: true,
+                      }}
                       {...tooltip(() => <TechTip tech={id} />)}
                       onClick={() => {
                         // A recording takes no orders — the worker would
@@ -360,9 +398,6 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
                         </For>
                       </span>
                       <div class="desc">{techDesc(id)}</div>
-                      <Show when={state(id) === TechNodeStateNs.delivering}>
-                        <div class="haul">{hauled(id)}</div>
-                      </Show>
                     </div>
                   )}
                 </For>
