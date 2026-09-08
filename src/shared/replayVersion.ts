@@ -20,6 +20,27 @@
  * directly.
  */
 /**
+ * 57: the Archery Range stands on the barracks' footprint.
+ *
+ * Two by two to three by three, and nothing else about the building moves
+ * — same price, same hit points, same nine-second archer. The reason is
+ * the model: KayKit authors the range as the second largest building in
+ * the pack (only the castle is bigger, and it out-measures the barracks it
+ * was written as the small sibling of), and the renderer sizes every model
+ * off min(w,h). At two the yard rendered a third smaller than the hall
+ * beside it and read as a shed.
+ *
+ * The footprint is sim, not costume, which is what earns the bump. Nine
+ * tiles of flat ground instead of four is a placement an old log's
+ * `placeSite` could have been given and this build refuses; the nine tiles
+ * block movement, so haulers and soldiers walk around a wider obstacle and
+ * arrive on different ticks; sight is measured from the footprint edge, so
+ * a built range reveals a wider ring. A replay recorded before this build
+ * re-runs into a different world within seconds of the first range going
+ * down.
+ *
+ * 56's note follows.
+ *
  * 56: a gatherer answers only for ground it can walk to.
  *
  * 56 and not 54, which is the number this was cut as: main took 54 (the
@@ -800,4 +821,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 56;
+export const REPLAY_VERSION = 57;

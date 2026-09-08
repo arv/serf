@@ -714,10 +714,18 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.archeryRange]: {
     id: B.archeryRange,
     name: 'Archery Range',
-    // Two by two where the barracks is three: a fenced lane, a shed for the
-    // staves and a butt at the end of it is not a drill hall.
-    w: 2,
-    h: 2,
+    // Three by three, the barracks' own footprint. It was two, on the
+    // reasoning that a fenced lane, a shed for the staves and a butt at the
+    // end of it is not a drill hall — but the model KayKit ships is the
+    // second largest building in the pack (1.67 x 1.55 in its own units
+    // against the barracks' 1.44 x 1.57; only the castle is bigger), and
+    // makeGlbBuilding sizes every model off min(w,h). A range squeezed into
+    // two tiles rendered a third smaller than the hall it stands beside, so
+    // the yard read as a shed. The footprint the artist drew is the one the
+    // sim now charges for: nine tiles of flat ground, and a wider thing to
+    // shoot at.
+    w: 3,
+    h: 3,
     // Timber and a token course of stone for the butt. Deliberately cheap in
     // the one material the bow line is already short of: a guard tower is
     // twelve stone, and the range now stands between Archery and the men who

@@ -464,8 +464,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // its tooltip (protocol/, ui/), the reach outline (render/), and the
 // re-siting rule's condition, which is brain-side the way every other
 // economy rule is — playback never runs a brain.
-const EXPECTED_VERSION = 56;
-const EXPECTED_HASH = '4e51e7fdb6eaa434d40b9838c1cc3fac';
+// 57 for the Archery Range taking the barracks' footprint (2x2 -> 3x3, in
+// defs/buildings.ts). The reason for the change is the model — KayKit
+// authors the range larger than the barracks and the renderer scales off
+// min(w,h), so at two it read as a shed — but a footprint is not costume:
+// nine tiles of flat ground instead of four makes a placeSite an old log
+// could have carried refusable, nine blocked tiles re-route every hauler
+// that walks past it, and sight measured from the footprint edge reveals a
+// wider ring. Behavior, so old logs stop playing.
+const EXPECTED_VERSION = 57;
+const EXPECTED_HASH = '5f3f5225e683c8bb3639c2fc1b3d1ead';
 
 /**
  * Everything a replay's playback depends on, as raw source:
