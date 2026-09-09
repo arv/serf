@@ -50,6 +50,7 @@ import {
   setFogEnabled,
   setNetStatus,
   pushToast,
+  pushChat,
   selectedBuilding,
   setAdminState,
   setDebugJobs,
@@ -649,6 +650,16 @@ export async function runMatch(
   });
 
   host.onNetStatus(status => setNetStatus(status));
+  // A line said at the table, our own among them. Named the way the seat
+  // chip names seats — "You" for this client, the numbered seat for a
+  // rival — so the speaker of a line and the owner of a village on the
+  // cards are one vocabulary.
+  host.onChat((playerId, text) => {
+    pushChat(
+      playerId === myPlayerId() ? 'You' : seatName(playerId, playersMeta()),
+      text,
+    );
+  });
   // The sim stopped being able to describe the world. The map goes on
   // moving — the unit positions ride a different channel, and that one is
   // still being written — so without this the player is left reading a HUD
@@ -877,7 +888,10 @@ export async function runMatch(
             : event.note === HeraldNote.finalAssault
               ? `${event.count ?? 'Many'} strong, and your walls will not hold!`
               : 'Our banners march on your gates!';
-        pushToast(`A herald of ${name}: “${words}”`);
+        // On the chat card rather than a notice's: a herald is someone
+        // speaking to you, and the card that names its speaker is the one
+        // the player already reads a rival's words on in multiplayer.
+        pushChat(`Herald of ${name}`, words);
       } else if (
         event.kind === GameEventKind.playerEliminated &&
         event.player !== viewerId()
