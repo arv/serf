@@ -108,7 +108,7 @@ flowchart TB
     controls["input · controls<br/>click → SimCommand"]
     host["SimHost + SabReader<br/>the one socket"]
   end
-  wire["Worker protocol, identical on both sides<br/>↑ SAB: unit rows, 20 Hz, 4 rotating slots under a seqlock<br/>↑ postMessage: buildings, players, jobs, map deltas<br/>↓ postMessage: SimCommand[]"]
+  wire["Worker protocol, identical on both sides<br/>↑ SAB: unit rows, 20 Hz, 4 rotating slots under a seqlock<br/>↑ postMessage: buildings, players, jobs, map deltas, chat<br/>↓ postMessage: SimCommand[], chat"]
   main <--> wire
 
   subgraph solo["simWorker.ts · single player · in the tab · frozen while hidden"]
@@ -132,10 +132,11 @@ flowchart TB
     rooms["rooms.ts · World<br/>ticks 20 Hz on the server clock<br/>AiSeats in-process"]
     sync["sync.ts<br/>per-seat fog filter via sim/visibility<br/>encodeState"]
     persist["persist.ts<br/>SIGTERM snapshots every running room to the volume;<br/>restored on boot, clock rebased"]
+    relay["index.ts · chat relay<br/>sanitize again · one line per 250 ms per socket<br/>echo to every seat, sender included · the World never sees it"]
     rooms --> sync
     rooms --> persist
   end
-  mp <-- "WebSocket, same origin<br/>↓ CMD_SUBMIT · ↑ STATE_HOT binary 20 Hz · STATE_STRUCT JSON, ≥5 ticks apart<br/>~10.7 KiB/s per seat" --> srv
+  mp <-- "WebSocket, same origin<br/>↓ CMD_SUBMIT · ↑ STATE_HOT binary 20 Hz · STATE_STRUCT JSON, ≥5 ticks apart<br/>↕ {t:'chat'} string frames<br/>~10.7 KiB/s per seat" --> srv
 
   style world1 stroke:#b8891a,stroke-width:2px
   style rooms stroke:#b8891a,stroke-width:2px
@@ -149,6 +150,19 @@ walks the player's own units along the path they were sent until the
 server's frames take over, then decays the offset. Both owners run the same
 `sim/` files; AI brains sit beside the World, never in a replica, and there
 is no AI netcode.
+
+Chat is the one thing on the wire that is not world state. A line typed at
+the HUD (Enter opens it, networked matches only) goes down the worker
+protocol as a `chat` message, out of `netWorker.ts` as a `{t:'chat'}` string
+frame, and is relayed by `server/src/index.ts` to every connected seat,
+sender included, so everyone reads the same lines in the same order. It
+never enters a room's `World`: no command, no tick, no replay, no hash.
+`src/protocol/chat.ts` is the trust boundary, a dependency-free sanitizer
+(one line, control characters collapsed, at most 200 code points) that the
+client runs before sending and the relay runs again regardless. The relay
+drops a second line inside 250 ms silently rather than erroring, since an
+error would cost the seat its socket. The solo worker drops chat on the
+floor, and the same toast card carries the AI heralds' announcements.
 
 ## Inside a tick
 
@@ -199,12 +213,12 @@ dead are removed.
 | `src/input` | Pointer, keyboard and touch into commands and selection: band select, control groups, edge scroll, order modes, long-press move on touch. | `controls.ts` · `picking.ts` · `keyboard.ts` · `groups.ts` · `edgeScroll.ts` |
 | `src/app` | Boot, the in-place router (Navigation API), per-screen chunks, the two workers and the `SimHost` seam, saves and replays in OPFS, service worker, GPU-loss recovery. | `main.ts` · `router.ts` · `matchScreen.ts` · `simHost.ts` · `simWorker.ts` · `netWorker.ts` · `saveStore.ts` · `replay.ts` |
 | `src/editor` · `src/areas` | The map editor screen (brushes, symmetry, play-test) and the field guide at `/docs`, a wiki generated over the game's own defs with one shared WebGL preview context. | `editor/editorScreen.ts` · `editor/editorMap.ts` · `areas/docs/docsScreen.tsx` · `areas/docs/preview/hub.ts` |
-| `src/protocol` | The shapes both owners speak: the SAB layout and its seqlock, World-to-wire snapshots, the worker message union, the binary state and command encoding, lobby config. | `sabLayout.ts` · `snapshot.ts` · `messages.ts` · `state.ts` · `lobby.ts` |
+| `src/protocol` | The shapes both owners speak: the SAB layout and its seqlock, World-to-wire snapshots, the worker message union, the binary state and command encoding, lobby config, the chat sanitizer. | `sabLayout.ts` · `snapshot.ts` · `messages.ts` · `state.ts` · `lobby.ts` · `chat.ts` |
 | `src/net` | Client-side movement prediction for the player's own units across the round trip, and the lobby WebSocket client. | `predict.ts` · `lobbyClient.ts` |
 | `src/ai` | What steers a brain: the whitelisted advice contract, the posture rule, and the fog-honest summary a seat is allowed to reason from. The LLM strategist that once sat here was retired after the bake-off; the seam stayed. | `advice.ts` · `posture.ts` · `summary.ts` · `archetype.ts` |
 | `src/audio` | A facade of plain functions that constructs nothing at import time, so any layer can import it safely. | `audio.ts` · `settings.ts` |
 | `src/shared` | Primitives with no opinions: tile grid maths, the seeded RNG, enum modules, base64, and the save and replay version constants. | `grid.ts` · `rng.ts` · `math.ts` · `enum.ts` · `saveVersion.ts` · `replayVersion.ts` |
-| `server/src` | One Node process: static host with COOP/COEP, WebSocket relay, rooms that own Worlds, per-seat filtering, snapshot-on-SIGTERM persistence, a smoke test that boots the sim from source. Loads `sim`, `protocol`, `shared` and `app/replay.ts` straight from `src/`. | `index.ts` · `rooms.ts` · `sync.ts` · `persist.ts` · `smoke.ts` |
+| `server/src` | One Node process: static host with COOP/COEP, WebSocket relay (orders in, frames out, chat echoed around the table), rooms that own Worlds, per-seat filtering, snapshot-on-SIGTERM persistence, a smoke test that boots the sim from source. Loads `sim`, `protocol`, `shared` and `app/replay.ts` straight from `src/`. | `index.ts` · `rooms.ts` · `sync.ts` · `persist.ts` · `smoke.ts` |
 
 ## Rules the code keeps
 
@@ -230,6 +244,11 @@ dead are removed.
 - **The main thread never simulates.** It reads a SharedArrayBuffer under a
   seqlock and reacts to structural messages. Cross-origin isolation is
   required at boot and fails loudly if missing.
+- **Only world state goes through the World.** Chat rides the socket as its
+  own frame and is relayed, never ticked, so the replay log and the hash
+  stay a record of the match alone. Anything a seat sends that is not a
+  command is sanitized at both ends, and the server's copy of the sanitizer
+  is the one that counts.
 - **Node runs the sim from source.** Files the server and labs load spell
   `.ts` on their imports; Node ≥ 23 strips the types. `pnpm smoke` guards the
   arrangement; `pnpm typecheck` compiles the root, the server and each lab.
