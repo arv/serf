@@ -2082,6 +2082,11 @@ export function Hud(props: {
                   type="text"
                   placeholder="Say to everyone…"
                   aria-label="Say to everyone"
+                  // The browser's cap counts UTF-16 units where the wire's
+                  // counts code points, so a line of emoji stops a little
+                  // short of the limit — never past it. Kept anyway: the
+                  // field refusing the 201st character beats the sanitizer
+                  // cutting a sent line down in silence.
                   maxLength={MAX_CHAT_CHARS}
                   autocomplete="off"
                   spellcheck={false}
