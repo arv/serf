@@ -66,26 +66,6 @@
         "dev"
       ],
       "autoPort": true
-    },
-    {
-      "name": "serf-chat",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/temp/serf/hammer-fetch-return-building-4e1204",
-        "dev"
-      ],
-      "autoPort": true
-    },
-    {
-      "name": "serf-chat-relay",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/temp/serf/hammer-fetch-return-building-4e1204/server",
-        "dev"
-      ],
-      "port": 8787
     }
   ]
 }
