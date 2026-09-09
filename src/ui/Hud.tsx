@@ -2081,13 +2081,20 @@ export function Hud(props: {
                 <input
                   type="text"
                   placeholder="Say to everyone…"
+                  aria-label="Say to everyone"
                   maxLength={MAX_CHAT_CHARS}
                   autocomplete="off"
                   spellcheck={false}
                   // Focus once it is in the document — the Enter that
                   // opened the line has already been handled by then, so
-                  // the field never sees it as a send.
-                  ref={el => queueMicrotask(() => el.focus())}
+                  // the field never sees it as a send. Unless the line
+                  // has already gone (the match tore down under it):
+                  // focusing a node nobody can see is at best a no-op.
+                  ref={el =>
+                    queueMicrotask(() => {
+                      if (el.isConnected) el.focus();
+                    })
+                  }
                   // Enter sends, Esc drops — read off the key itself
                   // rather than a form's implicit submit, which needs the
                   // keypress a synthetic or IME-mediated Enter may not
