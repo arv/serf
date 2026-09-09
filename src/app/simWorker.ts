@@ -120,6 +120,10 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       if (world)
         post({type: WorkerToMainKind.saved, data: serializeWorld(world)});
       break;
+    case MainToWorkerKind.chat:
+      // Nobody at a solo table to say it to; the HUD never opens the chat
+      // line outside a networked match anyway.
+      break;
     case MainToWorkerKind.requestReplay:
       // Unlike the server's replayFor, solo answers at any point in the
       // match: the only human whose game could be spoiled is the one

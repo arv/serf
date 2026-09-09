@@ -217,6 +217,10 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
         // selection first, and that already sounds the click. Two on one
         // press would make the seat chip the loudest button on the bar.
         onFocusSeat={seat => actions.focusSeat(seat)}
+        // Silent too: the line comes back from the relay as a toast, and
+        // the toast has the rustle. A click on top would sound the send
+        // twice, once on Enter and once when the table hears it.
+        onChat={text => host.sendChat?.(text)}
         minimap={actions.minimap}
       />
     ),

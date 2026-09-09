@@ -1,10 +1,19 @@
-import {For, Show, createEffect, createSignal, type JSX} from 'solid-js';
+import {
+  For,
+  Show,
+  createEffect,
+  createSignal,
+  onCleanup,
+  type JSX,
+} from 'solid-js';
 import {missionUrl} from '../app/gameConfig';
 import {goto} from '../app/router';
 import {latestSaveName} from '../app/saveStore';
 import {play} from '../audio/audio';
 import {hasKeyboard} from '../input/keyboard';
+import {foreignChord, typingInto} from '../input/typing';
 import {clearSeatStash} from '../net/lobbyClient';
+import {MAX_CHAT_CHARS, sanitizeChatText} from '../protocol/chat.ts';
 import * as NetState from '../protocol/netStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
 import type {AdminAction} from '../sim/commands';
@@ -55,6 +64,8 @@ import {
   invariantViolations,
   minimapOpen,
   setMinimapOpen,
+  chatOpen,
+  setChatOpen,
   mission,
   muted,
   myPlayerId,
@@ -185,6 +196,8 @@ export function Hud(props: {
   onAdmin: (action: AdminAction) => void;
   onFocus: (x: number, y: number) => void;
   onFocusSeat: (seat: number) => void;
+  /** Say one line to every seat at the table (multiplayer only). */
+  onChat: (text: string) => void;
   onSelectArmy: () => void;
   onDeselect: () => void;
   onPickUnit: (id: number, additive: boolean) => void;
@@ -518,6 +531,34 @@ export function Hud(props: {
     if (buildChord()) setBuildOpen(true);
   });
   const soloMode = (): boolean => playersMeta().length <= 1;
+
+  /**
+   * Enter opens the chat line, the way it does in StarCraft and Warcraft:
+   * no chord to learn, and the key a player reaches for to "say something"
+   * anyway. Only in a networked match — solo has nobody to tell, and a
+   * replay's seats are not at the table — and only when the key is not
+   * already someone's: a field being typed into (typingInto), Alt+Enter
+   * (the fullscreen toggle), or a chord the platform owns. Once the line
+   * is open the input has focus, so this sees Enter no more: the field
+   * takes it as Send, Esc as Never mind (see the form below).
+   */
+  const onChatKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Enter' && e.code !== 'NumpadEnter') return;
+    if (foreignChord(e) || e.ctrlKey || e.repeat || typingInto(e.target)) {
+      return;
+    }
+    if (!netMode() || replayMode() || chatOpen()) return;
+    e.preventDefault();
+    setChatOpen(true);
+  };
+  window.addEventListener('keydown', onChatKey);
+  onCleanup(() => window.removeEventListener('keydown', onChatKey));
+  /** Send what was typed, if anything was, and put the keyboard back. */
+  const sendChat = (input: HTMLInputElement): void => {
+    const text = sanitizeChatText(input.value);
+    setChatOpen(false);
+    if (text !== null) props.onChat(text);
+  };
   /**
    * The seat chip's click: the next seat along, wrapping. Picking a seat's
    * people or buildings on the map is the ordinary way to turn the HUD
@@ -1179,6 +1220,29 @@ export function Hud(props: {
         /* A toast that knows a place: click pans the camera there. */
         #ui .toast.clickable { cursor: pointer; border-color: rgba(214, 106, 80, 0.55); }
         #ui .toast.clickable:hover { border-color: rgba(214, 106, 80, 0.9); }
+        /* A line of chat: the same card as a notice, told apart by its
+           border — cool where an alarm's is warm — and set left like
+           speech rather than centred like an announcement. Capped in
+           width so a long line wraps into a card instead of a banner. */
+        #ui .toast.chat {
+          text-align: left; max-width: min(360px, 70vw);
+          overflow-wrap: anywhere;
+          border-color: rgba(120, 170, 214, 0.45);
+        }
+        .toast.chat b { color: #e5c469; font-weight: 600; margin-right: 4px; }
+        /* The line being typed. It sits at the foot of the toasts, where
+           the reply reads under what it answers, and is wide enough for a
+           sentence without a scroll. */
+        .hud-chat { padding: 5px 6px; width: min(360px, 70vw); }
+        #ui .hud-chat input {
+          box-sizing: border-box; width: 100%;
+          font-family: inherit; font-size: 13px; color: #eceade;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 10px; padding: 6px 10px; outline: none;
+        }
+        #ui .hud-chat input:focus { border-color: rgba(120, 170, 214, 0.7); }
+        #ui .hud-chat input::placeholder { color: rgba(236, 234, 222, 0.45); }
         /* Fixed rather than absolute: the briefing card uses this class
            too, and it renders from inside the left rail — an absolute
            inset: 0 would size it to that column instead of the screen. */
@@ -1994,18 +2058,58 @@ export function Hud(props: {
                 {t => (
                   <div
                     class="panel toast"
-                    classList={{clickable: !!t.focus}}
+                    classList={{
+                      clickable: !!t.focus,
+                      chat: t.from !== undefined,
+                    }}
                     onClick={() => {
                       if (!t.focus) return;
                       props.onFocus(t.focus.x, t.focus.y);
                       dismissToast(t.id);
                     }}
                   >
+                    <Show when={t.from !== undefined}>
+                      <b>{t.from}:</b>
+                    </Show>
                     {t.text}
                   </div>
                 )}
               </For>
             </div>
+            <Show when={chatOpen()}>
+              <div class="panel hud-chat">
+                <input
+                  type="text"
+                  placeholder="Say to everyone…"
+                  maxLength={MAX_CHAT_CHARS}
+                  autocomplete="off"
+                  spellcheck={false}
+                  // Focus once it is in the document — the Enter that
+                  // opened the line has already been handled by then, so
+                  // the field never sees it as a send.
+                  ref={el => queueMicrotask(() => el.focus())}
+                  // Enter sends, Esc drops — read off the key itself
+                  // rather than a form's implicit submit, which needs the
+                  // keypress a synthetic or IME-mediated Enter may not
+                  // bring. Not mid-composition: the Enter that commits a
+                  // kana candidate is the IME's, not ours.
+                  onKeyDown={e => {
+                    if (e.isComposing) return;
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      sendChat(e.currentTarget);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setChatOpen(false);
+                    }
+                  }}
+                  // A click on the map takes the keyboard back for the
+                  // game; the half-typed line goes with it, the way an
+                  // RTS chat box drops when you look away from it.
+                  onBlur={() => setChatOpen(false)}
+                />
+              </div>
+            </Show>
             <Show when={debugOpen()}>
               <div class="hud-debug panel">
                 <b>jobs ({debugJobs().length})</b>

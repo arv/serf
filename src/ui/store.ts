@@ -315,11 +315,34 @@ export const [selectedBuilding, setSelectedBuilding] =
 export const [simTick, setSimTick] = createSignal(0);
 
 /** Toast messages (raid warnings etc.), newest last. A toast with a focus
- * target is clickable and pans the camera there. */
-export const [toasts, setToasts] = createSignal<
-  {id: number; text: string; focus?: {x: number; y: number}}[]
->([]);
+ * target is clickable and pans the camera there. A toast with a speaker
+ * is a line of chat: the same card, worn a little differently. */
+export interface Toast {
+  id: number;
+  text: string;
+  focus?: {x: number; y: number};
+  /** Who said it — present only on a line of chat. */
+  from?: string;
+}
+export const [toasts, setToasts] = createSignal<Toast[]>([]);
 let toastId = 0;
+
+/** How long a notice stays up. */
+const TOAST_MS = 8000;
+/**
+ * How long a line of chat stays up: longer than a notice, because a notice
+ * is a fact the map goes on showing after the card is gone, while a line
+ * someone typed exists nowhere else — miss it and it was never said.
+ * StarCraft and Warcraft keep theirs a good deal longer than their alerts
+ * for the same reason.
+ */
+const CHAT_TOAST_MS = 15000;
+
+function addToast(toast: Omit<Toast, 'id'>, ttlMs: number): void {
+  const id = ++toastId;
+  setToasts([...toasts(), {id, ...toast}]);
+  setTimeout(() => setToasts(toasts().filter(t => t.id !== id)), ttlMs);
+}
 
 /**
  * Where the last thing worth looking at happened — what Space jumps to, the
@@ -339,13 +362,30 @@ export function pushToast(text: string, focus?: {x: number; y: number}): void {
   // Every notification passes through here, so this is where they rustle.
   play('uiToast');
   if (focus) setLastAlert(focus);
-  const id = ++toastId;
-  setToasts([...toasts(), {id, text, focus}]);
-  setTimeout(() => setToasts(toasts().filter(t => t.id !== id)), 8000);
+  addToast({text, focus}, TOAST_MS);
+}
+/**
+ * A line of chat from the table, this seat's own included: the relay
+ * echoes every line back to whoever said it, so what the sender sees is
+ * what the table saw, in the order the table saw it. Not through
+ * pushToast — a line is not an alert, so it moves neither lastAlert nor
+ * Space, though it rustles like one so a player watching the map looks up.
+ */
+export function pushChat(from: string, text: string): void {
+  play('uiToast');
+  addToast({from, text}, CHAT_TOAST_MS);
 }
 export function dismissToast(id: number): void {
   setToasts(toasts().filter(t => t.id !== id));
 }
+
+/**
+ * The chat line is open — Enter opened it, and the keyboard belongs to it
+ * until Enter sends or Esc drops it. A signal rather than component state
+ * because the match's teardown has to be able to close it: a line left
+ * open over a menu would be a text field nobody asked for.
+ */
+export const [chatOpen, setChatOpen] = createSignal(false);
 
 /** Match outcome (drives the end screen). */
 export const [outcome, setOutcome] = createSignal<OutcomeSnap>({
@@ -523,6 +563,7 @@ export function resetMatchState(): void {
   setSimTick(0);
   setToasts([]);
   setLastAlert(null);
+  setChatOpen(false);
   setOutcome({state: MatchState.playing});
   setAdminState({enabled: true, raidsEnabled: true, instantBuild: false});
   setDebugOpen(false);

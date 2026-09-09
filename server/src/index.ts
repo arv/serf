@@ -3,6 +3,7 @@ import {createServer, type ServerResponse} from 'node:http';
 import {extname, join, normalize, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {WebSocket, WebSocketServer} from 'ws';
+import {sanitizeChatText} from '../../src/protocol/chat.ts';
 import {
   defaultLobbyConfig,
   sanitizeLobbyConfig,
@@ -174,11 +175,19 @@ interface Conn {
   seat?: Seat;
   /** Last time this socket asked for the room list (rate limiting). */
   lastListMs?: number;
+  /** Last time this socket said something to its table (rate limiting). */
+  lastChatMs?: number;
 }
 
 /** Minimum gap between {t:'list'} requests on one socket. The menu polls at
  * 3s; this only bites on a client that is misbehaving. */
 const LIST_MIN_GAP_MS = 1000;
+
+/** Minimum gap between {t:'chat'} lines on one socket. Nobody types two
+ * lines in a quarter second; a script can, and every line it sends is a
+ * toast on three other screens. Silently dropped rather than an error —
+ * an error costs the seat its socket, which is too much for talking. */
+const CHAT_MIN_GAP_MS = 250;
 
 type LobbyMsg =
   | {t: 'list'}
@@ -189,7 +198,8 @@ type LobbyMsg =
   | {t: 'rejoin'; token: string}
   | {t: 'debug'; enabled?: boolean}
   | {t: 'hidden'; hidden?: boolean}
-  | {t: 'replay'};
+  | {t: 'replay'}
+  | {t: 'chat'; text?: unknown};
 
 function sendJson(ws: WebSocket, msg: unknown): void {
   // Simultaneous disconnects race the close callbacks: a seat can still
@@ -449,6 +459,35 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       const {room, seat} = conn;
       if (!room || !seat) break;
       sendJson(ws, {t: 'replay', data: replayFor(room, seat)});
+      break;
+    }
+    case 'chat': {
+      // One line for the table. Echoed to every connected seat, the
+      // speaker included: the sender sees the line only once the relay has
+      // it, so everyone reads the same messages in the same order, and a
+      // line lost on the way up is visibly lost rather than shown as sent.
+      // The text is the one thing here written by a stranger for other
+      // players' screens, so it passes the sanitizer whatever the client
+      // claims to have done to it. AI seats have no socket and hear
+      // nothing; a hidden seat keeps its socket and is told anyway — a
+      // line is a few bytes, and the toast waits on screen for its return.
+      const {room, seat} = conn;
+      if (!room || !seat) break;
+      const text = sanitizeChatText(msg.text);
+      if (text === null) break;
+      const now = Date.now();
+      if (
+        conn.lastChatMs !== undefined &&
+        now - conn.lastChatMs < CHAT_MIN_GAP_MS
+      ) {
+        break;
+      }
+      conn.lastChatMs = now;
+      for (const s of room.seats) {
+        if (s.connected && s.ws) {
+          sendJson(s.ws, {t: 'chat', playerId: seat.playerId, text});
+        }
+      }
       break;
     }
     case 'hidden': {

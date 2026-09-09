@@ -18,3 +18,7 @@ export const requestSave = 7 as const;
 export type requestSave = typeof requestSave;
 export const requestReplay = 8 as const;
 export type requestReplay = typeof requestReplay;
+/** One line of chat for the table — multiplayer only; the solo worker has
+ * nobody to relay it to and drops it. */
+export const chat = 9 as const;
+export type chat = typeof chat;
