@@ -537,9 +537,13 @@ export function Hud(props: {
    * no chord to learn, and the key a player reaches for to "say something"
    * anyway. Only in a networked match — solo has nobody to tell, and a
    * replay's seats are not at the table — and only when the key is not
-   * already someone's: a field being typed into (typingInto), Alt+Enter
-   * (the fullscreen toggle), or a chord the platform owns. Once the line
-   * is open the input has focus, so this sees Enter no more: the field
+   * already someone's: a field being typed into (typingInto), a button
+   * or dialog holding focus (the quit card's autofocused Leave, where
+   * Enter means leave), Alt+Enter (the fullscreen toggle), or a chord the
+   * platform owns. The canvas never takes focus, so during play the
+   * active element is the body itself — that, and only that, is the
+   * state where Enter has nobody else to answer to. Once the line is
+   * open the input has focus, so this sees Enter no more: the field
    * takes it as Send, Esc as Never mind (see the form below).
    */
   const onChatKey = (e: KeyboardEvent): void => {
@@ -547,6 +551,8 @@ export function Hud(props: {
     if (foreignChord(e) || e.ctrlKey || e.repeat || typingInto(e.target)) {
       return;
     }
+    const focused = document.activeElement;
+    if (focused && focused !== document.body) return;
     if (!netMode() || replayMode() || chatOpen()) return;
     e.preventDefault();
     setChatOpen(true);
