@@ -30,6 +30,13 @@ describe('sanitizeChatText', () => {
     );
   });
 
+  it('does bounded work on a payload far past the cap', () => {
+    // A megabyte of text is cut before the regex and the code-point walk
+    // ever see it; what comes out is still exactly the cap.
+    const huge = 'x'.repeat(1 << 20);
+    expect(sanitizeChatText(huge)).toHaveLength(MAX_CHAT_CHARS);
+  });
+
   it('caps at MAX_CHAT_CHARS without splitting a surrogate pair', () => {
     const long = 'a'.repeat(MAX_CHAT_CHARS + 20);
     expect(sanitizeChatText(long)).toHaveLength(MAX_CHAT_CHARS);

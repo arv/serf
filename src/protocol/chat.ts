@@ -16,16 +16,27 @@
 export const MAX_CHAT_CHARS = 200;
 
 /**
+ * How much of the raw string is even looked at, in UTF-16 units. The
+ * relay runs the sanitizer on whatever a socket sends, and the work below
+ * (a regex pass, then a walk of the code points) is linear in what it is
+ * given — so a megabyte of payload is cut here first, to a bound that any
+ * message worth MAX_CHAT_CHARS still fits inside with room for the
+ * whitespace the collapse then removes.
+ */
+const RAW_BOUND = MAX_CHAT_CHARS * 8;
+
+/**
  * Trim a message to what a toast can show: one line, no control characters,
  * at most MAX_CHAT_CHARS. Null when nothing is left to say — a message of
  * spaces is not a message, and neither is something that is not a string.
  */
 export function sanitizeChatText(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
+  const bounded = raw.length > RAW_BOUND ? raw.slice(0, RAW_BOUND) : raw;
   // Control characters, newlines among them, become spaces: a toast is a
   // single line, and a pasted paragraph reads better collapsed than
   // rendered as one word per line. Runs collapse too, for the same reason.
-  const text = raw.replace(/[\p{Cc}\s]+/gu, ' ').trim();
+  const text = bounded.replace(/[\p{Cc}\s]+/gu, ' ').trim();
   if (text.length === 0) return null;
   // Code points rather than UTF-16 units, so the cap never splits a
   // surrogate pair and ships half an emoji.
