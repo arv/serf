@@ -1,4 +1,9 @@
-import {GOODS, type GoodAmounts} from '../sim/defs/goods';
+import {
+  GOODS,
+  type GoodAmounts,
+  type GoodId,
+  goodEntries,
+} from '../sim/defs/goods';
 import {TECH_DEFS, type TechId} from '../sim/defs/techs';
 
 /**
@@ -37,6 +42,37 @@ export function hauledIn(a: ActiveStudy): number {
   if (!a.needs) return 0;
   const left = GOODS.reduce((n, g) => n + (a.needs![g] ?? 0), 0);
   return total - left;
+}
+
+/** One line of a study's bill: what it wants of a good, and what is in. */
+export type HaulRow = {good: GoodId; carried: number; wanted: number};
+
+/**
+ * The bill good by good, in id order, skipping the goods it does not ask
+ * for — what the aggregate `hauledIn` counts, kept apart so a tip can say
+ * WHICH loads the serfs are still walking.
+ *
+ * The two readings of an absent bill are settled exactly as hauledIn
+ * settles them, and for the same reasons: started means the whole bill is
+ * standing in the Abbey, and no bill before that means the Abbey cannot be
+ * read at all, so nothing is counted in.
+ */
+export function hauledByGood(a: ActiveStudy): HaulRow[] {
+  const rows = goodEntries(TECH_DEFS[a.tech].cost).filter(
+    ([, wanted]) => wanted > 0,
+  );
+  // The two absences, kept apart. A bill with no entry for a good means
+  // that good's share is in — researchSystem leaves the line at 0 rather
+  // than dropping it, but `?? 0` is what hauledIn reads and the two must
+  // not disagree. No bill AT ALL before the books open is the other
+  // absence entirely, and it is the whole bill that is unknown, so no row
+  // may claim a load.
+  const unknown = !a.started && !a.needs;
+  return rows.map(([good, wanted]) => ({
+    good,
+    wanted,
+    carried: unknown ? 0 : a.started ? wanted : wanted - (a.needs![good] ?? 0),
+  }));
 }
 
 /**

@@ -43,6 +43,7 @@ import {
   unitName,
 } from './names';
 import {stock, techs} from './store';
+import {type ActiveStudy, hauledByGood} from './techProgress.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type GoodId = Enum<typeof GoodId>;
@@ -711,6 +712,58 @@ export function TechTip(props: {tech: TechId}) {
       <Show when={prereqNames().length > 0}>
         <div class="tip-warn">Requires {prereqNames()}</div>
       </Show>
+    </>
+  );
+}
+
+/**
+ * The study in hand, for the HUD's research chip.
+ *
+ * The chip is one bar and a name, and while the serfs are still walking
+ * the bar's own number ("39%") answers the wrong question: what a player
+ * wants at that moment is which loads are still on the road, and there is
+ * no room on a chip that size to say. So the tip says it, good by good —
+ * carried, of what the study asks — and a line that is fully in goes
+ * green so the eye lands on the ones that are not.
+ *
+ * Only while the goods are moving. Once the books open every line reads
+ * n/n by definition, which is a row of noise over the one number that has
+ * become interesting again: the seconds left of the reading.
+ */
+export function StudyTip(props: {study: ActiveStudy}) {
+  const abbey = () => buildingName(BuildingTypeId.abbey);
+  return (
+    <>
+      <div class="tip-title">{techName(props.study.tech)}</div>
+      <Show
+        when={!props.study.started}
+        fallback={
+          <>
+            <div class="tip-desc">Being read at the {abbey()}.</div>
+            <div class="tip-line">
+              <b>Left:</b> {Math.ceil(props.study.ticksLeft / TICKS_PER_SECOND)}
+              s
+            </div>
+          </>
+        }
+      >
+        <div class="tip-desc">
+          Serfs are carrying its goods to the {abbey()}; the reading starts when
+          the last load lands.
+        </div>
+        <div class="tip-line tip-cost">
+          <b>Carried in:</b>
+          <For each={hauledByGood(props.study)}>
+            {row => (
+              <span classList={{'tip-good': row.carried >= row.wanted}}>
+                <GoodIcon good={row.good} size={12} />
+                {row.carried}/{row.wanted}
+              </span>
+            )}
+          </For>
+        </div>
+      </Show>
+      <div class="tip-line">Click to open the tech tree.</div>
     </>
   );
 }

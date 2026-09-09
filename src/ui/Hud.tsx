@@ -9,7 +9,6 @@ import * as NetState from '../protocol/netStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
 import type {AdminAction} from '../sim/commands';
 import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
-import * as BuildingTypeIdNs from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {goodEntries} from '../sim/defs/goods';
 import type {TechId} from '../sim/defs/techs';
@@ -96,6 +95,7 @@ import {TechTreePanel} from './TechTreePanel';
 import {
   BuildingTip,
   GoodTip,
+  StudyTip,
   TextTip,
   TipWrap,
   TooltipLayer,
@@ -1917,22 +1917,12 @@ export function Hud(props: {
           <div class="hud-rail center">
             <Show when={techs().active}>
               {a => (
+                // The chip has room for a name and a bar; WHICH loads are
+                // still on the road is the thing a bar cannot say, so the
+                // tip says it good by good (StudyTip).
                 <button
                   class="research-chip panel"
-                  {...tooltip(() => (
-                    <TextTip
-                      title={techName(a().tech)}
-                      body={
-                        a().started
-                          ? `Being read at the ${buildingName(
-                              BuildingTypeIdNs.abbey,
-                            )} — click to open the tech tree.`
-                          : `Serfs are carrying its goods to the ${buildingName(
-                              BuildingTypeIdNs.abbey,
-                            )} — the reading starts when the last load lands. Click to open the tech tree.`
-                      }
-                    />
-                  ))}
+                  {...tooltip(() => <StudyTip study={a()} />)}
                   onClick={() => setTechPanelOpen(true)}
                 >
                   {/* The whole order, not half of it: ticksLeft does not

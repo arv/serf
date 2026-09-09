@@ -5,6 +5,7 @@ import * as TechId from '../sim/defs/techIdEnum.ts';
 import {TECH_DEFS, TECH_IDS} from '../sim/defs/techs.ts';
 import {
   type ActiveStudy,
+  hauledByGood,
   hauledIn,
   hauledTotal,
   studyProgress01,
@@ -118,6 +119,79 @@ describe('the study bar', () => {
         prev = p;
       }
       expect(prev).toBe(1);
+    }
+  });
+});
+
+describe("a study's bill, good by good", () => {
+  it('names each good the study asks for, in id order', () => {
+    // Irrigation is 5 wheat + 3 silver; wheat is the lower id.
+    expect(
+      hauledByGood(hauling({[GoodId.wheat]: 5, [GoodId.silver]: 3})),
+    ).toEqual([
+      {good: GoodId.wheat, carried: 0, wanted: 5},
+      {good: GoodId.silver, carried: 0, wanted: 3},
+    ]);
+  });
+
+  it('counts each good down as its own loads arrive', () => {
+    expect(
+      hauledByGood(hauling({[GoodId.wheat]: 2, [GoodId.silver]: 3})),
+    ).toEqual([
+      {good: GoodId.wheat, carried: 3, wanted: 5},
+      {good: GoodId.silver, carried: 0, wanted: 3},
+    ]);
+  });
+
+  it('reads a good missing from the bill as delivered, not as owed', () => {
+    // The sim leaves a paid line sitting at 0 rather than dropping it, but
+    // `?? 0` is the rule hauledIn reads the bill by and the two must agree:
+    // a fallback of "the whole bill" here would have the tip claim nothing
+    // had been carried of a good already standing in the Abbey.
+    const row = hauledByGood(hauling({[GoodId.silver]: 3}));
+    expect(row).toEqual([
+      {good: GoodId.wheat, carried: 5, wanted: 5},
+      {good: GoodId.silver, carried: 0, wanted: 3},
+    ]);
+  });
+
+  it('carries nothing when the Abbey holding the bill cannot be read', () => {
+    // The other absence entirely — no bill at all before the books open.
+    expect(hauledByGood(hauling(undefined))).toEqual([
+      {good: GoodId.wheat, carried: 0, wanted: 5},
+      {good: GoodId.silver, carried: 0, wanted: 3},
+    ]);
+  });
+
+  it('is wholly carried once the books are open', () => {
+    expect(hauledByGood(studying(1))).toEqual([
+      {good: GoodId.wheat, carried: 5, wanted: 5},
+      {good: GoodId.silver, carried: 3, wanted: 3},
+    ]);
+  });
+
+  it('agrees with the aggregate for every tech, at every stage', () => {
+    for (const tech of TECH_IDS) {
+      const def = TECH_DEFS[tech];
+      const left: GoodAmounts = {...def.cost};
+      for (let carried = 0; carried <= hauledTotal(tech); carried++) {
+        const study: ActiveStudy = {
+          tech,
+          ticksLeft: def.durationTicks,
+          totalTicks: def.durationTicks,
+          started: false,
+          needs: {...left},
+        };
+        const rows = hauledByGood(study);
+        expect(rows.reduce((n, r) => n + r.carried, 0)).toBe(hauledIn(study));
+        expect(rows.reduce((n, r) => n + r.wanted, 0)).toBe(hauledTotal(tech));
+        for (const r of rows) {
+          expect(r.carried).toBeGreaterThanOrEqual(0);
+          expect(r.carried).toBeLessThanOrEqual(r.wanted);
+        }
+        const g = GOODS.find(k => (left[k] ?? 0) > 0);
+        if (g !== undefined) left[g] = left[g]! - 1;
+      }
     }
   });
 });
