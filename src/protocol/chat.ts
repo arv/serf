@@ -36,7 +36,14 @@ export function sanitizeChatText(raw: unknown): string | null {
   // Control characters, newlines among them, become spaces: a toast is a
   // single line, and a pasted paragraph reads better collapsed than
   // rendered as one word per line. Runs collapse too, for the same reason.
-  const text = bounded.replace(/[\p{Cc}\s]+/gu, ' ').trim();
+  // The bidi controls go the same way: an embedded right-to-left override
+  // makes a line read as something other than what was typed, and there
+  // is no honest message that needs one — Arabic and Hebrew run right to
+  // left by themselves. Named one by one rather than as \p{Cf}, which
+  // would also take the joiner that holds an emoji sequence together.
+  const text = bounded
+    .replace(/[\p{Cc}\s\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+/gu, ' ')
+    .trim();
   if (text.length === 0) return null;
   // Code points rather than UTF-16 units, so the cap never splits a
   // surrogate pair and ships half an emoji.

@@ -30,6 +30,17 @@ describe('sanitizeChatText', () => {
     );
   });
 
+  it('drops bidi controls that would make a line read backwards', () => {
+    // A right-to-left override, an isolate and a mark, around plain words.
+    expect(sanitizeChatText('go \u202Eeast\u202C now\u2066!\u2069\u200F')).toBe(
+      'go east now !',
+    );
+    // The zero-width joiner is not one of them: it holds an emoji
+    // sequence together and goes through untouched.
+    const family = '\u{1F468}\u200D\u{1F469}';
+    expect(sanitizeChatText(family)).toBe(family);
+  });
+
   it('does bounded work on a payload far past the cap', () => {
     // A megabyte of text is cut before the regex and the code-point walk
     // ever see it; what comes out is still exactly the cap.
