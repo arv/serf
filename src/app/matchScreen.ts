@@ -888,7 +888,10 @@ export async function runMatch(
             : event.note === HeraldNote.finalAssault
               ? `${event.count ?? 'Many'} strong, and your walls will not hold!`
               : 'Our banners march on your gates!';
-        pushToast(`A herald of ${name}: “${words}”`);
+        // On the chat card rather than a notice's: a herald is someone
+        // speaking to you, and the card that names its speaker is the one
+        // the player already reads a rival's words on in multiplayer.
+        pushChat(`Herald of ${name}`, words);
       } else if (
         event.kind === GameEventKind.playerEliminated &&
         event.player !== viewerId()
