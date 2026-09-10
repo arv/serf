@@ -239,13 +239,15 @@ export function WarCouncil(props: CouncilHooks) {
   };
   // The log reads oldest first and grows at the foot, so the foot is
   // where the eye is: keep it in view as lines arrive. Through a memo of
-  // the count, not a read of the view: an effect that reads the view
-  // re-runs on every room broadcast, and a settings echo would drag a
-  // player back to the foot of a log they had scrolled up to read. A
-  // memo only wakes its readers when its value changes — a new line.
-  const lines = createMemo(() => v().chat.length);
+  // the newest line's id, not a read of the view: an effect that reads
+  // the view re-runs on every room broadcast, and a settings echo would
+  // drag a player back to the foot of a log they had scrolled up to
+  // read. A memo only wakes its readers when its value changes, and the
+  // id changes on exactly one thing — a new line. (Not the count: once
+  // the log is at its cap, a new line leaves the count where it was.)
+  const newest = createMemo(() => v().chat.at(-1)?.id ?? 0);
   createEffect(() => {
-    if (lines() > 0 && logEl) logEl.scrollTop = logEl.scrollHeight;
+    if (newest() > 0 && logEl) logEl.scrollTop = logEl.scrollHeight;
   });
   // Enter finds the chat line here too, the way it does in the match —
   // when nothing else has the keyboard. A focused button or field keeps
