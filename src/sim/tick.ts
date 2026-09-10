@@ -44,7 +44,7 @@ import {
 } from './systems/logistics.ts';
 import {movementSystem} from './systems/movement.ts';
 import {productionSystem, unbindWorker} from './systems/production.ts';
-import {researchSystem} from './systems/research.ts';
+import {abandonResearch, researchSystem} from './systems/research.ts';
 import {separationSystem} from './systems/separation.ts';
 import {staffingSystem} from './systems/staffing.ts';
 import {trailsSystem} from './systems/trails.ts';
@@ -72,7 +72,6 @@ import {
 } from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
-  abandonResearch,
   canPlace,
   settleResearchBill,
   destroyBuilding,
@@ -348,8 +347,9 @@ export function applyCommand(
       // reason: an order that crosses the tick a study finishes on must
       // miss rather than strike whatever the seat took up next.
       //
-      // Whatever was already carried in is spent — abandonResearch says
-      // why, and says what happens to the loads still walking.
+      // Whatever was already carried in is spent, and the loads still
+      // walking are called back with the good in hand — abandonResearch
+      // (systems/research.ts) says why, and does both.
       if (player.techs.active?.tech !== cmd.tech) break;
       abandonResearch(world, playerId);
       break;

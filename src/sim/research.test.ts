@@ -17,6 +17,7 @@ import {TECH_DEFS} from './defs/techs.ts';
 import {UNIT_DEFS} from './defs/units.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {BANDIT} from './entities.ts';
+import * as HaulPhase from './haulPhaseEnum.ts';
 import {getModifier, isBuildingUnlocked} from './techHelpers.ts';
 import {
   cmds,
@@ -25,7 +26,7 @@ import {
   bareWorld,
   staffBuilding,
 } from './testUtils.ts';
-import {tickWorld} from './tick.ts';
+import {applyCommand, tickWorld} from './tick.ts';
 import type {Unit} from './units.ts';
 import {
   destroyBuilding,
@@ -389,6 +390,104 @@ describe('research', () => {
       false,
     );
     expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a cancelled study calls back the loads still walking, that tick', () => {
+    // Copilot review, PR #273. The haul reconciler would find these jobs
+    // on its own — but it runs one pass in MATCHER_INTERVAL ticks, and in
+    // the ticks between, an open study haul can still be dispatched and a
+    // walking one can still reach the door. With the bill gone, deliverGood
+    // has no study branch left to take and the load lands on the Abbey's
+    // shelf, which is not a shelf anything ever leaves from. So the order
+    // calls its own hauls back, the way cancelRepair does.
+    const world = bareWorld();
+    setupSchool(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    const abbey = abbeyOf(world);
+    // Wait for a load to be off the shelf and on a back, walking in.
+    const walking = (): boolean =>
+      [...world.jobs.values()].some(
+        j => j.research && j.phase === HaulPhase.toDropoff,
+      );
+    let guard = 20 * 120;
+    while (!walking() && guard-- > 0) tickWorld(world, []);
+    expect(walking()).toBe(true);
+
+    // Through applyCommand rather than a tick, so nothing else runs
+    // between the order and the reading below: a tick would carry a
+    // logistics pass with it, and on one tick in MATCHER_INTERVAL that
+    // pass reconciles — which is the very thing this order must not have
+    // to wait for.
+    applyCommand(world, 0, {
+      kind: CommandKind.cancelResearch,
+      tech: TechId.cobbledBoots,
+    });
+    // Not one study job left on the board, and the good is still in hand.
+    expect([...world.jobs.values()].some(j => j.research)).toBe(false);
+    expect(
+      [...world.units.values()].some(u => !u.dead && u.carrying !== undefined),
+    ).toBe(true);
+
+    // Less than a reconcile pass later, nothing has been left at the Abbey.
+    run(world, MATCHER_INTERVAL - 1);
+    const onAbbeyShelf = goodEntries(abbey.stock).reduce(
+      (n, [, k]) => n + k,
+      0,
+    );
+    expect(onAbbeyShelf).toBe(0);
+
+    // And the load finds a home rather than being carried forever.
+    run(world, 20 * 20);
+    expect(
+      [...world.units.values()].some(u => !u.dead && u.carrying !== undefined),
+    ).toBe(false);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it("a cancelled study leaves the masons' clock where it was", () => {
+    // Copilot review, PR #273. The FIFO age is per (building, good) while
+    // the demands are not, and the Abbey is where two of them collide: an
+    // ordered repair in stone and a study billed in stone keep one key
+    // between them. Dropping it with the study would reset the repair's
+    // age to the cancellation tick and send it to the back of tier 1 —
+    // clearDemandAge guards against exactly this every matcher pass.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    abbey.hp = buildingDef(BuildingTypeId.abbey).hp * 0.2;
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    // No stone anywhere, so both bills stay open and the clock keeps
+    // running for the whole test.
+    tickWorld(
+      world,
+      cmds(
+        {
+          kind: CommandKind.setBuildingRepair,
+          buildingId: abbey.id,
+          repair: true,
+        },
+        {kind: CommandKind.research, tech: TechId.ironworking},
+      ),
+    );
+    expect(abbey.repairNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    run(world, MATCHER_INTERVAL + 1);
+    const since = abbey.demandSince[GoodId.stone];
+    expect(since).toBeDefined();
+
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.cancelResearch, tech: TechId.ironworking}),
+    );
+    expect(world.players[0]!.techs.active).toBeUndefined();
+    expect(abbey.researchNeeds).toBeUndefined();
+    // The masons still want their stone, and still want it from when they
+    // first asked.
+    expect(abbey.repairNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    expect(abbey.demandSince[GoodId.stone]).toBe(since);
   });
 
   it('a stale cancel misses rather than striking the next study', () => {

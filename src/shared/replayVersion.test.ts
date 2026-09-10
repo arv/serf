@@ -662,8 +662,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // carry an order an older sanitizeCommand throws away, and a seat that
 // never dropped its unpayable study never takes up the next one. The
 // full story is in replayVersion.ts.
+// Still 64 after the review round on that command (abandonResearch moved
+// to systems/research.ts, where it now calls its own hauls back the way
+// cancelRepair does, and both it and settleResearchBill leave a clock a
+// repair is still keeping): 64 is this build's own bump and has never
+// shipped, so there is nothing older to break — and the tick really does
+// move, which is why the hash below is re-pinned rather than argued away.
 const EXPECTED_VERSION = 64;
-const EXPECTED_HASH = '2b90f696f57cc2e2625888b0355efed4';
+const EXPECTED_HASH = 'c8b14f9c1082e6a51b51b71decd99cde';
 
 /**
  * Everything a replay's playback depends on, as raw source:

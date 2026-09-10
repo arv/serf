@@ -1409,47 +1409,22 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
  */
 export function settleResearchBill(world: World, b: Building): void {
   if (!b.researchNeeds) return;
-  for (const g of goodKeys(b.researchNeeds)) delete b.demandSince[g];
+  for (const g of goodKeys(b.researchNeeds)) {
+    // ...but only the clocks this bill was actually keeping. The age is
+    // per (building, good) while the demands are not, and the Abbey is
+    // where two of them collide: an ordered repair in stone and a study
+    // billed in stone want the same key. Dropping it while the masons
+    // still want their load would reset the repair's age to now and send
+    // it to the back of tier 1 — the very thing clearDemandAge guards
+    // against every matcher pass (systems/logistics.ts).
+    if ((b.repairNeeds?.[g] ?? 0) > 0) continue;
+    delete b.demandSince[g];
+  }
   delete b.researchNeeds;
   // Whoever ordered it, at THIS Abbey: a seat with two of them has its
   // study pinned to the one the bill was written on (techs.active.abbey).
   const techs = world.players[b.owner]?.techs;
   if (techs?.active && techs.active.abbey === b.id) techs.active.started = true;
-}
-
-/**
- * Call the study off: the bill on the Abbey goes, and the order with it.
- *
- * settleResearchBill's mirror — one opens the books, this one closes them
- * unopened — and it exists because a bill can be one the village will
- * never be able to carry. Gilded Arms ordered with no gold on the shelf
- * and no Deep Mining to dig any is a study that waits forever, and a seat
- * studies one thing at a time: without a way out, the whole tree is shut
- * behind an order that can never finish.
- *
- * What was already carried in is spent, and stays spent. A study's load
- * is consumed at the Abbey's threshold, load by load, the way a repair's
- * stone is (deliverGood in systems/logistics.ts) — the Abbey has no shelf
- * to take anything back off, so there is nothing here to refund. The
- * loads still ON the road are a different matter and need nothing done to
- * them: the bill's absence is exactly what the haul reconciler reads to
- * send those serfs elsewhere with the good still in their hands.
- *
- * Drops the bill's FIFO clocks for the reason a settled one does (see
- * settleResearchBill and clearRepairOrder): the age of an unmet demand
- * lives per (building, good), and a clock left behind by an abandoned
- * study would hand the next thing this Abbey asks for a queue place it
- * never stood in.
- */
-export function abandonResearch(world: World, playerId: Owner): void {
-  const techs = world.players[playerId]?.techs;
-  if (!techs?.active) return;
-  const abbey = world.buildings.get(techs.active.abbey);
-  if (abbey?.researchNeeds) {
-    for (const g of goodKeys(abbey.researchNeeds)) delete abbey.demandSince[g];
-    delete abbey.researchNeeds;
-  }
-  techs.active = undefined;
 }
 
 /**
