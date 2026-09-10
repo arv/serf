@@ -11,6 +11,7 @@
 import type {Enum} from '../shared/enum.ts';
 import {exactDist} from '../shared/math.ts';
 import {distToFootprint} from '../sim/arrival.ts';
+import {batchTicks} from '../sim/batchTicks.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
 import {
@@ -31,7 +32,7 @@ import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
-import {batchTicks} from '../sim/systems/production.ts';
+
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import type {Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
@@ -137,14 +138,19 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
  * nothing is burning, which is what a cold fire should draw: no bar at
  * all rather than an empty one that reads as "just started".
  *
- * The batch is measured against the length it would be started at NOW,
- * not the length it was actually started with — the sim keeps only the
- * ticks left, and the alternative is a second number in the world (and in
- * the hash, and in every save). The two differ only when a speed tech
- * lands mid-batch, which shortens the yardstick under a clock already
- * ticking and can put the reading past either end; the clamp keeps that
- * to a bar that sits still for a moment instead of one that runs
- * backwards, and it comes right on the next batch.
+ * Measured against the length the batch was STARTED with, which the sim
+ * stamps beside the clock (Building.prodTicksTotal). Recomputing it here
+ * would be wrong, not merely approximate: a speed tech landing mid-batch
+ * shortens what a new batch would take without touching the one already
+ * running, so the same clock read against a shorter yardstick reads as
+ * LESS done than it did a tick ago — the bar steps backwards, and no
+ * clamp to [0,1] catches a step taken in the middle of the range.
+ *
+ * The recomputed length survives as the fallback for one case only: a
+ * save written before the stamp existed, restored with a batch already
+ * on the fire (an optional field costs no save-version bump, so such
+ * saves still load). One batch of a slightly-off bar, once, and the
+ * clamp is what keeps that case inside its own ends.
  */
 function batchProgress01(
   world: World,
@@ -160,7 +166,7 @@ function batchProgress01(
       ? def.recipeOptions?.[b.prodRecipeIndex]?.recipe
       : convertRecipeOf(def, b);
   if (!recipe) return undefined;
-  const total = batchTicks(world, b, recipe);
+  const total = b.prodTicksTotal ?? batchTicks(world, b, recipe);
   return Math.min(1, Math.max(0, 1 - b.prodTicksLeft / total));
 }
 

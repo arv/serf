@@ -17,6 +17,7 @@ import {
   addStorehouse,
   bareWorld,
   cmds,
+  staffBuilding,
 } from '../sim/testUtils.ts';
 import {tickWorld} from '../sim/tick.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
@@ -397,5 +398,61 @@ describe('unitSnapshots: the festival mark', () => {
     expect(snapOf(world, knight.id).buffs).toBe(BUFF.festival);
     world.players[0]!.techs.festivalTicksLeft = 0;
     expect(snapOf(world, knight.id).buffs).toBe(0);
+  });
+});
+
+/**
+ * The forge's clock on the wire. The card draws a bar off this number, so
+ * the one thing it must never do is go backwards under a player who is
+ * watching it — which is exactly what measuring a running batch against
+ * today's recipe length does the moment a speed tech lands.
+ */
+describe('snapBuilding: prodProgress01', () => {
+  /** A staffed smith with a spear's ingredients on the shelf. */
+  const smithOnSpears = (world: World) => {
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      30,
+      30,
+    );
+    smith.recipeIndex = 0; // pinned on spears (default is auto)
+    staffBuilding(world, smith);
+    smith.inputs[GoodId.iron] = 1;
+    smith.inputs[GoodId.wood] = 2;
+    return smith;
+  };
+
+  it('is absent while the fire is cold and climbs once it is lit', () => {
+    const world = bareWorld();
+    const smith = smithOnSpears(world);
+    expect(snapBuilding(world, smith).prodProgress01).toBeUndefined();
+    tickWorld(world, cmds()); // the batch takes the fire
+    const lit = snapBuilding(world, smith).prodProgress01;
+    expect(lit).toBeDefined();
+    for (let i = 0; i < 20; i++) tickWorld(world, cmds());
+    expect(snapBuilding(world, smith).prodProgress01!).toBeGreaterThan(lit!);
+  });
+
+  it('never steps backwards when a speed tech lands mid-batch', () => {
+    const world = bareWorld();
+    const smith = smithOnSpears(world);
+    for (let i = 0; i < 60; i++) tickWorld(world, cmds());
+    const before = snapBuilding(world, smith).prodProgress01!;
+    expect(before).toBeGreaterThan(0);
+    // Bellows shortens what a NEW batch takes; the one on the fire keeps
+    // the clock it was given, so the bar must keep climbing from where it
+    // stood rather than dropping to meet a shorter yardstick.
+    world.players[0]!.techs.researched.push(
+      TechId.cobbledBoots,
+      TechId.ironworking,
+      TechId.bellows,
+    );
+    expect(snapBuilding(world, smith).prodProgress01!).toBeGreaterThanOrEqual(
+      before,
+    );
+    tickWorld(world, cmds());
+    expect(snapBuilding(world, smith).prodProgress01!).toBeGreaterThan(before);
   });
 });
