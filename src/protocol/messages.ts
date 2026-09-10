@@ -129,6 +129,10 @@ export interface BuildingSnap {
   recipeIndex?: number;
   /** The option the batch on the fire was started with. */
   prodRecipeIndex?: number;
+  /** How far the batch on the fire has come, 0..1. Present only while one
+   * is running — a paused workshop keeps its half-done batch, so the bar
+   * holds where the clock froze rather than emptying. */
+  prodProgress01?: number;
   /** Forge orders waiting (Smith), worked ahead of the standing order. */
   forgeQueue?: {recipeIndex: number; started: boolean}[];
   /** Men manning this building, and how many it holds. Present only for
