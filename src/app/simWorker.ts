@@ -66,6 +66,8 @@ let recording: {
 /** Playback mode: the log being replayed, and a cursor into it. */
 let replay: ReplayData | null = null;
 let replayCmdIdx = 0;
+/** Cursor into the log's chat, walked the same way as the commands'. */
+let replayChatIdx = 0;
 let replayEndedPosted = false;
 
 const post = (msg: WorkerToMain): void => {
@@ -270,6 +272,10 @@ function pump(): void {
         speed = 0;
         if (!replayEndedPosted) {
           replayEndedPosted = true;
+          // The last words: a line said after the final tick ran carries
+          // that tick's number, and this branch is reached before the
+          // tick below would have said it.
+          postReplayChat(world.tick);
           post({type: WorkerToMainKind.replayEnded});
           // The pause skips future matcher intervals, so whatever the HUD
           // is still owed (outcome, rosters) ships now or never.
@@ -282,6 +288,9 @@ function pump(): void {
         : i === 0
           ? commands
           : [];
+      // What the table said as this tick arrived, said again on screen.
+      // Off the sim's path entirely: chat never reaches tickWorld.
+      if (replay) postReplayChat(world.tick);
       // Brains decide from the state this tick starts in, and go in with
       // the player's orders — no frame of hindsight. (Playback has no
       // brains; their moves are already in `executed`, off the log.)
@@ -372,6 +381,23 @@ function reportFatal(err: unknown): void {
   speed = 0;
   stopPump();
   post({type: WorkerToMainKind.fatal, message});
+}
+
+/** The lines said up to and including this tick that have not been shown
+ * yet. Unlike the commands, a line stamped before the world's tick is
+ * still said rather than dropped: a replay resumed from a save has no
+ * order to misapply here, only words the player would otherwise miss. */
+function postReplayChat(tick: number): void {
+  const entries = replay?.chat;
+  if (!entries) return;
+  while (
+    replayChatIdx < entries.length &&
+    entries[replayChatIdx]!.tick <= tick
+  ) {
+    const {playerId, text} = entries[replayChatIdx]!;
+    post({type: WorkerToMainKind.chat, playerId, text});
+    replayChatIdx++;
+  }
 }
 
 /** The logged commands for one tick — players' and AI seats' alike — as a

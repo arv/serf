@@ -16,6 +16,7 @@ import {
   createRoom,
   pumpRoom,
   queueCommands,
+  recordChat,
   replayFor,
   startMatch,
   type Room,
@@ -99,6 +100,39 @@ describe('server replay recording', () => {
     room.world!.outcome = {state: MatchState.over, winner: winner.playerId};
     expect(replayFor(room, fallen)).not.toBeNull();
     expect(replayFor(room, winner)).not.toBeNull();
+  });
+
+  it('records what the table said under the tick it was said on', () => {
+    const room = createRoom('closed', {
+      ai: 0,
+      bandits: false,
+      seed: 77,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
+    const host = addSeat(room, 'human', null);
+    const ally = addSeat(room, 'human', null);
+    // Said in the lobby: not part of the match, so not in its replay.
+    recordChat(room, host.playerId, 'ready?');
+    startMatch(room);
+    advance(room, 30);
+    recordChat(room, host.playerId, 'raid on the east road');
+    advance(room, 20);
+    recordChat(room, ally.playerId, 'sending spears');
+    advance(room, 10);
+    const endTick = room.world!.tick;
+    room.world!.outcome = {state: MatchState.over, winner: host.playerId};
+    const replay = parseReplay(replayFor(room, ally)!)!;
+    expect(replay.chat).toEqual([
+      {tick: 30, playerId: host.playerId, text: 'raid on the east road'},
+      {tick: 50, playerId: ally.playerId, text: 'sending spears'},
+    ]);
+    expect(replay.endTick).toBe(endTick);
+    // The log survives a same-version snapshot, the words with it.
+    const restored = roomFromRecord(roomToRecord(room)!, Date.now());
+    expect(parseReplay(replayFor(restored, restored.seats[1]!)!)!.chat).toEqual(
+      replay.chat,
+    );
   });
 
   it('reproduces the pumped match without re-running the AI', () => {

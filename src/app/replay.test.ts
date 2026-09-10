@@ -118,6 +118,46 @@ describe('replay format', () => {
     expect(bad.loadData).toBe('world-string');
   });
 
+  it('carries what the table said, screened like a line off the wire', () => {
+    const data: ReplayData = {
+      ...sample(),
+      chat: [
+        {tick: 30, playerId: 1, text: 'gg'},
+        {tick: 12, playerId: 0, text: 'raid on the east road'},
+      ],
+    };
+    const parsed = parseReplay(serializeReplay(data))!;
+    // Ascending by tick, like the commands — playback walks it with a cursor.
+    expect(parsed.chat).toEqual([
+      {tick: 12, playerId: 0, text: 'raid on the east road'},
+      {tick: 30, playerId: 1, text: 'gg'},
+    ]);
+    // A garbled line is dropped, never the file; the words that survive
+    // pass the same sanitizer the relay gives a line off the wire.
+    const doc = JSON.parse(serializeReplay(data)) as {chat: unknown[]};
+    doc.chat.push(
+      {tick: 40, playerId: 0, text: '  two\nlines  '},
+      {tick: -1, playerId: 0, text: 'bad tick'},
+      {tick: 41, playerId: 'zero', text: 'bad seat'},
+      {tick: 41, playerId: 2, text: 'no such seat'},
+      {tick: 41, playerId: -1, text: 'no such seat either'},
+      {tick: 42, playerId: 0, text: '   '},
+      'garbage',
+    );
+    const screened = parseReplay(JSON.stringify(doc))!;
+    expect(screened.chat!.map(c => c.text)).toEqual([
+      'raid on the east road',
+      'gg',
+      'two lines',
+    ]);
+    // Nothing said, nothing written: the field stays absent, as it is in
+    // every file from before there was chat to record.
+    expect(parseReplay(serializeReplay(sample()))!.chat).toBeUndefined();
+    expect(
+      parseReplay(JSON.stringify({...sample(), chat: 'not a list'}))!.chat,
+    ).toBeUndefined();
+  });
+
   it('exposes the version stamp from the file head alone', () => {
     const raw = serializeReplay(sample());
     expect(readReplayVersion(raw)).toBe(REPLAY_VERSION);
