@@ -25,9 +25,27 @@ describe('the balance sweep’s arguments', () => {
       positional: ['32', '1000'],
       tierRaw: undefined,
       named: false,
+      bandits: true,
     });
     expect(splitArgs([]).positional).toEqual([]);
     expect(splitArgs(['32']).positional).toEqual(['32']);
+  });
+
+  it('reads --no-bandits without eating a positional', () => {
+    // The camp switch takes no value, so the argument after it is still
+    // the offset — the same class of bug the --difficulty guard exists for.
+    expect(splitArgs(['12', '--no-bandits', '1000'])).toEqual({
+      positional: ['12', '1000'],
+      tierRaw: undefined,
+      named: false,
+      bandits: false,
+    });
+    expect(splitArgs(['--no-bandits', '--difficulty', 'hard', '8'])).toEqual({
+      positional: ['8'],
+      tierRaw: 'hard',
+      named: true,
+      bandits: false,
+    });
   });
 
   it('lifts the flag and its value out, wherever they sit', () => {
@@ -35,12 +53,14 @@ describe('the balance sweep’s arguments', () => {
       positional: ['32', '1000'],
       tierRaw: 'hard',
       named: true,
+      bandits: true,
     });
     // Before the positionals, which is just as legal on a command line.
     expect(splitArgs(['--difficulty', 'easy', '32', '1000'])).toEqual({
       positional: ['32', '1000'],
       tierRaw: 'easy',
       named: true,
+      bandits: true,
     });
     // Between them, which is where it is easiest to get wrong.
     expect(
@@ -55,6 +75,7 @@ describe('the balance sweep’s arguments', () => {
       positional: ['32'],
       tierRaw: undefined,
       named: true,
+      bandits: true,
     });
   });
 
