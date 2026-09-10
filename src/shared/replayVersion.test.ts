@@ -643,8 +643,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 63 after the research walker learned to skip a study nobody can
 // supply (systems/ai.ts): brain, not sim — playback never runs a brain,
 // and the log already holds every order the seat gave.
+// Still 63 after the Abbot finished the ale line and the Warlord's long-war
+// tail took it (defs/aiStrategies.ts): playbook data, and playback never
+// runs a brain — the log holds every order the seats gave.
 const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = '9e83569401556ae8d93e3fa758dd70f9';
+const EXPECTED_HASH = 'c2d6bb110205f096f975664447b0c637';
 
 /**
  * Everything a replay's playback depends on, as raw source:
