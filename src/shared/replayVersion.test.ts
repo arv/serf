@@ -629,9 +629,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // did, and a file with it plays on an older build minus the words, since
 // parseReplay ignores what it does not know — and chat never reaches the
 // sim, so no tick moved. Format in the file, nothing in the world; and 62
-// is this build's own bump and has never shipped besides.
+// is this build's own bump and has never shipped besides. Still 62 again
+// after the parser began holding a line's seat to the table the config
+// lays: a screen on read, the shape of the file untouched.
 const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = '76a95d50175992cb411f35d9eac46f44';
+const EXPECTED_HASH = 'a9439dd29b9dfb37f37ca5899b8342a2';
 
 /**
  * Everything a replay's playback depends on, as raw source:
