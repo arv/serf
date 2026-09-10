@@ -263,24 +263,79 @@ const hpBarMaterial = new THREE.MeshBasicMaterial({
 });
 
 /**
- * The festival mark: a ring of ale-gold hung over a drinking soldier's
- * head, a little above where his health bar would sit, pulsing slowly so
- * it reads as a state and not a decoration. A festival makes every soldier
- * of its owner's strike a quarter faster (systems/combat.ts) and nothing
- * about how he stands or swings says so; the mark is how a player tells
- * that the column at the gate has been drinking — the enemy's men wear it
- * as plainly as their own, since the bit rides the unit (BUFF, sabLayout)
+ * The festival aura: a soft disc of ale-gold on the ground under a drinking
+ * soldier, a brighter ring inside it and faint spokes that turn slowly —
+ * the Warcraft aura, in this palette. A festival makes every soldier of its
+ * owner's strike a quarter faster (systems/combat.ts) and nothing about
+ * how he stands or swings says so; the aura is how a player tells that
+ * the column at the gate has been drinking — the enemy's men wear it as
+ * plainly as their own, since the bit rides the unit (BUFF, sabLayout)
  * rather than the seat's redacted research. Instanced and rebuilt each
- * frame exactly as the bars are.
+ * frame exactly as the bars are; additive and never written to depth, so
+ * two auras overlapping brighten rather than fight.
+ *
+ * The texture is computed rather than drawn: the renderer's tests import
+ * this module under node, where there is no canvas, and a DataTexture of
+ * sixty-four pixels a side costs nothing to build once.
  */
-const festivalGeometry = new THREE.RingGeometry(0.055, 0.095, 20);
-const FESTIVAL_Y = HP_BAR_Y + 0.14;
-const festivalMaterial = new THREE.MeshBasicMaterial({
+const AURA_TEXTURE_SIZE = 64;
+function makeAuraTexture(): THREE.DataTexture {
+  const n = AURA_TEXTURE_SIZE;
+  const data = new Uint8Array(n * n * 4);
+  const SPOKES = 8;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const dx = (x + 0.5) / n - 0.5;
+      const dy = (y + 0.5) / n - 0.5;
+      const r = Math.sqrt(dx * dx + dy * dy) * 2; // 0 at the centre, 1 at the edge
+      // A soft floor that fades to nothing at the rim, a bright ring at
+      // two thirds, and spokes that only show between the ring and the rim.
+      const floor = r < 0.9 ? 0.4 * (1 - r / 0.9) : 0;
+      const ring = 1.0 * Math.exp(-((r - 0.64) * (r - 0.64)) / 0.005);
+      const angle = Math.atan2(dy, dx);
+      const spoke =
+        r > 0.62 && r < 0.92
+          ? 0.45 *
+            Math.max(0, Math.cos(angle * SPOKES)) ** 6 *
+            (1 - (r - 0.62) / 0.3)
+          : 0;
+      const a = Math.min(1, floor + ring + spoke) * (r < 1 ? 1 : 0);
+      const i = (y * n + x) * 4;
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = Math.round(a * 255);
+    }
+  }
+  const tex = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  tex.needsUpdate = true;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+/** The aura's width across, in tiles: a little over a soldier's shadow. */
+const AURA_SIZE = 1.0;
+/** Clear of the turf by a hair, so the grass does not cut it. */
+const AURA_Y = 0.04;
+const auraGeometry = new THREE.PlaneGeometry(AURA_SIZE, AURA_SIZE);
+const auraMaterial = new THREE.MeshBasicMaterial({
   color: goldOre,
-  depthTest: false,
+  map: makeAuraTexture(),
+  transparent: true,
+  opacity: 0.95,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
   side: THREE.DoubleSide,
   userData: {noFog: true},
 });
+/** The aura lies flat; the quad's normal is turned from +Z up to +Y. */
+const AURA_FLAT = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(1, 0, 0),
+  -Math.PI / 2,
+);
+const AURA_SPIN = new THREE.Quaternion();
+const AURA_QUAT = new THREE.Quaternion();
+const AURA_UP = new THREE.Vector3(0, 1, 0);
 
 // Scratch for composing one bar's instance matrix.
 const HP_POS = new THREE.Vector3();
@@ -457,10 +512,10 @@ export class SceneSync {
    */
   #hpBars = new THREE.InstancedMesh(hpBarGeometry, hpBarMaterial, MAX_UNITS);
   #hpBarCount = 0;
-  /** The festival marks, on the bars' own pattern: cursor and count. */
+  /** The festival auras, on the bars' own pattern: cursor and count. */
   #festivalMarks = new THREE.InstancedMesh(
-    festivalGeometry,
-    festivalMaterial,
+    auraGeometry,
+    auraMaterial,
     MAX_UNITS,
   );
   #festivalCount = 0;
@@ -563,7 +618,9 @@ export class SceneSync {
     this.#hpBars.frustumCulled = false;
     this.#hpBars.count = 0;
     scene.add(this.#hpBars);
-    this.#festivalMarks.renderOrder = 10;
+    // Under the men rather than over everything: an aura on the turf is
+    // hidden by the man standing in it exactly as his shadow is.
+    this.#festivalMarks.renderOrder = 1;
     this.#festivalMarks.frustumCulled = false;
     this.#festivalMarks.count = 0;
     scene.add(this.#festivalMarks);
@@ -750,8 +807,11 @@ export class SceneSync {
     // over. camQuat is the screen plane: the rig's live orientation.
     this.#hpBarCount = 0;
     this.#festivalCount = 0;
-    // One breath a second and a half, shared by every mark on screen.
-    const festivalPulse = 1 + 0.15 * Math.sin(animNow / 240);
+    // Every aura on screen turns together, one revolution in eight
+    // seconds, and breathes six percent over two and a half.
+    AURA_SPIN.setFromAxisAngle(AURA_UP, (animNow / 8000) * Math.PI * 2);
+    AURA_QUAT.multiplyQuaternions(AURA_SPIN, AURA_FLAT);
+    const festivalPulse = 1 + 0.06 * Math.sin(animNow / 400);
     const camQuat = this.cameraQuaternion ?? HP_IDENTITY;
     this.#hidden.clear();
     this.#spun.clear();
@@ -857,7 +917,7 @@ export class SceneSync {
         if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead)
           barPct = hpPct;
       }
-      // The festival mark, on the same terms: on screen, and alive. The
+      // The festival aura, on the same terms: on screen, and alive. The
       // fog cull above has already dropped the men this seat cannot see.
       const drinking =
         !offScreen &&
@@ -1416,10 +1476,11 @@ export class SceneSync {
           this.#hpBars.setColorAt(n, HP_BUCKET_COLORS[hpBucket(barPct)]!);
         }
         if (drinking) {
+          // On the ground he stands on, not bobbing with his step.
           const n = this.#festivalCount++;
-          HP_POS.set(px, standY + bob + FESTIVAL_Y, pz);
+          HP_POS.set(px, standY + AURA_Y, pz);
           HP_SCALE.set(festivalPulse, festivalPulse, 1);
-          HP_MATRIX.compose(HP_POS, camQuat, HP_SCALE);
+          HP_MATRIX.compose(HP_POS, AURA_QUAT, HP_SCALE);
           this.#festivalMarks.setMatrixAt(n, HP_MATRIX);
         }
       }
