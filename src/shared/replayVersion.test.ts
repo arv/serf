@@ -646,8 +646,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 63 after the Abbot finished the ale line and the Warlord's long-war
 // tail took it (defs/aiStrategies.ts): playbook data, and playback never
 // runs a brain — the log holds every order the seats gave.
+// Still 63 after Ale Rations' description named the range's cask beside the
+// barracks' (defs/techs.ts): prose in a def, and the cask was always both.
 const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = 'c2d6bb110205f096f975664447b0c637';
+const EXPECTED_HASH = '35a79659e8ac9339b03c56dbd8bec9d1';
 
 /**
  * Everything a replay's playback depends on, as raw source:

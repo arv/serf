@@ -49,8 +49,10 @@ pnpm dev
   iron + wood become weapons — and iron tools — at the Smith; food + weapons
   train knights and spearmen at the barracks and archers at the archery
   range; wheat + water become ale, and ale delivered to the abbey throws
-  festivals (+25% work speed) — or, with Ale Rations, fills the barracks
-  cask so every recruit drinks and trains faster.
+  festivals (+25% work speed, and every soldier and tower strikes 25%
+  faster for as long as the barrels keep coming) — or, with Ale Rations,
+  fills the barracks' and the range's casks so every recruit drinks and
+  trains faster.
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut
@@ -78,7 +80,9 @@ pnpm dev
   economy cannot wait on boots) opens the iron mine and every iron recipe at
   the Smith, Archery opens the bow line, Masonry paves your roads, Millstones
   speeds the bread chain, Bellows rivals Deep Mining for the forge's favor,
-  and the ale line runs Brewing → Festivals → Ale Rations.
+  and the ale line runs Brewing → Festivals → Ale Rations: a brewhouse is
+  quarried, not felled (twelve stone), and a village that keeps it busy
+  fights a quarter faster.
 - **Combat triangle**: Knights (heavy) ⟶ beat Spearmen (light) ⟶ catch
   Archers (ranged) ⟶ kite Knights. Bandit waves mix all three classes (the
   raid warning tells you the composition) — countering them means retooling

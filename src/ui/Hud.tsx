@@ -2013,7 +2013,7 @@ export function Hud(props: {
             </Show>
             <Show when={techs().festivalTicksLeft > 0}>
               <div class="hud-festival panel">
-                Festival! Everyone works faster
+                Festival! Everyone works and fights faster
               </div>
             </Show>
             {/* Posts standing open for tools. In the rail, not the strip,

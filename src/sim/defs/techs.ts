@@ -141,12 +141,13 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // before the effect ever lands.
     cost: {[GoodId.ale]: 4, [GoodId.silver]: 6},
     durationTicks: 18 * S,
-    // Like festivals, a mechanic rather than a modifier: the barracks
-    // stocks ale, and each soldier drinks one at training start for a
-    // faster course (staffing.ts). No ale never blocks training — the
-    // drink is an accelerant, not an ingredient.
+    // Like festivals, a mechanic rather than a modifier: every training
+    // hall — the barracks and the archery range both, since logistics.ts
+    // keys the cask on `trains` — stocks ale, and each soldier drinks one
+    // at training start for a faster course (staffing.ts). No ale never
+    // blocks training — the drink is an accelerant, not an ingredient.
     effects: [],
-    desc: 'The barracks keeps a cask: each soldier drinks 1 ale and trains 25% faster.',
+    desc: 'The barracks and the archery range keep a cask: each soldier drinks 1 ale and trains 25% faster.',
   },
 
   // — Craft —
