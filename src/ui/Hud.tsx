@@ -530,6 +530,33 @@ export function Hud(props: {
   createEffect(() => {
     if (buildChord()) setBuildOpen(true);
   });
+  /**
+   * A menu, not a card: on a phone the open build card folds at the next
+   * tap that lands anywhere else. Upright it stands in the stack with the
+   * map open above it, and a player who taps a serf up there has moved on
+   * — the menu they left open would otherwise sit under the selection
+   * card's spot (the stylesheet hides that card while this one is open)
+   * until they went back down to fold it by hand. Sideways the scrim
+   * takes the tap first and folds the sheet itself; this then finds
+   * nothing left to do.
+   * The click, not the pointerdown: the map selects on pointerup, and
+   * folding before then reshuffles the stack under a finger whose tap is
+   * still being delivered — the selection card can grow into the very
+   * pixels the finger is on and take the pointerup meant for the map.
+   * By the click every other event of the tap has landed where it was
+   * aimed. The pill is the one thing outside the card that is not "else":
+   * it is the toggle, and it opens with this very click.
+   */
+  createEffect(() => {
+    if (!isCompact() || !buildOpen()) return;
+    const foldOnTapOutside = (e: MouseEvent): void => {
+      if (!(e.target instanceof Element)) return;
+      if (e.target.closest('.hud-build, .hud-build-pill')) return;
+      setBuildOpen(false);
+    };
+    document.addEventListener('click', foldOnTapOutside);
+    onCleanup(() => document.removeEventListener('click', foldOnTapOutside));
+  });
   const soloMode = (): boolean => playersMeta().length <= 1;
 
   /**
@@ -1576,6 +1603,19 @@ export function Hud(props: {
           .hud-bottom > .hud-build,
           .hud-bottom > .hud-selection { box-sizing: border-box; flex: 1 0 100%; }
           .hud-selection { margin-left: 0; width: auto; }
+          /* Not both cards at once. The open build card is a quarter of
+             the screen and its strip a line more, and a castle's card
+             under it — repair, hire, a five-slot queue, the stock line —
+             is most of what is left: together they stood on the goods
+             strip with no map between. Sideways the sheet already
+             covers the selection card for as long as the menu is open,
+             on the argument that nothing else on the HUD matters while
+             you are picking a building. The same argument holds upright,
+             so the selection card stands down until the menu folds — the
+             pick itself folds it (place()), and the card is back for the
+             placing bar. Hidden, not unmounted: the card keeps whatever
+             it was showing. */
+          .hud-bottom.build-open > .hud-selection { display: none; }
           /* The thumb rail joins the flow instead of floating over it.
              Fixed at 38vh it was a guess about how tall the cards would
              be, and a barracks with touch-sized buttons is 370px of
@@ -2292,7 +2332,11 @@ export function Hud(props: {
         </div>
       </div>
 
-      <div class="hud-bottom">
+      {/* .build-open — the card is unfolded. Upright, the stylesheet
+          takes the selection card out of the stack while it is (see the
+          NARROW block); markup says so rather than a :has() on the
+          card, for the reasons speedIsSingle gives. */}
+      <div class="hud-bottom" classList={{'build-open': buildOpen()}}>
         {/* Upright, the cards stack and these two stand on the last line
             of them; every other shape lays the row out in a line and the
             rail floats clear of it above. Rendered from one end of the row
