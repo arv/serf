@@ -124,6 +124,9 @@ export interface Room {
      * own memory of the map, never another's. */
     exploredBySeat?: string[];
     commands: ReplayData['commands'];
+    /** What was said at the table, under the tick it arrived on. Optional
+     * because a snapshot from before chat was recorded carries none. */
+    chat?: ReplayData['chat'];
   };
   matchStartMs?: number;
   /** Mirrors world.tick; -1 until the match starts (the PONG sentinel). */
@@ -452,8 +455,23 @@ export function replayFor(room: Room, seat: Seat): string | null {
       ? {explored: room.replay.exploredBySeat[seat.playerId]}
       : {}),
     commands: room.replay.commands,
+    ...(room.replay.chat && room.replay.chat.length > 0
+      ? {chat: room.replay.chat}
+      : {}),
     endTick: world.tick,
   });
+}
+
+/**
+ * Write a line of chat into the room's replay, under the tick the world is
+ * at when it arrives — the same clock the commands are logged on, so
+ * playback says it where the match heard it. Nothing before the match
+ * starts: the lobby's talk is not part of the match it precedes.
+ */
+export function recordChat(room: Room, playerId: number, text: string): void {
+  const world = room.world;
+  if (!world || !room.replay || room.state !== 'running') return;
+  (room.replay.chat ??= []).push({tick: world.tick, playerId, text});
 }
 
 /** A snapshot for /health: is this process comfortable? */

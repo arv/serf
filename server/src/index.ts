@@ -26,6 +26,7 @@ import {
   pumpRoom,
   queueCommands,
   removeSeat,
+  recordChat,
   replayFor,
   serverStats,
   startMatch,
@@ -488,6 +489,9 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
           sendJson(s.ws, {t: 'chat', playerId: seat.playerId, text});
         }
       }
+      // Into the replay too, so a recording of the match says what the
+      // table said. The lobby's talk is left out by recordChat itself.
+      recordChat(room, seat.playerId, text);
       break;
     }
     case 'hidden': {

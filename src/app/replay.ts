@@ -1,6 +1,7 @@
 // Explicit .ts extensions: the server compiles this file too (it records
 // multiplayer replays), and node/nodenext resolution insists on them the
 // way the rest of the shared sim tree already does.
+import {sanitizeChatText} from '../protocol/chat.ts';
 import {sanitizeCommand} from '../sim/commands.ts';
 import {parseStrategyId} from '../sim/defs/aiStrategies.ts';
 import {parseDifficultyId} from '../sim/defs/difficulty.ts';
@@ -41,6 +42,21 @@ export interface ReplayCommandEntry {
   commands: PlayerCommand[];
 }
 
+/**
+ * One line said at the table, under the tick it arrived on. Beside the
+ * commands rather than among them: chat never reaches the sim, so it
+ * cannot be a command without changing what the tick executes — and the
+ * hash a replay is pinned to. Playback reads these at their tick and
+ * shows them the way the live match did. Multiplayer only: a solo match
+ * has nobody to talk to, and the lobby's talk happens before tick 0 and
+ * is not part of the match it precedes.
+ */
+export interface ReplayChatEntry {
+  tick: number;
+  playerId: number;
+  text: string;
+}
+
 export interface ReplayData {
   format: typeof REPLAY_FORMAT;
   /** The REPLAY_VERSION this was recorded under. The sim must match
@@ -66,6 +82,9 @@ export interface ReplayData {
   explored?: string;
   /** Ascending by tick. */
   commands: ReplayCommandEntry[];
+  /** What was said, ascending by tick. Absent when nothing was — and from
+   * every file written before there was chat to write. */
+  chat?: ReplayChatEntry[];
   /** Where the recording stopped; playback pauses here. */
   endTick: number;
 }
@@ -197,6 +216,22 @@ export function parseReplay(raw: string): ReplayData | null {
   // property of the file — restate it rather than trust it.
   commands.sort((a, b) => a.tick - b.tick);
 
+  // Same screen the relay gives a line off the wire, for the same reason:
+  // the file is hand-editable, and these strings go on screen.
+  const chat: ReplayChatEntry[] = [];
+  if (Array.isArray(d.chat)) {
+    for (const entry of d.chat as unknown[]) {
+      if (typeof entry !== 'object' || entry === null) continue;
+      const e = entry as {tick?: unknown; playerId?: unknown; text?: unknown};
+      if (!isTick(e.tick)) continue;
+      if (typeof e.playerId !== 'number' || !Number.isInteger(e.playerId))
+        continue;
+      const text = sanitizeChatText(e.text);
+      if (text !== null) chat.push({tick: e.tick, playerId: e.playerId, text});
+    }
+  }
+  chat.sort((a, b) => a.tick - b.tick);
+
   return {
     format: REPLAY_FORMAT,
     replayVersion: d.replayVersion,
@@ -207,6 +242,7 @@ export function parseReplay(raw: string): ReplayData | null {
     // costs the replay its memory of scouted ground, never its world.
     ...(typeof d.explored === 'string' ? {explored: d.explored} : {}),
     commands,
+    ...(chat.length > 0 ? {chat} : {}),
     endTick: d.endTick,
   };
 }
