@@ -241,9 +241,22 @@ export const REPAIR_COST_SHARE = 0.5;
  */
 export const REPAIR_MEND_TICKS = 10 * TICKS_PER_SECOND;
 
-// Festivals (ale -> global work-speed buff)
+// Festivals (ale -> the village works faster, and its soldiers fight faster)
 export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;
 export const ABBEY_ALE_CAP = 2;
+/**
+ * What a festival is worth, as a multiplier on two clocks at once: every
+ * post's batch (ModifierKey.workSpeed) and every soldier's and tower's
+ * recovery between blows (ModifierKey.fightSpeed, systems/combat.ts). One
+ * number for both on purpose. Ale used to buy the economy alone, and the
+ * economy is not what decides a match here — the campaigns end around the
+ * twentieth minute and aggression takes them (tools/aiLab/README.md), so a
+ * line that paid out in work speed was a line no playbook had reason to
+ * carry. Reaching the field is what makes brewing a path rather than a
+ * comfort: a village that keeps the barrels coming fights a quarter faster
+ * for as long as they come, and stops the moment they stop.
+ */
+export const FESTIVAL_SPEEDUP = 1.25;
 
 // Ale Rations (ale -> faster training at the barracks)
 export const BARRACKS_ALE_CAP = 2;

@@ -33,6 +33,7 @@ const MODIFIER_LABEL: Record<ModifierKey, string> = {
   [ModifierKey.serfSpeed]: 'Serfs and workers walk',
   [ModifierKey.workSpeed]: 'Everyone works',
   [ModifierKey.militaryHp]: 'Soldiers train with hit points',
+  [ModifierKey.fightSpeed]: 'Soldiers and towers fight',
 };
 
 function EffectLine(props: {effect: TechEffect; self: string}): JSX.Element {

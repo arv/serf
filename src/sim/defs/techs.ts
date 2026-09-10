@@ -124,8 +124,13 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: [T.brewing],
     cost: {[GoodId.ale]: 2, [GoodId.silver]: 6},
     durationTicks: 18 * S,
-    effects: [], // enables the abbey's ale-fed festival buff
-    desc: 'Ale delivered to the Abbey holds festivals: everyone works 25% faster for a while.',
+    // Enables the abbey's ale-fed festival: FESTIVAL_SPEEDUP on every post's
+    // batch and on every soldier's and tower's recovery between blows
+    // (techHelpers.ts getModifier, systems/combat.ts strikeCooldown). A
+    // mechanic rather than a modifier effect, because the buff comes and
+    // goes with the barrels rather than with the research.
+    effects: [],
+    desc: 'Ale delivered to the Abbey holds festivals: everyone works, and every soldier and tower fights, 25% faster for a while.',
   },
   [T.aleRations]: {
     id: T.aleRations,

@@ -632,8 +632,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // is this build's own bump and has never shipped besides. Still 62 again
 // after the parser began holding a line's seat to the table the config
 // lays: a screen on read, the shape of the file untouched.
-const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = 'a9439dd29b9dfb37f37ca5899b8342a2';
+// 63: the festival reaches the field (systems/combat.ts strikeCooldown, and
+// the fightSpeed key in techHelpers.ts), and the brewery is priced in stone
+// (defs/buildings.ts). Both are sim behavior — a strike lands on a different
+// tick, a site asks for different loads — and the note in replayVersion.ts
+// says which logs diverge and where.
+const EXPECTED_VERSION = 63;
+const EXPECTED_HASH = '5b1f710b1cf22a3b2b4d4207659ce90d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

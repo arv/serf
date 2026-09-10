@@ -5,7 +5,11 @@ import type {Enum} from '../shared/enum.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
-import {raidIntervalFor} from './defs/balance.ts';
+import {
+  FESTIVAL_DURATION,
+  FESTIVAL_SPEEDUP,
+  raidIntervalFor,
+} from './defs/balance.ts';
 import {BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
@@ -125,6 +129,33 @@ describe("the kite's price", () => {
     // ...and is free to scoot on the tick it ends.
     tickWorld(world, []);
     expect(archer.cooldownLeft).toBe(cooldown - PLANT);
+    expect(archer.path).not.toBeNull();
+  });
+
+  it('keeps the plant at eight ticks of a festival cycle, not of the printed one', () => {
+    // Under a festival the bow cycles in 19 ticks rather than 24. The gate
+    // is measured off the shorter clock, so the man is still rooted for
+    // eight of them — read against 24 he would be free after three, and a
+    // barrel of ale would hand back the kite the plant exists to price.
+    const {world, archer} = skirmish();
+    world.players[0]!.techs.festivalTicksLeft = FESTIVAL_DURATION;
+    const printed = UNIT_DEFS[UnitTypeId.archer].combat!.cooldownTicks;
+    const cycle = Math.round(printed / FESTIVAL_SPEEDUP);
+    expect(cycle).toBeLessThan(printed);
+
+    let fired = false;
+    for (let i = 0; i < 40 && !fired; i++) {
+      tickWorld(world, []);
+      fired = archer.cooldownLeft === cycle;
+    }
+    expect(fired).toBe(true);
+    expect(archer.path).toBeNull();
+    for (let i = 1; i < PLANT; i++) {
+      tickWorld(world, []);
+      expect(archer.path).toBeNull();
+    }
+    tickWorld(world, []);
+    expect(archer.cooldownLeft).toBe(cycle - PLANT);
     expect(archer.path).not.toBeNull();
   });
 
@@ -1100,6 +1131,32 @@ describe('the guard tower', () => {
     const expected = combat.damage * rule.damageMult * 2;
     expect(before - raider.hp).toBeCloseTo(expected, 5);
     expect(tower.attackCooldown).toBe(combat.cooldownTicks);
+  });
+
+  it('volleys a quarter faster under a festival, archers and levy alike', () => {
+    const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
+    const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
+
+    const world = bareWorld();
+    world.players[0]!.techs.festivalTicksLeft = FESTIVAL_DURATION;
+    const tower = manned(world, 2);
+    spawnUnit(world, UnitTypeId.bandit, BANDIT, 34.5, 31.5);
+    tickWorld(world, []);
+    expect(tower.attackCooldown).toBe(
+      Math.round(combat.cooldownTicks / FESTIVAL_SPEEDUP),
+    );
+
+    // The villagers on the wall drink at the same festival.
+    const levied = bareWorld();
+    levied.players[0]!.techs.festivalTicksLeft = FESTIVAL_DURATION;
+    const wall = manned(levied, 1);
+    wall.garrisonKind = UnitTypeId.serf;
+    spawnUnit(levied, UnitTypeId.bandit, BANDIT, 34.5, 31.5);
+    tickWorld(levied, []);
+    expect(wall.attackCooldown).toBe(
+      Math.round(rule.levy.cooldownTicks / FESTIVAL_SPEEDUP),
+    );
+    expect(wall.attackCooldown).toBeLessThan(rule.levy.cooldownTicks);
   });
 
   it("fires on the field archer's own period, not a tick behind it", () => {
