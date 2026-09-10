@@ -72,6 +72,7 @@ import {
 } from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
+  abandonResearch,
   canPlace,
   settleResearchBill,
   destroyBuilding,
@@ -332,6 +333,25 @@ export function applyCommand(
         abbey: abbey.id,
         started: false,
       };
+      break;
+    }
+    case CommandKind.cancelResearch: {
+      // The way out. Ordering costs nothing and gates on nothing (see
+      // above), which is the right bargain — but it also means a seat can
+      // order a study its village has no way to pay for: Gilded Arms with
+      // no gold on the shelf and no Deep Mining to dig any is a bill that
+      // will never be carried, and one study at a time means the whole
+      // tree waits behind it. Calling it off is what makes ordering on
+      // credit safe rather than a trap.
+      //
+      // The tech is named, and checked, for cancelTraining's stale-click
+      // reason: an order that crosses the tick a study finishes on must
+      // miss rather than strike whatever the seat took up next.
+      //
+      // Whatever was already carried in is spent — abandonResearch says
+      // why, and says what happens to the loads still walking.
+      if (player.techs.active?.tech !== cmd.tech) break;
+      abandonResearch(world, playerId);
       break;
     }
     case CommandKind.setBuildingPaused: {

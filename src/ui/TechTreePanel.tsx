@@ -22,7 +22,7 @@ import {
 } from './store';
 import * as TechNodeStateNs from './techNodeStateEnum.ts';
 import {hauledIn, hauledTotal, studyProgress01} from './techProgress.ts';
-import {TechTip, tooltip} from './tooltip';
+import {TechTip, TextTip, tooltip} from './tooltip';
 export type TechNodeState = Enum<typeof TechNodeStateNs>;
 type TechBranch = Enum<typeof TechBranchNs>;
 
@@ -49,7 +49,10 @@ const NODE_CLASS: Record<TechNodeState, string> = {
   [TechNodeStateNs.locked]: 'locked',
 };
 
-export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
+export function TechTreePanel(props: {
+  onResearch: (tech: TechId) => void;
+  onCancelResearch: (tech: TechId) => void;
+}) {
   const state = (id: TechId): TechNodeState => {
     const t = techs();
     if (t.researched.includes(id)) return TechNodeStateNs.done;
@@ -163,6 +166,16 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
           min-width: 0; min-height: 0;
           display: grid; place-items: center;
           border-radius: 8px; font-size: 12px;
+        }
+        /* The way out of the study in hand, beside the words about it.
+           Sized like the ✕ it stands next to rather than like the sheet's
+           other buttons, and named with the element for the same
+           specificity reason (see .tech-close above). Warm rather than
+           loud: abandoning is a plain decision a village makes, not a
+           destruction to be dressed in red. */
+        #ui button.tech-abandon {
+          flex: none; padding: 4px 10px; min-height: 0;
+          border-radius: 8px; font-size: 11.5px; white-space: nowrap;
         }
         /* The branches scroll, not the sheet: the ✕ is above them now
            and has to stay reachable however long the tree gets. */
@@ -308,6 +321,7 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
            this button belongs beside the rest of them. */
         @media (pointer: coarse) {
           #ui button.tech-close { width: 36px; height: 36px; font-size: 14px; }
+          #ui button.tech-abandon { min-height: 36px; padding: 0 12px; font-size: 13px; }
         }
       `}</style>
         <div class="tech-head">
@@ -342,6 +356,36 @@ export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
             {/* Always rendered — see .tech-status. */}
             <div class="tech-status">{studyLine()}</div>
           </div>
+          {/* The way out of an order the village cannot pay for: a study
+              is billed to the Abbey and taken on credit, so nothing stops
+              a seat ordering one it has no way to supply — Gilded Arms
+              with no gold on the shelf and no Deep Mining to dig any —
+              and a seat studies one thing at a time. Without this the
+              whole tree waits behind a bill nobody can ever carry.
+              Hidden in a replay, which takes no orders, and hidden when
+              there is nothing to call off. */}
+          <Show when={!replayMode() && techs().active}>
+            {a => (
+              <button
+                class="tech-abandon"
+                {...tooltip(() => (
+                  <TextTip
+                    title={`Abandon ${techName(a().tech)}`}
+                    body={
+                      a().started
+                        ? 'Frees the tree for another study. The goods are already in the books — nothing comes back.'
+                        : `Frees the tree for another study. Loads already carried to the ${buildingName(
+                            BuildingTypeId.abbey,
+                          )} are spent; the ones still on the road are carried home instead.`
+                    }
+                  />
+                ))}
+                onClick={() => props.onCancelResearch(a().tech)}
+              >
+                Abandon
+              </button>
+            )}
+          </Show>
           <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
             ✕
           </button>

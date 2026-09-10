@@ -657,8 +657,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // that predates the field loads as it always did, the field simply
 // absent (the banditsEnabled precedent in save.ts: an optional field is
 // no format break).
-const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = 'd2c739f319ca0d4ccc5dd39b60d42af0';
+// 64 for a study that can be called off: a nineteenth command kind
+// (cancelResearch), which is format — a log recorded on this build can
+// carry an order an older sanitizeCommand throws away, and a seat that
+// never dropped its unpayable study never takes up the next one. The
+// full story is in replayVersion.ts.
+const EXPECTED_VERSION = 64;
+const EXPECTED_HASH = '2b90f696f57cc2e2625888b0355efed4';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -307,6 +307,106 @@ describe('research', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it('a study nobody can supply can be called off, and the slot opens', () => {
+    // The trap ordering-on-credit opens, and the way out of it. Gilded
+    // Arms is billed in GOLD, which a village without Deep Mining has no
+    // way to dig: the bill sits on the Abbey forever, and a seat studies
+    // one thing at a time, so the whole tree waits behind it.
+    const world = bareWorld();
+    setupSchool(world);
+    const p = world.players[0]!;
+    p.techs.researched.push(TechId.soldiery, TechId.mailArmor);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.gildedArms}),
+    );
+    const abbey = abbeyOf(world);
+    expect(p.techs.active?.tech).toBe(TechId.gildedArms);
+    // The silver half is carried; the gold half never can be.
+    run(world, 20 * 30);
+    expect(p.techs.active?.started).toBe(false);
+    expect(abbey.researchNeeds?.[GoodId.gold]).toBeGreaterThan(0);
+
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.cancelResearch, tech: TechId.gildedArms}),
+    );
+    expect(p.techs.active).toBeUndefined();
+    // The bill goes with the order — an Abbey left asking for gold would
+    // keep the matcher booking hauls for a study nobody is doing.
+    expect(abbey.researchNeeds).toBeUndefined();
+    expect(abbey.demandSince[GoodId.gold]).toBeUndefined();
+
+    // And the tree is open again.
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    expect(p.techs.active?.tech).toBe(TechId.cobbledBoots);
+    runHaul(world);
+    run(world, TECH_DEFS[TechId.cobbledBoots].durationTicks + 2);
+    expect(p.techs.researched).toContain(TechId.cobbledBoots);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a cancelled study spends what is in and sends the rest home', () => {
+    // The two halves of an abandoned bill. What went through the Abbey's
+    // door was consumed at the threshold and cannot come back — the Abbey
+    // has no shelf to take it off. What is still on a serf's back is not
+    // lost with it: the bill's absence is what the reconciler reads to
+    // find that load another home, so the village's books balance either
+    // way (checkInvariants counts carried goods).
+    const world = bareWorld();
+    setupSchool(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    const abbey = abbeyOf(world);
+    const total = goodEntries(TECH_DEFS[TechId.cobbledBoots].cost).reduce(
+      (n, [, want]) => n + want,
+      0,
+    );
+    // Wait for the first load to land, and no longer: the bill must still
+    // be open, with hands on the road behind it.
+    let guard = 20 * 120;
+    const left = () =>
+      goodEntries(abbey.researchNeeds ?? {}).reduce((n, [, w]) => n + w, 0);
+    while (abbey.researchNeeds && left() === total && guard-- > 0)
+      tickWorld(world, []);
+    expect(abbey.researchNeeds).toBeDefined();
+    expect(left()).toBeLessThan(total);
+
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.cancelResearch, tech: TechId.cobbledBoots}),
+    );
+    expect(world.players[0]!.techs.active).toBeUndefined();
+    // The serfs settle: whoever was walking to the Abbey takes his load
+    // somewhere else rather than standing in the road with it.
+    run(world, 20 * 20);
+    expect([...world.units.values()].some(u => u.carrying !== undefined)).toBe(
+      false,
+    );
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a stale cancel misses rather than striking the next study', () => {
+    // cancelForge's rule, applied to the tree: an order given as one study
+    // finishes must not call off whatever the seat took up after it.
+    const world = bareWorld();
+    setupSchool(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.cancelResearch, tech: TechId.irrigation}),
+    );
+    expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
+  });
+
   it('enforces prereqs and one-at-a-time', () => {
     const world = bareWorld();
     setupSchool(world);

@@ -190,6 +190,7 @@ export function Hud(props: {
   onHire: () => void;
   onCancelHire: (index: number) => void;
   onResearch: (tech: TechId) => void;
+  onCancelResearch: (tech: TechId) => void;
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onSave: () => void;
@@ -2486,7 +2487,10 @@ export function Hud(props: {
         <EconomyPanel />
       </Show>
       <Show when={techPanelOpen()}>
-        <TechTreePanel onResearch={props.onResearch} />
+        <TechTreePanel
+          onResearch={props.onResearch}
+          onCancelResearch={props.onCancelResearch}
+        />
       </Show>
 
       {/* The minimap sheet — small screens only (the ☰-family panel state

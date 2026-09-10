@@ -20,6 +20,31 @@
  * directly.
  */
 /**
+ * 64: a study can be called off.
+ *
+ * A nineteenth command kind, `cancelResearch` (sim/commandKindEnum.ts),
+ * and pure format the way the herald (34) and the focus order (39) were:
+ * the tick that executes every older order is untouched, and no log
+ * written before this build can hold one. It is named here for those two's
+ * reason — a log recorded on THIS build can carry an order an older
+ * sanitizeCommand throws away, and a seat whose abandoned study was never
+ * abandoned goes on studying it, never takes up the one it took up next,
+ * and unlocks everything downstream on different ticks or not at all.
+ *
+ * What it fixes is the trap the credit rule (62) opened. Ordering a study
+ * spends nothing and gates on nothing, so a seat can order one its village
+ * has no way to supply — Gilded Arms is billed in gold, and a village with
+ * no gold on the shelf and no Deep Mining to dig any will never carry that
+ * bill in. One study at a time meant the whole tree waited behind it for
+ * the rest of the match. The order can now be dropped: the bill goes off
+ * the Abbey and the slot opens (abandonResearch in sim/world.ts). Loads
+ * already carried in stay spent — they were consumed at the threshold, as
+ * a repair's stone is — and the loads still walking are re-aimed by the
+ * haul reconciler, good still in hand.
+ *
+ * 63's note follows.
+ */
+/**
  * 63: the festival reaches the field, and the brewery is quarried.
  *
  * Ale used to buy the village a quarter more work and nothing else. A
@@ -999,4 +1024,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 63;
+export const REPLAY_VERSION = 64;
