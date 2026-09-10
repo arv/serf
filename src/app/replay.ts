@@ -217,14 +217,21 @@ export function parseReplay(raw: string): ReplayData | null {
   commands.sort((a, b) => a.tick - b.tick);
 
   // Same screen the relay gives a line off the wire, for the same reason:
-  // the file is hand-editable, and these strings go on screen.
+  // the file is hand-editable, and these strings go on screen. The seat
+  // is held to the table the config lays, the way myPlayerId is above: a
+  // line from a seat that does not exist would be named as the bandits.
   const chat: ReplayChatEntry[] = [];
   if (Array.isArray(d.chat)) {
     for (const entry of d.chat as unknown[]) {
       if (typeof entry !== 'object' || entry === null) continue;
       const e = entry as {tick?: unknown; playerId?: unknown; text?: unknown};
       if (!isTick(e.tick)) continue;
-      if (typeof e.playerId !== 'number' || !Number.isInteger(e.playerId))
+      if (
+        typeof e.playerId !== 'number' ||
+        !Number.isInteger(e.playerId) ||
+        e.playerId < 0 ||
+        e.playerId >= config.players.length
+      )
         continue;
       const text = sanitizeChatText(e.text);
       if (text !== null) chat.push({tick: e.tick, playerId: e.playerId, text});

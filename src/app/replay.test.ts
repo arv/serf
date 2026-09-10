@@ -139,6 +139,8 @@ describe('replay format', () => {
       {tick: 40, playerId: 0, text: '  two\nlines  '},
       {tick: -1, playerId: 0, text: 'bad tick'},
       {tick: 41, playerId: 'zero', text: 'bad seat'},
+      {tick: 41, playerId: 2, text: 'no such seat'},
+      {tick: 41, playerId: -1, text: 'no such seat either'},
       {tick: 42, playerId: 0, text: '   '},
       'garbage',
     );
