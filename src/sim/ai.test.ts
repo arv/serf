@@ -58,6 +58,7 @@ import {
 } from './world.ts';
 
 type TechId = Enum<typeof TechId>;
+type AiStrategyId = Enum<typeof AiStrategyId>;
 
 function digest(world: World): unknown {
   return {
@@ -1982,6 +1983,108 @@ describe('the tower that faces the war', () => {
       x: plain.x + 1,
       y: plain.y + 1,
     });
+  });
+});
+
+describe('a study nobody can supply', () => {
+  /** An abbey, a shelf, and a plan that reaches for the ale line — the
+   * Abbot's, which carries a brewery step, or the Steward's, which does
+   * not. */
+  function seat(
+    order: TechId[],
+    shelf: GoodAmounts,
+    brewery: boolean,
+    plan: AiStrategyId = AiStrategyId.steward,
+  ): {world: World; brain: AiBrain} {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {
+      [GoodId.stone]: 10,
+      [GoodId.silver]: 20,
+      ...shelf,
+    });
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 27, 27);
+    if (brewery) placeBuiltBuilding(world, BuildingTypeId.brewery, 0, 33, 30);
+    world.players[0]!.techs.researched.push(
+      TechId.irrigation,
+      TechId.brewing,
+      TechId.cobbledBoots,
+    );
+    return {
+      world,
+      brain: new AiBrain(
+        0,
+        {...AI_STRATEGIES[plan], researchOrder: order},
+        world.map.size,
+      ),
+    };
+  }
+
+  function ordered(brain: AiBrain, world: World): TechId | undefined {
+    world.tick += AI_PACING.decisionInterval;
+    const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    for (const c of commands)
+      if (c.kind === CommandKind.research) return c.tech;
+    return undefined;
+  }
+
+  it('skips a bill in a good the village neither holds, makes nor plans', () => {
+    // Festivals costs two ale. No brewery, no barrel, and no brewery in
+    // the plan: it is skipped, and Masonry behind it is bought instead of
+    // held hostage.
+    const {world, brain} = seat([TechId.festivals, TechId.masonry], {}, false);
+    expect(ordered(brain, world)).toBe(TechId.masonry);
+  });
+
+  it('waits for a good the plan promises a roof for', () => {
+    // The Abbot's plan carries a brewery step gated on Brewing, which is
+    // in: the ale is coming, and Festivals waits for it as it always did.
+    const {world, brain} = seat(
+      [TechId.festivals, TechId.masonry],
+      {},
+      false,
+      AiStrategyId.abbot,
+    );
+    expect(ordered(brain, world)).toBeUndefined();
+  });
+
+  it('waits for a good the village is making', () => {
+    // A brewery standing is a bill on its way: the queue names Festivals
+    // and waits for the barrels, as it always did.
+    const {world, brain} = seat([TechId.festivals, TechId.masonry], {}, true);
+    expect(ordered(brain, world)).toBeUndefined();
+  });
+
+  it('counts a roof pegged out as a roof that is coming', () => {
+    // A brewery site is a brewery on its way, and its ale evacuates to the
+    // shelf the beat the roof is on — so Festivals waits on it rather than
+    // being skipped for the tech behind it.
+    const {world, brain} = seat([TechId.festivals, TechId.masonry], {}, false);
+    placeSite(world, BuildingTypeId.brewery, 0, 33, 30);
+    expect(ordered(brain, world)).toBeUndefined();
+  });
+
+  it('never skips a bill in a good every plan opens on', () => {
+    // Wheat at zero and no farm standing is what a raid leaves behind,
+    // not what a plan cannot reach: Soldiery is named and waited on, as
+    // it always was, rather than skipped for the tech behind it — a
+    // Fletcher that bought Ironworking on such a beat took eleven thousand
+    // ticks longer to win its map.
+    const {world, brain} = seat(
+      [TechId.soldiery, TechId.ironworking],
+      {},
+      false,
+    );
+    expect(ordered(brain, world)).toBeUndefined();
+  });
+
+  it('counts a good on the shelf whoever made it', () => {
+    // Two ale in the stores and no brewery: the bill can be paid today.
+    const {world, brain} = seat(
+      [TechId.festivals, TechId.masonry],
+      {[GoodId.ale]: 2},
+      false,
+    );
+    expect(ordered(brain, world)).toBe(TechId.festivals);
   });
 });
 

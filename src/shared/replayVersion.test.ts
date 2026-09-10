@@ -640,8 +640,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // Still 63 after the brewery went to twelve stone (defs/buildings.ts): 63
 // is this build's own bump and has never shipped, so there is nothing older
 // to break, and the note above already names the price among its reasons.
+// Still 63 after the research walker learned to skip a study nobody can
+// supply (systems/ai.ts): brain, not sim — playback never runs a brain,
+// and the log already holds every order the seat gave.
 const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = '04aba2057a48bbe55539a28697004433';
+const EXPECTED_HASH = '9e83569401556ae8d93e3fa758dd70f9';
 
 /**
  * Everything a replay's playback depends on, as raw source:
