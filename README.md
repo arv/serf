@@ -50,8 +50,8 @@ pnpm dev
   train knights and spearmen at the barracks and archers at the archery
   range; wheat + water become ale, and ale delivered to the abbey throws
   festivals (+25% work speed, and every soldier and tower strikes 25%
-  faster for as long as the barrels keep coming — a soldier who is
-  drinking wears a gold ring over his head, the enemy's men as plainly as
+  faster for as long as the barrels keep coming — everyone who is
+  drinking stands in a gold aura, the enemy's men as plainly as
   yours) — or, with Ale Rations,
   fills the barracks' and the range's casks so every recruit drinks and
   trains faster.

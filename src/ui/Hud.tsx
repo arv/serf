@@ -17,6 +17,7 @@ import {MAX_CHAT_CHARS, sanitizeChatText} from '../protocol/chat.ts';
 import * as NetState from '../protocol/netStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
 import type {AdminAction} from '../sim/commands';
+import {TICKS_PER_SECOND} from '../sim/defs/balance';
 import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {goodEntries} from '../sim/defs/goods';
@@ -2013,7 +2014,8 @@ export function Hud(props: {
             </Show>
             <Show when={techs().festivalTicksLeft > 0}>
               <div class="hud-festival panel">
-                Festival! Everyone works and fights faster
+                Festival! Everyone works and fights faster —{' '}
+                {Math.ceil(techs().festivalTicksLeft / TICKS_PER_SECOND)}s
               </div>
             </Show>
             {/* Posts standing open for tools. In the rail, not the strip,
