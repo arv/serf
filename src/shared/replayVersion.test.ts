@@ -637,8 +637,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // (defs/buildings.ts). Both are sim behavior — a strike lands on a different
 // tick, a site asks for different loads — and the note in replayVersion.ts
 // says which logs diverge and where.
+// Still 63 after the brewery went to twelve stone (defs/buildings.ts): 63
+// is this build's own bump and has never shipped, so there is nothing older
+// to break, and the note above already names the price among its reasons.
 const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = '5b1f710b1cf22a3b2b4d4207659ce90d';
+const EXPECTED_HASH = '04aba2057a48bbe55539a28697004433';
 
 /**
  * Everything a replay's playback depends on, as raw source:

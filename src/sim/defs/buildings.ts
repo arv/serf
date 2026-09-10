@@ -499,7 +499,39 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     requiresTech: TechId.brewing,
     w: 2,
     h: 2,
-    cost: {[GoodId.wood]: 10, [GoodId.stone]: 4},
+    // Twelve stone and no wood, from ten wood and four stone. The brewhouse
+    // is the one roof in the village priced entirely in the good every yard
+    // has too much of, and that is a measurement rather than a flavour.
+    //
+    // Driven alone on a peaceful map to 45k ticks, the Abbot — the seat
+    // whose plan carries this step — has Brewing in by 23-31k and never
+    // lays the brewery. Its castle shelf at every decision beat after
+    // Brewing reads wood >= 8 on 0% of beats on all three seeds tried
+    // (101, 108, 115), >= 6 on 0-3%, and a high-water mark of three to
+    // seven planks; stone reads >= 12 on 100% of them. Two forges — one on
+    // swords at a plank apiece, one on bowstaves at three — take every log
+    // as it lands, and `holdTheGlutForge` (economyRules.ts) never trips on
+    // the bow forge because the range drinks the shelf down to four or
+    // five. Ground is not the blocker: the siting search finds a 2x2 six
+    // tiles from the castle. Wood is, and a discount on it is not a fix —
+    // at six planks the step would fire on one beat in thirty and on seed
+    // 115 never.
+    //
+    // Twelve is the tower's stone bill: the other roof whose price is
+    // quarried late, and a couple of minutes at one quarry for a human.
+    // Brewing never opens before Irrigation, so this is never an opening
+    // build bidding against the barracks' eight stone.
+    //
+    // Tried and rejected, so the next hand need not: a rule halting a
+    // wood-eating forge for a starving build step (every seat in the deck
+    // sits at wood zero all late game, so it would stand every anvil down
+    // for every unmet wood step — the trade holdTheGlutForge's own note
+    // refuses); reserving the shelf for the step the way the build order
+    // does for a gatherer (reserving wood that never lands holds nothing);
+    // and moving the step up the plan (the walker skips met steps, and the
+    // forges are long built when Brewing lands, so priority never comes
+    // into play).
+    cost: {[GoodId.stone]: 12},
     buildTicks: 20 * S,
     hp: 160,
     sight: 5.5,
