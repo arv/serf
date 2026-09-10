@@ -82,7 +82,7 @@ import {WorldMirror} from './mirror';
 import type {ReplayData} from './replay';
 import {saveReplayFile} from './replayStore';
 import {envelopeSave, unpackExplored} from './saveEnvelope';
-import {saveGameNow} from './saveStore';
+import {deleteSaveFile, saveGameFile, saveGameNow} from './saveStore';
 import type {Screen} from './screen';
 import {holdServiceWorkerUpdates} from './serviceWorker';
 import {WorkerSimHost} from './simHost';
@@ -560,6 +560,35 @@ export async function runMatch(
   // Not while watching a replay: a GPU-loss reload comes back on the same
   // ?replay= URL and restarts playback — there is no world of ours to keep.
   if (!replay) rescue = saveGame;
+  // The dev loop's save. Every edit to a module without an HMR boundary —
+  // which is every sim and render module — has Vite reload the page, and
+  // a reload restarts the match from its URL: ten minutes of play to a
+  // festival, gone for a one-line change to the aura under a knight. So a
+  // dev build keeps a rolling save named `hot`, rewritten every ten
+  // seconds while a solo match runs, and `?load=hot` on the URL is a
+  // match that survives its own hot reloads. Dev only (`import.meta.hot`
+  // is undefined in a production bundle), solo only (a networked world
+  // is the server's), never a replay. Delete-then-write rather than a
+  // write over the old copy, because the store suffixes a taken name; a
+  // reload inside that window fails to load, which is a rare dev-only
+  // stumble against a permanent "(2)" through "(9)" shelf.
+  if (import.meta.hot && !replay && !net) {
+    let writing = false;
+    const timer = setInterval(() => {
+      if (writing || over) return;
+      writing = true;
+      void saveGame()
+        .then(async data => {
+          await deleteSaveFile('hot');
+          await saveGameFile('hot', data);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          writing = false;
+        });
+    }, 10_000);
+    teardown.push(() => clearInterval(timer));
+  }
   const damageAlerts = new DamageAlerts({
     scene: renderer.scene,
     heights,
