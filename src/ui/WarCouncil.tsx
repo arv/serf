@@ -1,4 +1,14 @@
-import {For, Show, createSignal, type Accessor} from 'solid-js';
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  type Accessor,
+} from 'solid-js';
+import {typingInto} from '../input/typing';
+import {MAX_CHAT_CHARS, sanitizeChatText} from '../protocol/chat.ts';
 import {MAX_SEATS, type LobbyConfig} from '../protocol/lobby';
 import type {Enum} from '../shared/enum.ts';
 import {
@@ -28,6 +38,15 @@ export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
  * ran script in this origin, which holds the saves and the seat token.)
  */
 
+/** One line said at the table while it waits. `seat` is the chair it came
+ * from, which is also its banner colour — the same colour that names the
+ * seat in the list above, since the lobby has no names to give. */
+export interface ChatLine {
+  id: number;
+  seat: number;
+  text: string;
+}
+
 export interface CouncilView {
   /** One-line context from the journey here ('Your previous match has
    * ended.') — shown quietly above the lobby. */
@@ -37,6 +56,9 @@ export interface CouncilView {
   yourSeat: number;
   seats: {kind: PlayerKind.human | 'ai'; connected: boolean}[];
   config: LobbyConfig;
+  /** Table talk, oldest first, this seat's own lines included — the relay
+   * echoes every line to everyone, so the log is the same on every seat. */
+  chat: ChatLine[];
 }
 
 export interface CouncilHooks {
@@ -48,6 +70,8 @@ export interface CouncilHooks {
   onShare(): Promise<'shared' | 'copied'>;
   /** Back out: the room is abandoned and the shell shows the start screen. */
   onLeave(): void;
+  /** Say one line to the table; it comes back through `view().chat`. */
+  onChat(text: string): void;
 }
 
 /** Banner colors, matching factionTint's seats — the same green, red, blue
@@ -79,6 +103,15 @@ const COUNCIL_STYLE = `
 @keyframes council-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 #menu .waiting i { width: 7px; height: 7px; border-radius: 50%; background: #cbbd93; animation: council-pulse 1.6s ease-in-out infinite; }
 #menu .locked { pointer-events: none; }
+#menu .talk { display: flex; flex-direction: column; gap: 6px; padding: 10px 16px 0; }
+#menu .talk .log { display: flex; flex-direction: column; gap: 4px; max-height: 132px; overflow-y: auto;
+  padding: 8px 11px; font-size: 12.5px; color: #cfccc2;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; }
+#menu .talk .line { display: flex; align-items: baseline; gap: 8px; overflow-wrap: anywhere; }
+#menu .talk .line .banner { width: 9px; height: 9px; border-radius: 2.5px; flex: none; align-self: center;
+  box-shadow: 0 0 6px rgba(0,0,0,0.4); }
+#menu .talk .line b { flex: none; color: #f2db9a; font-weight: 600; }
+#menu .talk input.say { width: 100%; box-sizing: border-box; }
 `;
 
 function ShareIcon() {
@@ -188,6 +221,47 @@ export function WarCouncil(props: CouncilHooks) {
   const seedInput = (raw: string): void => {
     patch({seed: Number(raw.replace(/\D/g, '')) || 0});
   };
+
+  /** Who a line is from, in the words the seat list uses. Colour does
+   * the rest: with no names at the table, the banner is the name. */
+  const said = (seat: number): string =>
+    seat === v().yourSeat ? 'You' : 'Ally';
+  const bannerOf = (seat: number): string =>
+    SEAT_COLORS[seat % SEAT_COLORS.length]!;
+
+  let sayEl: HTMLInputElement | undefined;
+  let logEl: HTMLDivElement | undefined;
+  const say = (): void => {
+    if (!sayEl) return;
+    const text = sanitizeChatText(sayEl.value);
+    sayEl.value = '';
+    if (text !== null) props.onChat(text);
+  };
+  // The log reads oldest first and grows at the foot, so the foot is
+  // where the eye is: keep it in view as lines arrive. Through a memo of
+  // the newest line's id, not a read of the view: an effect that reads
+  // the view re-runs on every room broadcast, and a settings echo would
+  // drag a player back to the foot of a log they had scrolled up to
+  // read. A memo only wakes its readers when its value changes, and the
+  // id changes on exactly one thing — a new line. (Not the count: once
+  // the log is at its cap, a new line leaves the count where it was.)
+  const newest = createMemo(() => v().chat.at(-1)?.id ?? 0);
+  createEffect(() => {
+    if (newest() > 0 && logEl) logEl.scrollTop = logEl.scrollHeight;
+  });
+  // Enter finds the chat line here too, the way it does in the match —
+  // when nothing else has the keyboard. A focused button or field keeps
+  // its Enter; a joiner idling on the card gets the line.
+  const onEnter = (e: KeyboardEvent): void => {
+    if (e.key !== 'Enter' || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (typingInto(e.target) || !inRoom() || !sayEl) return;
+    const focused = document.activeElement;
+    if (focused && focused !== document.body) return;
+    e.preventDefault();
+    sayEl.focus();
+  };
+  window.addEventListener('keydown', onEnter);
+  onCleanup(() => window.removeEventListener('keydown', onEnter));
 
   return (
     <>
@@ -336,6 +410,43 @@ export function WarCouncil(props: CouncilHooks) {
                     </div>
                   </Show>
                 </div>
+              </div>
+
+              <div class="talk">
+                <Show when={v().chat.length > 0}>
+                  <div class="log" ref={logEl}>
+                    <For each={v().chat}>
+                      {line => (
+                        <div class="line">
+                          <span
+                            class="banner"
+                            style={`background:${bannerOf(line.seat)}`}
+                          />
+                          <b>{said(line.seat)}</b>
+                          <span>{line.text}</span>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+                <input
+                  class="say"
+                  ref={sayEl}
+                  placeholder="Say to the table… (Enter)"
+                  aria-label="Say to the table"
+                  maxLength={MAX_CHAT_CHARS}
+                  autocomplete="off"
+                  spellcheck={false}
+                  onKeyDown={e => {
+                    if (e.isComposing) return;
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      say();
+                    } else if (e.key === 'Escape') {
+                      e.currentTarget.blur();
+                    }
+                  }}
+                />
               </div>
 
               <div class="cta-wrap">
