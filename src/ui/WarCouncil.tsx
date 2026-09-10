@@ -2,6 +2,7 @@ import {
   For,
   Show,
   createEffect,
+  createMemo,
   createSignal,
   onCleanup,
   type Accessor,
@@ -237,11 +238,14 @@ export function WarCouncil(props: CouncilHooks) {
     if (text !== null) props.onChat(text);
   };
   // The log reads oldest first and grows at the foot, so the foot is
-  // where the eye is: keep it in view as lines arrive. Tracks the length
-  // rather than the array so a settings echo does not scroll the table.
+  // where the eye is: keep it in view as lines arrive. Through a memo of
+  // the count, not a read of the view: an effect that reads the view
+  // re-runs on every room broadcast, and a settings echo would drag a
+  // player back to the foot of a log they had scrolled up to read. A
+  // memo only wakes its readers when its value changes — a new line.
+  const lines = createMemo(() => v().chat.length);
   createEffect(() => {
-    const lines = v().chat.length;
-    if (lines > 0 && logEl) logEl.scrollTop = logEl.scrollHeight;
+    if (lines() > 0 && logEl) logEl.scrollTop = logEl.scrollHeight;
   });
   // Enter finds the chat line here too, the way it does in the match —
   // when nothing else has the keyboard. A focused button or field keeps
