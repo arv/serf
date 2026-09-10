@@ -97,6 +97,11 @@ export class WorkerSimHost implements SimHost {
   #replayEndedPending = false;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
   #chatCb: ((playerId: number, text: string) => void) | null = null;
+  /** Lines that arrived before anyone registered for them, held the way
+   * structural frames are: a replay starts ticking the moment the worker
+   * is up, while runMatch is still awaiting its assets, so a line said in
+   * the opening seconds would otherwise land with no listener and vanish. */
+  #chatPending: {playerId: number; text: string}[] = [];
   #fatalCb: ((message: string) => void) | null = null;
   /** Whether 'ready' has landed — which is what decides where a worker
    * failure is reported (see onerror). */
@@ -197,7 +202,8 @@ export class WorkerSimHost implements SimHost {
         } else if (msg.type === WorkerToMainKind.netStatus) {
           this.#netStatusCb?.(msg.status);
         } else if (msg.type === WorkerToMainKind.chat) {
-          this.#chatCb?.(msg.playerId, msg.text);
+          if (this.#chatCb) this.#chatCb(msg.playerId, msg.text);
+          else this.#chatPending.push({playerId: msg.playerId, text: msg.text});
         } else if (msg.type === WorkerToMainKind.log) {
           console.log(msg.message);
         }
@@ -230,6 +236,7 @@ export class WorkerSimHost implements SimHost {
     this.#replayEndedCb = null;
     this.#netStatusCb = null;
     this.#chatCb = null;
+    this.#chatPending = [];
     this.#worker.onmessage = null;
     this.#worker.onerror = null;
     this.#worker.terminate();
@@ -268,9 +275,13 @@ export class WorkerSimHost implements SimHost {
     this.#netStatusCb = cb;
   }
 
-  /** A line of chat arrived from the table (multiplayer only). */
+  /** A line of chat arrived from the table, or off a replay's log. Lines
+   * that came before this registration are delivered now, in order. */
   onChat(cb: (playerId: number, text: string) => void): void {
     this.#chatCb = cb;
+    const pending = this.#chatPending;
+    this.#chatPending = [];
+    for (const line of pending) cb(line.playerId, line.text);
   }
 
   /** Say one line to every seat. The solo worker drops it; the net worker

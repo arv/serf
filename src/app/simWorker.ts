@@ -272,6 +272,10 @@ function pump(): void {
         speed = 0;
         if (!replayEndedPosted) {
           replayEndedPosted = true;
+          // The last words: a line said after the final tick ran carries
+          // that tick's number, and this branch is reached before the
+          // tick below would have said it.
+          postReplayChat(world.tick);
           post({type: WorkerToMainKind.replayEnded});
           // The pause skips future matcher intervals, so whatever the HUD
           // is still owed (outcome, rosters) ships now or never.
