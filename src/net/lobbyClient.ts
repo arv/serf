@@ -7,7 +7,7 @@ import {
 import type {NetInfo} from '../protocol/messages';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as CouncilPhase from '../ui/councilPhaseEnum.ts';
-import type {CouncilHooks, CouncilView} from '../ui/WarCouncil';
+import type {ChatLine, CouncilHooks, CouncilView} from '../ui/WarCouncil';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On
@@ -132,6 +132,11 @@ interface RoomMsg {
   config?: unknown;
 }
 
+/** Lines the council keeps. The table waits minutes, not hours; what was
+ * said before the last few dozen lines has been read by everyone who was
+ * there to read it. */
+const CHAT_LOG_MAX = 60;
+
 /**
  * The seat, stashed so a reload can sit back down. A phone that loses its
  * GPU process reloads mid-match (see main.ts) and lands here with ?mp=CODE
@@ -234,7 +239,9 @@ export function runLobby(
       yourSeat: isHost ? 0 : -1,
       seats: [],
       config: req.init,
+      chat: [],
     });
+    let chatId = 0;
 
     // A stashed rejoin sits straight back down — showing the council for
     // the token round-trip flashed the lobby chrome over every mid-match
@@ -271,6 +278,11 @@ export function runLobby(
             unmount();
             ws.close();
             ui.onLeave();
+          },
+          onChat(text) {
+            // No local echo: the line shows when the relay hands it back,
+            // so every seat's log reads the same, in the same order.
+            ws.send(JSON.stringify({t: 'chat', text}));
           },
         });
 
@@ -313,7 +325,8 @@ export function runLobby(
             seats: {kind: PlayerKind.human | 'ai'}[];
           }
         | {t: 'error'; message: string}
-        | {t: 'peer'};
+        | {t: 'peer'}
+        | {t: 'chat'; playerId?: unknown; text?: unknown};
       if (msg.t === 'rejoined' && stash) {
         unmount();
         ws.close();
@@ -332,7 +345,21 @@ export function runLobby(
           // only ever seats four.
           seats: Array.isArray(msg.seats) ? msg.seats.slice(0, 8) : [],
           config: sanitizeLobbyConfig(defaultLobbyConfig(), msg.config),
+          // The room's word replaces the rest; what was said stays said.
+          chat: view().chat,
         });
+      } else if (msg.t === 'chat') {
+        // The relay's word, like everything else here: sanitized on its
+        // way through the server, and rendered as text only. Kept only
+        // while the council is up — the match's chat is its own.
+        if (typeof msg.playerId !== 'number' || typeof msg.text !== 'string')
+          return;
+        const line: ChatLine = {
+          id: ++chatId,
+          seat: msg.playerId,
+          text: msg.text,
+        };
+        setView(s => ({...s, chat: [...s.chat, line].slice(-CHAT_LOG_MAX)}));
       } else if (msg.t === 'begin') {
         const stashJson = JSON.stringify({
           code: view().code || req.mp.toUpperCase(),
