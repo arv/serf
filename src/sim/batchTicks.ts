@@ -1,4 +1,3 @@
-import type {Enum} from '../shared/enum.ts';
 import type {Recipe} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as ModifierKey from './defs/modifierKeyEnum.ts';
@@ -6,8 +5,6 @@ import type * as RecipeKind from './defs/recipeKindEnum.ts';
 import type {Building} from './entities.ts';
 import {getModifier} from './techHelpers.ts';
 import type {World} from './world.ts';
-
-type RecipeKind = Enum<typeof RecipeKind>;
 
 /**
  * How long one batch of this recipe takes at this building, in ticks —

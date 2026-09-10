@@ -658,7 +658,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // absent (the banditsEnabled precedent in save.ts: an optional field is
 // no format break).
 const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = '9623e78e2ba0fb4edace85a9cf27b460';
+const EXPECTED_HASH = 'd2c739f319ca0d4ccc5dd39b60d42af0';
 
 /**
  * Everything a replay's playback depends on, as raw source:
