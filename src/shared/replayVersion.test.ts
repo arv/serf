@@ -655,7 +655,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // arithmetic a tick runs is byte-for-byte what it was; only its address
 // moved.
 const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = 'ca6e654776afa58054560d8505e0572d';
+const EXPECTED_HASH = 'e9194b794cff2309593fb45e3a72904f';
 
 /**
  * Everything a replay's playback depends on, as raw source:
