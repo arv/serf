@@ -7,7 +7,7 @@ import * as TechEffectKind from '../defs/techEffectKindEnum.ts';
 import * as TechId from '../defs/techIdEnum.ts';
 import {TECH_DEFS} from '../defs/techs.ts';
 import type {Building, Owner} from '../entities.ts';
-import type {World} from '../world.ts';
+import {stillWants, type World} from '../world.ts';
 import {abortJob} from './logistics.ts';
 
 /**
@@ -120,14 +120,15 @@ export function abandonResearch(world: World, playerId: Owner): void {
   if (!techs?.active) return;
   const abbey = world.buildings.get(techs.active.abbey);
   if (abbey?.researchNeeds) {
-    for (const g of goodKeys(abbey.researchNeeds)) {
-      // Only the clocks this bill was keeping: the age is per (building,
-      // good) and an Abbey can owe a repair in the same stone. See
-      // settleResearchBill, which now guards the same way.
-      if ((abbey.repairNeeds?.[g] ?? 0) > 0) continue;
-      delete abbey.demandSince[g];
-    }
+    const bill = goodKeys(abbey.researchNeeds);
     delete abbey.researchNeeds;
+    // The bill first, then its clocks — and only the ones nobody else is
+    // keeping. An Abbey can owe a repair in the same stone and sip the
+    // festival's ale in the same barrel; stillWants (world.ts) is the one
+    // place that knows, and the matcher's own clearDemandAge asks it too.
+    for (const g of bill) {
+      if (!stillWants(world, abbey, g)) delete abbey.demandSince[g];
+    }
     for (const job of world.jobs.values()) {
       if (job.research && job.to === abbey.id)
         abortJob(world, job, 'study called off', true);

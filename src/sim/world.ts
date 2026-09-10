@@ -10,6 +10,8 @@ import {
 import {Rng} from '../shared/rng.ts';
 import {dealStrategies, type AiStrategyId} from './defs/aiStrategies.ts';
 import {
+  ABBEY_ALE_CAP,
+  BARRACKS_ALE_CAP,
   START_SERFS,
   START_STOCK,
   firstRaidTickFor,
@@ -30,6 +32,7 @@ import {
 import {type GoodAmounts, goodKeys, goodEntries} from './defs/goods.ts';
 import {loadMissionMap} from './defs/missionMaps.ts';
 import {MISSION_DEFS, type MissionId} from './defs/missions.ts';
+import * as TechIdNs from './defs/techIdEnum.ts';
 import type {TechId} from './defs/techs.ts';
 import {UNIT_DEFS} from './defs/units.ts';
 import {
@@ -1389,6 +1392,42 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
 }
 
 /**
+ * Has this building any reason left to keep its FIFO clock for a good?
+ *
+ * The age of an unmet demand lives per (building, good) while the demands
+ * themselves do not, so whoever finishes with one must ask whether anybody
+ * else is still standing in that queue. Drop a clock another demand is
+ * keeping and that demand's age resets to now: it goes to the back of its
+ * tier, behind everything asked for since, having asked first.
+ *
+ * The Abbey is where they pile up — an ordered repair in stone, a study
+ * billed in stone, a study billed in ale, and the standing ale the
+ * festival sips (systems/logistics.ts writes that demand; ABBEY_ALE_CAP is
+ * its ceiling). The barracks' ration cask is the same standing want under
+ * another roof, and is counted here for the same reason, though nothing
+ * ever bills a study to a barracks.
+ *
+ * A site's materials are not among them: a building under construction has
+ * no study and no repair, so no caller of this ever meets one.
+ */
+export function stillWants(world: World, b: Building, good: GoodId): boolean {
+  if ((b.repairNeeds?.[good] ?? 0) > 0) return true;
+  if ((b.researchNeeds?.[good] ?? 0) > 0) return true;
+  if (good !== GoodId.ale || b.paused) return false;
+  const techs = world.players[b.owner]?.techs;
+  if (!techs) return false;
+  const cap =
+    b.type === BuildingTypeId.abbey &&
+    techs.researched.includes(TechIdNs.festivals)
+      ? ABBEY_ALE_CAP
+      : buildingDef(b.type).trains &&
+          techs.researched.includes(TechIdNs.aleRations)
+        ? BARRACKS_ALE_CAP
+        : 0;
+  return cap - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0) > 0;
+}
+
+/**
  * Settle an Abbey's study bill and open the books: the last load landed,
  * or the debug lever finished the study outright. The bill goes, and with
  * it the waiting — this is the one place a study starts.
@@ -1409,18 +1448,14 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
  */
 export function settleResearchBill(world: World, b: Building): void {
   if (!b.researchNeeds) return;
-  for (const g of goodKeys(b.researchNeeds)) {
-    // ...but only the clocks this bill was actually keeping. The age is
-    // per (building, good) while the demands are not, and the Abbey is
-    // where two of them collide: an ordered repair in stone and a study
-    // billed in stone want the same key. Dropping it while the masons
-    // still want their load would reset the repair's age to now and send
-    // it to the back of tier 1 — the very thing clearDemandAge guards
-    // against every matcher pass (systems/logistics.ts).
-    if ((b.repairNeeds?.[g] ?? 0) > 0) continue;
-    delete b.demandSince[g];
-  }
+  const bill = goodKeys(b.researchNeeds);
   delete b.researchNeeds;
+  // The bill goes first, and only then are its clocks read: `stillWants`
+  // counts an open study among the reasons to keep one, so a bill still
+  // standing would answer for itself.
+  for (const g of bill) {
+    if (!stillWants(world, b, g)) delete b.demandSince[g];
+  }
   // Whoever ordered it, at THIS Abbey: a seat with two of them has its
   // study pinned to the one the bill was written on (techs.active.abbey).
   const techs = world.players[b.owner]?.techs;

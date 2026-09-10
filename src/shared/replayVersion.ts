@@ -37,10 +37,13 @@
  * no gold on the shelf and no Deep Mining to dig any will never carry that
  * bill in. One study at a time meant the whole tree waited behind it for
  * the rest of the match. The order can now be dropped: the bill goes off
- * the Abbey and the slot opens (abandonResearch in sim/world.ts). Loads
- * already carried in stay spent — they were consumed at the threshold, as
- * a repair's stone is — and the loads still walking are re-aimed by the
- * haul reconciler, good still in hand.
+ * the Abbey, the hauls walking it there are called back on that same tick
+ * with their cargo kept for rehoming, and the slot opens (abandonResearch
+ * in sim/systems/research.ts, cancelRepair's twin — leaving the jobs to
+ * the haul reconciler would open a window up to a matcher interval wide in
+ * which one can still be dispatched or delivered). Loads already carried
+ * IN stay spent: they were consumed at the threshold, as a repair's stone
+ * is.
  *
  * 63's note follows.
  */

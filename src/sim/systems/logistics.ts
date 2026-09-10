@@ -39,6 +39,7 @@ import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {
   applyRepairMaterial,
   settleResearchBill,
+  stillWants,
   type HaulJob,
   type World,
 } from '../world.ts';
@@ -167,12 +168,14 @@ function suspended(world: World, b: Building, good: GoodId): boolean {
  * nothing to say must not reset the other's clock — a demand whose age is
  * wiped every matcher pass sorts last forever.
  */
-function clearDemandAge(b: Building, good: GoodId): void {
-  if ((b.repairNeeds?.[good] ?? 0) > 0) return;
-  // Same for a study's bill, and the Abbey is where the two actually
-  // collide: a bill for Festivals wants ale, the festival buff wants ale,
-  // and the buff's branch clears the clock every pass it is satisfied.
-  if ((b.researchNeeds?.[good] ?? 0) > 0) return;
+function clearDemandAge(world: World, b: Building, good: GoodId): void {
+  // Every reason the clock might still be somebody's — a repair's bill, a
+  // study's, the standing ale — is one question asked in one place
+  // (stillWants in world.ts), because the study's two other endings ask it
+  // too: a bill settled at the door, and one called off (settleResearchBill,
+  // abandonResearch). Three answers that could drift apart were three
+  // chances to reset a demand's age out from under it.
+  if (stillWants(world, b, good)) return;
   // Only delete a key that is actually there. `delete` on an absent key is
   // already a no-op, so this is the same clear — but it is reached once per
   // good per building per matcher pass, and deleting from a building's
@@ -202,7 +205,7 @@ function match(world: World): void {
         if (want > 0 && !suspended(world, b, good)) {
           demands.push(demandOf(world, b, good, want, 1));
         } else if (want <= 0) {
-          clearDemandAge(b, good);
+          clearDemandAge(world, b, good);
         }
       }
       // The post's tool is pre-ordered while the walls rise (priority 2 —
@@ -216,7 +219,7 @@ function match(world: World): void {
         if (want > 0 && !suspended(world, b, siteTool)) {
           demands.push(demandOf(world, b, siteTool, want, 2));
         } else if (want <= 0) {
-          clearDemandAge(b, siteTool);
+          clearDemandAge(world, b, siteTool);
         }
       }
       continue;
@@ -276,7 +279,7 @@ function match(world: World): void {
           // strength of when the STUDY was ordered. Only a settled line
           // clears; clearDemandAge holds the age while the bill still
           // wants the good, which is what covers the loads in transit.
-          clearDemandAge(b, good);
+          clearDemandAge(world, b, good);
         }
       }
     }
@@ -300,7 +303,7 @@ function match(world: World): void {
         if (want > 0 && !suspended(world, b, good)) {
           demands.push(demandOf(world, b, good, want, 2));
         } else if (want <= 0) {
-          clearDemandAge(b, good);
+          clearDemandAge(world, b, good);
         }
       }
     }
@@ -319,7 +322,7 @@ function match(world: World): void {
       if (want > 0 && !suspended(world, b, ration.good)) {
         demands.push(demandOf(world, b, ration.good, want, 2));
       } else if (want <= 0) {
-        clearDemandAge(b, ration.good);
+        clearDemandAge(world, b, ration.good);
       }
     }
 
@@ -337,7 +340,7 @@ function match(world: World): void {
       if (want > 0 && !suspended(world, b, postTool)) {
         demands.push(demandOf(world, b, postTool, want, 2));
       } else if (want <= 0) {
-        clearDemandAge(b, postTool);
+        clearDemandAge(world, b, postTool);
       }
     }
 
@@ -352,7 +355,7 @@ function match(world: World): void {
         (b.inputs[GoodId.ale] ?? 0) -
         (b.inbound[GoodId.ale] ?? 0);
       if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
-      else clearDemandAge(b, GoodId.ale);
+      else clearDemandAge(world, b, GoodId.ale);
     }
 
     // Ale Rations: the barracks keeps its cask topped up. Standing demand
@@ -369,7 +372,7 @@ function match(world: World): void {
         (b.inputs[GoodId.ale] ?? 0) -
         (b.inbound[GoodId.ale] ?? 0);
       if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
-      else clearDemandAge(b, GoodId.ale);
+      else clearDemandAge(world, b, GoodId.ale);
     }
 
     // Training queues demand their wheat + weapons (priority 2).
@@ -378,7 +381,7 @@ function match(world: World): void {
       for (const [good, n] of goodEntries(need)) {
         const want = n - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0) demands.push(demandOf(world, b, good, want, 2));
-        else clearDemandAge(b, good);
+        else clearDemandAge(world, b, good);
       }
     }
 
@@ -424,7 +427,7 @@ function match(world: World): void {
             );
           }
         } else {
-          clearDemandAge(b, good);
+          clearDemandAge(world, b, good);
         }
       }
     }

@@ -490,6 +490,44 @@ describe('research', () => {
     expect(abbey.demandSince[GoodId.stone]).toBe(since);
   });
 
+  it("a cancelled study leaves the festival's clock alone too", () => {
+    // Copilot review, PR #273, round two of the same finding: a repair is
+    // not the only other demand that can be standing in a good's queue.
+    // With Festivals in, the Abbey has a standing want for ale of its own
+    // (systems/logistics.ts), and an Ale Rations bill is written in the
+    // same barrel — so calling that study off must leave the buff's clock
+    // where it was. One predicate answers for every such reason
+    // (stillWants in world.ts), and the matcher's clearDemandAge asks it.
+    const world = bareWorld();
+    // No ale anywhere: the Abbey's standing want and the study's bill both
+    // stay open for the whole test.
+    addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    world.players[0]!.techs.researched.push(
+      TechId.irrigation,
+      TechId.brewing,
+      TechId.festivals,
+    );
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.aleRations}),
+    );
+    expect(abbey.researchNeeds?.[GoodId.ale]).toBeGreaterThan(0);
+    run(world, MATCHER_INTERVAL + 1);
+    const since = abbey.demandSince[GoodId.ale];
+    expect(since).toBeDefined();
+
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.cancelResearch, tech: TechId.aleRations}),
+    );
+    expect(world.players[0]!.techs.active).toBeUndefined();
+    expect(abbey.researchNeeds).toBeUndefined();
+    // The festival still wants its barrel, and still asked for it first.
+    expect(abbey.demandSince[GoodId.ale]).toBe(since);
+  });
+
   it('a stale cancel misses rather than striking the next study', () => {
     // cancelForge's rule, applied to the tree: an order given as one study
     // finishes must not call off whatever the seat took up after it.
