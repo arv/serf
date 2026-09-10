@@ -623,8 +623,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // and is not replayed state — its only non-test callers are the perf
 // tools (tools/perf/digest.ts, stress.ts) — so this is the same "Still"
 // as the study-bill entry above it.
+// Still 62 after the replay learned to carry what the table said
+// (app/replay.ts): an optional `chat` list beside the commands, never
+// among them. Compatible both ways — a file without it plays as it always
+// did, and a file with it plays on an older build minus the words, since
+// parseReplay ignores what it does not know — and chat never reaches the
+// sim, so no tick moved. Format in the file, nothing in the world; and 62
+// is this build's own bump and has never shipped besides.
 const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = '76728c8e342557a3349dbc6642837451';
+const EXPECTED_HASH = '76a95d50175992cb411f35d9eac46f44';
 
 /**
  * Everything a replay's playback depends on, as raw source:
