@@ -89,6 +89,7 @@ describe('state frames', () => {
         profession: 2,
         facing: 64,
         targetDist: 40,
+        buffs: 1,
       },
       {
         id: 9999,
@@ -104,6 +105,7 @@ describe('state frames', () => {
         profession: 0,
         facing: 0,
         targetDist: 0,
+        buffs: 0,
       },
     ];
     const frame = decodeState(encodeHot(7, units));

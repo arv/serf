@@ -4,6 +4,7 @@ import type {CueId} from '../audio/cues';
 import {
   ACTION,
   AUX_STRIDE,
+  BUFF,
   MAX_UNITS,
   PUBLISH_INTERVAL_MS,
   WORK,
@@ -31,6 +32,7 @@ import {
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
 import {makeCarryProp} from './models';
+import {goldOre} from './palette';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -260,6 +262,26 @@ const hpBarMaterial = new THREE.MeshBasicMaterial({
   userData: {noFog: true},
 });
 
+/**
+ * The festival mark: a ring of ale-gold hung over a drinking soldier's
+ * head, a little above where his health bar would sit, pulsing slowly so
+ * it reads as a state and not a decoration. A festival makes every soldier
+ * of its owner's strike a quarter faster (systems/combat.ts) and nothing
+ * about how he stands or swings says so; the mark is how a player tells
+ * that the column at the gate has been drinking — the enemy's men wear it
+ * as plainly as their own, since the bit rides the unit (BUFF, sabLayout)
+ * rather than the seat's redacted research. Instanced and rebuilt each
+ * frame exactly as the bars are.
+ */
+const festivalGeometry = new THREE.RingGeometry(0.055, 0.095, 20);
+const FESTIVAL_Y = HP_BAR_Y + 0.14;
+const festivalMaterial = new THREE.MeshBasicMaterial({
+  color: goldOre,
+  depthTest: false,
+  side: THREE.DoubleSide,
+  userData: {noFog: true},
+});
+
 // Scratch for composing one bar's instance matrix.
 const HP_POS = new THREE.Vector3();
 const HP_SCALE = new THREE.Vector3(1, 1, 1);
@@ -435,6 +457,13 @@ export class SceneSync {
    */
   #hpBars = new THREE.InstancedMesh(hpBarGeometry, hpBarMaterial, MAX_UNITS);
   #hpBarCount = 0;
+  /** The festival marks, on the bars' own pattern: cursor and count. */
+  #festivalMarks = new THREE.InstancedMesh(
+    festivalGeometry,
+    festivalMaterial,
+    MAX_UNITS,
+  );
+  #festivalCount = 0;
 
   /**
    * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
@@ -534,6 +563,10 @@ export class SceneSync {
     this.#hpBars.frustumCulled = false;
     this.#hpBars.count = 0;
     scene.add(this.#hpBars);
+    this.#festivalMarks.renderOrder = 10;
+    this.#festivalMarks.frustumCulled = false;
+    this.#festivalMarks.count = 0;
+    scene.add(this.#festivalMarks);
   }
 
   /** Current interpolated world position of a unit (for picking/FX). */
@@ -716,6 +749,9 @@ export class SceneSync {
     // The bars are rebuilt from scratch every frame, so the cursor starts
     // over. camQuat is the screen plane: the rig's live orientation.
     this.#hpBarCount = 0;
+    this.#festivalCount = 0;
+    // One breath a second and a half, shared by every mark on screen.
+    const festivalPulse = 1 + 0.15 * Math.sin(animNow / 240);
     const camQuat = this.cameraQuaternion ?? HP_IDENTITY;
     this.#hidden.clear();
     this.#spun.clear();
@@ -821,6 +857,12 @@ export class SceneSync {
         if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead)
           barPct = hpPct;
       }
+      // The festival mark, on the same terms: on screen, and alive. The
+      // fog cull above has already dropped the men this seat cannot see.
+      const drinking =
+        !offScreen &&
+        (latest.aux[a + 10]! & BUFF.festival) !== 0 &&
+        latest.aux[a + 4] !== ACTION.dead;
 
       // Visible carried good — the core fantasy, as the actual object:
       // pack buckets, grain sacks, lumber, ingots, casks.
@@ -1373,6 +1415,13 @@ export class SceneSync {
           this.#hpBars.setMatrixAt(n, HP_MATRIX);
           this.#hpBars.setColorAt(n, HP_BUCKET_COLORS[hpBucket(barPct)]!);
         }
+        if (drinking) {
+          const n = this.#festivalCount++;
+          HP_POS.set(px, standY + bob + FESTIVAL_Y, pz);
+          HP_SCALE.set(festivalPulse, festivalPulse, 1);
+          HP_MATRIX.compose(HP_POS, camQuat, HP_SCALE);
+          this.#festivalMarks.setMatrixAt(n, HP_MATRIX);
+        }
       }
       // Glue the cranking hand to the grip — after the group transform is
       // final for this frame, override the clip's right arm with a CCD
@@ -1398,6 +1447,9 @@ export class SceneSync {
       if (this.#hpBars.instanceColor)
         this.#hpBars.instanceColor.needsUpdate = true;
     }
+    this.#festivalMarks.count = this.#festivalCount;
+    if (this.#festivalCount > 0)
+      this.#festivalMarks.instanceMatrix.needsUpdate = true;
 
     // Dispose visuals whose ids vanished from the latest publish.
     if (this.#visuals.size > latest.count) {
