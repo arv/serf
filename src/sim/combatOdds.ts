@@ -41,9 +41,13 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  *
  * The one thing the damage table alone gets wrong is the foot race, so `reach`
  * below corrects for kiting. What the model still does not carry: positions,
- * terrain, arrival order, and the fact that damage kills discrete soldiers
- * rather than draining one pool. It answers "which side is stronger, and by
- * how much", which is the only question the march decision actually asks.
+ * terrain, arrival order, the fact that damage kills discrete soldiers
+ * rather than draining one pool, and a festival (ModifierKey.fightSpeed):
+ * an army under one strikes a quarter faster than its printed dps, and the
+ * own-side `Force` in systems/ai.ts is where that read would go if the
+ * `marchConfidence` gate — 0 in every playbook — is ever turned on. It
+ * answers "which side is stronger, and by how much", which is the only
+ * question the march decision actually asks.
  */
 
 /** A force as the predictor sees it: soldiers by class, and the hit points

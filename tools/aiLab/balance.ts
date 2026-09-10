@@ -3,6 +3,7 @@
  *
  *   node --experimental-strip-types tools/aiLab/balance.ts [seeds] [offset]
  *                                                            [--difficulty x]
+ *                                                            [--no-bandits]
  *
  * Each run is one playbook alone on its own campaign map — the same drive
  * winnable.test.ts does, which is the game's own definition of "can this be
@@ -25,6 +26,15 @@
  * setting. (The mirrored bake-off is the instrument for seat-versus-seat,
  * and it does not carry a tier yet.) Read the result the way every other
  * number here is read: on two ranges, or not at all.
+ *
+ * `--no-bandits` switches the camp off and lets every seat run out the
+ * whole horizon in peace. Nobody wins such a run — there is no camp to
+ * raze and no rival to fell, so every row reads `timeout` — and that is
+ * not what it is for. It is the instrument for the long game the campaign
+ * never stages: does a plan's tail ever land? The `brewery` and `ale`
+ * columns are what it was added to read (the ale line was, for a long
+ * while, a step no seat ever reached), and they are printed on every run
+ * so a change to the tail is visible on the campaign too.
  */
 import type {Enum} from '../../src/shared/enum.ts';
 import {
@@ -39,6 +49,7 @@ import {
   type DifficultyId,
   parseDifficultyId,
 } from '../../src/sim/defs/difficulty.ts';
+import * as GoodId from '../../src/sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
@@ -75,6 +86,10 @@ interface Run {
   levyTicks: number;
   pop: number;
   army: number;
+  /** Breweries standing at the end, and ale drunk over the run — the
+   * festival's and the casks' together (`ledger.consumed`). */
+  breweries: number;
+  ale: number;
 }
 
 const SOLDIERS = new Set<UnitTypeId>([
@@ -87,6 +102,7 @@ function playCampaign(
   id: AiStrategyId,
   seed: number,
   difficulty: DifficultyId | undefined,
+  bandits: boolean,
 ): Run {
   // The seat names its playbook rather than being dealt one, so the world's
   // record of what it is playing agrees with the brain actually playing it.
@@ -102,6 +118,7 @@ function playCampaign(
   const world = createWorld({
     seed,
     difficulty,
+    banditsEnabled: bandits,
     players: [{kind: PlayerKind.ai, strategy: id}],
   });
   const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size, difficulty);
@@ -139,6 +156,10 @@ function playCampaign(
     levyTicks,
     pop: mine.length,
     army: mine.filter(u => SOLDIERS.has(u.kind)).length,
+    breweries: [...world.buildings.values()].filter(
+      b => !b.dead && b.owner === 0 && b.type === BuildingTypeId.brewery,
+    ).length,
+    ale: world.ledger.consumed[GoodId.ale] ?? 0,
   };
 }
 
@@ -167,6 +188,7 @@ export function splitArgs(argv: readonly string[]): {
   positional: string[];
   tierRaw: string | undefined;
   named: boolean;
+  bandits: boolean;
 } {
   const tierAt = argv.indexOf('--difficulty');
   const named = tierAt >= 0;
@@ -177,6 +199,7 @@ export function splitArgs(argv: readonly string[]): {
     ),
     tierRaw: named ? argv[tierAt + 1] : undefined,
     named,
+    bandits: !argv.includes('--no-bandits'),
   };
 }
 
@@ -186,7 +209,9 @@ export function splitArgs(argv: readonly string[]): {
 if (process.argv[1]?.endsWith('balance.ts')) {
   // Validated rather than coerced: Number('x') is NaN, and a NaN count runs
   // zero campaigns and prints a table of NaN medians that looks like a result.
-  const {positional, tierRaw, named} = splitArgs(process.argv.slice(2));
+  const {positional, tierRaw, named, bandits} = splitArgs(
+    process.argv.slice(2),
+  );
   const difficulty =
     tierRaw === undefined ? undefined : parseDifficultyId(tierRaw);
   if (named && difficulty === undefined) {
@@ -196,7 +221,8 @@ if (process.argv[1]?.endsWith('balance.ts')) {
     );
     process.exit(2);
   }
-  const usage = 'balance.ts [seeds] [offset] [--difficulty easy|normal|hard]';
+  const usage =
+    'balance.ts [seeds] [offset] [--difficulty easy|normal|hard] [--no-bandits]';
   const count = intArgOrExit(positional[0], 32, 'seeds', 1, usage);
   const offset = intArgOrExit(positional[1], 101, 'offset', 0, usage);
   // Strided rather than consecutive: neighbouring seeds can generate valleys
@@ -206,13 +232,14 @@ if (process.argv[1]?.endsWith('balance.ts')) {
 
   const tierLabel = difficulty ? DIFFICULTY_KEYS[difficulty] : 'normal';
   console.log(
-    `${count} seeds from ${offset}, ${MAX_TICKS} ticks each, difficulty ${tierLabel}\n`,
+    `${count} seeds from ${offset}, ${MAX_TICKS} ticks each, difficulty ${tierLabel}` +
+      `${bandits ? '' : ', bandits off'}\n`,
   );
   const everyWin: number[] = [];
   let wins = 0;
   let runs = 0;
   for (const id of ids) {
-    const res = seeds.map(s => playCampaign(id, s, difficulty));
+    const res = seeds.map(s => playCampaign(id, s, difficulty, bandits));
     const won = res.filter(r => r.outcome === 'win');
     everyWin.push(...won.map(r => r.tick));
     wins += won.length;
@@ -225,7 +252,9 @@ if (process.argv[1]?.endsWith('balance.ts')) {
         `  pop ${mean(res.map(r => r.pop)).toFixed(1)}` +
         `  army ${mean(res.map(r => r.army)).toFixed(1)}` +
         `  towers ${mean(res.map(r => r.towers)).toFixed(1)}` +
-        `  levyTicks ${Math.round(mean(res.map(r => r.levyTicks)))}`,
+        `  levyTicks ${Math.round(mean(res.map(r => r.levyTicks)))}` +
+        `  brewery ${res.filter(r => r.breweries > 0).length}` +
+        `  ale ${res.reduce((n, r) => n + r.ale, 0)}`,
     );
   }
   console.log(`\nTOTAL     win ${wins}/${runs}  median ${median(everyWin)}`);

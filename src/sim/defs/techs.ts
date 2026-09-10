@@ -124,8 +124,13 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: [T.brewing],
     cost: {[GoodId.ale]: 2, [GoodId.silver]: 6},
     durationTicks: 18 * S,
-    effects: [], // enables the abbey's ale-fed festival buff
-    desc: 'Ale delivered to the Abbey holds festivals: everyone works 25% faster for a while.',
+    // Enables the abbey's ale-fed festival: FESTIVAL_SPEEDUP on every post's
+    // batch and on every soldier's and tower's recovery between blows
+    // (techHelpers.ts getModifier, systems/combat.ts strikeCooldown). A
+    // mechanic rather than a modifier effect, because the buff comes and
+    // goes with the barrels rather than with the research.
+    effects: [],
+    desc: 'Ale delivered to the Abbey holds festivals: everyone works, and every soldier and tower fights, 25% faster for a while.',
   },
   [T.aleRations]: {
     id: T.aleRations,
@@ -136,12 +141,13 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // before the effect ever lands.
     cost: {[GoodId.ale]: 4, [GoodId.silver]: 6},
     durationTicks: 18 * S,
-    // Like festivals, a mechanic rather than a modifier: the barracks
-    // stocks ale, and each soldier drinks one at training start for a
-    // faster course (staffing.ts). No ale never blocks training — the
-    // drink is an accelerant, not an ingredient.
+    // Like festivals, a mechanic rather than a modifier: every training
+    // hall — the barracks and the archery range both, since logistics.ts
+    // keys the cask on `trains` — stocks ale, and each soldier drinks one
+    // at training start for a faster course (staffing.ts). No ale never
+    // blocks training — the drink is an accelerant, not an ingredient.
     effects: [],
-    desc: 'The barracks keeps a cask: each soldier drinks 1 ale and trains 25% faster.',
+    desc: 'The barracks and the archery range keep a cask: each soldier drinks 1 ale and trains 25% faster.',
   },
 
   // — Craft —

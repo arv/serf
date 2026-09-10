@@ -23,8 +23,8 @@ const COUNT_BYTES = 4;
 const IDS_BYTES = 4 * MAX_UNITS;
 const XS_BYTES = 4 * MAX_UNITS;
 const YS_BYTES = 4 * MAX_UNITS;
-/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, workKind, profession, facing, targetDist, maxHp. */
-export const AUX_STRIDE = 10;
+/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, workKind, profession, facing, targetDist, maxHp, buffs. */
+export const AUX_STRIDE = 11;
 const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 
 /** What a unit is visibly doing — drives limb animation in the renderer. */
@@ -38,6 +38,18 @@ const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
  * `fight`, as any fighter does; the stance shows through while he waits.
  */
 export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3, hold: 4} as const;
+
+/**
+ * What is riding on a unit that the eye cannot otherwise see, as bits. A
+ * festival makes every post of its owner's work and every soldier strike
+ * a quarter faster (techHelpers.ts, systems/combat.ts strikeCooldown), and
+ * nothing about a man's stance or his blow says so — so the renderer lays
+ * an aura under his feet. Per unit rather than per player on purpose: a
+ * rival's research is redacted on the wire (server/src/sync.ts
+ * redactPlayers), and the whole point of the mark is knowing whether the
+ * men marching on you have been drinking.
+ */
+export const BUFF = {festival: 1} as const;
 
 /** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
 export const WORK = {
@@ -138,6 +150,8 @@ export interface UnitSnapshot {
    * while action is fight.
    */
   targetDist?: number;
+  /** BUFF bits the unit wears; absent reads as none. */
+  buffs?: number;
 }
 
 export class SabWriter {
@@ -175,6 +189,7 @@ export class SabWriter {
       slot.aux[a + 7] = u.facing ?? 0;
       slot.aux[a + 8] = u.targetDist ?? 0;
       slot.aux[a + 9] = u.maxHp;
+      slot.aux[a + 10] = u.buffs ?? 0;
       n++;
     }
     slot.count[0] = n;

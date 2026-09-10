@@ -35,7 +35,13 @@ import type {Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
 import type {World} from '../sim/world.ts';
 import type {BuildingSnap, JobSnap, PlayerSnap} from './messages.ts';
-import {ACTION, PROFESSION, WORK, type UnitSnapshot} from './sabLayout.ts';
+import {
+  ACTION,
+  BUFF,
+  PROFESSION,
+  WORK,
+  type UnitSnapshot,
+} from './sabLayout.ts';
 import * as StaffingState from './staffingStateEnum.ts';
 
 type GoodId = Enum<typeof GoodId>;
@@ -543,6 +549,20 @@ function workKindOf(w: World, u: Unit): number {
   return WORK.tend;
 }
 
+/**
+ * The BUFF bits a unit wears: the festival, for every living unit whose
+ * owner is holding one — the serfs and workers it speeds as much as the
+ * soldiers, so a village under one reads as a village under one. Bandits
+ * have no player entry and so no festival, and the lookup says so rather
+ * than indexing past the seats with their raw owner byte.
+ */
+function buffsOf(w: World, u: Unit, action: number): number {
+  if (action === ACTION.dead) return 0;
+  return (w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
+    ? BUFF.festival
+    : 0;
+}
+
 export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
   for (const u of w.units.values()) {
     // Combat corpses (deathTick set) stay visible for the death animation;
@@ -577,6 +597,7 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       profession: professionOf(w, u),
       facing: engaged ? facingByte(u, engaged) : 0,
       targetDist: engaged ? targetDistByte(u, engaged) : 0,
+      buffs: buffsOf(w, u, action),
     };
   }
 }

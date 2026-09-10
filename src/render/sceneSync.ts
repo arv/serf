@@ -4,6 +4,7 @@ import type {CueId} from '../audio/cues';
 import {
   ACTION,
   AUX_STRIDE,
+  BUFF,
   MAX_UNITS,
   PUBLISH_INTERVAL_MS,
   WORK,
@@ -31,6 +32,7 @@ import {
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
 import {makeCarryProp} from './models';
+import {goldOre} from './palette';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -260,6 +262,169 @@ const hpBarMaterial = new THREE.MeshBasicMaterial({
   userData: {noFog: true},
 });
 
+/**
+ * The festival aura: a soft star of ale-gold on the ground under everyone
+ * the festival touches, turning slowly — the Warcraft aura, in this
+ * palette. A festival makes every post of its owner's work and every
+ * soldier strike a quarter faster (techHelpers.ts, systems/combat.ts) and
+ * nothing about how a man stands or swings says so; the aura is how a
+ * player tells that the column at the gate has been drinking — the
+ * enemy's people wear it as plainly as their own, since the bit rides the
+ * unit (BUFF, sabLayout) rather than the seat's redacted research.
+ * Instanced and rebuilt each frame exactly as the bars are; additive and
+ * never written to depth, so two auras overlapping brighten rather than
+ * fight.
+ *
+ * The texture is computed rather than drawn: the renderer's tests import
+ * this module under node, where there is no canvas, and a DataTexture of
+ * sixty-four pixels a side costs nothing to build once.
+ */
+const AURA_TEXTURE_SIZE = 64;
+function makeAuraTexture(): THREE.DataTexture {
+  const n = AURA_TEXTURE_SIZE;
+  const data = new Uint8Array(n * n * 4);
+  // A star, not a ring: a soft glow at the centre and six rays that taper
+  // to their points at the rim — the ring a first cut wore read as a
+  // drawn circle under the man, too hard for a light on the grass.
+  const RAYS = 9;
+  /** How tightly each arm draws to its line: higher is a finer arm. */
+  const RAY_SHARPNESS = 10;
+  // How far out the arms reach, as a fraction of the radius. Short of the
+  // rim: the ring's haze wants the outside of the quad to itself, and
+  // arms that ran the whole way read as a compass rose, not a glow.
+  const RAY_REACH = 0.81;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const dx = (x + 0.5) / n - 0.5;
+      const dy = (y + 0.5) / n - 0.5;
+      const r = Math.sqrt(dx * dx + dy * dy) * 2; // 0 at the centre, 1 at the edge
+      const angle = Math.atan2(dy, dx);
+      // The glow: bright at the heart, gone by a third of the way out.
+      const glow = 0.9 * Math.exp(-(r * r) / 0.11);
+      // The rays: narrow lobes, widest near the heart, fading to a point.
+      const lobe = Math.max(0, Math.cos(angle * RAYS)) ** RAY_SHARPNESS;
+      const ray = 0.95 * lobe * Math.max(0, 1 - r / RAY_REACH) ** 1.2;
+      const a = Math.min(1, glow + ray) * (r < 1 ? 1 : 0);
+      const i = (y * n + x) * 4;
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = Math.round(a * 255);
+    }
+  }
+  const tex = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  tex.needsUpdate = true;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+/**
+ * The inner ring: one soft band of light inside the star's rays, with no
+ * hard edge anywhere on it. A gaussian falls off on both sides of the
+ * band, and it falls off wider on the outside than the in, so the light
+ * reads as spreading outward from the man rather than as a band drawn
+ * around him. Rotationally even, so unlike the star it takes no spin.
+ */
+const RING_RADIUS = 0.5;
+/** How far the band bleeds inward, toward the man's feet... */
+const RING_SOFT_IN = 0.24;
+/** ...and outward, toward the ray tips: wider, so the glow spreads. */
+const RING_SOFT_OUT = 0.36;
+/** The quad's own edge is feathered over this much of the radius, so a
+ * band that wide is never cut off square where the texture runs out. */
+const RING_FEATHER = 0.42;
+function makeAuraRingTexture(): THREE.DataTexture {
+  const n = AURA_TEXTURE_SIZE;
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const dx = (x + 0.5) / n - 0.5;
+      const dy = (y + 0.5) / n - 0.5;
+      const r = Math.sqrt(dx * dx + dy * dy) * 2; // 0 at the centre, 1 at the edge
+      const soft = r < RING_RADIUS ? RING_SOFT_IN : RING_SOFT_OUT;
+      const d = (r - RING_RADIUS) / soft;
+      const band = Math.exp(-d * d);
+      // Smoothstep in from the rim: nothing on this texture ends abruptly.
+      const e = clamp((1 - r) / RING_FEATHER, 0, 1);
+      const a = band * e * e * (3 - 2 * e);
+      const i = (y * n + x) * 4;
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = Math.round(a * 255);
+    }
+  }
+  const tex = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  tex.needsUpdate = true;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+/** The aura's width across, in tiles: a little over a soldier's shadow. */
+const AURA_SIZE = 1;
+/** Clear of the turf by a hair, so the grass does not cut it. */
+const AURA_Y = 0.04;
+const auraGeometry = new THREE.PlaneGeometry(AURA_SIZE, AURA_SIZE);
+const auraMaterial = new THREE.MeshBasicMaterial({
+  color: goldOre,
+  map: makeAuraTexture(),
+  transparent: true,
+  opacity: 0.76,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  userData: {noFog: true},
+});
+/**
+ * The ring rides its own material rather than its own instance colour: it
+ * breathes in unison across the whole army, so one opacity a frame is the
+ * whole of it, and additive blending turns that opacity into brightness.
+ */
+const auraRingMaterial = new THREE.MeshBasicMaterial({
+  color: goldOre,
+  map: makeAuraRingTexture(),
+  transparent: true,
+  opacity: 0.28,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  userData: {noFog: true},
+});
+/** One breath, in milliseconds: slow enough to read as breathing and not
+ * as a blink — a man at rest, not a man who has just run. */
+const BREATH_MS = 3800;
+/** Breathing is not a sine: the chest fills faster than it empties. The
+ * phase is warped so the ring draws in over the first two fifths of the
+ * breath and lets go over the remaining three. */
+const BREATH_IN = 0.4;
+/** How wide the ring sits at either end of the breath, as a fraction of
+ * the star it lives inside. */
+const RING_SCALE_MIN = 0.7;
+const RING_SCALE_MAX = 1.0;
+/** And how brightly, at those same two ends: tight and bright, wide and
+ * faint, so the light seems to spread rather than merely grow. */
+const RING_OPACITY_MIN = 0.16;
+const RING_OPACITY_MAX = 0.4;
+/** 0 at the bottom of the breath, 1 at the top of it. */
+function breathAt(animNow: number): number {
+  const t = (animNow % BREATH_MS) / BREATH_MS;
+  const w =
+    t < BREATH_IN
+      ? (t / BREATH_IN) * 0.5
+      : 0.5 + ((t - BREATH_IN) / (1 - BREATH_IN)) * 0.5;
+  return 0.5 - 0.5 * Math.cos(w * 2 * Math.PI);
+}
+/** The aura lies flat; the quad's normal is turned from +Z up to +Y. */
+const AURA_FLAT = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(1, 0, 0),
+  -Math.PI / 2,
+);
+const AURA_SPIN = new THREE.Quaternion();
+/** Scratch for the ring's instance matrix — same place, its own scale. */
+const RING_SCALE = new THREE.Vector3(1, 1, 1);
+const AURA_QUAT = new THREE.Quaternion();
+const AURA_UP = new THREE.Vector3(0, 1, 0);
+
 // Scratch for composing one bar's instance matrix.
 const HP_POS = new THREE.Vector3();
 const HP_SCALE = new THREE.Vector3(1, 1, 1);
@@ -281,6 +446,11 @@ export class SceneSync {
   #lastNow = 0;
   /** Animation clock: advances only while the game is running. */
   #animNow = 0;
+  /** The same clock, for the overlays that turn with the world rather than
+   * with the wall — a selection ring should stop when the match does. */
+  get animNow(): number {
+    return this.#animNow;
+  }
   /** Live reference to the camera's orientation, set at boot — the very
    * quaternion the rig turns, so the bars follow a turned camera; hp bars
    * copy it to stay parallel with the screen plane. */
@@ -435,6 +605,21 @@ export class SceneSync {
    */
   #hpBars = new THREE.InstancedMesh(hpBarGeometry, hpBarMaterial, MAX_UNITS);
   #hpBarCount = 0;
+  /** The festival auras, on the bars' own pattern: cursor and count. */
+  #festivalMarks = new THREE.InstancedMesh(
+    auraGeometry,
+    auraMaterial,
+    MAX_UNITS,
+  );
+  #festivalCount = 0;
+  /** The soft ring inside each aura, breathing. Same count, same places as
+   * the marks — written in the same pass, so it needs no cursor of its
+   * own. */
+  #festivalRings = new THREE.InstancedMesh(
+    auraGeometry,
+    auraRingMaterial,
+    MAX_UNITS,
+  );
 
   /**
    * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
@@ -534,6 +719,17 @@ export class SceneSync {
     this.#hpBars.frustumCulled = false;
     this.#hpBars.count = 0;
     scene.add(this.#hpBars);
+    // Under the men rather than over everything: an aura on the turf is
+    // hidden by the man standing in it exactly as his shadow is.
+    this.#festivalMarks.renderOrder = 1;
+    this.#festivalMarks.frustumCulled = false;
+    this.#festivalMarks.count = 0;
+    scene.add(this.#festivalMarks);
+    // Just above the star, so the two add rather than z-fight on the turf.
+    this.#festivalRings.renderOrder = 2;
+    this.#festivalRings.frustumCulled = false;
+    this.#festivalRings.count = 0;
+    scene.add(this.#festivalRings);
   }
 
   /** Current interpolated world position of a unit (for picking/FX). */
@@ -716,6 +912,17 @@ export class SceneSync {
     // The bars are rebuilt from scratch every frame, so the cursor starts
     // over. camQuat is the screen plane: the rig's live orientation.
     this.#hpBarCount = 0;
+    this.#festivalCount = 0;
+    // Every aura on screen turns together, one revolution in eight
+    // seconds, and breathes six percent over two and a half.
+    AURA_SPIN.setFromAxisAngle(AURA_UP, (animNow / 8000) * Math.PI * 2);
+    AURA_QUAT.multiplyQuaternions(AURA_SPIN, AURA_FLAT);
+    const festivalPulse = 1 + 0.06 * Math.sin(animNow / 400);
+    // The ring inside it breathes on its own, slower and deeper: drawing in
+    // tight and bright, letting go wide and faint.
+    const breath = breathAt(animNow);
+    const ringScale = lerp(RING_SCALE_MAX, RING_SCALE_MIN, breath);
+    auraRingMaterial.opacity = lerp(RING_OPACITY_MIN, RING_OPACITY_MAX, breath);
     const camQuat = this.cameraQuaternion ?? HP_IDENTITY;
     this.#hidden.clear();
     this.#spun.clear();
@@ -821,6 +1028,12 @@ export class SceneSync {
         if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead)
           barPct = hpPct;
       }
+      // The festival aura, on the same terms: on screen, and alive. The
+      // fog cull above has already dropped the men this seat cannot see.
+      const drinking =
+        !offScreen &&
+        (latest.aux[a + 10]! & BUFF.festival) !== 0 &&
+        latest.aux[a + 4] !== ACTION.dead;
 
       // Visible carried good — the core fantasy, as the actual object:
       // pack buckets, grain sacks, lumber, ingots, casks.
@@ -1373,6 +1586,19 @@ export class SceneSync {
           this.#hpBars.setMatrixAt(n, HP_MATRIX);
           this.#hpBars.setColorAt(n, HP_BUCKET_COLORS[hpBucket(barPct)]!);
         }
+        if (drinking) {
+          // On the ground he stands on, not bobbing with his step.
+          const n = this.#festivalCount++;
+          HP_POS.set(px, standY + AURA_Y, pz);
+          HP_SCALE.set(festivalPulse, festivalPulse, 1);
+          HP_MATRIX.compose(HP_POS, AURA_QUAT, HP_SCALE);
+          this.#festivalMarks.setMatrixAt(n, HP_MATRIX);
+          // A ring is even all the way round, so the star's spin would be
+          // invisible on it: it takes the flat turn alone.
+          RING_SCALE.set(ringScale, ringScale, 1);
+          HP_MATRIX.compose(HP_POS, AURA_FLAT, RING_SCALE);
+          this.#festivalRings.setMatrixAt(n, HP_MATRIX);
+        }
       }
       // Glue the cranking hand to the grip — after the group transform is
       // final for this frame, override the clip's right arm with a CCD
@@ -1397,6 +1623,12 @@ export class SceneSync {
       this.#hpBars.instanceMatrix.needsUpdate = true;
       if (this.#hpBars.instanceColor)
         this.#hpBars.instanceColor.needsUpdate = true;
+    }
+    this.#festivalMarks.count = this.#festivalCount;
+    this.#festivalRings.count = this.#festivalCount;
+    if (this.#festivalCount > 0) {
+      this.#festivalMarks.instanceMatrix.needsUpdate = true;
+      this.#festivalRings.instanceMatrix.needsUpdate = true;
     }
 
     // Dispose visuals whose ids vanished from the latest publish.

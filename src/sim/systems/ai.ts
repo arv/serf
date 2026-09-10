@@ -18,9 +18,11 @@ import {HIRE_QUEUE_CAP, HIRE_SERF_COST} from '../defs/balance.ts';
 import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
 import {
   BUILDING_DEFS,
+  BUILDING_TYPES,
   buildingDef,
   gatherOrigin,
   gatherRecipeOf,
+  outputGoodsOf,
   repairBill,
 } from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
@@ -83,6 +85,7 @@ export type WarBehaviorId = Enum<typeof WarBehaviorIdNs>;
 
 type BuildAnchor = Enum<typeof BuildAnchor>;
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
 type UnitClass = Enum<typeof UnitClass>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -737,6 +740,30 @@ export const AI_SITING = {
  * the frame waits on is a load rather than an industry, one tab open at a
  * time, and never two in the same breath.
  */
+/**
+ * The goods no ungated roof can make: every building that puts one out
+ * waits on a research (ale on Brewing, gold on Deep Mining, iron on
+ * Ironworking). These are the goods a study can be priced in before the
+ * village has any way to make them, which is the case the research
+ * walker's supply guard exists for; the opening goods every plan makes
+ * from the first beat are deliberately not here. Read off the defs rather
+ * than listed, so a new gated producer joins by itself.
+ */
+const GATED_GOODS: ReadonlySet<GoodId> = (() => {
+  const producers = new Map<GoodId, boolean[]>();
+  for (const type of BUILDING_TYPES) {
+    const def = BUILDING_DEFS[type];
+    for (const g of outputGoodsOf(def)) {
+      const gated = producers.get(g) ?? [];
+      gated.push(def.requiresTech !== undefined);
+      producers.set(g, gated);
+    }
+  }
+  const out = new Set<GoodId>();
+  for (const [g, gated] of producers) if (gated.every(Boolean)) out.add(g);
+  return out;
+})();
+
 export const AI_CREDIT = {
   /**
    * The share of the bill the shelf must already cover, counted in units
@@ -1781,7 +1808,57 @@ export class AiBrain {
       const road = this.#longHaul(mine, baseX, baseY)
         ? AI_HAUL.techs.find(id => open(id) && paidToday(id))
         : undefined;
-      const next = road ?? s.researchOrder.find(open);
+      // A study whose bill names a good the village has none of and no
+      // roof for is skipped, not held — for the goods a research gates
+      // (GATED_GOODS: ale, gold, iron) and only those. The queue's own rule
+      // — name the first eligible tech, then wait to afford it — is right
+      // for a bill the village is working towards and a deadlock for one
+      // it is not: Festivals costs two ale, and an Abbot with Brewing in
+      // and no brewery up sat on it forever, with Masonry behind it never
+      // reached; Gilded Arms costs four gold and did the same to anything
+      // a plan put behind it before the gold mine stood.
+      //
+      // Only the gated goods, because the ungated ones are what every plan
+      // opens on, and for those "nobody makes it" is a raid, not a plan: a
+      // Fletcher whose one farm the first wave razed had wheat at zero for
+      // a beat or two, and a guard over every good skipped Soldiery for
+      // Ironworking on that beat — a tech its plan puts last, for a reason
+      // — and took eleven thousand ticks longer to win the map (seed 108).
+      // Waiting on a field that is about to be rebuilt is the right call;
+      // waiting on a brewery that will never be placed is not, and the
+      // tech gate is what tells the two apart.
+      //
+      // "A roof for it" is read off the plan, not only off the ground: a
+      // good is coming if any roof of the seat's makes it — standing or
+      // pegged out, `mine` includes scaffolds — or if a step of the build
+      // order whose gate is open would raise one. The Warlord lays its
+      // iron mines the beat Ironworking lands, but on a seed where the
+      // wood for them is a load short that beat, Deep Mining read as a
+      // bill nobody could pay and the walker skipped past the iron line
+      // to the ale line — Irrigation and Brewing in the middle of a
+      // campaign — and took the map 5,800 ticks later (seed 115). The
+      // plan said the mines were coming, and the plan was right. A step
+      // still behind its research is not counted: a brewery gated on a
+      // Brewing nobody has bought is not a brewery coming. Festivals then
+      // waits on the brewery the Abbot's plan promises, and the wait ends
+      // by itself — nothing calls for a barrel before Festivals is in
+      // (systems/logistics.ts), so the first ale evacuates to the shelf.
+      const made = new Set<GoodId>();
+      for (const b of mine)
+        for (const g of outputGoodsOf(BUILDING_DEFS[b.type])) made.add(g);
+      for (const step of s.build) {
+        if (step.after && !researched(step.after)) continue;
+        for (const g of outputGoodsOf(BUILDING_DEFS[step.type])) made.add(g);
+      }
+      const sourced = (id: TechId): boolean =>
+        goodEntries(TECH_DEFS[id].cost).every(
+          ([good, n]) =>
+            n <= 0 ||
+            !GATED_GOODS.has(good) ||
+            (stock[good] ?? 0) > 0 ||
+            made.has(good),
+        );
+      const next = road ?? s.researchOrder.find(id => open(id) && sourced(id));
       if (next && hasBuilt(BuildingTypeId.abbey)) {
         const cost = TECH_DEFS[next].cost;
         // A study is bought on the credit a frame is pegged out on:

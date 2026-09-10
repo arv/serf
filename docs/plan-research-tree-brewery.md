@@ -1,12 +1,29 @@
 # Plan: research tree refresh + brewery utilization
 
-Status: implemented. Millstones, Ale Rations and Bellows are in the tree;
-the brewery brews on a 20 s batch; the barracks keeps an ale cask once Ale
-Rations lands (each recruit drinks 1 and trains 25% faster — never a gate);
-the Abbot's playbook researches Brewing → Festivals and raises a brewery.
+Status: implemented, and revised 2026-09-10. Millstones, Ale Rations and
+Bellows are in the tree; the brewery brews on a 20 s batch; every training
+hall (the barracks and the archery range) keeps an ale cask once Ale
+Rations lands (each recruit drinks 1 and trains 25% faster — never a gate).
 Open questions resolved: rations went to training speed (not HP), Bellows
 made the first pass, and the bellows buff covers bowstaves too — one roof,
 one bellows.
+
+The revision, and why: measured over five playbooks and eight seeds with
+the bandits on, the plan below produced zero breweries and zero ale — the
+Abbot's line was in the data and never reached the field (Brewing sixth in
+its order on a campaign that ends around the sixth tech; the brewery's ten
+wood never on a shelf two forges empty; Festivals' two ale holding the
+research queue hostage behind a brewery that never rose). Three things
+changed. **Festivals reach the field**: while one runs, every soldier and
+tower of the owner's strikes 25% faster as well (`FESTIVAL_SPEEDUP`,
+`ModifierKey.fightSpeed`, `systems/combat.ts strikeCooldown`), which is
+what makes ale a path in a game aggression decides. **The brewery is
+quarried**: twelve stone and no wood. **The walker skips a study nobody
+can supply** (`systems/ai.ts`), so a bill in ale waits only while a
+brewery is brewing. The Abbot now finishes the line (Ale Rations added)
+and the Warlord carries Brewing → Festivals in its long-war tail, ahead of
+Gilded Arms. `pnpm balance 12 --no-bandits` is the instrument that reads
+whether the tail lands.
 
 ## Why now
 

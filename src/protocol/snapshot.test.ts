@@ -7,6 +7,7 @@ import * as TechId from '../sim/defs/techIdEnum.ts';
 import {TECH_DEFS} from '../sim/defs/techs.ts';
 import {UNIT_DEFS} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {BANDIT} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {findResourceNear} from '../sim/map.ts';
 import {populationOf} from '../sim/population.ts';
@@ -25,7 +26,7 @@ import {
   spawnUnit,
   type World,
 } from '../sim/world.ts';
-import type {UnitSnapshot} from './sabLayout.ts';
+import {BUFF, type UnitSnapshot} from './sabLayout.ts';
 import {
   snapBuilding,
   snapBuildings,
@@ -358,5 +359,43 @@ describe('snapBuildings: a building the definitions cannot describe', () => {
     // is refusing hires against, which is the disagreement snapPlayers
     // exists to have already fixed.
     expect(snapPlayers(world)[0]!.pop).toBe(3);
+  });
+});
+
+/**
+ * The festival mark rides the unit, not the seat: a rival's research is
+ * redacted on the wire, and the mark's whole job is telling a player that
+ * the men marching on them have been drinking.
+ */
+describe('unitSnapshots: the festival mark', () => {
+  const snapOf = (world: World, id: number): UnitSnapshot => {
+    for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;
+    throw new Error(`unit ${id} is not in the snapshot`);
+  };
+
+  it('marks every living unit whose owner holds a festival, and nobody else', () => {
+    const world = bareWorld(1, 2);
+    world.players[0]!.techs.festivalTicksLeft = 100;
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    const archer = spawnUnit(world, UnitTypeId.archer, 0, 32.5, 30.5);
+    // A serf of the same seat works faster under it, and wears it too.
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 34.5, 30.5);
+    // A rival's soldier with no festival, and a bandit, who has no seat.
+    const rival = spawnUnit(world, UnitTypeId.spearman, 1, 40.5, 30.5);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 50.5, 50.5);
+    expect(snapOf(world, knight.id).buffs).toBe(BUFF.festival);
+    expect(snapOf(world, archer.id).buffs).toBe(BUFF.festival);
+    expect(snapOf(world, serf.id).buffs).toBe(BUFF.festival);
+    expect(snapOf(world, rival.id).buffs).toBe(0);
+    expect(snapOf(world, bandit.id).buffs).toBe(0);
+  });
+
+  it('lifts the mark when the festival lapses', () => {
+    const world = bareWorld();
+    world.players[0]!.techs.festivalTicksLeft = 100;
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    expect(snapOf(world, knight.id).buffs).toBe(BUFF.festival);
+    world.players[0]!.techs.festivalTicksLeft = 0;
+    expect(snapOf(world, knight.id).buffs).toBe(0);
   });
 });

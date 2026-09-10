@@ -424,8 +424,35 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         anchor: BuildAnchorNs.base,
         after: TechId.soldiery,
       },
-      {type: BuildingTypeId.well, count: 1, anchor: BuildAnchorNs.base},
-      {type: BuildingTypeId.wheatFarm, count: 1, anchor: BuildAnchorNs.base},
+      // A second field and well once Deep Mining is in — the seat's own
+      // economy tech, and the first one it buys that the campaign does not
+      // wait for. Every study past the first two is priced in wheat the
+      // mill would rather grind, and on one farm this seat banks it slowly
+      // or never: driven alone in peace it opened Cobbled Boots' four
+      // wheat on two seeds in six and sat on the other four for sixty
+      // thousand ticks with its whole tail — the gold, the armor and now
+      // the ale — behind a bill it could not open. The second field is
+      // what lets the long war be long, on the seeds that get that far.
+      //
+      // Behind Deep Mining and not the iron chain, where the Abbot has its
+      // wide half, because this seat is the rusher and twelve wood on a
+      // field and a well the beat Ironworking lands is twelve wood off
+      // its forges: measured over twelve campaign seeds the earlier gate
+      // took two wins away and put the median march thousands of ticks
+      // later. Gated here the campaign is the campaign it was, and the
+      // long game is what changes.
+      {
+        type: BuildingTypeId.well,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        more: {after: TechId.deepMining, count: 2},
+      },
+      {
+        type: BuildingTypeId.wheatFarm,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        more: {after: TechId.deepMining, count: 2},
+      },
       {
         type: BuildingTypeId.mill,
         count: 1,
@@ -478,6 +505,18 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         after: TechId.ironworking,
         needs: BuildingTypeId.barracks,
       },
+      // The long war's ale. A festival is a quarter more blows from every
+      // knight for as long as the barrels come (FESTIVAL_SPEEDUP), and it
+      // reaches the men already standing where Mail Armor reaches only the
+      // next recruit — which is the seat this plan is in once it is deep
+      // enough to be here. The brewery drinks from the second field above;
+      // quarried, so the forges' appetite for wood never starves it.
+      {
+        type: BuildingTypeId.brewery,
+        count: 1,
+        anchor: BuildAnchorNs.base,
+        after: TechId.brewing,
+      },
     ],
     // Deep Mining before the armor, which is not where the war techs would
     // put it: it is the seat's economy tech first and the gold's gate second.
@@ -494,12 +533,26 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // seat through Deep Mining by tick 21_000, and left alone in a peaceful
     // world it lays the mine itself around tick 25_000. That is the case the
     // line is written for. (tools/aiLab/balance.ts)
+    //
+    // The ale line sits between the armor and the gold, and the order is
+    // the point. Gilded Arms is four gold from a seam in the middle of the
+    // map, and the walker skips a study nobody can supply only until the
+    // gold mine stands — after that it names the tech and waits on the
+    // ration-fed digging, and everything behind it waits too. Ale ahead of
+    // it reaches a standing army the tick a festival starts, where the
+    // armor reaches only the recruits after it; and gold keeps the last
+    // word, so the blurb still reads true. No Ale Rations here: this seat
+    // recruits in bursts between marches, and a cask that speeds a course
+    // by a quarter is the Abbot's kind of patience.
     researchOrder: [
       TechId.soldiery,
       TechId.ironworking,
       TechId.cobbledBoots,
       TechId.deepMining,
       TechId.mailArmor,
+      TechId.irrigation,
+      TechId.brewing,
+      TechId.festivals,
       TechId.gildedArms,
     ],
     researchReserve: 6,
@@ -653,11 +706,21 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // The second field is where this plan's spare hand goes, which is why
       // no fishery follows it — see the Fletcher's note.
       //
-      // The ale economy, and only on this seat: the Abbot is the one plan
-      // wide enough to spare the wheat, the water and the hand — its second
-      // farm and well stand before Brewing lands, so the brewery drinks
-      // surplus rather than the bread chain's inputs. Festivals then turns
-      // that surplus into +25% work speed across the whole village.
+      // The ale economy, and this seat is the one that finishes it: the
+      // Abbot is the plan wide enough to spare the wheat, the water and the
+      // hand — its second farm and well stand before Brewing lands, so the
+      // brewery drinks surplus rather than the bread chain's inputs. A
+      // festival is then a quarter more out of every post AND a quarter
+      // more blows from every knight, archer and tower for as long as the
+      // barrels keep coming (FESTIVAL_SPEEDUP, defs/balance.ts), which is
+      // what turned this from a comfort the plan carried into the thing it
+      // is built around.
+      //
+      // Last in the list and priced in stone (defs/buildings.ts), and the
+      // second is why the first no longer matters. This step went unbuilt
+      // in sixty thousand ticks of peace for as long as it cost ten wood:
+      // both forges take every log as it lands and the castle shelf never
+      // held eight. At twelve stone it goes up on the beat Brewing lands.
       {
         type: BuildingTypeId.brewery,
         count: 1,
@@ -674,34 +737,30 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // over. Nothing else in the deck researches both lines.
       TechId.archery,
       TechId.irrigation,
-      // Brewing and Festivals ahead of Masonry, where they used to sit
-      // behind it. The old order was a safety rule — put the ale last so a
-      // dry brewery (Festivals costs 2 ale) can never hold up a tech the war
-      // effort wants — but the queue takes the FIRST unresearched tech whose
-      // prereqs are in and then simply waits until it can afford that one,
-      // so everything behind a slot is hostage to it either way. The choice
-      // is only which tech gets the seventh slot in a campaign that ends
-      // around the sixth, and paving is the right thing to lose: it is a
-      // comfort, and the ale is what this seat is built around.
+      // The ale line whole, ahead of Masonry: Brewing, Festivals, and the
+      // cask. Paving is a comfort on a short road; the ale is what this
+      // seat is built around, and the campaign ends around the sixth tech
+      // either way, so the order past Archery is the long game's business.
       //
-      // Worth the demotion but not by much, and the honest numbers say so:
-      // over the 64 campaigns of both sweep ranges this raises the brewery 7
-      // times against the old order's 4, and takes 44 of those campaigns
-      // against 46. Both movements sit inside the sweep's noise (see
-      // aiLab/README.md), so what is claimed here is small: a step this plan
-      // has always carried gets built about twice as often, for nothing
-      // measurable off the win rate.
+      // Festivals costs two ale, and the queue used to name it the beat
+      // Brewing landed and then wait — forever, when the brewery was never
+      // raised, with Masonry behind it never reached. Two things fixed
+      // that, neither of them this order: the brewery is quarried now
+      // (defs/buildings.ts), and the walker skips a study whose bill names
+      // a good with none on the shelf and nobody standing to make it
+      // (systems/ai.ts), so Festivals waits only while a brewery is
+      // brewing. Irrigation ahead of Archery was tried and is not the
+      // move: its five wheat stall against the mill's draw would hold the
+      // bow, and the range and both towers behind it, for nothing the tail
+      // gains.
       //
-      // What caps it is wood, not tech order, and no reordering here will
-      // fix that. This seat's second forge turns every log into bowstaves
-      // and does not stop for a shelf already holding eleven unclaimed bows,
-      // so from about tick 12_000 the storehouse reads nought wood for the
-      // rest of the match and the brewery's ten wood is simply never on it —
-      // left alone in a peaceful world out to 60_000 ticks, Brewing long
-      // since in, this seat still laid no brewery on any of four seeds. The
-      // forge is where that wants fixing. (tools/aiLab/balance.ts)
+      // Ale Rations last of the three. Priced in ale, so it lands only on a
+      // seat whose brewery is already employed, and it is the cask at the
+      // barracks and the range both (systems/logistics.ts keys it on
+      // `trains`), so the archers this plan mans its towers with drink too.
       TechId.brewing,
       TechId.festivals,
+      TechId.aleRations,
       TechId.masonry,
     ],
     // The smallest purse in the deck, on the longest research order. This is
