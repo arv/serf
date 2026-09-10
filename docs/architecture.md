@@ -132,7 +132,7 @@ flowchart TB
     rooms["rooms.ts · World<br/>ticks 20 Hz on the server clock<br/>AiSeats in-process"]
     sync["sync.ts<br/>per-seat fog filter via sim/visibility<br/>encodeState"]
     persist["persist.ts<br/>SIGTERM snapshots every running room to the volume;<br/>restored on boot, clock rebased"]
-    relay["index.ts · chat relay<br/>sanitize again · one line per 250 ms per socket<br/>echo to every seat, sender included · the World never sees it"]
+    relay["index.ts · chat relay<br/>sanitize again · one line per 250 ms per socket<br/>echo to every seat, sender included, then record under the tick<br/>the World never sees it"]
     rooms --> sync
     rooms --> persist
   end
@@ -156,13 +156,22 @@ the HUD (Enter opens it, networked matches only) goes down the worker
 protocol as a `chat` message, out of `netWorker.ts` as a `{t:'chat'}` string
 frame, and is relayed by `server/src/index.ts` to every connected seat,
 sender included, so everyone reads the same lines in the same order. It
-never enters a room's `World`: no command, no tick, no replay, no hash.
+never enters a room's `World`: no command, no tick, no hash.
 `src/protocol/chat.ts` is the trust boundary, a dependency-free sanitizer
 (one line, control characters collapsed, at most 200 code points) that the
 client runs before sending and the relay runs again regardless. The relay
 drops a second line inside 250 ms silently rather than erroring, since an
 error would cost the seat its socket. The solo worker drops chat on the
 floor, and the same toast card carries the AI heralds' announcements.
+
+A recording keeps what the table said. After echoing a line, the relay
+records it under the room's current tick, and `ReplayData` carries that
+`chat` log beside the commands, never among them, so `REPLAY_VERSION` and
+the tick hash are untouched; on playback the solo worker walks the log with
+its own cursor and posts each line at its tick through the same `chat`
+worker message. The War Council has the same chat on the lobby socket
+(`net/lobbyClient.ts`), served by the same relay handler; lobby lines happen
+before tick 0 and are not recorded.
 
 ## Inside a tick
 
@@ -245,10 +254,10 @@ dead are removed.
   seqlock and reacts to structural messages. Cross-origin isolation is
   required at boot and fails loudly if missing.
 - **Only world state goes through the World.** Chat rides the socket as its
-  own frame and is relayed, never ticked, so the replay log and the hash
-  stay a record of the match alone. Anything a seat sends that is not a
-  command is sanitized at both ends, and the server's copy of the sanitizer
-  is the one that counts.
+  own frame and is relayed, never ticked, so the tick hash stays a record of
+  the match alone; a recording keeps the lines beside the commands, never
+  among them. Anything a seat sends that is not a command is sanitized at
+  both ends, and the server's copy of the sanitizer is the one that counts.
 - **Node runs the sim from source.** Files the server and labs load spell
   `.ts` on their imports; Node ≥ 23 strips the types. `pnpm smoke` guards the
   arrangement; `pnpm typecheck` compiles the root, the server and each lab.
