@@ -154,6 +154,29 @@ function convertStep(
     b.inputs[good] = (b.inputs[good] ?? 0) - n;
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
   }
+  b.prodTicksLeft = batchTicks(world, b, active);
+  if (def.recipeOptions) {
+    b.prodRecipeIndex = activeIndex;
+    if (queueSlot >= 0) b.forgeQueue![queueSlot]!.started = true;
+  }
+}
+
+/**
+ * How long one batch of this recipe takes at this building, in ticks —
+ * the recipe's own length against every speed the owner has researched.
+ * At least one tick: a batch that took none would emit its outputs on the
+ * tick it consumed its inputs, which is not what a workshop is.
+ *
+ * Exported because the wire snapshot recomputes it to say how far along
+ * the batch on the fire is (snapshot.ts). Kept as one function so the two
+ * cannot drift: a bar measured against a different length than the clock
+ * it draws is a bar that lies.
+ */
+export function batchTicks(
+  world: World,
+  b: Building,
+  recipe: Recipe & {kind: RecipeKind.convert},
+): number {
   const speedup =
     getModifier(world, b.owner, ModifierKey.workSpeed) *
     (b.type === BuildingTypeId.wheatFarm
@@ -165,11 +188,7 @@ function convertStep(
     (b.type === BuildingTypeId.weaponsmith
       ? getModifier(world, b.owner, ModifierKey.forgeSpeed)
       : 1);
-  b.prodTicksLeft = Math.max(1, Math.round(active.durationTicks / speedup));
-  if (def.recipeOptions) {
-    b.prodRecipeIndex = activeIndex;
-    if (queueSlot >= 0) b.forgeQueue![queueSlot]!.started = true;
-  }
+  return Math.max(1, Math.round(recipe.durationTicks / speedup));
 }
 
 /** Whether this option is researched (an unlockable recipe never re-locks,

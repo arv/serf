@@ -648,8 +648,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // runs a brain — the log holds every order the seats gave.
 // Still 63 after Ale Rations' description named the range's cask beside the
 // barracks' (defs/techs.ts): prose in a def, and the cask was always both.
+// Still 63 after a batch's length became a named function
+// (systems/production.ts batchTicks): the same modifiers over the same
+// recipe, rounded the same way, lifted out so the card's forge bar can
+// measure a running batch against the length the sim gave it. The
+// arithmetic a tick runs is byte-for-byte what it was; only its address
+// moved.
 const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = '35a79659e8ac9339b03c56dbd8bec9d1';
+const EXPECTED_HASH = 'ca6e654776afa58054560d8505e0572d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

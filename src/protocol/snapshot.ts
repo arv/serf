@@ -16,6 +16,7 @@ import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
 import {
   TOOL_OF,
   buildingDef,
+  convertRecipeOf,
   gatherOrigin,
   gatherRecipeOf,
   type BuildingDef,
@@ -30,6 +31,7 @@ import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
+import {batchTicks} from '../sim/systems/production.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import type {Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
@@ -106,6 +108,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     paused: b.paused,
     recipeIndex: b.recipeIndex,
     prodRecipeIndex: b.prodRecipeIndex,
+    prodProgress01: batchProgress01(world, b, def),
     forgeQueue: b.forgeQueue?.map(q => ({
       recipeIndex: q.recipeIndex,
       started: q.started,
@@ -126,6 +129,39 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
       : undefined,
   };
+}
+
+/**
+ * How far the batch on the fire has come, 0..1 — the smith's clock, and
+ * every other converter's for whoever draws them next. Undefined when
+ * nothing is burning, which is what a cold fire should draw: no bar at
+ * all rather than an empty one that reads as "just started".
+ *
+ * The batch is measured against the length it would be started at NOW,
+ * not the length it was actually started with — the sim keeps only the
+ * ticks left, and the alternative is a second number in the world (and in
+ * the hash, and in every save). The two differ only when a speed tech
+ * lands mid-batch, which shortens the yardstick under a clock already
+ * ticking and can put the reading past either end; the clamp keeps that
+ * to a bar that sits still for a moment instead of one that runs
+ * backwards, and it comes right on the next batch.
+ */
+function batchProgress01(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+): number | undefined {
+  if (b.prodTicksLeft === undefined) return undefined;
+  // What is actually on the fire: the option it was stamped with at batch
+  // start (a smith retuned mid-batch is still hammering the old thing),
+  // else the building's one fixed recipe.
+  const recipe =
+    b.prodRecipeIndex !== undefined
+      ? def.recipeOptions?.[b.prodRecipeIndex]?.recipe
+      : convertRecipeOf(def, b);
+  if (!recipe) return undefined;
+  const total = batchTicks(world, b, recipe);
+  return Math.min(1, Math.max(0, 1 - b.prodTicksLeft / total));
 }
 
 /**

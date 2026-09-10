@@ -522,6 +522,23 @@ export function SelectionPanel(props: {
           padding: 0 6px; font-size: 12px;
         }
         .sel-forge .cost { min-width: 0; overflow: hidden; white-space: nowrap; }
+        /* The fire's clock. A text line rather than a queue-sized chip:
+           this card is already the tallest in the game (see the SHORT
+           block below), and what the line has to carry is one glyph, one
+           word and a percentage. The tinted back is what gives the fill
+           something to fill — a bar painted over bare card would read as
+           a highlight rather than a clock. */
+        .sel-fire {
+          box-sizing: border-box;
+          display: flex; align-items: center; gap: 5px;
+          padding: 1px 6px; border-radius: 5px;
+          background: rgba(255, 255, 255, 0.06);
+          white-space: nowrap; overflow: hidden;
+        }
+        /* Right-hand column, so the number sits in the same place whether
+           the fire is turning out a spear or a scythe. */
+        .sel-fire .num { margin-left: auto; }
+        .sel-fire .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
         .sel-forge-idle { opacity: 0.7; }
         /* ——— The forge on a phone held sideways ———
            Nine recipes and a five-slot queue make this the tallest card
@@ -558,6 +575,14 @@ export function SelectionPanel(props: {
              which order this is. */
           .sel-forge-queue .sel-slot .unit .label { display: none; }
           #ui .sel-forge-queue button.sel-slot { justify-content: center; padding: 0 4px; }
+          /* The fire's line pays the same toll as everything else on this
+             card: smaller text and no padding above or below, which is
+             about six pixels back out of the twenty-odd it costs. The
+             good's name stays, unlike the order chips' — this line has
+             the whole width of the card to itself, and a bar that will
+             not say what it is forging is worth none of the height it
+             saves. */
+          .sel-fire { font-size: 11px; padding: 0 5px; }
         }
         #ui button.sel-idle-clear {
           min-height: 0; padding: 0 6px; font-size: 11px; vertical-align: 1px;
@@ -614,6 +639,20 @@ export function SelectionPanel(props: {
               what a running repair has already been paid to put back (a mend
               runs on for a few seconds after the last plank lands). */
           const unpaid = () => b().maxHp - b().hp - (b().repairPending ?? 0);
+          /**
+           * What the smith has under the hammer: the good the running
+           * batch will turn out, or undefined when the fire is cold.
+           * Read off the option the batch was STAMPED with, not the
+           * standing order — a forge retuned mid-batch still finishes
+           * the spear it is hammering, and the line should say so.
+           */
+          const onTheFire = () => {
+            const i = b().prodRecipeIndex;
+            if (i === undefined || b().prodProgress01 === undefined)
+              return undefined;
+            const outputs = def().recipeOptions?.[i]?.recipe.outputs;
+            return outputs ? goodKeys(outputs)[0] : undefined;
+          };
           /** Manned rather than staffed: the guard tower holds soldiers, and
               the card's people-shaped controls speak of them instead. */
           const manned = () => b().garrisonCap !== undefined;
@@ -824,6 +863,45 @@ export function SelectionPanel(props: {
                     }}
                   </For>
                 </div>
+                {/* What is under the hammer, and how far it has come.
+                    The forge's own clock: a batch is two hundred ticks of
+                    nothing visible, so without this the card said what
+                    was ORDERED and never what was happening — a smith
+                    starved of iron and a smith ten ticks from a sword
+                    read exactly alike. The bar answers all three ways a
+                    batch is chosen (a queue order, the standing order,
+                    auto), which is why it is its own line rather than
+                    only a fill on the queue chip: auto is the default,
+                    and auto never puts anything in the queue.
+
+                    The empty track is the whole of what a cold fire has
+                    to say — a bar at nought, holding its line so the
+                    queue below it cannot move. Naming the state in words
+                    ("on the fire", "the fire is cold") only said again,
+                    in a sentence, what the bar and the good beside it
+                    say by being there at all. */}
+                <div class="sel-line sel-fire sel-progress">
+                  <Show when={onTheFire()}>
+                    {good => (
+                      <>
+                        {/* Behind the text, not beside it (see .sel-fill):
+                            a clock ticking costs the layout nothing. */}
+                        <span
+                          aria-hidden="true"
+                          class="sel-fill"
+                          style={{
+                            width: `${(b().prodProgress01 ?? 0) * 100}%`,
+                          }}
+                        />
+                        <GoodIcon good={good()} size={13} />
+                        <span class="label">{goodName(good())}</span>
+                        <span class="num">
+                          {Math.round((b().prodProgress01 ?? 0) * 100)}%
+                        </span>
+                      </>
+                    )}
+                  </Show>
+                </div>
                 {/* The order book: FORGE_QUEUE_CAP declared slots, the
                     training queue's grid with the same rules. */}
                 <div class="sel-queue sel-forge-queue" inert={replayMode()}>
@@ -863,7 +941,7 @@ export function SelectionPanel(props: {
                               )}
                             >
                               <button
-                                class="sel-slot"
+                                class="sel-progress sel-slot"
                                 classList={{waiting: !item().started}}
                                 onClick={() =>
                                   props.onCancelForge(
@@ -873,6 +951,17 @@ export function SelectionPanel(props: {
                                   )
                                 }
                               >
+                                {/* The barracks chip's fill, on the one
+                                    order that has the fire. At most one
+                                    is ever lit, so the building's own
+                                    batch clock is this slot's clock. */}
+                                <span
+                                  aria-hidden="true"
+                                  class="sel-fill"
+                                  style={{
+                                    width: `${(item().started ? (b().prodProgress01 ?? 0) : 0) * 100}%`,
+                                  }}
+                                />
                                 <span class="unit">
                                   <GoodIcon good={output()} size={13} />{' '}
                                   <span class="label">
