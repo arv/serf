@@ -263,16 +263,17 @@ const hpBarMaterial = new THREE.MeshBasicMaterial({
 });
 
 /**
- * The festival aura: a soft disc of ale-gold on the ground under a drinking
- * soldier, a brighter ring inside it and faint spokes that turn slowly —
- * the Warcraft aura, in this palette. A festival makes every soldier of its
- * owner's strike a quarter faster (systems/combat.ts) and nothing about
- * how he stands or swings says so; the aura is how a player tells that
- * the column at the gate has been drinking — the enemy's men wear it as
- * plainly as their own, since the bit rides the unit (BUFF, sabLayout)
- * rather than the seat's redacted research. Instanced and rebuilt each
- * frame exactly as the bars are; additive and never written to depth, so
- * two auras overlapping brighten rather than fight.
+ * The festival aura: a soft star of ale-gold on the ground under everyone
+ * the festival touches, turning slowly — the Warcraft aura, in this
+ * palette. A festival makes every post of its owner's work and every
+ * soldier strike a quarter faster (techHelpers.ts, systems/combat.ts) and
+ * nothing about how a man stands or swings says so; the aura is how a
+ * player tells that the column at the gate has been drinking — the
+ * enemy's people wear it as plainly as their own, since the bit rides the
+ * unit (BUFF, sabLayout) rather than the seat's redacted research.
+ * Instanced and rebuilt each frame exactly as the bars are; additive and
+ * never written to depth, so two auras overlapping brighten rather than
+ * fight.
  *
  * The texture is computed rather than drawn: the renderer's tests import
  * this module under node, where there is no canvas, and a DataTexture of
@@ -282,24 +283,22 @@ const AURA_TEXTURE_SIZE = 64;
 function makeAuraTexture(): THREE.DataTexture {
   const n = AURA_TEXTURE_SIZE;
   const data = new Uint8Array(n * n * 4);
-  const SPOKES = 8;
+  // A star, not a ring: a soft glow at the centre and six rays that taper
+  // to their points at the rim — the ring a first cut wore read as a
+  // drawn circle under the man, too hard for a light on the grass.
+  const RAYS = 6;
   for (let y = 0; y < n; y++) {
     for (let x = 0; x < n; x++) {
       const dx = (x + 0.5) / n - 0.5;
       const dy = (y + 0.5) / n - 0.5;
       const r = Math.sqrt(dx * dx + dy * dy) * 2; // 0 at the centre, 1 at the edge
-      // A soft floor that fades to nothing at the rim, a bright ring at
-      // two thirds, and spokes that only show between the ring and the rim.
-      const floor = r < 0.9 ? 0.4 * (1 - r / 0.9) : 0;
-      const ring = 1.0 * Math.exp(-((r - 0.64) * (r - 0.64)) / 0.005);
       const angle = Math.atan2(dy, dx);
-      const spoke =
-        r > 0.62 && r < 0.92
-          ? 0.45 *
-            Math.max(0, Math.cos(angle * SPOKES)) ** 6 *
-            (1 - (r - 0.62) / 0.3)
-          : 0;
-      const a = Math.min(1, floor + ring + spoke) * (r < 1 ? 1 : 0);
+      // The glow: bright at the heart, gone by a third of the way out.
+      const glow = 0.9 * Math.exp(-(r * r) / 0.11);
+      // The rays: narrow lobes, widest near the heart, fading to a point.
+      const lobe = Math.max(0, Math.cos(angle * RAYS)) ** 10;
+      const ray = 0.95 * lobe * Math.max(0, 1 - r) ** 1.2;
+      const a = Math.min(1, glow + ray) * (r < 1 ? 1 : 0);
       const i = (y * n + x) * 4;
       data[i] = 255;
       data[i + 1] = 255;
@@ -314,7 +313,7 @@ function makeAuraTexture(): THREE.DataTexture {
   return tex;
 }
 /** The aura's width across, in tiles: a little over a soldier's shadow. */
-const AURA_SIZE = 1.0;
+const AURA_SIZE = 1.35;
 /** Clear of the turf by a hair, so the grass does not cut it. */
 const AURA_Y = 0.04;
 const auraGeometry = new THREE.PlaneGeometry(AURA_SIZE, AURA_SIZE);

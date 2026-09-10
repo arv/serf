@@ -373,20 +373,19 @@ describe('unitSnapshots: the festival mark', () => {
     throw new Error(`unit ${id} is not in the snapshot`);
   };
 
-  it('marks a living soldier whose owner holds a festival, and nobody else', () => {
+  it('marks every living unit whose owner holds a festival, and nobody else', () => {
     const world = bareWorld(1, 2);
     world.players[0]!.techs.festivalTicksLeft = 100;
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 32.5, 30.5);
-    // A serf of the same seat works faster too, but wears no mark: the
-    // question the mark answers is a military one.
+    // A serf of the same seat works faster under it, and wears it too.
     const serf = spawnUnit(world, UnitTypeId.serf, 0, 34.5, 30.5);
     // A rival's soldier with no festival, and a bandit, who has no seat.
     const rival = spawnUnit(world, UnitTypeId.spearman, 1, 40.5, 30.5);
     const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 50.5, 50.5);
     expect(snapOf(world, knight.id).buffs).toBe(BUFF.festival);
     expect(snapOf(world, archer.id).buffs).toBe(BUFF.festival);
-    expect(snapOf(world, serf.id).buffs).toBe(0);
+    expect(snapOf(world, serf.id).buffs).toBe(BUFF.festival);
     expect(snapOf(world, rival.id).buffs).toBe(0);
     expect(snapOf(world, bandit.id).buffs).toBe(0);
   });

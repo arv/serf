@@ -550,15 +550,14 @@ function workKindOf(w: World, u: Unit): number {
 }
 
 /**
- * The BUFF bits a unit wears: the festival, for a living soldier whose
- * owner is holding one. Soldiers only — the festival speeds the village's
- * work too, but a mark over every serf's head would be a screen of marks,
- * and the question the mark answers is a military one. Bandits have no
- * player entry and so no festival, and the lookup says so rather than
- * indexing past the seats with their raw owner byte.
+ * The BUFF bits a unit wears: the festival, for every living unit whose
+ * owner is holding one — the serfs and workers it speeds as much as the
+ * soldiers, so a village under one reads as a village under one. Bandits
+ * have no player entry and so no festival, and the lookup says so rather
+ * than indexing past the seats with their raw owner byte.
  */
 function buffsOf(w: World, u: Unit, action: number): number {
-  if (action === ACTION.dead || !UNIT_DEFS[u.kind].combat) return 0;
+  if (action === ACTION.dead) return 0;
   return (w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
     ? BUFF.festival
     : 0;

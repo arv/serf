@@ -40,13 +40,14 @@ const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3, hold: 4} as const;
 
 /**
- * What is riding on a soldier that the eye cannot otherwise see, as bits.
- * A festival makes every soldier of its owner's strike a quarter faster
- * (systems/combat.ts strikeCooldown), and nothing about his stance or his
- * blow says so — so the renderer hangs a mark over his head. Per unit
- * rather than per player on purpose: a rival's research is redacted on the
- * wire (server/src/sync.ts redactPlayers), and the whole point of the mark
- * is knowing whether the men marching on you have been drinking.
+ * What is riding on a unit that the eye cannot otherwise see, as bits. A
+ * festival makes every post of its owner's work and every soldier strike
+ * a quarter faster (techHelpers.ts, systems/combat.ts strikeCooldown), and
+ * nothing about a man's stance or his blow says so — so the renderer lays
+ * an aura under his feet. Per unit rather than per player on purpose: a
+ * rival's research is redacted on the wire (server/src/sync.ts
+ * redactPlayers), and the whole point of the mark is knowing whether the
+ * men marching on you have been drinking.
  */
 export const BUFF = {festival: 1} as const;
 
