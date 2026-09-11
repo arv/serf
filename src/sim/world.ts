@@ -10,8 +10,6 @@ import {
 import {Rng} from '../shared/rng.ts';
 import {dealStrategies, type AiStrategyId} from './defs/aiStrategies.ts';
 import {
-  ABBEY_ALE_CAP,
-  BARRACKS_ALE_CAP,
   START_SERFS,
   START_STOCK,
   firstRaidTickFor,
@@ -32,7 +30,6 @@ import {
 import {type GoodAmounts, goodKeys, goodEntries} from './defs/goods.ts';
 import {loadMissionMap} from './defs/missionMaps.ts';
 import {MISSION_DEFS, type MissionId} from './defs/missions.ts';
-import * as TechIdNs from './defs/techIdEnum.ts';
 import type {TechId} from './defs/techs.ts';
 import {UNIT_DEFS} from './defs/units.ts';
 import {
@@ -67,12 +64,14 @@ import * as BuildingState from './buildingStateEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as DemandKind from './demandKindEnum.ts';
 import * as MatchStateNs from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import * as Terrain from './terrainEnum.ts';
 import * as TileResource from './tileResourceEnum.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type DemandKind = Enum<typeof DemandKind>;
 type GoodId = Enum<typeof GoodId>;
 type PlayerKind = Enum<typeof PlayerKind>;
 
@@ -856,6 +855,7 @@ function makeBuildingRecord(
     inbound: {},
     reservedOut: {},
     demandSince: {},
+    demandHeld: {},
     dead: false,
     ...(def.nearWater
       ? {
@@ -1376,72 +1376,48 @@ export function applyRepairMaterial(
   for (const g of bill) {
     if ((b.repairNeeds![g] ?? 0) > 0) return;
   }
-  clearRepairOrder(world, b, bill);
+  clearRepairOrder(b, bill);
 }
 
 /**
- * Drop a repair order and the FIFO clocks it was keeping. The age of an
- * unmet demand lives per (building, good) — leave a finished repair's behind
- * and the next thing that building asks for inherits it, jumping a queue it
- * never stood in.
+ * Drop a repair order, and its mark on the FIFO clocks it was keeping.
  *
- * ...and only the clocks nobody ELSE is keeping, which is the same reading
- * a study's two endings make (settleResearchBill, abandonResearch) and the
- * matcher makes every pass (clearDemandAge): an Abbey can owe a repair in
- * stone and a study billed in stone at once, and whichever finishes first
- * must leave the other's age alone. The bill goes before the question is
- * asked, so a repair does not answer for itself.
+ * Only the mark. The clocks are the matcher's to forget, on its next pass,
+ * and only those no other demand is holding by then (settleAges in
+ * systems/logistics.ts): an Abbey can owe a repair in stone and a study
+ * billed in stone at once, and a Smith can be mending with the wood it
+ * forges from, so whichever finishes first must leave the other's age
+ * alone — and the one pass that walks every demand a building has is the
+ * one place that knows who else is standing in that queue.
  */
-export function clearRepairOrder(
-  world: World,
-  b: Building,
-  bill: GoodId[],
-): void {
+export function clearRepairOrder(b: Building, bill: GoodId[]): void {
   delete b.repairNeeds;
   delete b.repairHpPerGood;
-  for (const g of bill) {
-    if (!stillWants(world, b, g)) delete b.demandSince[g];
-  }
+  releaseDemandHold(b, bill, DemandKind.repair);
 }
 
 /**
- * Has this building any reason left to keep its FIFO clock for a good?
+ * Take a finished bill's mark off the FIFO clocks it was keeping — a
+ * repair's or a study's, settled or called off (Building.demandHeld).
  *
- * The age of an unmet demand lives per (building, good) while the demands
- * themselves do not, so whoever finishes with one must ask whether anybody
- * else is still standing in that queue. Drop a clock another demand is
- * keeping and that demand's age resets to now: it goes to the back of its
- * tier, behind everything asked for since, having asked first.
- *
- * The Abbey is where they pile up — an ordered repair in stone, a study
- * billed in stone, a study billed in ale, and the standing ale the
- * festival sips (systems/logistics.ts writes that demand; ABBEY_ALE_CAP is
- * its ceiling). The barracks' ration cask is the same standing want under
- * another roof, and is counted here for the same reason, though nothing
- * ever bills a study to a barracks.
- *
- * A site's materials are not among them: a building under construction has
- * no study and no repair, so no caller of this ever meets one.
+ * The clocks themselves stay for the matcher to lapse (settleAges,
+ * systems/logistics.ts), but the mark cannot wait for it: the matcher sees
+ * a building one tick in MATCHER_INTERVAL, and a new bill of the same kind
+ * written in the ticks between would read, from there, as the old one
+ * never having stopped — and inherit a place in the queue it never stood
+ * in.
  */
-export function stillWants(world: World, b: Building, good: GoodId): boolean {
-  if ((b.repairNeeds?.[good] ?? 0) > 0) return true;
-  if ((b.researchNeeds?.[good] ?? 0) > 0) return true;
-  // Paused is deliberately NOT a reason to forget: halting a roof stops
-  // the matcher offering it anything (systems/logistics.ts skips the
-  // standing branch outright, without clearing the clock), and a demand
-  // that comes back when the lever does should come back where it stood.
-  if (good !== GoodId.ale) return false;
-  const techs = world.players[b.owner]?.techs;
-  if (!techs) return false;
-  const cap =
-    b.type === BuildingTypeId.abbey &&
-    techs.researched.includes(TechIdNs.festivals)
-      ? ABBEY_ALE_CAP
-      : buildingDef(b.type).trains &&
-          techs.researched.includes(TechIdNs.aleRations)
-        ? BARRACKS_ALE_CAP
-        : 0;
-  return cap - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0) > 0;
+export function releaseDemandHold(
+  b: Building,
+  bill: GoodId[],
+  kind: DemandKind,
+): void {
+  const held = b.demandHeld;
+  if (!held) return;
+  for (const g of bill) {
+    const was = held[g];
+    if (was !== undefined) held[g] = was & ~kind;
+  }
 }
 
 /**
@@ -1458,21 +1434,17 @@ export function stillWants(world: World, b: Building, good: GoodId): boolean {
  * draws as a study still being delivered when the last barrel is already
  * inside.
  *
- * Drops the FIFO clocks with the bill for the same reason a finished
+ * Takes the bill's mark off its FIFO clocks for the same reason a finished
  * repair does (see clearRepairOrder): the age of an unmet demand lives per
- * (building, good), and an Abbey that keeps a settled bill's clock would
- * hand the next study's first load a queue place it never stood in.
+ * (building, good), and an Abbey still counting a settled bill among a
+ * clock's keepers would hand the next study's first load a queue place it
+ * never stood in.
  */
 export function settleResearchBill(world: World, b: Building): void {
   if (!b.researchNeeds) return;
   const bill = goodKeys(b.researchNeeds);
   delete b.researchNeeds;
-  // The bill goes first, and only then are its clocks read: `stillWants`
-  // counts an open study among the reasons to keep one, so a bill still
-  // standing would answer for itself.
-  for (const g of bill) {
-    if (!stillWants(world, b, g)) delete b.demandSince[g];
-  }
+  releaseDemandHold(b, bill, DemandKind.research);
   // Whoever ordered it, at THIS Abbey: a seat with two of them has its
   // study pinned to the one the bill was written on (techs.active.abbey).
   const techs = world.players[b.owner]?.techs;

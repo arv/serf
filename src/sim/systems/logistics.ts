@@ -25,6 +25,7 @@ import * as GoodId from '../defs/goodIdEnum.ts';
 import {GOODS, goodEntries, goodKeys} from '../defs/goods.ts';
 import * as TechId from '../defs/techIdEnum.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as DemandKind from '../demandKindEnum.ts';
 import {
   centerOf,
   isPlayerOwner,
@@ -39,13 +40,13 @@ import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {
   applyRepairMaterial,
   settleResearchBill,
-  stillWants,
   type HaulJob,
   type World,
 } from '../world.ts';
 import {forgeDemandRecipe} from './production.ts';
 import {trainingDemand} from './training.ts';
 
+type DemandKind = Enum<typeof DemandKind>;
 type GoodId = Enum<typeof GoodId>;
 
 /**
@@ -162,26 +163,88 @@ function suspended(world: World, b: Building, good: GoodId): boolean {
 }
 
 /**
- * Forget when a demand went unmet, because it is met. The FIFO age is per
- * (building, good) while the demands are not: a damaged woodcutter wants
- * wood for its repair *and* has wood to evacuate, and the branch that has
- * nothing to say must not reset the other's clock — a demand whose age is
- * wiped every matcher pass sorts last forever.
+ * The goods whose clock the building being walked has a demand keeping
+ * this pass, as DemandKind bits by GOOD_INDEX. One array for the whole sim:
+ * match walks a building, settles its ages and zeroes this before it moves
+ * on to the next, all without yielding, so no two buildings — and no two
+ * worlds — ever see each other's marks in it.
  */
-function clearDemandAge(world: World, b: Building, good: GoodId): void {
-  // Every reason the clock might still be somebody's — a repair's bill, a
-  // study's, the standing ale — is one question asked in one place
-  // (stillWants in world.ts), because the study's two other endings ask it
-  // too: a bill settled at the door, and one called off (settleResearchBill,
-  // abandonResearch). Three answers that could drift apart were three
-  // chances to reset a demand's age out from under it.
-  if (stillWants(world, b, good)) return;
-  // Only delete a key that is actually there. `delete` on an absent key is
-  // already a no-op, so this is the same clear — but it is reached once per
-  // good per building per matcher pass, and deleting from a building's
-  // demandSince is what tips that object into V8's dictionary mode, which
-  // then taxes every read of it everywhere else in the sim.
-  if (b.demandSince[good] !== undefined) delete b.demandSince[good];
+const heldNow: number[] = GOODS.map(() => 0);
+
+function hold(good: GoodId, kind: DemandKind): void {
+  const i = GOOD_INDEX[good];
+  heldNow[i] = heldNow[i]! | kind;
+}
+
+/**
+ * The marks a halted roof keeps as they stood: every demand its lever
+ * stops being offered (the `paused` gates in walkDemands). Its bills and
+ * its evacuation go on being offered, and are read like anyone's.
+ */
+const PAUSABLE =
+  DemandKind.site |
+  DemandKind.tool |
+  DemandKind.input |
+  DemandKind.ration |
+  DemandKind.festival |
+  DemandKind.cask |
+  DemandKind.training;
+
+/**
+ * Decide, for each good, whether this building's FIFO clock goes on,
+ * starts over or lapses — once a matcher pass, from what walkDemands just
+ * held.
+ *
+ * An age must not outlive the demand that stamped it. The clock is kept
+ * per (building, good) while the demands are not: an Abbey can owe a
+ * repair in stone and a study in stone, and sip the festival's ale while a
+ * study is billed in ale; a Smith can be mending with the wood it forges
+ * from; a damaged woodcutter wants wood for its repair and has wood to
+ * evacuate. So nobody who finishes with a demand can simply drop its
+ * clock, and nobody has to ask who else is keeping it either: this pass
+ * has just walked every demand the building has, and knows.
+ *
+ * - Held by nothing: it lapses. A settled bill, a met input, a post that
+ *   took up its tool — whichever it was has nothing left to do but stop.
+ * - Held by a demand that was holding it last pass: it goes on, whoever
+ *   else has come or gone.
+ * - Held only by demands that were not: it starts over, now. The matcher
+ *   sees a building one tick in MATCHER_INTERVAL, and a clock whose last
+ *   keeper ended in the ticks between and a new demand that opened in them
+ *   would look, from here, like one demand that never stopped. The marks
+ *   (Building.demandHeld) are what tell them apart: every standing demand
+ *   is re-read here each pass, and a bill takes its own mark off the
+ *   moment it settles or is called off (releaseDemandHold, world.ts), so a
+ *   new bill of the same kind in the gap does not read as the old one.
+ *
+ * A halted roof keeps the marks its lever suppressed (PAUSABLE): halting a
+ * workshop stops it being offered anything, not its place in the queue,
+ * and a demand that comes back when the lever does comes back where it
+ * stood.
+ */
+function settleAges(world: World, b: Building): void {
+  for (let i = 0; i < GOODS.length; i++) {
+    const good = GOODS[i]!;
+    const kept = b.demandHeld?.[good];
+    const was = kept ?? 0;
+    let now = heldNow[i]!;
+    heldNow[i] = 0;
+    if (b.paused) now |= was & PAUSABLE;
+    if (now === 0) {
+      // Only delete a key that is actually there. `delete` on an absent
+      // key is already a no-op, so this is the same clear — but it is
+      // reached once per good per building per matcher pass, and deleting
+      // from a building's demandSince is what tips that object into V8's
+      // dictionary mode, which then taxes every read of it everywhere else
+      // in the sim. The marks beside it are guarded the same way.
+      if (b.demandSince[good] !== undefined) delete b.demandSince[good];
+      if (kept !== undefined) delete b.demandHeld![good];
+      continue;
+    }
+    if ((now & was) === 0 || b.demandSince[good] === undefined)
+      b.demandSince[good] = world.tick;
+    if (now !== kept) (b.demandHeld ??= {})[good] = now;
+  }
 }
 
 function match(world: World): void {
@@ -197,239 +260,16 @@ function match(world: World): void {
 
   for (const b of world.buildings.values()) {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
-    const def = buildingDef(b.type);
-
-    if (b.state === BuildingState.site && b.siteNeeds && !b.paused) {
-      for (const good of GOODS) {
-        const want = (b.siteNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
-        if (want > 0 && !suspended(world, b, good)) {
-          demands.push(demandOf(world, b, good, want, 1));
-        } else if (want <= 0) {
-          clearDemandAge(world, b, good);
-        }
-      }
-      // The post's tool is pre-ordered while the walls rise (priority 2 —
-      // the planks matter more), so the axe usually lands with the last
-      // load and the builder walks straight onto the post. Never a gate
-      // on construction itself: a site missing its tool still tops out,
-      // it just opens unstaffed.
-      const siteTool = TOOL_OF[b.type];
-      if (siteTool !== undefined) {
-        const want = 1 - (b.inputs[siteTool] ?? 0) - (b.inbound[siteTool] ?? 0);
-        if (want > 0 && !suspended(world, b, siteTool)) {
-          demands.push(demandOf(world, b, siteTool, want, 2));
-        } else if (want <= 0) {
-          clearDemandAge(world, b, siteTool);
-        }
-      }
-      continue;
-    }
-
-    if (b.state !== BuildingState.built) continue;
-
-    // An ordered repair calls for its materials at construction priority:
-    // a wall being patched under fire is not a lesser errand than the mill's
-    // next sack of wheat. Deliberately outside the `paused` gate — halting a
-    // workshop stops it working, it does not stop the masons.
-    if (b.repairNeeds) {
-      for (const good of GOODS) {
-        const want = (b.repairNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
-        if (want > 0 && !suspended(world, b, good)) {
-          demands.push({...demandOf(world, b, good, want, 1), repair: true});
-        }
-      }
-    }
-
-    // A study's bill rides at tier 2, with a post's inputs and the
-    // barracks' bread — NOT at tier 1 with the walls going up.
-    //
-    // Tier 1 was the first cut and it measured worse. A study is fourteen
-    // loads at the outside, and at tier 1 those loads take four hands in
-    // seven off the site queue for as long as they last (HAUL_SHARE) — so
-    // the seats whose playbooks research most are the ones whose roofs
-    // then stop going up. It shows through the fog: pooling the archetype
-    // reads of archetypePersonality.test.ts over its twenty-four seeds,
-    // where `booming` means an army of one or none behind ten standing
-    // buildings, the abbot is read as booming 0.092 of the time at tier 1
-    // against the warlord's 0.084 — the research playbook and the war one,
-    // indistinguishable — and 0.172 against 0.092 at tier 2. The rival's
-    // buildings the scouts actually see move with it, 8.89 to 9.10.
-    //
-    // Which is the whole argument for the tier: a village must not stop
-    // building because it is studying. The study waits behind the walls
-    // instead, and waits with the mill's wheat rather than in front of it.
-    //
-    // Deliberately outside the `paused` gate, exactly as a repair is —
-    // halting an Abbey stops it sipping ale at festivals, it does not call
-    // off the study the village is already paying for.
-    if (b.researchNeeds) {
-      // The bill's own lines, not every good: the clear below would
-      // otherwise fire on goods this bill never asked for, and at an Abbey
-      // that means wiping the festival ale's FIFO age on every pass.
-      for (const good of goodKeys(b.researchNeeds)) {
-        const want = (b.researchNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
-        if (want > 0 && !suspended(world, b, good)) {
-          demands.push({...demandOf(world, b, good, want, 2), research: true});
-        } else if (want <= 0) {
-          // A line of the bill that is settled while the rest is still on
-          // the road — the four ale are in and the six silver are not. The
-          // clock has to go with it: the Abbey's other standing demand is
-          // ale for its festivals, and inheriting the study's age would
-          // put the next barrel at the head of the tier-2 queue on the
-          // strength of when the STUDY was ordered. Only a settled line
-          // clears; clearDemandAge holds the age while the bill still
-          // wants the good, which is what covers the loads in transit.
-          clearDemandAge(world, b, good);
-        }
-      }
-    }
-
-    // Convert recipes demand their input goods (priority 2). A Smith's
-    // demand follows what it will actually forge next — the queue head,
-    // else the standing order, else auto's pick — so a forge queued onto
-    // bows does not sit calling for iron (and an auto Smith with every
-    // tool gap covered calls for nothing at all).
-    // A halted post raises no demand, so resolving what it would forge is
-    // work for an answer the next line throws away — and at a Smith that
-    // answer costs a census of the whole village (autoForgeIndex).
-    const convert = b.paused
-      ? undefined
-      : def.recipeOptions
-        ? forgeDemandRecipe(world, b, def)
-        : convertRecipeOf(def, b);
-    if (convert && !b.paused) {
-      for (const good of goodKeys(convert.inputs)) {
-        const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
-        if (want > 0 && !suspended(world, b, good)) {
-          demands.push(demandOf(world, b, good, want, 2));
-        } else if (want <= 0) {
-          clearDemandAge(world, b, good);
-        }
-      }
-    }
-
-    // A mine keeps its pantry stocked (priority 2, with the mill's wheat
-    // and the smith's iron). A short cap on purpose — RATION_STOCK, not
-    // INPUT_CAP: three mines each hoarding five loaves would hold a whole
-    // bakery's output as inventory, and the loaf that matters is the one
-    // already in the shaft when the last one is eaten.
-    const ration = b.paused ? undefined : rationOf(def);
-    if (ration) {
-      const want =
-        RATION_STOCK -
-        (b.inputs[ration.good] ?? 0) -
-        (b.inbound[ration.good] ?? 0);
-      if (want > 0 && !suspended(world, b, ration.good)) {
-        demands.push(demandOf(world, b, ration.good, want, 2));
-      } else if (want <= 0) {
-        clearDemandAge(world, b, ration.good);
-      }
-    }
-
-    // A tool-gated post standing open calls for its tool (priority 2) —
-    // the demand staffing waits on. One at a time, and none while a live
-    // worker holds the post (his tool was consumed when he took it up).
-    const postTool = TOOL_OF[b.type];
-    if (postTool !== undefined && !b.paused) {
-      const w =
-        b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
-      const manned = w !== undefined && !w.dead;
-      const want = manned
-        ? 0
-        : 1 - (b.inputs[postTool] ?? 0) - (b.inbound[postTool] ?? 0);
-      if (want > 0 && !suspended(world, b, postTool)) {
-        demands.push(demandOf(world, b, postTool, want, 2));
-      } else if (want <= 0) {
-        clearDemandAge(world, b, postTool);
-      }
-    }
-
-    // Festivals: the abbey sips ale.
-    if (
-      b.type === BuildingTypeId.abbey &&
-      !b.paused &&
-      world.players[b.owner]?.techs.researched.includes(TechId.festivals)
-    ) {
-      const want =
-        ABBEY_ALE_CAP -
-        (b.inputs[GoodId.ale] ?? 0) -
-        (b.inbound[GoodId.ale] ?? 0);
-      if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
-      else clearDemandAge(world, b, GoodId.ale);
-    }
-
-    // Ale Rations: the barracks keeps its cask topped up. Standing demand
-    // like the abbey's, not per-order like the training goods below — the
-    // drink speeds whatever trains next, so it should be waiting when the
-    // recruit walks in rather than racing him to the door.
-    if (
-      def.trains &&
-      !b.paused &&
-      world.players[b.owner]?.techs.researched.includes(TechId.aleRations)
-    ) {
-      const want =
-        BARRACKS_ALE_CAP -
-        (b.inputs[GoodId.ale] ?? 0) -
-        (b.inbound[GoodId.ale] ?? 0);
-      if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
-      else clearDemandAge(world, b, GoodId.ale);
-    }
-
-    // Training queues demand their wheat + weapons (priority 2).
-    if (def.trains && !b.paused && b.trainQueue && b.trainQueue.length > 0) {
-      const need = trainingDemand(b);
-      for (const [good, n] of goodEntries(need)) {
-        const want = n - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
-        if (want > 0) demands.push(demandOf(world, b, good, want, 2));
-        else clearDemandAge(world, b, good);
-      }
-    }
-
-    // Producers evacuate their outputs to the storehouse — modeled as a
-    // demand *by the storehouse*, pinned to the supplier. Priority 3 for
-    // all but silver, which rides at 2 (EVAC_PRIORITY): a hire is paid
-    // from the castle's shelf, not the mine's.
-    if (!def.storage) {
-      // Every good the building can ever emit — a smith switched off
-      // bowmaking still ships its leftover bows. Plus any tool on the
-      // shelf that production would never name: the hammer a topped-out
-      // site returned, the axe a dismissed woodcutter left behind. Those
-      // ride home from ANY building, recipe or not — a finished house is
-      // no producer, but the hammer that raised it still wants hauling.
-      const evac = new Set<GoodId>(
-        def.recipe || def.recipeOptions ? outputGoodsOf(def) : [],
-      );
-      for (const tool of TOOL_GOODS) {
-        if ((b.stock[tool] ?? 0) > 0) evac.add(tool);
-      }
-      // A salvage pile ships everything it holds — the whole point of the
-      // wreck is that its goods go home on someone's shoulders (or into a
-      // nearby site, which pulls from it as a supply directly).
-      if (b.type === BuildingTypeId.salvage) {
-        for (const good of goodKeys(b.stock)) {
-          if ((b.stock[good] ?? 0) > 0) evac.add(good);
-        }
-      }
-      for (const good of evac) {
-        const surplus = availableOut(b, good);
-        if (surplus > 0) {
-          const storehouse = storehouseOf(b.owner);
-          if (storehouse && storehouse.id !== b.id) {
-            demands.push(
-              demandOf(
-                world,
-                storehouse,
-                good,
-                surplus,
-                EVAC_PRIORITY[good],
-                b,
-              ),
-            );
-          }
-        } else {
-          clearDemandAge(world, b, good);
-        }
-      }
+    const first = demands.length;
+    walkDemands(world, b, demands, storehouseOf);
+    settleAges(world, b);
+    // Only now is it known whether each clock went on or started over, so
+    // only now can this building's demands read their age. Every one of
+    // them ages off the building just walked — an evacuation's age is kept
+    // by the producer it is pinned to, and that is this building too.
+    for (let i = first; i < demands.length; i++) {
+      const d = demands[i]!;
+      d.since = (d.pinnedSource ?? d.building).demandSince[d.good]!;
     }
   }
 
@@ -467,6 +307,250 @@ function match(world: World): void {
   }
 }
 
+/**
+ * Put every demand this building has on the board, and hold each good
+ * whose FIFO clock one of them is keeping — offered this pass or not. A
+ * demand the backoff has suspended is still standing in its queue, and so
+ * is a bill whose last loads are all on the road: it is not settled until
+ * they are through the door.
+ */
+function walkDemands(
+  world: World,
+  b: Building,
+  demands: DemandFull[],
+  storehouseOf: (owner: Owner) => Building | undefined,
+): void {
+  const def = buildingDef(b.type);
+
+  if (b.state === BuildingState.site) {
+    if (!b.siteNeeds || b.paused) return;
+    for (const good of GOODS) {
+      const want = (b.siteNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
+      if (want <= 0) continue;
+      hold(good, DemandKind.site);
+      if (!suspended(world, b, good)) demands.push(demandOf(b, good, want, 1));
+    }
+    // The post's tool is pre-ordered while the walls rise (priority 2 —
+    // the planks matter more), so the axe usually lands with the last
+    // load and the builder walks straight onto the post. Never a gate
+    // on construction itself: a site missing its tool still tops out,
+    // it just opens unstaffed.
+    const siteTool = TOOL_OF[b.type];
+    if (siteTool !== undefined) {
+      const want = 1 - (b.inputs[siteTool] ?? 0) - (b.inbound[siteTool] ?? 0);
+      if (want > 0) {
+        hold(siteTool, DemandKind.tool);
+        if (!suspended(world, b, siteTool))
+          demands.push(demandOf(b, siteTool, want, 2));
+      }
+    }
+    return;
+  }
+
+  if (b.state !== BuildingState.built) return;
+
+  // An ordered repair calls for its materials at construction priority:
+  // a wall being patched under fire is not a lesser errand than the mill's
+  // next sack of wheat. Deliberately outside the `paused` gate — halting a
+  // workshop stops it working, it does not stop the masons.
+  if (b.repairNeeds) {
+    for (const good of goodKeys(b.repairNeeds)) {
+      const owed = b.repairNeeds[good] ?? 0;
+      if (owed <= 0) continue;
+      hold(good, DemandKind.repair);
+      const want = owed - (b.inbound[good] ?? 0);
+      if (want > 0 && !suspended(world, b, good)) {
+        demands.push({...demandOf(b, good, want, 1), repair: true});
+      }
+    }
+  }
+
+  // A study's bill rides at tier 2, with a post's inputs and the
+  // barracks' bread — NOT at tier 1 with the walls going up.
+  //
+  // Tier 1 was the first cut and it measured worse. A study is fourteen
+  // loads at the outside, and at tier 1 those loads take four hands in
+  // seven off the site queue for as long as they last (HAUL_SHARE) — so
+  // the seats whose playbooks research most are the ones whose roofs
+  // then stop going up. It shows through the fog: pooling the archetype
+  // reads of archetypePersonality.test.ts over its twenty-four seeds,
+  // where `booming` means an army of one or none behind ten standing
+  // buildings, the abbot is read as booming 0.092 of the time at tier 1
+  // against the warlord's 0.084 — the research playbook and the war one,
+  // indistinguishable — and 0.172 against 0.092 at tier 2. The rival's
+  // buildings the scouts actually see move with it, 8.89 to 9.10.
+  //
+  // Which is the whole argument for the tier: a village must not stop
+  // building because it is studying. The study waits behind the walls
+  // instead, and waits with the mill's wheat rather than in front of it.
+  //
+  // Deliberately outside the `paused` gate, exactly as a repair is —
+  // halting an Abbey stops it sipping ale at festivals, it does not call
+  // off the study the village is already paying for.
+  if (b.researchNeeds) {
+    for (const good of goodKeys(b.researchNeeds)) {
+      const owed = b.researchNeeds[good] ?? 0;
+      // A line of the bill settled while the rest is still on the road —
+      // the four ale are in and the six silver are not — keeps nothing:
+      // the Abbey's other standing demand is ale for its festivals, and
+      // a study's age left on that key would put the next barrel at the
+      // head of the tier-2 queue on the strength of when the STUDY was
+      // ordered. A line still owed holds even with every load of it
+      // walking, which is what covers the loads in transit.
+      if (owed <= 0) continue;
+      hold(good, DemandKind.research);
+      const want = owed - (b.inbound[good] ?? 0);
+      if (want > 0 && !suspended(world, b, good)) {
+        demands.push({...demandOf(b, good, want, 2), research: true});
+      }
+    }
+  }
+
+  // Convert recipes demand their input goods (priority 2). A Smith's
+  // demand follows what it will actually forge next — the queue head,
+  // else the standing order, else auto's pick — so a forge queued onto
+  // bows does not sit calling for iron (and an auto Smith with every
+  // tool gap covered calls for nothing at all).
+  // A halted post raises no demand, so resolving what it would forge is
+  // work for an answer the next line throws away — and at a Smith that
+  // answer costs a census of the whole village (autoForgeIndex).
+  const convert = b.paused
+    ? undefined
+    : def.recipeOptions
+      ? forgeDemandRecipe(world, b, def)
+      : convertRecipeOf(def, b);
+  if (convert && !b.paused) {
+    for (const good of goodKeys(convert.inputs)) {
+      const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
+      if (want <= 0) continue;
+      hold(good, DemandKind.input);
+      if (!suspended(world, b, good)) demands.push(demandOf(b, good, want, 2));
+    }
+  }
+
+  // A mine keeps its pantry stocked (priority 2, with the mill's wheat
+  // and the smith's iron). A short cap on purpose — RATION_STOCK, not
+  // INPUT_CAP: three mines each hoarding five loaves would hold a whole
+  // bakery's output as inventory, and the loaf that matters is the one
+  // already in the shaft when the last one is eaten.
+  const ration = b.paused ? undefined : rationOf(def);
+  if (ration) {
+    const want =
+      RATION_STOCK -
+      (b.inputs[ration.good] ?? 0) -
+      (b.inbound[ration.good] ?? 0);
+    if (want > 0) {
+      hold(ration.good, DemandKind.ration);
+      if (!suspended(world, b, ration.good))
+        demands.push(demandOf(b, ration.good, want, 2));
+    }
+  }
+
+  // A tool-gated post standing open calls for its tool (priority 2) —
+  // the demand staffing waits on. One at a time, and none while a live
+  // worker holds the post (his tool was consumed when he took it up).
+  const postTool = TOOL_OF[b.type];
+  if (postTool !== undefined && !b.paused) {
+    const w =
+      b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+    const manned = w !== undefined && !w.dead;
+    const want = manned
+      ? 0
+      : 1 - (b.inputs[postTool] ?? 0) - (b.inbound[postTool] ?? 0);
+    if (want > 0) {
+      hold(postTool, DemandKind.tool);
+      if (!suspended(world, b, postTool))
+        demands.push(demandOf(b, postTool, want, 2));
+    }
+  }
+
+  // Festivals: the abbey sips ale.
+  if (
+    b.type === BuildingTypeId.abbey &&
+    !b.paused &&
+    world.players[b.owner]?.techs.researched.includes(TechId.festivals)
+  ) {
+    const want =
+      ABBEY_ALE_CAP -
+      (b.inputs[GoodId.ale] ?? 0) -
+      (b.inbound[GoodId.ale] ?? 0);
+    if (want > 0) {
+      hold(GoodId.ale, DemandKind.festival);
+      demands.push(demandOf(b, GoodId.ale, want, 2));
+    }
+  }
+
+  // Ale Rations: the barracks keeps its cask topped up. Standing demand
+  // like the abbey's, not per-order like the training goods below — the
+  // drink speeds whatever trains next, so it should be waiting when the
+  // recruit walks in rather than racing him to the door.
+  if (
+    def.trains &&
+    !b.paused &&
+    world.players[b.owner]?.techs.researched.includes(TechId.aleRations)
+  ) {
+    const want =
+      BARRACKS_ALE_CAP -
+      (b.inputs[GoodId.ale] ?? 0) -
+      (b.inbound[GoodId.ale] ?? 0);
+    if (want > 0) {
+      hold(GoodId.ale, DemandKind.cask);
+      demands.push(demandOf(b, GoodId.ale, want, 2));
+    }
+  }
+
+  // Training queues demand their wheat + weapons (priority 2).
+  if (def.trains && !b.paused && b.trainQueue && b.trainQueue.length > 0) {
+    const need = trainingDemand(b);
+    for (const [good, n] of goodEntries(need)) {
+      const want = n - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
+      if (want <= 0) continue;
+      hold(good, DemandKind.training);
+      demands.push(demandOf(b, good, want, 2));
+    }
+  }
+
+  // Producers evacuate their outputs to the storehouse — modeled as a
+  // demand *by the storehouse*, pinned to the supplier. Priority 3 for
+  // all but silver, which rides at 2 (EVAC_PRIORITY): a hire is paid
+  // from the castle's shelf, not the mine's.
+  if (!def.storage) {
+    // Every good the building can ever emit — a smith switched off
+    // bowmaking still ships its leftover bows. Plus any tool on the
+    // shelf that production would never name: the hammer a topped-out
+    // site returned, the axe a dismissed woodcutter left behind. Those
+    // ride home from ANY building, recipe or not — a finished house is
+    // no producer, but the hammer that raised it still wants hauling.
+    const evac = new Set<GoodId>(
+      def.recipe || def.recipeOptions ? outputGoodsOf(def) : [],
+    );
+    for (const tool of TOOL_GOODS) {
+      if ((b.stock[tool] ?? 0) > 0) evac.add(tool);
+    }
+    // A salvage pile ships everything it holds — the whole point of the
+    // wreck is that its goods go home on someone's shoulders (or into a
+    // nearby site, which pulls from it as a supply directly).
+    if (b.type === BuildingTypeId.salvage) {
+      for (const good of goodKeys(b.stock)) {
+        if ((b.stock[good] ?? 0) > 0) evac.add(good);
+      }
+    }
+    for (const good of evac) {
+      const surplus = availableOut(b, good);
+      if (surplus <= 0) continue;
+      // Held with no storehouse to take it too: the surplus is still
+      // waiting, and the castle that comes up next should find it first.
+      hold(good, DemandKind.evac);
+      const storehouse = storehouseOf(b.owner);
+      if (storehouse && storehouse.id !== b.id) {
+        demands.push(
+          demandOf(storehouse, good, surplus, EVAC_PRIORITY[good], b),
+        );
+      }
+    }
+  }
+}
+
 /** good -> position in GOODS, so the sort comparator avoids indexOf scans. */
 const GOOD_INDEX = Object.fromEntries(GOODS.map((g, i) => [g, i])) as Record<
   GoodId,
@@ -484,26 +568,16 @@ interface DemandFull extends Demand {
 }
 
 function demandOf(
-  world: World,
   building: Building,
   good: GoodId,
   want: number,
   priority: HaulPriority,
   pinnedSource?: Building,
 ): DemandFull {
-  // FIFO age: the *demanding pair* tracks when it first went unmet. For
-  // evacuation demands the age lives on the source building.
-  const ageHolder = pinnedSource ?? building;
-  if (ageHolder.demandSince[good] === undefined)
-    ageHolder.demandSince[good] = world.tick;
-  return {
-    building,
-    good,
-    want,
-    priority,
-    since: ageHolder.demandSince[good],
-    pinnedSource,
-  };
+  // FIFO age: the *demanding pair* tracks when it first went unmet — for
+  // an evacuation, the pair on the source building. `since` is read in by
+  // match once settleAges has decided whether that clock goes on.
+  return {building, good, want, priority, since: 0, pinnedSource};
 }
 
 function findStorehouse(world: World, owner: Owner): Building | undefined {
@@ -1233,12 +1307,10 @@ function progress(world: World): void {
         continue;
       }
       // The reservation goes BEFORE the good does: he is standing at the
-      // door, so this load is no longer on its way — and `inbound` is read
-      // at the threshold now. A study's last barrel settling its bill asks
-      // whether anybody else still wants ale (stillWants, world.ts), and
-      // counted as inbound it stood in the Abbey's own festival cap and
-      // took that demand's FIFO age with it. Nothing else deliver() looks
-      // at is a reservation.
+      // door, so this load is no longer on its way, and whatever deliver()
+      // sets off — a bill settling, a study opening its books — sees the
+      // building with the load inside rather than still on the road.
+      // Nothing else deliver() looks at is a reservation.
       releaseDest(world, job);
       deliver(world, to, job.good);
       unit.carrying = undefined;

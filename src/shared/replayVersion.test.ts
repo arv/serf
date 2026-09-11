@@ -680,8 +680,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // own bump and
 // has never shipped, so there is nothing older to break; the tick really
 // does move, which is why the hash is re-pinned rather than argued away.
-const EXPECTED_VERSION = 64;
-const EXPECTED_HASH = '8f50c05d3e95154a6b6e51f1a94cef1e';
+// 65 for ages that lapse with the last demand keeping them: the matcher
+// marks which demands hold each FIFO clock and settles the clocks itself
+// every pass (settleAges, systems/logistics.ts), a finished bill only takes
+// its own mark off, and stillWants is gone. Which errand a serf answers
+// first moves with it; the full story is in replayVersion.ts.
+const EXPECTED_VERSION = 65;
+const EXPECTED_HASH = '7d8544edc2ca94bd2be1ee45b7931f61';
 
 /**
  * Everything a replay's playback depends on, as raw source:

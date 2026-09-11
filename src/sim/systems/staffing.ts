@@ -388,7 +388,8 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       // keeps running until the builder is actually bound — a recruit who
       // dies en route does not reset the wait.)
       if (wantsBuilder) b.builderWantedSince ??= world.tick;
-      // Guarded for the same reason as clearDemandAge: this `else` is the
+      // Guarded for the same reason as the FIFO clocks in settleAges
+      // (systems/logistics.ts): this `else` is the
       // common case for every site that is not yet builder-ready, and
       // deleting a field off the Building itself would put the whole
       // object into dictionary mode for the rest of the match.
