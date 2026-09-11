@@ -363,8 +363,23 @@ export function TechTreePanel(props: {
               and a seat studies one thing at a time. Without this the
               whole tree waits behind a bill nobody can ever carry.
               Hidden in a replay, which takes no orders, and hidden when
-              there is nothing to call off. */}
-          <Show when={!replayMode() && techs().active}>
+              there is nothing to call off.
+
+              And hidden when the tree on screen is not this seat's. Today
+              that cannot happen outside a replay — both writers of
+              viewerId are replay-gated (the HUD's seat chip renders under
+              `replayMode`, and controls' #viewOwner returns unless it is a
+              replay) — but the button would send MY cancel named with the
+              tech the OTHER seat is studying, which the sim's stale-click
+              guard turns into a no-op unless both seats happen to be
+              studying the same thing, and then it calls off my own. A
+              control whose correctness rests on a rule enforced two files
+              away should say the rule itself. */}
+          <Show
+            when={
+              !replayMode() && viewerId() === myPlayerId() && techs().active
+            }
+          >
             {a => (
               <button
                 class="tech-abandon"

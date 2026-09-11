@@ -91,31 +91,6 @@ export function researchSystem(world: World): void {
 }
 
 /**
- * Call the study off: the bill on the Abbey goes, the hauls walking it
- * there are called back, and the order goes with them.
- *
- * settleResearchBill's mirror — one opens the books, this one closes them
- * unopened — and cancelRepair's twin, which does the same three things for
- * a repair (systems/construction.ts). It exists because a bill can be one
- * the village will never be able to carry: Gilded Arms ordered with no
- * gold on the shelf and no Deep Mining to dig any is a study that waits
- * forever, and a seat studies one thing at a time, so the whole tree waits
- * behind it.
- *
- * The jobs are aborted HERE rather than left to the haul reconciler, which
- * would find them on its own — it runs one pass in MATCHER_INTERVAL ticks
- * (systems/logistics.ts), and in the ticks between, an open study haul can
- * still be dispatched and a walking one still reach the door. With the
- * bill gone, deliverGood has no study branch left to take, and the load
- * ends up on the Abbey's shelf, which is not a shelf anything ever leaves
- * from. Cargo is kept (`keepCargo`), so the good stays in the serf's hands
- * for rehomeCarriedGoods to find another home for.
- *
- * What was already carried IN stays spent. A study's load is consumed at
- * the threshold, load by load, the way a repair's stone is — the Abbey has
- * nothing to take it back off, so there is nothing here to refund.
- */
-/**
  * Call every haul this Abbey's study has on the board off the board, with
  * the cargo kept: whatever is in a serf's hands stays there for
  * rehomeCarriedGoods to find a home for (systems/logistics.ts).
