@@ -37,13 +37,16 @@ export const COMPACT = `${NARROW}, ${SHORT}`;
  * once, which is what a layout may assume before it stops letting the page
  * scroll and starts fitting itself to the window instead.
  *
- * A window in the half-pixel between the pairs — 760.4 wide, 520.5 tall,
- * which a browser zoom can produce — matches neither this nor COMPACT, and
- * that is deliberate. Rules written against this one are refinements the
- * phone layouts have their own answer for, so falling down the crack costs
- * the refinement and never the layout.
+ * Strict comparisons on COMPACT's own two numbers, not `min-` twins of
+ * them. `(min-width: 761px)` looks like the other side of `(max-width:
+ * 760px)` and is not: a browser zoom makes CSS pixels fractional, and a
+ * window 760.5 wide would match neither — no phone layout, and none of
+ * what this promises either. `>` against the same number has no such
+ * crack; every window is exactly one of COMPACT or ROOMY. (The HUD's
+ * isUpright makes the same point for heights, where a 521px twin to SHORT
+ * would strand 520.5.)
  */
-export const ROOMY = '(min-width: 761px) and (min-height: 521px)';
+export const ROOMY = '(width > 760px) and (height > 520px)';
 
 /** Reactive media query (no dependency; one listener per call site). */
 export function useMedia(query: string): () => boolean {
