@@ -133,7 +133,7 @@ export function TechTreePanel(props: {
           position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
           display: flex; flex-direction: column; gap: 10px;
           padding: 14px 18px; pointer-events: auto;
-          max-width: 90vw;
+          max-width: calc(0.9 * var(--screen-w));
           /* Modal layer — see the layer scale in Hud.tsx. Without a number
              the sheet took its luck from DOM order and lost to the floating
              touch actions (z-index 11), which drew their band-select and
