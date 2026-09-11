@@ -642,16 +642,18 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       // left forever. The bill is torn up rather than paid — nothing was
       // debited when it was written, so nothing is owed — and settling it
       // is what opens the books, here as at the Abbey's door.
+      // The hauls first, and by id rather than by roof — abandonResearch's
+      // rule, and for both of its reasons. This lever is the one path that
+      // settles a bill with loads still walking, and a load reaching a door
+      // with no bill behind it lands on the Abbey's shelf; while a roof
+      // already reaped leaves `active` naming it until researchSystem
+      // runs, and hauls left for the reconciler in THAT window are stood
+      // down without their cargo. Nothing is owed for any of them —
+      // nothing was debited when the bill was written — so they go back in
+      // the serf's hands either way.
+      dropStudyHauls(world, active.abbey);
       const abbey = world.buildings.get(active.abbey);
-      if (abbey) {
-        // The hauls first: this lever is the one path that settles a bill
-        // with loads still walking, and a load that reaches a door with no
-        // bill behind it lands on the Abbey's shelf (dropStudyHauls says
-        // the rest). Nothing is owed for them — nothing was debited when
-        // the bill was written — so they go back in the serf's hands.
-        dropStudyHauls(world, abbey.id);
-        settleResearchBill(world, abbey);
-      }
+      if (abbey) settleResearchBill(world, abbey);
       active.started = true;
       active.ticksLeft = 1;
       break;

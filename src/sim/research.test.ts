@@ -867,6 +867,41 @@ describe('research', () => {
     expect(job.research).toBeUndefined();
   });
 
+  it('the debug lever calls the hauls back even with the Abbey gone', () => {
+    // Copilot review, PR #273, round seven: the same reaped-roof window as
+    // the cancel, on the lever's path. `active` names an Abbey that is
+    // already off the map until researchSystem runs, and hauls left for
+    // the reconciler in that window are stood down WITHOUT their cargo.
+    const world = bareWorld();
+    setupSchool(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    const abbey = abbeyOf(world);
+    let guard = 20 * 120;
+    while (
+      ![...world.jobs.values()].some(
+        j => j.research && j.phase === HaulPhase.toDropoff,
+      ) &&
+      guard-- > 0
+    )
+      tickWorld(world, []);
+
+    destroyBuilding(world, abbey);
+    world.buildings.delete(abbey.id);
+    applyCommand(world, 0, {
+      kind: CommandKind.admin,
+      action: AdminAction.finishResearch,
+    });
+    expect([...world.jobs.values()].some(j => j.research)).toBe(false);
+    expect(
+      [...world.units.values()].some(u => !u.dead && u.carrying !== undefined),
+    ).toBe(true);
+    run(world, 20 * 20);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('a stale cancel misses rather than striking the next study', () => {
     // cancelForge's rule, applied to the tree: an order given as one study
     // finishes must not call off whatever the seat took up after it.

@@ -681,7 +681,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // has never shipped, so there is nothing older to break; the tick really
 // does move, which is why the hash is re-pinned rather than argued away.
 const EXPECTED_VERSION = 64;
-const EXPECTED_HASH = 'f45d8d41c743a70b4d9da380e933ba3a';
+const EXPECTED_HASH = '1ea01d3d2d2274f7e1cca6ce41db2ac1';
 
 /**
  * Everything a replay's playback depends on, as raw source:
