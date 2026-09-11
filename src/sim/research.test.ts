@@ -623,6 +623,81 @@ describe('research', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it("a settled bill's last load is not still inbound at the door", () => {
+    // Copilot review, PR #273, round four. The last barrel of a study's
+    // bill settles that bill from inside deliver(), and its reservation
+    // used to be released a line later — so at the one moment stillWants
+    // is asked, the load standing at the threshold was still counted as on
+    // its way, filled the Abbey's own ale cap, and took the festival
+    // demand's FIFO age with it when the bill's clocks were dropped.
+    //
+    // The window is narrow and every wall of this fixture is holding it
+    // open: the settling load must be the ALE one (silver is the longer
+    // half of the bill and normally lands last), the buff must already be
+    // running so it does not drink the barrel that makes the cap tight,
+    // and the village must have no ale to spare so the buff's own standing
+    // demand cannot book a load and move the arithmetic itself.
+    const world = bareWorld();
+    const cost = TECH_DEFS[TechId.aleRations].cost;
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.silver]: cost[GoodId.silver] ?? 0,
+    });
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    const techs = world.players[0]!.techs;
+    techs.researched.push(TechId.irrigation, TechId.brewing, TechId.festivals);
+    // A festival long enough to outlast the test: researchSystem decrements
+    // it and returns before the branch that burns a barrel, so the one ale
+    // this test puts on the Abbey's shelf stays there.
+    techs.festivalTicksLeft = 20 * 600;
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.aleRations}),
+    );
+
+    // The silver half first, with no ale in the world to carry.
+    let guard = 20 * 120;
+    while ((abbey.researchNeeds?.[GoodId.silver] ?? 0) > 0 && guard-- > 0)
+      tickWorld(world, []);
+    expect(abbey.researchNeeds?.[GoodId.silver]).toBe(0);
+
+    // Now exactly the ale the bill still wants, so the buff's own demand
+    // finds nothing to book and every barrel is the study's.
+    const aleOwed = abbey.researchNeeds![GoodId.ale]!;
+    sh.stock[GoodId.ale] = aleOwed;
+    world.ledger.produced[GoodId.ale] =
+      (world.ledger.produced[GoodId.ale] ?? 0) + aleOwed;
+
+    // Walk it in until one barrel is left and it is at the door.
+    guard = 20 * 120;
+    while (
+      !(
+        (abbey.researchNeeds?.[GoodId.ale] ?? 0) === 1 &&
+        (abbey.inbound[GoodId.ale] ?? 0) === 1
+      ) &&
+      guard-- > 0
+    )
+      tickWorld(world, []);
+    expect(abbey.researchNeeds?.[GoodId.ale]).toBe(1);
+
+    // One barrel on the shelf, so the buff wants exactly one more: the cap
+    // reads full if the load at the door is counted as inbound, and does
+    // not if it is counted as arrived.
+    abbey.inputs[GoodId.ale] = ABBEY_ALE_CAP - 1;
+    world.ledger.produced[GoodId.ale] =
+      (world.ledger.produced[GoodId.ale] ?? 0) + (ABBEY_ALE_CAP - 1);
+    const since = abbey.demandSince[GoodId.ale];
+    expect(since).toBeDefined();
+
+    // The tick the books open on.
+    guard = 20 * 120;
+    while (!techs.active?.started && guard-- > 0) tickWorld(world, []);
+    expect(techs.active?.started).toBe(true);
+    // The buff still wants its second barrel, and still asked for it first.
+    expect(abbey.demandSince[GoodId.ale]).toBe(since);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('a stale cancel misses rather than striking the next study', () => {
     // cancelForge's rule, applied to the tree: an order given as one study
     // finishes must not call off whatever the seat took up after it.
