@@ -685,8 +685,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // every pass (settleAges, systems/logistics.ts), a finished bill only takes
 // its own mark off, and stillWants is gone. Which errand a serf answers
 // first moves with it; the full story is in replayVersion.ts.
+// Still 65 across #276's first review round: hashWorld now mixes those
+// clocks and their marks, and a training order leaving the queue takes its
+// mark off the goods no other order still wants (releaseSpentTrainingHolds)
+// — the same gap between passes a finished bill already closed. 65 is this
+// build's own bump and has never shipped, so there is nothing older to
+// break.
 const EXPECTED_VERSION = 65;
-const EXPECTED_HASH = '7d8544edc2ca94bd2be1ee45b7931f61';
+const EXPECTED_HASH = '44e5b1cea9d978a9ba413558a3803ee5';
 
 /**
  * Everything a replay's playback depends on, as raw source:

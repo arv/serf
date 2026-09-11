@@ -14,7 +14,7 @@ import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import type {World} from '../world.ts';
 import {paidBuildTicks} from './construction.ts';
 import {bindWorker, consumePostTool, unbindWorker} from './production.ts';
-import {evictGarrison} from './training.ts';
+import {evictGarrison, releaseSpentTrainingHolds} from './training.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -219,6 +219,9 @@ function handleArrivals(world: World): void {
       }
       head.started = true;
       head.ticksLeft = option.durationTicks;
+      // Its bill is paid and off the queue's demand, so its mark comes off
+      // whatever the queue no longer asks for (releaseSpentTrainingHolds).
+      releaseSpentTrainingHolds(b, head.unit);
       // Ale Rations: the recruit drinks from the cask and trains faster.
       // Checked here and not in cost — no ale never blocks the course, and
       // a cancelled order doesn't refund a drink already drunk.
