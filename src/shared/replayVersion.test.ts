@@ -667,11 +667,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // does, and the question "is anybody else keeping this good's clock?" —
 // a repair's bill, a study's, the Abbey's standing festival ale — became
 // one predicate in world.ts (stillWants) that the matcher's clearDemandAge
-// asks along with the study's two endings. 64 is this build's own bump and
+// asks along with the study's two endings — and the study's hauls are now
+// called off in one place (dropStudyHauls), before those clocks are read
+// and on the debug lever's path as well as the player's. 64 is this
+// build's own bump and
 // has never shipped, so there is nothing older to break; the tick really
 // does move, which is why the hash is re-pinned rather than argued away.
 const EXPECTED_VERSION = 64;
-const EXPECTED_HASH = '7b0d926a05a8423d6572feeb0bb50fc1';
+const EXPECTED_HASH = '37df87464cc83b1c63544dfe03febf98';
 
 /**
  * Everything a replay's playback depends on, as raw source:

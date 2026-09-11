@@ -115,23 +115,67 @@ export function researchSystem(world: World): void {
  * the threshold, load by load, the way a repair's stone is — the Abbey has
  * nothing to take it back off, so there is nothing here to refund.
  */
+/**
+ * Call every haul this Abbey's study has on the board off the board, with
+ * the cargo kept: whatever is in a serf's hands stays there for
+ * rehomeCarriedGoods to find a home for (systems/logistics.ts).
+ *
+ * Both endings of a study need this, and neither can wait for the haul
+ * reconciler to do it: that runs one pass in MATCHER_INTERVAL ticks, and
+ * in the ticks between, an open study haul can still be dispatched and a
+ * walking one can still reach the door — where, with the bill gone,
+ * deliverGood has no study branch left to take and the load lands on the
+ * Abbey's shelf, which is not a shelf anything ever leaves from.
+ *
+ * Called BEFORE the clocks are read, always: aborting releases each job's
+ * reservation on the Abbey, and `inbound` is one of the things stillWants
+ * counts. Left until after, the loads this order has just cancelled would
+ * still be standing in the Abbey's ale cap, and a festival demand nobody
+ * else was keeping would lose its age to them.
+ */
+export function dropStudyHauls(world: World, abbey: Building): void {
+  for (const job of world.jobs.values()) {
+    if (job.research && job.to === abbey.id)
+      abortJob(world, job, 'study called off', true);
+  }
+}
+
+/**
+ * Call the study off: the bill on the Abbey goes, the hauls walking it
+ * there are called back, and the order goes with them.
+ *
+ * settleResearchBill's mirror — one opens the books, this one closes them
+ * unopened — and cancelRepair's twin, which does the same three things for
+ * a repair (systems/construction.ts). It exists because a bill can be one
+ * the village will never be able to carry: Gilded Arms ordered with no
+ * gold on the shelf and no Deep Mining to dig any is a study that waits
+ * forever, and a seat studies one thing at a time, so the whole tree waits
+ * behind it.
+ *
+ * The hauls are dropped whether or not a bill is still standing. A study
+ * whose books are open has none — but the debug lever finishes a study
+ * without waiting for its loads (AdminAction.finishResearch), so `started`
+ * and a walking haul can be true at once, and an order called off in that
+ * window would leave them.
+ *
+ * What was already carried IN stays spent. A study's load is consumed at
+ * the threshold, load by load, the way a repair's stone is — the Abbey has
+ * nothing to take it back off, so there is nothing here to refund.
+ */
 export function abandonResearch(world: World, playerId: Owner): void {
   const techs = world.players[playerId]?.techs;
   if (!techs?.active) return;
   const abbey = world.buildings.get(techs.active.abbey);
-  if (abbey?.researchNeeds) {
-    const bill = goodKeys(abbey.researchNeeds);
+  if (abbey) {
+    const bill = abbey.researchNeeds ? goodKeys(abbey.researchNeeds) : [];
     delete abbey.researchNeeds;
-    // The bill first, then its clocks — and only the ones nobody else is
-    // keeping. An Abbey can owe a repair in the same stone and sip the
-    // festival's ale in the same barrel; stillWants (world.ts) is the one
-    // place that knows, and the matcher's own clearDemandAge asks it too.
+    dropStudyHauls(world, abbey);
+    // Then the clocks, and only the ones nobody else is keeping: an Abbey
+    // can owe a repair in the same stone and sip the festival's ale from
+    // the same barrel. stillWants (world.ts) is the one place that knows,
+    // and the matcher's own clearDemandAge asks it too.
     for (const g of bill) {
       if (!stillWants(world, abbey, g)) delete abbey.demandSince[g];
-    }
-    for (const job of world.jobs.values()) {
-      if (job.research && job.to === abbey.id)
-        abortJob(world, job, 'study called off', true);
     }
   }
   techs.active = undefined;

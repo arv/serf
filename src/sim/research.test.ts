@@ -1,7 +1,9 @@
 import {describe, expect, it} from 'vitest';
+import * as AdminAction from './adminActionEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
 import {
+  ABBEY_ALE_CAP,
   BARRACKS_ALE_CAP,
   FESTIVAL_DURATION,
   FESTIVAL_SPEEDUP,
@@ -526,6 +528,99 @@ describe('research', () => {
     expect(abbey.researchNeeds).toBeUndefined();
     // The festival still wants its barrel, and still asked for it first.
     expect(abbey.demandSince[GoodId.ale]).toBe(since);
+  });
+
+  it("the cancelled loads do not stand in the festival's cap on the way out", () => {
+    // Copilot review, PR #273, round three: the order of the two halves.
+    // Aborting a haul releases its reservation on the Abbey, and `inbound`
+    // is one of the things stillWants counts — so a bill's loads read as
+    // ale already on its way in, filling ABBEY_ALE_CAP, and the festival
+    // demand nobody else was keeping loses its age to loads that have just
+    // been cancelled. The hauls go first, then the clocks.
+    const world = bareWorld();
+    // Exactly the study's bill in ale and no more: every barrel in the
+    // village is walking to the Abbey on the study's account, and the
+    // buff's own standing want — two more — has nothing left to book. So
+    // the only ale `inbound` counts is the ale this order is about to call
+    // back, which is the whole point of the reading below.
+    const cost = TECH_DEFS[TechId.aleRations].cost;
+    addStorehouse(world, 30, 30, {
+      [GoodId.ale]: cost[GoodId.ale] ?? 0,
+      [GoodId.silver]: 20,
+    });
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    world.players[0]!.techs.researched.push(
+      TechId.irrigation,
+      TechId.brewing,
+      TechId.festivals,
+    );
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.aleRations}),
+    );
+    // Wait until the study's ale is on the road in enough quantity to fill
+    // the buff's cap by itself — the window this is about.
+    let guard = 20 * 120;
+    while ((abbey.inbound[GoodId.ale] ?? 0) < ABBEY_ALE_CAP && guard-- > 0)
+      tickWorld(world, []);
+    expect(abbey.inbound[GoodId.ale] ?? 0).toBeGreaterThanOrEqual(
+      ABBEY_ALE_CAP,
+    );
+    const since = abbey.demandSince[GoodId.ale];
+    expect(since).toBeDefined();
+
+    // Through applyCommand, so the reading below is of the order alone: a
+    // tick would carry a matcher pass with it, and the matcher booking the
+    // buff's own ale the moment the bill is gone is a different story
+    // (a demand satisfied clears its own clock, by design).
+    applyCommand(world, 0, {
+      kind: CommandKind.cancelResearch,
+      tech: TechId.aleRations,
+    });
+    // The buff still wants its barrel — those loads were called back, not
+    // delivered — so its age stands.
+    expect(abbey.demandSince[GoodId.ale]).toBe(since);
+    run(world, 20 * 20);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('the debug lever finishes a study without stranding its loads', () => {
+    // Copilot review, PR #273, round three. finishResearch is the one path
+    // that settles a bill with loads still walking: it tears the bill up
+    // rather than paying it, so those hauls need the same call back a
+    // cancelled study gives them, or they arrive at a door with no bill
+    // behind it and land on the Abbey's shelf.
+    const world = bareWorld();
+    setupSchool(world);
+    const abbey = abbeyOf(world);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+    );
+    let guard = 20 * 120;
+    while (
+      ![...world.jobs.values()].some(
+        j => j.research && j.phase === HaulPhase.toDropoff,
+      ) &&
+      guard-- > 0
+    )
+      tickWorld(world, []);
+
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.admin, action: AdminAction.finishResearch}),
+    );
+    expect([...world.jobs.values()].some(j => j.research)).toBe(false);
+    run(world, MATCHER_INTERVAL - 1);
+    const onAbbeyShelf = goodEntries(abbey.stock).reduce(
+      (n, [, k]) => n + k,
+      0,
+    );
+    expect(onAbbeyShelf).toBe(0);
+    run(world, 20 * 20);
+    expect(world.players[0]!.techs.researched).toContain(TechId.cobbledBoots);
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('a stale cancel misses rather than striking the next study', () => {
