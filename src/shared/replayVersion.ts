@@ -20,6 +20,39 @@
  * directly.
  */
 /**
+ * 65: an age lapses with the last demand that was keeping it.
+ *
+ * A building's FIFO clock lives per (building, good) while its demands do
+ * not, and until this build whoever finished with one had to guess whether
+ * anybody else was still standing in that queue. 64 made the guess one
+ * predicate (`stillWants`), but one that knew the bills and the standing
+ * ale and nothing else — so a repair settling at a Smith still dropped the
+ * clock its forge's wood was standing on, and a post's tool, a mine's
+ * pantry or a training queue could lose theirs the same way.
+ *
+ * Now nobody guesses. The matcher already walks every demand of every
+ * building each pass, so it marks which demands hold each clock
+ * (Building.demandHeld) and settles the clocks itself (settleAges,
+ * sim/systems/logistics.ts): held by nobody, a clock lapses; held by a
+ * demand that held it last pass, it goes on; held only by demands that did
+ * not, it starts over. A bill settling or called off just takes its own
+ * mark off (releaseDemandHold, sim/world.ts), and the clock goes at the
+ * next pass rather than on the spot.
+ *
+ * Ages decide which of two demands at the same tier a serf answers first,
+ * so hauls sort differently wherever a clock used to be dropped out from
+ * under a demand still keeping it, or carried over to one that opened
+ * after its keeper had ended (a festival cap that reopens behind a settled
+ * study now starts its own age). A log recorded on 64 re-runs through a
+ * village that answers some of its errands in a different order.
+ *
+ * The new field is optional, so a save written before it still loads (the
+ * banditsEnabled precedent in save.ts); its clocks read as held by nobody
+ * and start over on the first pass.
+ *
+ * 64's note follows.
+ */
+/**
  * 64: a study can be called off.
  *
  * A nineteenth command kind, `cancelResearch` (sim/commandKindEnum.ts) —
@@ -1048,4 +1081,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 64;
+export const REPLAY_VERSION = 65;

@@ -338,6 +338,9 @@ describe('research', () => {
     // The bill goes with the order — an Abbey left asking for gold would
     // keep the matcher booking hauls for a study nobody is doing.
     expect(abbey.researchNeeds).toBeUndefined();
+    // Its clock is the matcher's to forget, and nothing else at this Abbey
+    // wants gold: the next pass lets it lapse.
+    run(world, MATCHER_INTERVAL);
     expect(abbey.demandSince[GoodId.gold]).toBeUndefined();
 
     // And the tree is open again.
@@ -454,8 +457,9 @@ describe('research', () => {
     // the demands are not, and the Abbey is where two of them collide: an
     // ordered repair in stone and a study billed in stone keep one key
     // between them. Dropping it with the study would reset the repair's
-    // age to the cancellation tick and send it to the back of tier 1 —
-    // clearDemandAge guards against exactly this every matcher pass.
+    // age to the cancellation tick and send it to the back of tier 1. The
+    // matcher's pass is what decides now (settleAges in
+    // systems/logistics.ts), and it finds the repair still holding it.
     const world = bareWorld();
     addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
     const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
@@ -490,6 +494,10 @@ describe('research', () => {
     // first asked.
     expect(abbey.repairNeeds?.[GoodId.stone]).toBeGreaterThan(0);
     expect(abbey.demandSince[GoodId.stone]).toBe(since);
+    // ...and still do once the matcher has been round and found the study
+    // gone: the repair was holding the clock beside it, so it goes on.
+    run(world, MATCHER_INTERVAL);
+    expect(abbey.demandSince[GoodId.stone]).toBe(since);
   });
 
   it("a cancelled study leaves the festival's clock alone too", () => {
@@ -498,8 +506,8 @@ describe('research', () => {
     // With Festivals in, the Abbey has a standing want for ale of its own
     // (systems/logistics.ts), and an Ale Rations bill is written in the
     // same barrel — so calling that study off must leave the buff's clock
-    // where it was. One predicate answers for every such reason
-    // (stillWants in world.ts), and the matcher's clearDemandAge asks it.
+    // where it was — and the matcher's next pass, which walks both
+    // demands, finds the festival still asking and lets the clock go on.
     const world = bareWorld();
     // No ale anywhere: the Abbey's standing want and the study's bill both
     // stay open for the whole test.
@@ -528,61 +536,92 @@ describe('research', () => {
     expect(abbey.researchNeeds).toBeUndefined();
     // The festival still wants its barrel, and still asked for it first.
     expect(abbey.demandSince[GoodId.ale]).toBe(since);
+    run(world, MATCHER_INTERVAL);
+    expect(abbey.demandSince[GoodId.ale]).toBe(since);
   });
 
-  it("the cancelled loads do not stand in the festival's cap on the way out", () => {
-    // Copilot review, PR #273, round three: the order of the two halves.
-    // Aborting a haul releases its reservation on the Abbey, and `inbound`
-    // is one of the things stillWants counts — so a bill's loads read as
-    // ale already on its way in, filling ABBEY_ALE_CAP, and the festival
-    // demand nobody else was keeping loses its age to loads that have just
-    // been cancelled. The hauls go first, then the clocks.
+  it('a festival that opens behind a cancelled study starts its own age', () => {
+    // The gap the matcher cannot see into by itself. It walks the Abbey
+    // one tick in MATCHER_INTERVAL, and between two passes the festival's
+    // cask can run dry and a study billed in ale be called off — which,
+    // from the next pass, reads like one ale demand that never stopped.
+    // It was not one: the festival had its barrels and was asking for
+    // nothing while the study stood in the queue, so the age it gets is
+    // its own, not the study's.
     const world = bareWorld();
-    // Exactly the study's bill in ale and no more: every barrel in the
-    // village is walking to the Abbey on the study's account, and the
-    // buff's own standing want — two more — has nothing left to book. So
-    // the only ale `inbound` counts is the ale this order is about to call
-    // back, which is the whole point of the reading below.
-    const cost = TECH_DEFS[TechId.aleRations].cost;
-    addStorehouse(world, 30, 30, {
-      [GoodId.ale]: cost[GoodId.ale] ?? 0,
-      [GoodId.silver]: 20,
-    });
+    // Silver for the study's other line, and no ale anywhere: its ale line
+    // stays open, and its clock runs for as long as the study stands.
+    addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
     const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
     for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
-    world.players[0]!.techs.researched.push(
-      TechId.irrigation,
-      TechId.brewing,
-      TechId.festivals,
-    );
+    const techs = world.players[0]!.techs;
+    techs.researched.push(TechId.irrigation, TechId.brewing, TechId.festivals);
+    // A full cask and a festival already running, so the buff neither
+    // wants a barrel nor drinks one until the test empties it.
+    abbey.inputs[GoodId.ale] = ABBEY_ALE_CAP;
+    world.ledger.produced[GoodId.ale] =
+      (world.ledger.produced[GoodId.ale] ?? 0) + ABBEY_ALE_CAP;
+    techs.festivalTicksLeft = 20 * 600;
     tickWorld(
       world,
       cmds({kind: CommandKind.research, tech: TechId.aleRations}),
     );
-    // Wait until the study's ale is on the road in enough quantity to fill
-    // the buff's cap by itself — the window this is about.
-    let guard = 20 * 120;
-    while ((abbey.inbound[GoodId.ale] ?? 0) < ABBEY_ALE_CAP && guard-- > 0)
-      tickWorld(world, []);
-    expect(abbey.inbound[GoodId.ale] ?? 0).toBeGreaterThanOrEqual(
-      ABBEY_ALE_CAP,
-    );
-    const since = abbey.demandSince[GoodId.ale];
+    run(world, MATCHER_INTERVAL * 3);
+    const since = abbey.demandSince[GoodId.ale]!;
     expect(since).toBeDefined();
 
-    // Through applyCommand, so the reading below is of the order alone: a
-    // tick would carry a matcher pass with it, and the matcher booking the
-    // buff's own ale the moment the bill is gone is a different story
-    // (a demand satisfied clears its own clock, by design).
+    // Between two passes: the cask runs dry, then the study is called off.
+    // That order is the one an answer given at the moment of cancelling
+    // gets wrong — asked then, the festival is already short, and it would
+    // have kept the study's clock as its own.
+    abbey.inputs[GoodId.ale] = 0;
+    world.ledger.consumed[GoodId.ale] =
+      (world.ledger.consumed[GoodId.ale] ?? 0) + ABBEY_ALE_CAP;
     applyCommand(world, 0, {
       kind: CommandKind.cancelResearch,
       tech: TechId.aleRations,
     });
-    // The buff still wants its barrel — those loads were called back, not
-    // delivered — so its age stands.
-    expect(abbey.demandSince[GoodId.ale]).toBe(since);
-    run(world, 20 * 20);
+    const gap = world.tick;
+    run(world, MATCHER_INTERVAL);
+    expect(abbey.demandSince[GoodId.ale]).toBeGreaterThanOrEqual(gap);
+    expect(abbey.demandSince[GoodId.ale]).toBeGreaterThan(since);
     expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a study re-ordered between passes does not inherit the one it replaced', () => {
+    // The same gap with a bill of the same kind in it: a study called off
+    // and another written in the same stone before the matcher comes
+    // round looks, from the next pass, like one study that never stopped.
+    // What tells them apart is the mark the first takes off the clock as
+    // it goes (releaseDemandHold, world.ts) — without it the new study
+    // would stand at the head of its tier on the strength of the old one.
+    const world = bareWorld();
+    // No stone anywhere, so the stone line stays open throughout.
+    addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.research, tech: TechId.ironworking}),
+    );
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    run(world, MATCHER_INTERVAL * 3);
+    const since = abbey.demandSince[GoodId.stone]!;
+    expect(since).toBeDefined();
+
+    applyCommand(world, 0, {
+      kind: CommandKind.cancelResearch,
+      tech: TechId.ironworking,
+    });
+    applyCommand(world, 0, {
+      kind: CommandKind.research,
+      tech: TechId.ironworking,
+    });
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    const gap = world.tick;
+    run(world, MATCHER_INTERVAL);
+    expect(abbey.demandSince[GoodId.stone]).toBeGreaterThanOrEqual(gap);
+    expect(abbey.demandSince[GoodId.stone]).toBeGreaterThan(since);
   });
 
   it('the debug lever finishes a study without stranding its loads', () => {
@@ -620,81 +659,6 @@ describe('research', () => {
     expect(onAbbeyShelf).toBe(0);
     run(world, 20 * 20);
     expect(world.players[0]!.techs.researched).toContain(TechId.cobbledBoots);
-    expect(checkInvariants(world).violations).toEqual([]);
-  });
-
-  it("a settled bill's last load is not still inbound at the door", () => {
-    // Copilot review, PR #273, round four. The last barrel of a study's
-    // bill settles that bill from inside deliver(), and its reservation
-    // used to be released a line later — so at the one moment stillWants
-    // is asked, the load standing at the threshold was still counted as on
-    // its way, filled the Abbey's own ale cap, and took the festival
-    // demand's FIFO age with it when the bill's clocks were dropped.
-    //
-    // The window is narrow and every wall of this fixture is holding it
-    // open: the settling load must be the ALE one (silver is the longer
-    // half of the bill and normally lands last), the buff must already be
-    // running so it does not drink the barrel that makes the cap tight,
-    // and the village must have no ale to spare so the buff's own standing
-    // demand cannot book a load and move the arithmetic itself.
-    const world = bareWorld();
-    const cost = TECH_DEFS[TechId.aleRations].cost;
-    const sh = addStorehouse(world, 30, 30, {
-      [GoodId.silver]: cost[GoodId.silver] ?? 0,
-    });
-    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
-    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
-    const techs = world.players[0]!.techs;
-    techs.researched.push(TechId.irrigation, TechId.brewing, TechId.festivals);
-    // A festival long enough to outlast the test: researchSystem decrements
-    // it and returns before the branch that burns a barrel, so the one ale
-    // this test puts on the Abbey's shelf stays there.
-    techs.festivalTicksLeft = 20 * 600;
-    tickWorld(
-      world,
-      cmds({kind: CommandKind.research, tech: TechId.aleRations}),
-    );
-
-    // The silver half first, with no ale in the world to carry.
-    let guard = 20 * 120;
-    while ((abbey.researchNeeds?.[GoodId.silver] ?? 0) > 0 && guard-- > 0)
-      tickWorld(world, []);
-    expect(abbey.researchNeeds?.[GoodId.silver]).toBe(0);
-
-    // Now exactly the ale the bill still wants, so the buff's own demand
-    // finds nothing to book and every barrel is the study's.
-    const aleOwed = abbey.researchNeeds![GoodId.ale]!;
-    sh.stock[GoodId.ale] = aleOwed;
-    world.ledger.produced[GoodId.ale] =
-      (world.ledger.produced[GoodId.ale] ?? 0) + aleOwed;
-
-    // Walk it in until one barrel is left and it is at the door.
-    guard = 20 * 120;
-    while (
-      !(
-        (abbey.researchNeeds?.[GoodId.ale] ?? 0) === 1 &&
-        (abbey.inbound[GoodId.ale] ?? 0) === 1
-      ) &&
-      guard-- > 0
-    )
-      tickWorld(world, []);
-    expect(abbey.researchNeeds?.[GoodId.ale]).toBe(1);
-
-    // One barrel on the shelf, so the buff wants exactly one more: the cap
-    // reads full if the load at the door is counted as inbound, and does
-    // not if it is counted as arrived.
-    abbey.inputs[GoodId.ale] = ABBEY_ALE_CAP - 1;
-    world.ledger.produced[GoodId.ale] =
-      (world.ledger.produced[GoodId.ale] ?? 0) + (ABBEY_ALE_CAP - 1);
-    const since = abbey.demandSince[GoodId.ale];
-    expect(since).toBeDefined();
-
-    // The tick the books open on.
-    guard = 20 * 120;
-    while (!techs.active?.started && guard-- > 0) tickWorld(world, []);
-    expect(techs.active?.started).toBe(true);
-    // The buff still wants its second barrel, and still asked for it first.
-    expect(abbey.demandSince[GoodId.ale]).toBe(since);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
@@ -739,6 +703,9 @@ describe('research', () => {
     guard = 20 * 120;
     while (abbey.repairNeeds && guard-- > 0) tickWorld(world, []);
     expect(abbey.repairNeeds).toBeUndefined();
+    // A pass after the repair is gone, so the reading below is the
+    // matcher's verdict and not merely the moment before it.
+    run(world, MATCHER_INTERVAL);
 
     // The scholars are still short their stone, and still asked for it
     // when they asked for it.
@@ -822,6 +789,11 @@ describe('research', () => {
       world,
       cmds({kind: CommandKind.cancelResearch, tech: TechId.aleRations}),
     );
+    expect(abbey.demandSince[GoodId.ale]).toBe(since);
+    // And the pass after: the lever keeps the festival's mark as it stood
+    // (PAUSABLE in systems/logistics.ts), so the study's going leaves the
+    // festival holding the clock rather than nobody.
+    run(world, MATCHER_INTERVAL);
     expect(abbey.demandSince[GoodId.ale]).toBe(since);
   });
 

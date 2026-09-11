@@ -256,4 +256,38 @@ describe('hashWorld', () => {
     b.hp = Math.trunc(b.hp) + (b.hp % 1 < 0.5 ? 0.75 : 0.25);
     expect(hashWorld(w)).not.toBe(base);
   });
+
+  it("sees a building's FIFO clocks, and who is keeping them", () => {
+    // Neither moves a good or a unit: the stamp decides which demand a serf
+    // answers first, and the marks decide whether the next matcher pass
+    // keeps it or starts it over. A save that dropped either would play on
+    // as the same world until two hauls went out in a different order.
+    const world = createWorld({seed: 21, players: [{kind: PlayerKind.ai}]});
+    run(world, 400);
+    const b = [...world.buildings.values()][0]!;
+    b.demandSince[GoodId.wood] = 100;
+    b.demandHeld = {...b.demandHeld, [GoodId.wood]: 1};
+    const base = hashWorld(world);
+    expect(hashWorld(cloneWorld(world))).toBe(base);
+    const mutations: ((x: typeof b) => void)[] = [
+      x => {
+        x.demandSince[GoodId.wood] = 101;
+      },
+      // A stamp at tick 0 is not the same as no clock at all.
+      x => {
+        x.demandSince[GoodId.wood] = 0;
+      },
+      x => {
+        delete x.demandSince[GoodId.wood];
+      },
+      x => {
+        x.demandHeld![GoodId.wood] = 2;
+      },
+    ];
+    for (const mutate of mutations) {
+      const w = cloneWorld(world);
+      mutate(w.buildings.get(b.id)!);
+      expect(hashWorld(w)).not.toBe(base);
+    }
+  });
 });

@@ -132,6 +132,14 @@ export function hashWorld(world: World): number {
       // in place as loads land, and two worlds that disagree about it will
       // open the books on different ticks.
       mix(b.researchNeeds?.[good] ?? 0);
+      // The FIFO clock and who is keeping it: the stamp decides which of two
+      // demands at the same tier a serf answers first, and the marks decide
+      // whether the next matcher pass keeps that stamp or starts it over
+      // (settleAges in systems/logistics.ts). Two worlds that disagree on
+      // either hand out their hauls in a different order. A tick is wider
+      // than a byte, and -1 keeps "no clock" apart from one stamped at 0.
+      mixU32((b.demandSince[good] ?? -1) >>> 0);
+      mixU32(b.demandHeld?.[good] ?? 0);
     }
     // The miners' bread: loads still covered by what the post has already
     // eaten. It steers whether the shaft runs for the next few trips, so a

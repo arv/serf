@@ -6,8 +6,9 @@ import {goodKeys} from '../defs/goods.ts';
 import * as TechEffectKind from '../defs/techEffectKindEnum.ts';
 import * as TechId from '../defs/techIdEnum.ts';
 import {TECH_DEFS} from '../defs/techs.ts';
+import * as DemandKind from '../demandKindEnum.ts';
 import type {Building, EntityId, Owner} from '../entities.ts';
-import {stillWants, type World} from '../world.ts';
+import {releaseDemandHold, type World} from '../world.ts';
 import {abortJob} from './logistics.ts';
 
 /**
@@ -102,12 +103,6 @@ export function researchSystem(world: World): void {
  * deliverGood has no study branch left to take and the load lands on the
  * Abbey's shelf, which is not a shelf anything ever leaves from.
  *
- * Called BEFORE the clocks are read, always: aborting releases each job's
- * reservation on the Abbey, and `inbound` is one of the things stillWants
- * counts. Left until after, the loads this order has just cancelled would
- * still be standing in the Abbey's ale cap, and a festival demand nobody
- * else was keeping would lose its age to them.
- *
  * By id, not by building, because the roof may be gone: a destroyed one is
  * swept from the map at the end of its tick (tick.ts) while `techs.active`
  * still names it until researchSystem runs, and a cancel arriving in that
@@ -155,13 +150,11 @@ export function abandonResearch(world: World, playerId: Owner): void {
   if (abbey) {
     const bill = abbey.researchNeeds ? goodKeys(abbey.researchNeeds) : [];
     delete abbey.researchNeeds;
-    // Then the clocks, and only the ones nobody else is keeping: an Abbey
-    // can owe a repair in the same stone and sip the festival's ale from
-    // the same barrel. stillWants (world.ts) is the one place that knows,
-    // and the matcher's own clearDemandAge asks it too.
-    for (const g of bill) {
-      if (!stillWants(world, abbey, g)) delete abbey.demandSince[g];
-    }
+    // And its mark on the clocks — not the clocks: an Abbey can owe a
+    // repair in the same stone and sip the festival's ale from the same
+    // barrel, and the matcher's next pass is what knows which of them
+    // lapse (releaseDemandHold, world.ts).
+    releaseDemandHold(abbey, bill, DemandKind.research);
   }
   techs.active = undefined;
 }

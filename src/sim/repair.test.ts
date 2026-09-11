@@ -5,6 +5,8 @@ import {MATCHER_INTERVAL, REPAIR_MEND_TICKS} from './defs/balance.ts';
 import {buildingDef, repairBill} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
+import {goodEntries} from './defs/goods.ts';
+import * as TechId from './defs/techIdEnum.ts';
 import {
   addBuiltHut,
   addResourceTile,
@@ -527,6 +529,68 @@ describe('a repair ordered on the storehouse', () => {
     runRepair(world, sh.id, 600);
     expect(sh.repairNeeds).toBeUndefined();
     expect(sh.hp).toBe(max);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+});
+
+describe('a repair at a Smith', () => {
+  it("settles without taking the forge's clock with it", () => {
+    // A Smith mends with the wood it forges from, so its repair and its
+    // forge's standing call for wood keep one FIFO clock between them.
+    // Whoever settles first must leave the other's age alone — and a
+    // repair settling used to decide that by asking a predicate that knew
+    // bills and ale and nothing else (PR #273's stillWants), so it dropped
+    // the clock the forge was standing on and sent its wood to the back of
+    // tier 2, behind everything asked for since. The matcher settles the
+    // clocks now, from every demand the building has.
+    const world = bareWorld();
+    world.players[0]!.techs.researched.push(TechId.ironworking);
+    const sh = addStorehouse(world, 30, 30, {});
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      34,
+      30,
+    );
+    staffBuilding(world, smith);
+    smith.hp = buildingDef(BuildingTypeId.weaponsmith).hp * 0.5;
+    // Spears: iron and wood. The order and the repair land together.
+    tickWorld(
+      world,
+      cmds(
+        {kind: CommandKind.setBuildingRecipe, buildingId: smith.id, index: 0},
+        {
+          kind: CommandKind.setBuildingRepair,
+          buildingId: smith.id,
+          repair: true,
+        },
+      ),
+    );
+    expect(smith.repairNeeds?.[GoodId.wood]).toBeGreaterThan(0);
+
+    // Exactly the masons' bill and not a plank more: the repair outranks
+    // the forge (tier 1 against 2) and takes all of it, so the repair can
+    // finish and the forge is left wanting its wood for the whole test.
+    for (const [good, n] of goodEntries(smith.repairNeeds!)) {
+      sh.stock[good] = (sh.stock[good] ?? 0) + n;
+      world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
+    }
+    run(world, MATCHER_INTERVAL);
+    const since = smith.demandSince[GoodId.wood];
+    expect(since).toBeDefined();
+
+    let guard = 2000;
+    while (smith.repairNeeds && guard-- > 0) tickWorld(world, []);
+    expect(smith.repairNeeds).toBeUndefined();
+    run(world, MATCHER_INTERVAL);
+
+    // The forge is still short, and still asked when it asked.
+    expect(
+      (smith.inputs[GoodId.wood] ?? 0) + (smith.inbound[GoodId.wood] ?? 0),
+    ).toBe(0);
+    expect(smith.demandSince[GoodId.wood]).toBe(since);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 });
