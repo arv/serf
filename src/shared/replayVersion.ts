@@ -22,14 +22,35 @@
 /**
  * 64: a study can be called off.
  *
- * A nineteenth command kind, `cancelResearch` (sim/commandKindEnum.ts),
- * and pure format the way the herald (34) and the focus order (39) were:
- * the tick that executes every older order is untouched, and no log
- * written before this build can hold one. It is named here for those two's
- * reason — a log recorded on THIS build can carry an order an older
+ * A nineteenth command kind, `cancelResearch` (sim/commandKindEnum.ts) —
+ * format, the way the herald (34) and the focus order (39) were: no log
+ * written before this build can hold one, and it is named here for those
+ * two's reason — a log recorded on THIS build can carry an order an older
  * sanitizeCommand throws away, and a seat whose abandoned study was never
  * abandoned goes on studying it, never takes up the one it took up next,
  * and unlocks everything downstream on different ticks or not at all.
+ *
+ * And behavior, which those two were not. The order needed three things
+ * around it that every match feels, cancelled study or no:
+ *
+ * - A good's FIFO clock is now dropped only by whoever was last to want
+ *   it. The age of an unmet demand lives per (building, good) while the
+ *   demands do not, and an Abbey can owe a repair, a study and the
+ *   festival's ale in one key — so a repair settling, a study settling, a
+ *   study called off and the matcher's own pass all ask one predicate
+ *   (`stillWants`, sim/world.ts) before forgetting anything. Ages decide
+ *   which of two demands at the same tier a serf answers first, so this
+ *   moves which hand takes which job.
+ * - A load gives up its reservation before it goes through the door
+ *   rather than after (`releaseDest` ahead of `deliver`, every delivery in
+ *   the game), because the threshold is where that question is now asked.
+ * - AdminAction.finishResearch calls the study's hauls back instead of
+ *   leaving them to the reconciler, and a load rehomed into a roof that
+ *   is both mending and studying is marked for the bill it is actually
+ *   walking into.
+ *
+ * A log recorded on 63 re-runs through a village that sorts some of its
+ * hauls differently, which is a different village within a minute.
  *
  * What it fixes is the trap the credit rule (62) opened. Ordering a study
  * spends nothing and gates on nothing, so a seat can order one its village

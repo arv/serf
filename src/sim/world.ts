@@ -1426,7 +1426,11 @@ export function clearRepairOrder(
 export function stillWants(world: World, b: Building, good: GoodId): boolean {
   if ((b.repairNeeds?.[good] ?? 0) > 0) return true;
   if ((b.researchNeeds?.[good] ?? 0) > 0) return true;
-  if (good !== GoodId.ale || b.paused) return false;
+  // Paused is deliberately NOT a reason to forget: halting a roof stops
+  // the matcher offering it anything (systems/logistics.ts skips the
+  // standing branch outright, without clearing the clock), and a demand
+  // that comes back when the lever does should come back where it stood.
+  if (good !== GoodId.ale) return false;
   const techs = world.players[b.owner]?.techs;
   if (!techs) return false;
   const cap =

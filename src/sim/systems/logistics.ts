@@ -621,11 +621,21 @@ function rehomeCarriedGoods(world: World): void {
       createdTick: world.tick,
       phase: HaulPhase.toDropoff,
       serfId: serf.id,
-      // Marked when it is a study's bill he is walking into, for the same
-      // reason the matcher marks its own: if the bill is torn up while he
-      // walks, reconcile has to stand him down holding the good rather
-      // than let him set it down in an Abbey that ships nothing home.
-      ...((to.researchNeeds?.[good] ?? 0) > 0 ? {research: true as const} : {}),
+      // Marked by the bill he is actually walking into, for the same
+      // reason the matcher marks its own: if that bill is torn up while
+      // he walks, reconcile has to stand him down holding the good rather
+      // than let him set it down where nothing ships home.
+      //
+      // Which bill is deliveryTargetFor's own order of preference, asked
+      // again here (nothing has moved in between, and `inbound` is only
+      // incremented below): a roof mending and studying in the same good
+      // took the load for its MASONS, and marking it as the study's meant
+      // calling the study off called this repair load back too.
+      ...((to.repairNeeds?.[good] ?? 0) > (to.inbound[good] ?? 0)
+        ? {repair: true as const}
+        : (to.researchNeeds?.[good] ?? 0) > (to.inbound[good] ?? 0)
+          ? {research: true as const}
+          : {}),
     };
     world.jobs.set(job.id, job);
     to.inbound[good] = (to.inbound[good] ?? 0) + 1;

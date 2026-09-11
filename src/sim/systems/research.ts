@@ -6,7 +6,7 @@ import {goodKeys} from '../defs/goods.ts';
 import * as TechEffectKind from '../defs/techEffectKindEnum.ts';
 import * as TechId from '../defs/techIdEnum.ts';
 import {TECH_DEFS} from '../defs/techs.ts';
-import type {Building, Owner} from '../entities.ts';
+import type {Building, EntityId, Owner} from '../entities.ts';
 import {stillWants, type World} from '../world.ts';
 import {abortJob} from './logistics.ts';
 
@@ -132,10 +132,17 @@ export function researchSystem(world: World): void {
  * counts. Left until after, the loads this order has just cancelled would
  * still be standing in the Abbey's ale cap, and a festival demand nobody
  * else was keeping would lose its age to them.
+ *
+ * By id, not by building, because the roof may be gone: a destroyed one is
+ * swept from the map at the end of its tick (tick.ts) while `techs.active`
+ * still names it until researchSystem runs, and a cancel arriving in that
+ * window would otherwise leave its hauls for the reconciler — which stands
+ * a carrier down for a vanished destination WITHOUT keeping his cargo, so
+ * the load is destroyed rather than carried home.
  */
-export function dropStudyHauls(world: World, abbey: Building): void {
+export function dropStudyHauls(world: World, abbeyId: EntityId): void {
   for (const job of world.jobs.values()) {
-    if (job.research && job.to === abbey.id)
+    if (job.research && job.to === abbeyId)
       abortJob(world, job, 'study called off', true);
   }
 }
@@ -165,11 +172,14 @@ export function dropStudyHauls(world: World, abbey: Building): void {
 export function abandonResearch(world: World, playerId: Owner): void {
   const techs = world.players[playerId]?.techs;
   if (!techs?.active) return;
-  const abbey = world.buildings.get(techs.active.abbey);
+  const abbeyId = techs.active.abbey;
+  const abbey = world.buildings.get(abbeyId);
+  // The hauls go first and go whatever became of the roof; the bill and
+  // its clocks are only there to read if the building still is.
+  dropStudyHauls(world, abbeyId);
   if (abbey) {
     const bill = abbey.researchNeeds ? goodKeys(abbey.researchNeeds) : [];
     delete abbey.researchNeeds;
-    dropStudyHauls(world, abbey);
     // Then the clocks, and only the ones nobody else is keeping: an Abbey
     // can owe a repair in the same stone and sip the festival's ale from
     // the same barrel. stillWants (world.ts) is the one place that knows,

@@ -649,7 +649,7 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
         // bill behind it lands on the Abbey's shelf (dropStudyHauls says
         // the rest). Nothing is owed for them — nothing was debited when
         // the bill was written — so they go back in the serf's hands.
-        dropStudyHauls(world, abbey);
+        dropStudyHauls(world, abbey.id);
         settleResearchBill(world, abbey);
       }
       active.started = true;

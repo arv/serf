@@ -673,12 +673,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // load gives up its reservation before it goes through the door rather
 // than after (systems/logistics.ts), since the threshold is where that
 // question is now asked, and a settled repair asks the same predicate
-// before dropping a clock a study is still keeping. 64 is this build's own
-// bump and
+// before dropping a clock a study is still keeping — and a halted roof
+// keeps its age, a study called off sweeps its hauls by id so a fallen
+// Abbey's loads still come home in the carrier's hands, and a rehomed load
+// is marked for the bill it is actually walking into. 64 is this build's
+// own bump and
 // has never shipped, so there is nothing older to break; the tick really
 // does move, which is why the hash is re-pinned rather than argued away.
 const EXPECTED_VERSION = 64;
-const EXPECTED_HASH = '8516b03ad5a8251a5ebfd81c2a6be082';
+const EXPECTED_HASH = 'f45d8d41c743a70b4d9da380e933ba3a';
 
 /**
  * Everything a replay's playback depends on, as raw source:
