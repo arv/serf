@@ -2323,3 +2323,99 @@ describe('holding ground', () => {
     expect(h.commands).toEqual([]);
   });
 });
+
+describe('stopping', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+    setReplayMode(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('S sends the order on the spot', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.archer);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.type('S');
+
+    // Nothing to aim: the press is the order.
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.stopUnits,
+      unitIds: [1, 2],
+    });
+    expect(orderMode()).toBeNull();
+  });
+
+  it('names the civilians too, where the hold names only fighters', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.serf);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.knight);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.type('S');
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.stopUnits,
+      unitIds: [1, 2],
+    });
+  });
+
+  it('does nothing with nobody in hand', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+
+    h.type('S');
+
+    expect(h.commands).toEqual([]);
+  });
+
+  it('disarms an order that was waiting for its click', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    h.type('A');
+    expect(orderMode()).toBe(OrderMode.attack);
+
+    h.type('S');
+
+    expect(orderMode()).toBeNull();
+    expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.stopUnits});
+  });
+
+  it('gives no orders in a replay', () => {
+    const h = harness();
+    controls = h.controls;
+    setReplayMode(true);
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    expect([...selection()]).toEqual([1]);
+
+    h.type('S');
+
+    expect(h.commands).toEqual([]);
+  });
+});

@@ -45,6 +45,7 @@ import {
   HIRE_KEY,
   RALLY_KEY,
   RESEARCH_KEY,
+  STOP_KEY,
   canHire,
   canTrain,
   trainKey,
@@ -181,6 +182,9 @@ export function SelectionPanel(props: {
   onArmOrder: (mode: OrderMode | null) => void;
   /** Hold ground — sent on the spot, unlike the two orders above. */
   onHold: () => void;
+  /** Stop — sent on the spot too, and for everyone in hand, not just the
+   * fighters: a serf walks under orders like anyone else. */
+  onStop: () => void;
   onClearRally: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
@@ -1774,6 +1778,24 @@ export function SelectionPanel(props: {
                   </button>
                 </TipWrap>
               </Show>
+              {/* Stop. Like Hold in shape — no spot to click, so the
+                  press IS the order — and unlike it in reach: everyone in
+                  hand takes a stop, serfs included, so this one is not
+                  behind the fighters' gate. Never lit: a stop is a moment,
+                  not a stance, and the man it leaves standing is an idle
+                  man like any other. */}
+              <TipWrap
+                tip={() => (
+                  <TextTip
+                    title="Stop"
+                    body="They drop the order they are walking — march, attack-move or assault — and stand where they are. Soldiers still answer an enemy that comes to them; Hold is the order that never gives ground."
+                  />
+                )}
+              >
+                <button onClick={() => props.onStop()}>
+                  <Key label="Stop" k={STOP_KEY} />
+                </button>
+              </TipWrap>
               {/* Hold ground. Not a mode like its two neighbours — there
                   is no spot to click, so the press IS the order — and
                   lit not because it is armed but because the sim says the

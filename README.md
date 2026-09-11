@@ -220,6 +220,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Click a face on the selection card | Take that one on his own (shift = leave him behind) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target, on the map or on the minimap |
 | **P** (units selected) | Arm a patrol — the next click is the far end of a beat the soldiers walk back and forth, fighting what they meet on the way, until another order comes. **Shift** on that click adds the spot to the beat instead; behind a plain route it patrols from where the route ends |
+| **S** (units selected) | Stop — everyone in hand drops the order they are walking (march, attack-move or assault) and stands where they are; serfs too. Sent on the spot. A stopped soldier still answers an enemy that comes to him — **H** is the order that gives no ground |
 | **H** (units selected) | Hold ground — the soldiers stop where they stand and fight only what comes within reach; no chasing, no giving ground. Sent on the spot, no click to wait for; any other order releases them |
 | Minimap: drag | Steer the camera; right click it, or click it with **A**/**M**/**P** armed, to send the selection there |
 | **F** (replay only) | Lift the fog and watch the whole valley — a cheat in a live match, spectating in a finished one |

@@ -27,6 +27,7 @@ import {
   PATROL_KEY,
   RALLY_KEY,
   RESEARCH_KEY,
+  STOP_KEY,
   canHire,
   canRally,
   canTrain,
@@ -629,6 +630,11 @@ export class Controls {
       if (replayMode()) return;
       setBuildChord(true);
       play('uiClick');
+    } else if (letter === STOP_KEY) {
+      // Sent on the spot, like the hold beside it: nothing to aim, so
+      // there is nothing to wait for. Nothing selected — or a replay —
+      // means nothing at all, for the reason the hold gives.
+      this.stopUnits();
     } else if (letter === HOLD_KEY) {
       // Sent, not armed: the order has no target to wait for. Nothing to
       // hold with — no soldier in hand, or a replay — is nothing at all,
@@ -2377,8 +2383,10 @@ export class Controls {
   /** A ring blooming at the tap/click plus a tick of haptics: order taken.
    * Attack-moves pulse a solid red ring, plain moves a dashed gold one, the
    * half order a dotted red and a patrol a double red — four border styles,
-   * so the shape carries the difference where color vision cannot. (The
-   * rally flag pulses too, through #pulse directly: solid gold.) */
+   * so the shape carries the difference where color vision cannot. (Three
+   * more go through #pulse directly, all gold, since none of them sends
+   * anybody anywhere: the rally flag and the hold solid, the stop
+   * doubled.) */
   #orderPulse(px: number, py: number, attack: MoveOrder): void {
     this.#pulse(
       px,
@@ -2509,6 +2517,56 @@ export class Controls {
     // Solid gold, the rally flag's ring: a thing planted rather than a
     // place walked to.
     if (n > 0) this.#pulse(px / n, py / n, 'solid #e5c469');
+    else play('uiOrder');
+    return true;
+  }
+
+  /**
+   * Stop: everyone in hand drops the order he is walking and stands
+   * where he is (sim: the walk, the attack-move and the assault all end,
+   * and the route queued behind them with them). The S key and the card's
+   * Stop button both land here.
+   *
+   * An order rather than a mode, exactly as the hold beside it is: there
+   * is no tile to pick, so the press is the order, and sending it disarms
+   * an A, M or P still waiting for its click — the squad they were armed
+   * for has just been told to stand still.
+   *
+   * The whole selection goes out, soldiers and serfs alike, where the
+   * hold sends only its fighters. Two reasons, and they are the same
+   * reason twice: a stop IS an order a civilian can take (he walks under
+   * orders like anyone else), and this layer cannot tell who is walking
+   * anyway — the published byte says what a man is visibly doing, not
+   * which order put him there. So the sim decides who had something to
+   * drop, and the ring here confirms that the order went out rather than
+   * that every man in it had a march to lose.
+   *
+   * The ring blooms over the selection's screen centroid, the hold's
+   * answer to having no click to bloom at. Returns whether the order went
+   * out.
+   */
+  stopUnits(): boolean {
+    if (replayMode()) return false;
+    const ids = [...this.#selection];
+    if (ids.length === 0) return false;
+    this.#host.sendCommands([{kind: CommandKind.stopUnits, unitIds: ids}]);
+    this.armOrder(null);
+    this.#lastMoveTap = null;
+    const at = this.#scratchScreen;
+    let px = 0;
+    let py = 0;
+    let n = 0;
+    const now = performance.now();
+    for (const id of ids) {
+      if (!this.#unitScreenPosInto(id, now, at)) continue;
+      px += at.x;
+      py += at.y;
+      n++;
+    }
+    // Gold like the hold's ring — neither order sends anyone anywhere —
+    // and doubled where the hold's is solid, so the two keys that land on
+    // the same patch of ground do not bloom the same ring.
+    if (n > 0) this.#pulse(px / n, py / n, 'double #e5c469');
     else play('uiOrder');
     return true;
   }

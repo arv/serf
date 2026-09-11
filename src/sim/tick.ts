@@ -209,6 +209,41 @@ export function applyCommand(
         unit.targetIsBuilding = undefined;
       }
       break;
+    case CommandKind.stopUnits:
+      // Halt: drop the order in hand and stand here. Only an order the
+      // player gave is dropped — a walk, an attack-move, or an assault on
+      // a building — so a serf's errand survives a stop the way it
+      // survives a hold (see the command's note in commands.ts), and a
+      // soldier already holding ground is left holding it: a stop that
+      // lifted a hold would make S the one key that quietly undoes H.
+      //
+      // What goes is everything that was carrying him somewhere: the
+      // path under his feet, the pace his squad marched at, the route
+      // queued behind the leg he was walking ("stop" is not "stop, then
+      // carry on"), and the target, since a man told to stop must not go
+      // on chasing. He lands in the idle stance rather than the hold —
+      // his own march ending would have left him exactly there, and
+      // combat re-acquires from idle on the next tick, which is what
+      // makes a stop an interruption rather than a stance.
+      for (const id of cmd.unitIds) {
+        const unit = world.units.get(id);
+        if (!unit || unit.dead || unit.owner !== playerId) continue;
+        if (
+          unit.task.t !== UnitTaskKind.move &&
+          unit.task.t !== UnitTaskKind.attackMove &&
+          unit.task.t !== UnitTaskKind.raid
+        ) {
+          continue;
+        }
+        unit.task = {t: UnitTaskKind.idle, until: world.tick};
+        unit.path = null;
+        unit.pathIdx = 0;
+        clearMarchSpeed(unit);
+        clearOrders(unit);
+        unit.targetId = undefined;
+        unit.targetIsBuilding = undefined;
+      }
+      break;
     case CommandKind.focusTarget: {
       // The one order that names a target. Everything is re-checked here,
       // because a command arrives off a socket as readily as off a click:

@@ -691,8 +691,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // — the same gap between passes a finished bill already closed. 65 is this
 // build's own bump and has never shipped, so there is nothing older to
 // break.
-const EXPECTED_VERSION = 65;
-const EXPECTED_HASH = '44e5b1cea9d978a9ba413558a3803ee5';
+// 66 for the stop order: a twentieth command kind (sim/commandKindEnum.ts,
+// applied in sim/tick.ts), which an older build's sanitizeCommand throws
+// out of a log recorded here — the squad marches on there, and the battle
+// that follows is fought from different ground. In replayVersion.ts at
+// length.
+const EXPECTED_VERSION = 66;
+const EXPECTED_HASH = '78d48716e3692b158b47ca8147d8ad72';
 
 /**
  * Everything a replay's playback depends on, as raw source:

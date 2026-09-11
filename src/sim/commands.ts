@@ -90,6 +90,28 @@ export type SimCommand =
    * would only strand the good.
    */
   | {kind: CommandKindNs.holdGround; unitIds: EntityId[]}
+  /**
+   * Halt: the named units drop the order they are walking — a move, an
+   * attack-move, or an assault on a building — along with the route
+   * queued behind it, and stand where their feet are (units.ts,
+   * UnitTaskKind.idle). Stop as every RTS spells it, on S.
+   *
+   * Not the same thing as `holdGround`, which is the neighbouring key and
+   * the neighbouring button: a hold is a stance a soldier keeps until
+   * another order lifts it, and it promises he will never step off that
+   * tile. This drops the order and nothing more — a soldier who stops is
+   * an idle soldier, so he still answers an enemy that walks into his
+   * acquire radius, exactly as one standing where his march ended does.
+   * Stop is how a charge is called off; hold is how a line is drawn.
+   *
+   * Unlike the hold, this takes civilians too — a serf sent across the
+   * valley is under an order like anyone else, and "stop" means stop. An
+   * errand is not an order the player gave (hauling, a worker's gather
+   * loop, a walk to a post to take it up), so it is left alone: nothing
+   * here strands a good on a shoulder or empties a building of its
+   * worker.
+   */
+  | {kind: CommandKindNs.stopUnits; unitIds: EntityId[]}
   | {
       kind: CommandKindNs.placeBuilding;
       building: BuildingTypeId;
@@ -272,6 +294,15 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       if (!c.unitIds.every(isId)) return null;
       return {
         kind: CommandKindNs.holdGround,
+        unitIds: [...(c.unitIds as EntityId[])],
+      };
+    }
+    case CommandKindNs.stopUnits: {
+      if (!Array.isArray(c.unitIds)) return null;
+      if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
+      if (!c.unitIds.every(isId)) return null;
+      return {
+        kind: CommandKindNs.stopUnits,
         unitIds: [...(c.unitIds as EntityId[])],
       };
     }

@@ -142,6 +142,24 @@ export function canRally(b: BuildingSnap): boolean {
 export const HOLD_KEY = 'H';
 
 /**
+ * Stop, for the selection that is in hand: everyone under an order drops
+ * it and stands where he is — the march, the attack-move, the assault and
+ * the route queued behind any of them. S, the key StarCraft and Warcraft
+ * both put Stop on, and free here: the other two S's are the barracks'
+ * Spearman and the build chord's Smith, and neither is ever being read at
+ * the same time as this one — a building selection is never a unit
+ * selection, and the chord swallows the letter after B whole.
+ *
+ * Not a mode, for the hold's reason: there is no spot to click, so the
+ * press is the order. It sits beside Hold because the two read alike and
+ * are not alike — a stop ends the order and leaves an idle man, who
+ * answers an enemy that wanders into reach; a hold is a stance that
+ * promises he never leaves that tile. Stop calls a charge off; hold draws
+ * a line.
+ */
+export const STOP_KEY = 'S';
+
+/**
  * Arm the patrol: the next click is the far end of a beat the squad walks
  * back and forth, fighting what it meets on the way, until another order
  * comes. A mode like A and M — a spot to wait for — and Shift on that
