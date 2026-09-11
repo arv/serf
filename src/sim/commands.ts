@@ -125,6 +125,10 @@ export type SimCommand =
       recipeIndex: number;
     }
   | {kind: CommandKindNs.research; tech: TechId}
+  // Call off the study in hand. Names the tech for cancelTraining's
+  // stale-click reason: an order that crosses the tick a study finishes
+  // on must miss rather than strike whatever the seat took up next.
+  | {kind: CommandKindNs.cancelResearch; tech: TechId}
   | {kind: CommandKindNs.trainUnit; buildingId: EntityId; unit: UnitTypeId}
   | {
       kind: CommandKindNs.cancelTraining;
@@ -369,6 +373,9 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case CommandKindNs.research:
       if (!isDefined(TECH_DEFS, c.tech)) return null;
       return {kind: CommandKindNs.research, tech: c.tech as TechId};
+    case CommandKindNs.cancelResearch:
+      if (!isDefined(TECH_DEFS, c.tech)) return null;
+      return {kind: CommandKindNs.cancelResearch, tech: c.tech as TechId};
     case CommandKindNs.trainUnit:
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
       return {
