@@ -65,7 +65,7 @@ export function EconomyPanel() {
           position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
           display: flex; flex-direction: column; gap: 10px;
           padding: 14px 18px; pointer-events: auto;
-          max-width: 90vw;
+          max-width: calc(0.9 * var(--screen-w));
           z-index: 20; /* modal layer — same shelf as the tech sheet */
         }
         .econ-head {

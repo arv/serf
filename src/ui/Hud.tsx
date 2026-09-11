@@ -190,6 +190,7 @@ export function Hud(props: {
   onHire: () => void;
   onCancelHire: (index: number) => void;
   onResearch: (tech: TechId) => void;
+  onCancelResearch: (tech: TechId) => void;
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onSave: () => void;
@@ -685,6 +686,43 @@ export function Hud(props: {
            one gold accent #e5c469 for active states. */
         #ui { font-family: 'Space Grotesk', system-ui, sans-serif; }
 
+        /* ——— One size on every screen ———
+           Every number below is a pixel chosen against a 1440x900 laptop,
+           and on a 4K desktop that laptop fits into the glass two and a
+           half times over — so the whole HUD is drawn at 2.4x there and
+           takes the same share of the screen it always did. CSS zoom is
+           a layout scale, so the cards really are bigger: text wraps where
+           it wrapped, the sheets still scroll, clicks land where they
+           look. index.html sets the number and carries the argument.
+
+           Two things have to be handed back out of that multiplication.
+           Viewport units resolve against the real window and are then
+           scaled with everything else, so 70vw inside a 2.4x HUD covers
+           168% of the screen; --screen-w/h are those units divided back
+           down, and every rule below that means "a share of the screen"
+           says it in those. Same for the system's own insets, which are
+           real pixels of real hardware and must not grow. */
+        #ui {
+          zoom: var(--ui-scale);
+          --screen-w: calc(100vw / var(--ui-scale));
+          --screen-h: calc(100vh / var(--ui-scale));
+          --safe-top: calc(var(--safe-top-raw) / var(--ui-scale));
+          --safe-right: calc(var(--safe-right-raw) / var(--ui-scale));
+          --safe-bottom: calc(var(--safe-bottom-raw) / var(--ui-scale));
+          --safe-left: calc(var(--safe-left-raw) / var(--ui-scale));
+        }
+        /* The small viewport height, where the browser has it: on a phone,
+           vh is the window with the browser's own bars pretended away, and
+           a sheet sized by it hides its own footer under the address bar.
+           @supports rather than the usual pair of declarations, because
+           this is a custom property — its value is not parsed for units
+           when it is declared, so an unknown one would not fall back to
+           the line above; it would fail later, at every use site at once.
+           One place to say all that now, rather than at each of them. */
+        @supports (height: 1svh) {
+          #ui { --screen-h: calc(100svh / var(--ui-scale)); }
+        }
+
         /* ——— Standing still ———
            One rule decides this layout: the HUD may re-flow when the
            player acts on it, and never when the world merely ticks
@@ -1150,7 +1188,7 @@ export function Hud(props: {
         .hud-touch {
           position: fixed;
           right: calc(10px + var(--safe-right));
-          bottom: 38vh;
+          bottom: calc(0.38 * var(--screen-h));
           display: flex; flex-direction: column; gap: 8px;
           pointer-events: auto; z-index: 11;
         }
@@ -1235,7 +1273,7 @@ export function Hud(props: {
           min-height: var(--touch-btn);
         }
         .hud-debug {
-          width: 380px; max-height: 60vh;
+          width: 380px; max-height: calc(0.6 * var(--screen-h));
           overflow: auto; padding: 8px 10px;
           font-family: ui-monospace, monospace; font-size: 11px;
           text-align: left;
@@ -1244,7 +1282,7 @@ export function Hud(props: {
         .hud-debug td, .hud-debug th { padding: 1px 4px; text-align: left; }
         .hud-violations {
           padding: 6px 14px;
-          border-color: rgba(214, 106, 80, 0.5); color: #f0b9a8; max-width: 70vw;
+          border-color: rgba(214, 106, 80, 0.5); color: #f0b9a8; max-width: calc(0.7 * var(--screen-w));
         }
         .hud-festival { padding: 6px 12px; }
         .hud-toasts {
@@ -1259,7 +1297,7 @@ export function Hud(props: {
            speech rather than centred like an announcement. Capped in
            width so a long line wraps into a card instead of a banner. */
         #ui .toast.chat {
-          text-align: left; max-width: min(360px, 70vw);
+          text-align: left; max-width: min(360px, calc(0.7 * var(--screen-w)));
           overflow-wrap: anywhere;
           border-color: rgba(120, 170, 214, 0.45);
         }
@@ -1267,7 +1305,7 @@ export function Hud(props: {
         /* The line being typed. It sits at the foot of the toasts, where
            the reply reads under what it answers, and is wide enough for a
            sentence without a scroll. */
-        .hud-chat { padding: 5px 6px; width: min(360px, 70vw); }
+        .hud-chat { padding: 5px 6px; width: min(360px, calc(0.7 * var(--screen-w))); }
         #ui .hud-chat input {
           box-sizing: border-box; width: 100%;
           font-family: inherit; font-size: 13px; color: #eceade;
@@ -1308,7 +1346,7 @@ export function Hud(props: {
            card opts back in. */
         #ui dialog.confirm-card {
           pointer-events: auto;
-          padding: 26px 36px; text-align: center; max-width: min(380px, 86vw);
+          padding: 26px 36px; text-align: center; max-width: min(380px, calc(0.86 * var(--screen-w)));
         }
         .confirm-card::backdrop { background: rgba(8, 10, 8, 0.6); }
         .confirm-card h1 {
@@ -1460,13 +1498,13 @@ export function Hud(props: {
              strip (96px sideways, 126px upright); the strip is seven
              chips now — the rest moved to the EconomyPanel — so 58%
              clears the deeper case with more room than it was cut
-             for, and it stays as the safe bound. Small viewport units, not
-             dynamic ones: an open menu must not resize under the thumb
-             as the URL bar comes and goes. */
+             for, and it stays as the safe bound. --screen-h is the
+             small viewport height, not the dynamic one: an open menu
+             must not resize under the thumb as the URL bar comes and
+             goes. */
           .hud-menu {
             box-sizing: border-box;
-            max-height: min(58vh, 340px);
-            max-height: min(58svh, 340px);
+            max-height: min(calc(0.58 * var(--screen-h)), 340px);
             overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
           }
           /* .tech-panel's sheet layout lives in TechTreePanel's own <style>:
@@ -1529,10 +1567,10 @@ export function Hud(props: {
           }
           .hud-minimap-sheet .minimap-canvas {
             display: block;
-            /* Small viewport units, like every other sheet: the chart
-               must not resize under the finger as the URL bar goes. */
-            width: min(78vw, 58vh, 340px);
-            width: min(78vw, 58svh, 340px);
+            /* --screen-h, like every other sheet: it is the small
+               viewport height, so the chart does not resize under the
+               finger as the URL bar goes. */
+            width: min(calc(0.78 * var(--screen-w)), calc(0.58 * var(--screen-h)), 340px);
             height: auto; aspect-ratio: 1;
             border-radius: 9px; touch-action: none;
           }
@@ -1633,7 +1671,7 @@ export function Hud(props: {
              three on a tablet. The frame is a share of the screen
              rather than a count of cells, and it is still one number
              on every tab. */
-          .hud-build .hud-items { height: 26vh; }
+          .hud-build .hud-items { height: calc(0.26 * var(--screen-h)); }
         }
 
         /* ——— SHORT: held sideways ———
@@ -1657,22 +1695,13 @@ export function Hud(props: {
              the cards inside it are cut to fit, and it is deliberately
              a share of the window rather than a count of rows: whatever
              is in these cards, together they get this much of the
-             screen and the map keeps the rest.
-             Small viewport units, like the menu's cap and the room list
-             before it: vh is the window with the browser's own bars
-             hidden, so on a phone that still has its URL bar showing,
-             52vh is more than half of what the player can actually see
-             — the cards would take the extra out of the map, and the
-             thumb rail sitting on top of them would go with it.
-             @supports rather than the usual pair of declarations,
-             because this is a custom property: its value is not parsed
-             for units when it is declared, so an unknown one would not
-             fall back to the line above it — it would fail later, where
-             the property is used, and take the cap with it. */
-          #ui { --hud-bottom-h: min(52vh, 250px); }
-          @supports (height: 1svh) {
-            #ui { --hud-bottom-h: min(52svh, 250px); }
-          }
+             screen and the map keeps the rest. --screen-h rather than
+             52vh so that both corrections apply at once: the browser's
+             own bars are already discounted from it (a phone still
+             showing its URL bar has less screen than vh admits, and the
+             cards would take the difference out of the map), and so is
+             the interface scale. */
+          #ui { --hud-bottom-h: min(calc(0.52 * var(--screen-h)), 250px); }
           /* One row, and it does not wrap. A landscape phone is inside
              both blocks — 667x375 is narrow and short at once — so the
              line break the upright rules hand the cards has to be
@@ -1762,8 +1791,7 @@ export function Hud(props: {
                The ceiling is the goods strip: the one readout that has
                to stay legible while you spend what it counts. */
             top: auto;
-            max-height: calc(100vh - 76px - var(--hud-margin) - var(--safe-top) - var(--safe-bottom));
-            max-height: calc(100svh - 76px - var(--hud-margin) - var(--safe-top) - var(--safe-bottom));
+            max-height: calc(var(--screen-h) - 76px - var(--hud-margin) - var(--safe-top) - var(--safe-bottom));
             /* Opaque, unlike the cards: at 0.72 the map beneath showed
                through a full-screen panel and the prices became unreadable.
                The spread shadow is what dims the world behind it. */
@@ -2486,7 +2514,10 @@ export function Hud(props: {
         <EconomyPanel />
       </Show>
       <Show when={techPanelOpen()}>
-        <TechTreePanel onResearch={props.onResearch} />
+        <TechTreePanel
+          onResearch={props.onResearch}
+          onCancelResearch={props.onCancelResearch}
+        />
       </Show>
 
       {/* The minimap sheet — small screens only (the ☰-family panel state

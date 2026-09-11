@@ -91,19 +91,209 @@
          with no env() at all — without it an unknown name would take the
          whole declaration down and unpin the element completely. */
       :root {
-        --safe-top: env(safe-area-max-inset-top, env(safe-area-inset-top, 0px));
-        --safe-right: env(
+        --safe-top-raw: env(
+          safe-area-max-inset-top,
+          env(safe-area-inset-top, 0px)
+        );
+        --safe-right-raw: env(
           safe-area-max-inset-right,
           env(safe-area-inset-right, 0px)
         );
-        --safe-bottom: env(
+        --safe-bottom-raw: env(
           safe-area-max-inset-bottom,
           env(safe-area-inset-bottom, 0px)
         );
-        --safe-left: env(
+        --safe-left-raw: env(
           safe-area-max-inset-left,
           env(safe-area-inset-left, 0px)
         );
+        /* The insets as anything outside a scaled interface should read
+           them. #ui and #menu restate these four divided by --ui-scale,
+           because inside a `zoom`ed box a raw px inset is a px the browser
+           will multiply, and a notch is a fact about the hardware rather
+           than a design measurement — see the ladder below. */
+        --safe-top: var(--safe-top-raw);
+        --safe-right: var(--safe-right-raw);
+        --safe-bottom: var(--safe-bottom-raw);
+        --safe-left: var(--safe-left-raw);
+        --ui-scale: 1;
+      }
+
+      /* ——— How big the interface draws itself ———
+         Every length in the HUD and the menu is a CSS pixel chosen against
+         the window this was designed on, roughly 1440x900 — a 13px label, a
+         33px build row, a 172px build column. A CSS pixel is not a size,
+         though; it is a size on that window. Put those same numbers on a 4K
+         desktop at 100% system scaling (3840x2160 CSS pixels) and not one
+         of them has changed while the screen has grown two and a half times
+         underneath them: the build ribbon becomes a stamp in the corner,
+         the minimap a stamp beside it, and the player reads 13px type from
+         a metre away.
+
+         So the interface takes the same *share* of the glass on every
+         window. #ui and #menu each carry `zoom: var(--ui-scale)`, which is
+         a layout scale rather than a transform — the cards really are
+         bigger, so text still wraps where it wrapped, sheets still scroll,
+         and clicks still land where the eye says they should.
+
+         The ladder is the arithmetic CSS cannot do. The factor wanted is
+         min(width / 1440, height / 900), floored at 1 — and there is no way
+         to divide a length by a length and get a number out. A step at
+         1440*s by 900*s asks the same question in the one form a media
+         query can answer, and because the steps are listed in order the
+         last one that matches wins, which is that minimum rounded down.
+         Both directions are required, so an ultrawide gets the scale its
+         height can afford and a desktop window squashed flat gets none.
+
+         Below the first rung nothing happens, deliberately: a window
+         smaller than the design's is already handled, and handled better,
+         by the NARROW and SHORT breakpoints (src/ui/breakpoints.ts), which
+         re-lay the HUD for a phone rather than shrinking it into one. Every
+         window either of those can match sits below 1584x990 and so is
+         drawn at 1:1 — the phone layouts are pixel-for-pixel as written.
+
+         What is deliberately NOT scaled is the world. The 3D view is a
+         camera, not a card: more screen there means more valley, which is
+         what more screen is for. */
+      @media (min-width: 1584px) and (min-height: 990px) {
+        :root {
+          --ui-scale: 1.1;
+        }
+      }
+      @media (min-width: 1728px) and (min-height: 1080px) {
+        :root {
+          --ui-scale: 1.2;
+        }
+      }
+      @media (min-width: 1872px) and (min-height: 1170px) {
+        :root {
+          --ui-scale: 1.3;
+        }
+      }
+      @media (min-width: 2016px) and (min-height: 1260px) {
+        :root {
+          --ui-scale: 1.4;
+        }
+      }
+      @media (min-width: 2160px) and (min-height: 1350px) {
+        :root {
+          --ui-scale: 1.5;
+        }
+      }
+      @media (min-width: 2304px) and (min-height: 1440px) {
+        :root {
+          --ui-scale: 1.6;
+        }
+      }
+      @media (min-width: 2448px) and (min-height: 1530px) {
+        :root {
+          --ui-scale: 1.7;
+        }
+      }
+      @media (min-width: 2592px) and (min-height: 1620px) {
+        :root {
+          --ui-scale: 1.8;
+        }
+      }
+      @media (min-width: 2736px) and (min-height: 1710px) {
+        :root {
+          --ui-scale: 1.9;
+        }
+      }
+      @media (min-width: 2880px) and (min-height: 1800px) {
+        :root {
+          --ui-scale: 2;
+        }
+      }
+      @media (min-width: 3024px) and (min-height: 1890px) {
+        :root {
+          --ui-scale: 2.1;
+        }
+      }
+      @media (min-width: 3168px) and (min-height: 1980px) {
+        :root {
+          --ui-scale: 2.2;
+        }
+      }
+      @media (min-width: 3312px) and (min-height: 2070px) {
+        :root {
+          --ui-scale: 2.3;
+        }
+      }
+      @media (min-width: 3456px) and (min-height: 2160px) {
+        :root {
+          --ui-scale: 2.4;
+        }
+      }
+      /* Past 2.4 the rungs are 0.2 apart. What a rung costs is how far the
+         floor can round a window down — a step over the rung it lands on —
+         and 0.2 over 2.6 is 7.7%, less than the 9% that 0.1 over 1.1
+         already costs at the bottom of the ladder. Ten-hundredths all the
+         way up would be twice the rungs for no share anyone can see.
+
+         The ladder runs to 8K (7680x4320 at 100% system scaling, 4.8x)
+         and 5K lands exactly on 3.2. Past 8K there is no desktop to
+         measure against; a window bigger still is drawn at 4.8 and
+         the HUD takes a little less than its share. */
+      @media (min-width: 3744px) and (min-height: 2340px) {
+        :root {
+          --ui-scale: 2.6;
+        }
+      }
+      @media (min-width: 4032px) and (min-height: 2520px) {
+        :root {
+          --ui-scale: 2.8;
+        }
+      }
+      @media (min-width: 4320px) and (min-height: 2700px) {
+        :root {
+          --ui-scale: 3;
+        }
+      }
+      @media (min-width: 4608px) and (min-height: 2880px) {
+        :root {
+          --ui-scale: 3.2;
+        }
+      }
+      @media (min-width: 4896px) and (min-height: 3060px) {
+        :root {
+          --ui-scale: 3.4;
+        }
+      }
+      @media (min-width: 5184px) and (min-height: 3240px) {
+        :root {
+          --ui-scale: 3.6;
+        }
+      }
+      @media (min-width: 5472px) and (min-height: 3420px) {
+        :root {
+          --ui-scale: 3.8;
+        }
+      }
+      @media (min-width: 5760px) and (min-height: 3600px) {
+        :root {
+          --ui-scale: 4;
+        }
+      }
+      @media (min-width: 6048px) and (min-height: 3780px) {
+        :root {
+          --ui-scale: 4.2;
+        }
+      }
+      @media (min-width: 6336px) and (min-height: 3960px) {
+        :root {
+          --ui-scale: 4.4;
+        }
+      }
+      @media (min-width: 6624px) and (min-height: 4140px) {
+        :root {
+          --ui-scale: 4.6;
+        }
+      }
+      @media (min-width: 6912px) and (min-height: 4320px) {
+        :root {
+          --ui-scale: 4.8;
+        }
       }
 
       html,
@@ -220,8 +410,25 @@
         width: 100%;
         height: 100%;
         /* Pushed back far enough that the card reads as foreground, not so
-           far that a live-rendered valley arrives as grey. */
-        filter: blur(2.5px) saturate(1.06) brightness(0.72);
+           far that a live-rendered valley arrives as grey.
+
+           The radius is also a performance figure, and a small one is the
+           expensive kind. This layer is full-screen, and the fireflies
+           (menuChrome.tsx) drift over all of it — not inside it, they are
+           up in #menu, a whole subtree above. That does not spare it:
+           damage is settled in screen space, not by ancestry, and a fly
+           moving anywhere over this layer is damage landing on it, so the
+           filter runs again — sixty times a second, over the whole
+           viewport. A blur wide enough to be worth downsampling for is run
+           on a smaller copy and costs a fraction of one that is not:
+           measured on a 2560x1323 retina window, 2.5px held the GPU at 99%
+           and dropped a fifth of the frames, which starved the backdrop's
+           own loop down to single-figure fps, and 4px came in at 40% with
+           none dropped. The cliff sat between 2.5 and 3; the extra px is
+           margin, since where it sits is Skia's business and not a
+           promise. Do not trim this back below 3px without measuring the
+           menu with the fireflies running. */
+        filter: blur(4px) saturate(1.06) brightness(0.72);
         /* Blank until the first frame lands, which is after the menu has
            animated in — so it fades up instead of snapping on.
            backdropScene.ts adds .lit once there is something to show. */

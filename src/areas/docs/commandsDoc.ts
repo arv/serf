@@ -86,6 +86,11 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
       'Order a study at the Abbey. Nothing is spent up front and the stores are not a gate — like a building site, the cost is billed to the Abbey, serfs carry it there as the village can, and the study starts when the last load lands.',
     payload: 'tech',
   },
+  [CommandKind.cancelResearch]: {
+    summary:
+      'Call off the study in hand — the way out of a bill the village cannot carry (gold ordered with no mine to dig it). Names the tech, for cancelForge’s stale-click reason. Loads already carried to the Abbey are spent; loads still on the road are re-aimed, good in hand.',
+    payload: 'tech',
+  },
   [CommandKind.trainUnit]: {
     summary:
       'Queue a soldier at the barracks. Ingredients are spent when training starts, not when queued.',

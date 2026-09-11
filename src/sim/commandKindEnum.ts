@@ -40,3 +40,10 @@ export const focusTarget = 17 as const;
 export type focusTarget = typeof focusTarget;
 export const holdGround = 18 as const;
 export type holdGround = typeof holdGround;
+/**
+ * Call off the study in hand. Not merely the undo of `research`: a bill
+ * nobody in the village can ever carry (Gilded Arms ordered with no gold
+ * and no Deep Mining) used to hold the seat's one study slot forever.
+ */
+export const cancelResearch = 19 as const;
+export type cancelResearch = typeof cancelResearch;
