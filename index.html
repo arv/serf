@@ -347,8 +347,25 @@
         width: 100%;
         height: 100%;
         /* Pushed back far enough that the card reads as foreground, not so
-           far that a live-rendered valley arrives as grey. */
-        filter: blur(2.5px) saturate(1.06) brightness(0.72);
+           far that a live-rendered valley arrives as grey.
+
+           The radius is also a performance figure, and a small one is the
+           expensive kind. This layer is full-screen, and the fireflies
+           (menuChrome.tsx) drift over all of it — not inside it, they are
+           up in #menu, a whole subtree above. That does not spare it:
+           damage is settled in screen space, not by ancestry, and a fly
+           moving anywhere over this layer is damage landing on it, so the
+           filter runs again — sixty times a second, over the whole
+           viewport. A blur wide enough to be worth downsampling for is run
+           on a smaller copy and costs a fraction of one that is not:
+           measured on a 2560x1323 retina window, 2.5px held the GPU at 99%
+           and dropped a fifth of the frames, which starved the backdrop's
+           own loop down to single-figure fps, and 4px came in at 40% with
+           none dropped. The cliff sat between 2.5 and 3; the extra px is
+           margin, since where it sits is Skia's business and not a
+           promise. Do not trim this back below 3px without measuring the
+           menu with the fireflies running. */
+        filter: blur(4px) saturate(1.06) brightness(0.72);
         /* Blank until the first frame lands, which is after the menu has
            animated in — so it fades up instead of snapping on.
            backdropScene.ts adds .lit once there is something to show. */
