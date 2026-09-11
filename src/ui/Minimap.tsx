@@ -145,9 +145,15 @@ export function Minimap(props: {
   let ctx2d: CanvasRenderingContext2D | null = null;
 
   const repaint = (now: number): void => {
-    // Sized from what CSS says it is, on every paint: the sheet takes its
-    // width from the viewport and a rotation changes it under us.
-    const cssW = canvas.clientWidth;
+    // Sized from the box the screen actually shows, on every paint: the
+    // sheet takes its width from the viewport and a rotation changes it
+    // under us. The measured rect rather than clientWidth, because the HUD
+    // is drawn under a CSS zoom on high-resolution screens (--ui-scale, in
+    // index.html) — clientWidth answers in the HUD's own coordinates, and a
+    // backing store cut to those would be a 2.4x-magnified chart of half
+    // the tiles. getBoundingClientRect answers in screen pixels, which
+    // times the device ratio is exactly the grid the chart is painted on.
+    const cssW = canvas.getBoundingClientRect().width;
     if (cssW === 0) return;
     const dpr = window.devicePixelRatio || 1;
     const w = Math.max(1, Math.round(cssW * dpr));
