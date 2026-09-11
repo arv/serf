@@ -18,15 +18,19 @@ are talking to.
 | 20 Hz | tick and publish rate (`TICK_MS = 50`) |
 | 18 | steps per tick, in a fixed order |
 | 2 | owners of the World: `simWorker.ts`, `server/src/rooms.ts` |
-| 1 | worker protocol both owners speak |
+| 1 | worker protocol on the main thread, fed by either worker |
 
 ## The layers, and what may import what
 
-The source tree is a strict stack. Every directory imports only from
-directories drawn at or below it, and `src/sim` imports nothing but its own
-`defs/` and `src/shared`. That is what lets Node load the sim straight from
-source for the server and the labs, with no build step: those files spell
-out `.ts` on their imports and carry no browser types.
+The source tree is a stack with one hard boundary. `src/sim` imports nothing
+but its own `defs/` and `src/shared`, `src/shared` imports nothing, and no
+directory below the shell imports the shell. That is what lets Node load the
+sim straight from source for the server and the labs, with no build step:
+those files spell out `.ts` on their imports and carry no browser types.
+Above that boundary the picture is looser by design: `render` reaches into
+`input` for edge scroll, pointer capture and typing detection, `audio` leans
+on one `render` value, and `ui`, `input` and `app` cross-reference each
+other as the one main-thread shell.
 
 ```mermaid
 flowchart TB
@@ -73,7 +77,7 @@ Directory-level import edges, non-test files, from the code as it stands:
 | `ai` | sim, shared |
 | `protocol` | sim, shared |
 | `audio` | shared, render (1) |
-| `render` | sim, shared, protocol, audio, input (types) |
+| `render` | sim, shared, protocol, audio, input (`cameraRig.ts` uses edge scroll, pointer capture, typing detection) |
 | `input` | sim, ui, render, shared, app, protocol, audio |
 | `net` | sim, protocol, ui, shared |
 | `ui` | sim, shared, render, protocol, app, audio, input, editor, net |
@@ -86,14 +90,17 @@ Directory-level import edges, non-test files, from the code as it stands:
 | `tools/perf`, `tools/mapAuthor` | sim, shared |
 
 `render` never imports `ui` or `app`. `ui`, `input` and `app` are the one
-mutually referencing cluster, and most of those edges are `import type`.
+mutually referencing cluster; many of those edges are `import type`, not
+all.
 
 ## Two owners of the World, one socket on the main thread
 
-The main thread never holds a `World`. It holds a `SabReader` over a
-SharedArrayBuffer and a `SimHost` (`src/app/simHost.ts`) that speaks the
-worker protocol in `src/protocol/messages.ts`. Two workers implement the far
-end of that protocol. `simWorker.ts` owns a World, runs `tickWorld`, and
+The main thread never holds the match's `World`. It holds a `SabReader`
+over a SharedArrayBuffer and a `SimHost` (`src/app/simHost.ts`) that speaks
+the worker protocol in `src/protocol/messages.ts`. Two workers implement the
+far end of that protocol. (The Worlds the main thread does build, the menu
+backdrop's in `ui/backdropScene.ts` and the editor's play-test in
+`editor/playWorld.ts`, are its own and never the one being played.) `simWorker.ts` owns a World, runs `tickWorld`, and
 hosts the AI brains. `netWorker.ts` owns nothing but a WebSocket: it decodes
 the server's frames into the same SAB slots and the same structural channel.
 The renderer cannot tell them apart, which is why fog is enforced on the
@@ -108,7 +115,7 @@ flowchart TB
     controls["input · controls<br/>click → SimCommand"]
     host["SimHost + SabReader<br/>the one socket"]
   end
-  wire["Worker protocol, identical on both sides<br/>↑ SAB: unit rows, 20 Hz, 4 rotating slots under a seqlock<br/>↑ postMessage: buildings, players, jobs, map deltas, chat<br/>↓ postMessage: SimCommand[], chat"]
+  wire["Worker protocol, the same whichever worker is behind it<br/>↑ SAB: unit rows, 20 Hz, 4 rotating slots under a seqlock<br/>↑ postMessage: buildings, players, jobs, map deltas, chat<br/>↓ postMessage: SimCommand[], chat"]
   main <--> wire
 
   subgraph solo["simWorker.ts · single player · in the tab · frozen while hidden"]
@@ -176,11 +183,15 @@ before tick 0 and are not recorded.
 ## Inside a tick
 
 `sim/tick.ts` runs the systems in one fixed order every 50 ms of game time.
-Commands from every seat arrive stamped with the seat that issued them and
-are applied in canonical `(playerId, seq)` order, never arrival order, so the
-same inputs always make the same world. AI brains think before the tick from
-the same state everyone else sees; deciding afterwards would hand them a
-frame of hindsight.
+Commands arrive stamped with the seat that issued them and are applied in
+the order the owner received them: in multiplayer `rooms.ts` appends each
+accepted frame to the room's queue and hands that queue to `tickWorld`
+unsorted, and a frame's `seq` only rejects one already applied after a
+reconnect. That is enough for determinism because a single owner ticks the
+world; what has to be reproducible is the order that owner chose, and the
+replay log records exactly that. AI brains think before the tick from the
+same state everyone else sees; deciding afterwards would hand them a frame
+of hindsight.
 
 ```
 commands → research → production → logistics → clearSpentSalvage →
@@ -191,7 +202,7 @@ separation → combat → waypoints → bandits → trails → victory → remov
 **In**
 
 - Players' `SimCommand`s: build, move, hire, research, forge, repair, admin,
-  in seat-then-sequence order.
+  in the order the owner received them.
 - Brain commands from `AiSeats`, one brain per computer seat, each dealt a
   playbook from `defs/aiStrategies.ts`.
 - The World's own `Rng` state. Player commands apply only on a quantum's
@@ -252,14 +263,17 @@ they actually stepped; victory is judged before the dead are removed.
 - **The AI is a player, not a system.** One brain per seat, called beside
   whichever host owns the World, emitting the same commands a human does. No
   replica worlds, no AI netcode, and thinking never blocks a tick.
-- **The main thread never simulates.** It reads a SharedArrayBuffer under a
-  seqlock and reacts to structural messages. Cross-origin isolation is
-  required at boot and fails loudly if missing.
+- **The main thread never ticks the match.** It reads a SharedArrayBuffer
+  under a seqlock and reacts to structural messages; the Worlds it builds
+  for the menu backdrop and the editor's play-test are its own. Cross-origin
+  isolation is required at boot and fails loudly if missing.
 - **Only world state goes through the World.** Chat rides the socket as its
   own frame and is relayed, never ticked, so the tick hash stays a record of
   the match alone; a recording keeps the lines beside the commands, never
-  among them. Anything a seat sends that is not a command is sanitized at
-  both ends, and the server's copy of the sanitizer is the one that counts.
+  among them. Chat text is sanitized at both ends, and the server's copy of
+  the sanitizer is the one that counts; the other non-command messages
+  (hidden, debug, ping, replay requests) are structured and have handlers of
+  their own.
 - **Node runs the sim from source.** Files the server and labs load spell
   `.ts` on their imports; Node ≥ 23 strips the types. `pnpm smoke` guards the
   arrangement; `pnpm typecheck` compiles the root, the server and each lab.
