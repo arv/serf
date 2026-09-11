@@ -289,7 +289,7 @@ export function orderRepair(world: World, b: Building): void {
 export function cancelRepair(world: World, b: Building): void {
   const needs = b.repairNeeds;
   if (!needs) return;
-  clearRepairOrder(b, goodKeys(needs));
+  clearRepairOrder(world, b, goodKeys(needs));
   for (const job of world.jobs.values()) {
     if (job.repair && job.to === b.id)
       abortJob(world, job, 'repair called off', true);

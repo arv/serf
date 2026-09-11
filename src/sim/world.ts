@@ -1376,7 +1376,7 @@ export function applyRepairMaterial(
   for (const g of bill) {
     if ((b.repairNeeds![g] ?? 0) > 0) return;
   }
-  clearRepairOrder(b, bill);
+  clearRepairOrder(world, b, bill);
 }
 
 /**
@@ -1384,11 +1384,24 @@ export function applyRepairMaterial(
  * unmet demand lives per (building, good) — leave a finished repair's behind
  * and the next thing that building asks for inherits it, jumping a queue it
  * never stood in.
+ *
+ * ...and only the clocks nobody ELSE is keeping, which is the same reading
+ * a study's two endings make (settleResearchBill, abandonResearch) and the
+ * matcher makes every pass (clearDemandAge): an Abbey can owe a repair in
+ * stone and a study billed in stone at once, and whichever finishes first
+ * must leave the other's age alone. The bill goes before the question is
+ * asked, so a repair does not answer for itself.
  */
-export function clearRepairOrder(b: Building, bill: GoodId[]): void {
+export function clearRepairOrder(
+  world: World,
+  b: Building,
+  bill: GoodId[],
+): void {
   delete b.repairNeeds;
   delete b.repairHpPerGood;
-  for (const g of bill) delete b.demandSince[g];
+  for (const g of bill) {
+    if (!stillWants(world, b, g)) delete b.demandSince[g];
+  }
 }
 
 /**

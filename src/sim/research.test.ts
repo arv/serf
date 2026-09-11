@@ -698,6 +698,55 @@ describe('research', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it("a settled repair leaves the scholars' clock where it was", () => {
+    // Copilot review, PR #273, round five — the reverse of the case two
+    // tests up. An Abbey can owe a repair in stone and a study billed in
+    // stone at once, and whichever bill finishes first must leave the
+    // other's age alone. The study side already asked before dropping a
+    // clock; the repair side still dropped them all, so a repair settling
+    // first erased an age the scholars had been keeping since before it.
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    const abbey = placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
+    abbey.hp = buildingDef(BuildingTypeId.abbey).hp * 0.2;
+    for (let i = 0; i < 4; i++) addSerf(world, 28, 32 + i);
+    tickWorld(
+      world,
+      cmds(
+        {
+          kind: CommandKind.setBuildingRepair,
+          buildingId: abbey.id,
+          repair: true,
+        },
+        {kind: CommandKind.research, tech: TechId.ironworking},
+      ),
+    );
+    expect(abbey.repairNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+
+    // Exactly the masons' bill and not a stone more: the repair can finish
+    // and the study is left wanting, which is the arrangement under test.
+    for (const [good, n] of goodEntries(abbey.repairNeeds!)) {
+      sh.stock[good] = (sh.stock[good] ?? 0) + n;
+      world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
+    }
+    let guard = 20 * 120;
+    while (abbey.demandSince[GoodId.stone] === undefined && guard-- > 0)
+      tickWorld(world, []);
+    const since = abbey.demandSince[GoodId.stone];
+    expect(since).toBeDefined();
+
+    guard = 20 * 120;
+    while (abbey.repairNeeds && guard-- > 0) tickWorld(world, []);
+    expect(abbey.repairNeeds).toBeUndefined();
+
+    // The scholars are still short their stone, and still asked for it
+    // when they asked for it.
+    expect(abbey.researchNeeds?.[GoodId.stone]).toBeGreaterThan(0);
+    expect(abbey.demandSince[GoodId.stone]).toBe(since);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('a stale cancel misses rather than striking the next study', () => {
     // cancelForge's rule, applied to the tree: an order given as one study
     // finishes must not call off whatever the seat took up after it.
