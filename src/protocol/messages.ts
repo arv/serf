@@ -129,6 +129,10 @@ export interface BuildingSnap {
   recipeIndex?: number;
   /** The option the batch on the fire was started with. */
   prodRecipeIndex?: number;
+  /** How far the batch on the fire has come, 0..1. Present only while one
+   * is running — a paused workshop keeps its half-done batch, so the bar
+   * holds where the clock froze rather than emptying. */
+  prodProgress01?: number;
   /** Forge orders waiting (Smith), worked ahead of the standing order. */
   forgeQueue?: {recipeIndex: number; started: boolean}[];
   /** Men manning this building, and how many it holds. Present only for
@@ -248,7 +252,10 @@ export type MainToWorker =
    * the match booted with (a loaded save's), which the worker cannot know
    * — fog is render-side — and carries into the file unread, so playback
    * from that save resumes with the ground the player had scouted. */
-  | {type: MainToWorkerKindNs.requestReplay; explored?: string};
+  | {type: MainToWorkerKindNs.requestReplay; explored?: string}
+  /** Multiplayer only: say one line to every seat at the table. Already
+   * sanitized (protocol/chat.ts); the relay sanitizes again regardless. */
+  | {type: MainToWorkerKindNs.chat; text: string};
 
 /**
  * Low-frequency structural state (every 5 ticks / on change): building
@@ -307,6 +314,10 @@ export type WorkerToMain =
   /** Replay playback reached the log's end tick; the sim has paused itself. */
   | {type: WorkerToMainKindNs.replayEnded}
   | {type: WorkerToMainKindNs.netStatus; status: NetStatus}
+  /** A seat spoke — this client's own line included, since the relay
+   * echoes chat to everyone and the sender sees it the moment the table
+   * does, in the order the table does. */
+  | {type: WorkerToMainKindNs.chat; playerId: number; text: string}
   /**
    * The worker is still running but can no longer describe the world to
    * the HUD — a structural frame threw. The world goes on ticking and the

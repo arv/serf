@@ -6,6 +6,7 @@ import {
   BARRACKS_ALE_CAP,
   BUILDING_DAMAGE_MULT,
   FESTIVAL_DURATION,
+  FESTIVAL_SPEEDUP,
   FORGE_QUEUE_CAP,
   HIRE_QUEUE_CAP,
   HIRE_SERF_COST,
@@ -131,8 +132,13 @@ export function BasicsPage(): JSX.Element {
       <Section title="Ale">
         <Stats>
           <Stat label="A festival lasts">{fmtSecs(FESTIVAL_DURATION)}</Stat>
+          <Stat label="While it runs, everyone works and every soldier fights">
+            ×{FESTIVAL_SPEEDUP} faster
+          </Stat>
           <Stat label="The abbey keeps">{ABBEY_ALE_CAP} ale</Stat>
-          <Stat label="The barracks cask holds">{BARRACKS_ALE_CAP} ale</Stat>
+          <Stat label="Each training hall's cask holds">
+            {BARRACKS_ALE_CAP} ale
+          </Stat>
           <Stat label="A soldier who drinks trains">
             ×{ALE_TRAIN_SPEEDUP} faster
           </Stat>

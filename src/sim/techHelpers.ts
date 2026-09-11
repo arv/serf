@@ -1,5 +1,6 @@
 import type {Enum} from '../shared/enum.ts';
 import * as BuildingState from './buildingStateEnum.ts';
+import {FESTIVAL_SPEEDUP} from './defs/balance.ts';
 import {buildingDef} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as ModifierKey from './defs/modifierKeyEnum.ts';
@@ -19,7 +20,10 @@ type ModifierKey = Enum<typeof ModifierKey>;
  * unmodified baseline.
  */
 
-/** Product of all researched multipliers for a key (plus the festival buff). */
+/** Product of all researched multipliers for a key — plus the festival, which
+ * rides two keys at once: the village's work and its soldiers' fighting
+ * (FESTIVAL_SPEEDUP). A tech may feed `fightSpeed` through an ordinary
+ * modifier effect; the festival is the one source of it today. */
 export function getModifier(
   world: World,
   owner: Owner,
@@ -34,7 +38,11 @@ export function getModifier(
         m *= effect.multiplier;
     }
   }
-  if (key === ModifierKey.workSpeed && techs.festivalTicksLeft > 0) m *= 1.25;
+  if (
+    (key === ModifierKey.workSpeed || key === ModifierKey.fightSpeed) &&
+    techs.festivalTicksLeft > 0
+  )
+    m *= FESTIVAL_SPEEDUP;
   return m;
 }
 

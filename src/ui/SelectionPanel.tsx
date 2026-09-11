@@ -863,7 +863,7 @@ export function SelectionPanel(props: {
                               )}
                             >
                               <button
-                                class="sel-slot"
+                                class="sel-progress sel-slot"
                                 classList={{waiting: !item().started}}
                                 onClick={() =>
                                   props.onCancelForge(
@@ -873,6 +873,17 @@ export function SelectionPanel(props: {
                                   )
                                 }
                               >
+                                {/* The barracks chip's fill, on the one
+                                    order that has the fire. At most one
+                                    is ever lit, so the building's own
+                                    batch clock is this slot's clock. */}
+                                <span
+                                  aria-hidden="true"
+                                  class="sel-fill"
+                                  style={{
+                                    width: `${(item().started ? (b().prodProgress01 ?? 0) : 0) * 100}%`,
+                                  }}
+                                />
                                 <span class="unit">
                                   <GoodIcon good={output()} size={13} />{' '}
                                   <span class="label">

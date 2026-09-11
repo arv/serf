@@ -5,6 +5,7 @@ import * as BuildingState from '../buildingStateEnum.ts';
 import {BUILDING_DAMAGE_MULT} from '../defs/balance.ts';
 import {buildingDef, type BuildingDef} from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import {
   COUNTER_TABLE,
   UNIT_DEFS,
@@ -12,9 +13,16 @@ import {
   type UnitClass,
   type UnitTypeId,
 } from '../defs/units.ts';
-import {BANDIT, centerOf, isPlayerOwner, type Building} from '../entities.ts';
+import {
+  BANDIT,
+  centerOf,
+  isPlayerOwner,
+  type Building,
+  type Owner,
+} from '../entities.ts';
 import * as GameEventKind from '../gameEventKindEnum.ts';
 import {findPath, findPathToAdjacent, nearestWalkable} from '../path.ts';
+import {getModifier} from '../techHelpers.ts';
 import {clearMarchSpeed, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {destroyBuilding, killUnit, type World} from '../world.ts';
@@ -77,9 +85,46 @@ const KITE_PLANT_TICKS = 8;
  * zero. At zero he is planted for the whole cycle bar the tick he is ready
  * on, which is the honest reading of a weapon that fires faster than a man
  * can plant and recover.
+ *
+ * Takes the cooldown the shot was actually set to (`strikeCooldown`) rather
+ * than the printed one, and the plant stays eight ticks of it. Under a
+ * festival an archer's cycle is 19 rather than 24; measured against the
+ * printed 24 the gate would open at 16 and the man would be planted for
+ * three ticks of nineteen — a sixth of the cycle, under the fifth the note
+ * on KITE_PLANT_TICKS says a chaser needs to close at all, and the free
+ * kite that replay 53 took away would be handed back by a barrel of ale.
+ * At eight of nineteen he shoots faster AND is caught sooner: drawing
+ * quicker does not make a man turn and run quicker, and the bow being the
+ * buff's loudest beneficiary wants some weight on the other side.
+ *
+ * A festival that lapses between the shot and this read compares a
+ * nineteen-tick clock against a sixteen-tick gate and shortens that one
+ * plant by three ticks. Once a minute at most, and not worth a field.
  */
-function plantedUntil(combat: CombatStats): number {
-  return Math.max(0, combat.cooldownTicks - KITE_PLANT_TICKS);
+function plantedUntil(cooldownTicks: number): number {
+  return Math.max(0, cooldownTicks - KITE_PLANT_TICKS);
+}
+
+/**
+ * A fighter's recovery after a blow, with his owner's festival on it
+ * (ModifierKey.fightSpeed, FESTIVAL_SPEEDUP in defs/balance.ts): the
+ * printed cooldown divided by the modifier, in whole ticks, never under
+ * one — the same rounding the barracks' cask gives a recruit
+ * (staffing.ts, ALE_TRAIN_SPEEDUP). An owner with nothing on the key gets
+ * the printed number back untouched, and so do the bandits, who have no
+ * player entry for getModifier to read.
+ *
+ * Read at every strike rather than once a tick: getModifier walks a short
+ * list of researched techs, and a strike is a rarer event than a tick by
+ * a factor of the cooldown.
+ */
+function strikeCooldown(
+  world: World,
+  owner: Owner,
+  cooldownTicks: number,
+): number {
+  const m = getModifier(world, owner, ModifierKey.fightSpeed);
+  return m === 1 ? cooldownTicks : Math.max(1, Math.round(cooldownTicks / m));
 }
 
 /**
@@ -286,23 +331,28 @@ export function combatSystem(world: World): void {
       const dist = exactDist(targetUnit.x - unit.x, targetUnit.y - unit.y);
       const isRanged = combat.range > 2;
       if (isRanged && dist < KITE_TRIGGER) {
+        const cycle = strikeCooldown(world, unit.owner, combat.cooldownTicks);
         if (dist <= combat.range && unit.cooldownLeft <= 0) {
           strikeUnit(world, unit, targetUnit);
-          unit.cooldownLeft = combat.cooldownTicks;
+          unit.cooldownLeft = cycle;
         }
         // He breaks away only once he has recovered from the shot; until
         // then he is planted by it, and the man closing on him gains the
         // ground that costs. See KITE_PLANT_TICKS. Dropping the path is
         // what plants him — a scoot already in hand would otherwise carry
         // him through the recovery it is supposed to cost.
-        if (unit.cooldownLeft <= plantedUntil(combat))
+        if (unit.cooldownLeft <= plantedUntil(cycle))
           kiteAway(world, unit, targetUnit);
         else unit.path = null;
       } else if (dist <= combat.range) {
         unit.path = null; // stand and fight
         if (unit.cooldownLeft <= 0) {
           strikeUnit(world, unit, targetUnit);
-          unit.cooldownLeft = combat.cooldownTicks;
+          unit.cooldownLeft = strikeCooldown(
+            world,
+            unit.owner,
+            combat.cooldownTicks,
+          );
         }
       } else if (dist > combat.acquireRadius * 1.6) {
         disengage(unit); // it got away
@@ -372,7 +422,7 @@ function strikeBuilding(
       building: true,
     });
   }
-  unit.cooldownLeft = combat.cooldownTicks;
+  unit.cooldownLeft = strikeCooldown(world, unit.owner, combat.cooldownTicks);
   if (b.hp <= 0) {
     destroyBuilding(world, b);
     disengage(unit);
@@ -442,7 +492,7 @@ function holdGround(
   if (unit.cooldownLeft > 0) return;
   if (targetUnit) {
     strikeUnit(world, unit, targetUnit);
-    unit.cooldownLeft = combat.cooldownTicks;
+    unit.cooldownLeft = strikeCooldown(world, unit.owner, combat.cooldownTicks);
   } else if (targetBuilding) {
     strikeBuilding(world, unit, targetBuilding, combat);
   }
@@ -500,7 +550,9 @@ function towerFire(
       ? Math.max(1, COUNTER_TABLE[volley.class][defClass])
       : 1;
     target.hp -= volley.damage * mult;
-    b.attackCooldown = volley.cooldownTicks;
+    // The garrison drinks at the same festival as the field: a tower under
+    // one volleys a quarter faster, levy and archers alike.
+    b.attackCooldown = strikeCooldown(world, b.owner, volley.cooldownTicks);
     if (isPlayerOwner(target.owner)) {
       world.pendingEvents.push({
         kind: GameEventKind.damage,

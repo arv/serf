@@ -4,6 +4,7 @@ import {checkInvariants} from './debug/invariants.ts';
 import {
   BARRACKS_ALE_CAP,
   FESTIVAL_DURATION,
+  FESTIVAL_SPEEDUP,
   MATCHER_INTERVAL,
 } from './defs/balance.ts';
 import {buildingDef} from './defs/buildings.ts';
@@ -13,7 +14,9 @@ import {goodEntries} from './defs/goods.ts';
 import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
+import {UNIT_DEFS} from './defs/units.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {BANDIT} from './entities.ts';
 import {getModifier, isBuildingUnlocked} from './techHelpers.ts';
 import {
   cmds,
@@ -23,7 +26,13 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import {tickWorld} from './tick.ts';
-import {destroyBuilding, placeBuiltBuilding, type World} from './world.ts';
+import type {Unit} from './units.ts';
+import {
+  destroyBuilding,
+  placeBuiltBuilding,
+  spawnUnit,
+  type World,
+} from './world.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -409,9 +418,85 @@ describe('research', () => {
     expect(world.players[0]!.techs.festivalTicksLeft).toBeGreaterThan(0);
     expect(tera.inputs[GoodId.ale] ?? 0).toBe(0);
     expect(getModifier(world, 0, ModifierKey.workSpeed)).toBeCloseTo(1.25);
+    // The same barrel reaches the field: one festival, two keys.
+    expect(getModifier(world, 0, ModifierKey.fightSpeed)).toBeCloseTo(
+      FESTIVAL_SPEEDUP,
+    );
 
     run(world, FESTIVAL_DURATION + 2);
     expect(getModifier(world, 0, ModifierKey.workSpeed)).toBe(1);
+    expect(getModifier(world, 0, ModifierKey.fightSpeed)).toBe(1);
+  });
+
+  /** Tick until each of the units has struck once — its cooldown going
+   * above zero is how the blow is seen — and answer the clock each was set
+   * to. Read the tick it happens, since a faster man is back at zero
+   * sooner than a slower one. */
+  function firstCooldowns(world: World, units: Unit[]): number[] {
+    const seen: number[] = units.map(() => 0);
+    for (let t = 0; t < 40 && seen.some(c => c === 0); t++) {
+      tickWorld(world, []);
+      units.forEach((u, i) => {
+        if (seen[i] === 0 && u.cooldownLeft > 0) seen[i] = u.cooldownLeft;
+      });
+    }
+    return seen;
+  }
+
+  it('festival: a soldier strikes faster, and the bandit he fights does not', () => {
+    const world = bareWorld();
+    world.players[0]!.techs.festivalTicksLeft = FESTIVAL_DURATION;
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    const marauder = spawnUnit(world, UnitTypeId.marauder, BANDIT, 31.5, 30.5);
+    const [k, m] = firstCooldowns(world, [knight, marauder]);
+    const printed = UNIT_DEFS[UnitTypeId.knight].combat!.cooldownTicks;
+    expect(k).toBe(Math.round(printed / FESTIVAL_SPEEDUP));
+    expect(k).toBeLessThan(printed);
+    // The bandits have no player entry, and no player entry has no ale.
+    expect(m).toBe(UNIT_DEFS[UnitTypeId.marauder].combat!.cooldownTicks);
+  });
+
+  it('festival: the seat that loses the mirror sober wins it drunk', () => {
+    /** Four knights a side, mirrored; at most one seat is drinking. */
+    const duel = (festival: 0 | 1 | null): [number, number] => {
+      const world = bareWorld(1, 2);
+      if (festival !== null)
+        world.players[festival]!.techs.festivalTicksLeft = 20 * 120;
+      for (let i = 0; i < 4; i++) {
+        spawnUnit(
+          world,
+          UnitTypeId.knight,
+          0,
+          28.5 - (i % 2),
+          28.5 + Math.floor(i / 2),
+        );
+        spawnUnit(
+          world,
+          UnitTypeId.knight,
+          1,
+          32.5 + (i % 2),
+          28.5 + Math.floor(i / 2),
+        );
+      }
+      run(world, 20 * 60);
+      const alive = [...world.units.values()].filter(u => !u.dead);
+      return [
+        alive.filter(u => u.owner === 0).length,
+        alive.filter(u => u.owner === 1).length,
+      ];
+    };
+    // Sober, a mirror is a trade: one seat is wiped and the other paid
+    // for it. Which seat is the sim's own tie-break, not the claim.
+    const sober = duel(null);
+    expect(Math.min(...sober)).toBe(0);
+    expect(Math.max(...sober)).toBeLessThan(4);
+    const loser = sober[0] === 0 ? 0 : 1;
+    // Hand the losing seat the festival and the same eight men resolve
+    // the other way: a quarter more blows per minute is a quarter more
+    // power, and the square law turns that into the field.
+    const drunk = duel(loser);
+    expect(drunk[loser]).toBeGreaterThan(0);
+    expect(drunk[1 - loser]).toBe(0);
   });
 
   it('modifiers speed up production batches', () => {

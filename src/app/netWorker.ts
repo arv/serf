@@ -220,7 +220,12 @@ function connect(net: NetInfo, attempt: number): void {
       // the end card's Save replay button (null while undecided — the
       // main thread reads the empty string as "nothing to save").
       try {
-        const msg = JSON.parse(e.data) as {t?: string; data?: unknown};
+        const msg = JSON.parse(e.data) as {
+          t?: string;
+          data?: unknown;
+          playerId?: unknown;
+          text?: unknown;
+        };
         if (msg.t === 'error') {
           gone = true;
           postStatus({
@@ -232,6 +237,19 @@ function connect(net: NetInfo, attempt: number): void {
           post({
             type: WorkerToMainKind.replayData,
             data: typeof msg.data === 'string' ? msg.data : '',
+          });
+        } else if (
+          msg.t === 'chat' &&
+          typeof msg.playerId === 'number' &&
+          typeof msg.text === 'string'
+        ) {
+          // Someone at the table spoke — possibly us: the relay echoes a
+          // line to every seat, the sender's included, so one path shows
+          // every message and in the one order the table agrees on.
+          post({
+            type: WorkerToMainKind.chat,
+            playerId: msg.playerId,
+            text: msg.text,
           });
         }
       } catch {
@@ -316,6 +334,14 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         // Redial now rather than wait out a retry timer's backoff; connect
         // itself yields if a dial is already in flight.
         connect(netInfo, 0);
+      }
+      break;
+    case MainToWorkerKind.chat:
+      // No echo of our own here: the line comes back from the relay like
+      // everyone else's, so a message the socket dropped is one the player
+      // sees not appear — better than a toast claiming it was said.
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({t: 'chat', text: msg.text}));
       }
       break;
     case MainToWorkerKind.requestReplay:

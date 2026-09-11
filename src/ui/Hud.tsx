@@ -1,13 +1,23 @@
-import {For, Show, createEffect, createSignal, type JSX} from 'solid-js';
+import {
+  For,
+  Show,
+  createEffect,
+  createSignal,
+  onCleanup,
+  type JSX,
+} from 'solid-js';
 import {missionUrl} from '../app/gameConfig';
 import {goto} from '../app/router';
 import {latestSaveName} from '../app/saveStore';
 import {play} from '../audio/audio';
 import {hasKeyboard} from '../input/keyboard';
+import {foreignChord, typingInto} from '../input/typing';
 import {clearSeatStash} from '../net/lobbyClient';
+import {MAX_CHAT_CHARS, sanitizeChatText} from '../protocol/chat.ts';
 import * as NetState from '../protocol/netStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
 import type {AdminAction} from '../sim/commands';
+import {TICKS_PER_SECOND} from '../sim/defs/balance';
 import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {goodEntries} from '../sim/defs/goods';
@@ -55,6 +65,8 @@ import {
   invariantViolations,
   minimapOpen,
   setMinimapOpen,
+  chatOpen,
+  setChatOpen,
   mission,
   muted,
   myPlayerId,
@@ -185,6 +197,8 @@ export function Hud(props: {
   onAdmin: (action: AdminAction) => void;
   onFocus: (x: number, y: number) => void;
   onFocusSeat: (seat: number) => void;
+  /** Say one line to every seat at the table (multiplayer only). */
+  onChat: (text: string) => void;
   onSelectArmy: () => void;
   onDeselect: () => void;
   onPickUnit: (id: number, additive: boolean) => void;
@@ -517,7 +531,68 @@ export function Hud(props: {
   createEffect(() => {
     if (buildChord()) setBuildOpen(true);
   });
+  /**
+   * A menu, not a card: on a phone the open build card folds at the next
+   * tap that lands anywhere else. Upright it stands in the stack with the
+   * map open above it, and a player who taps a serf up there has moved on
+   * — the menu they left open would otherwise sit under the selection
+   * card's spot (the stylesheet hides that card while this one is open)
+   * until they went back down to fold it by hand. Sideways the scrim
+   * takes the tap first and folds the sheet itself; this then finds
+   * nothing left to do.
+   * The click, not the pointerdown: the map selects on pointerup, and
+   * folding before then reshuffles the stack under a finger whose tap is
+   * still being delivered — the selection card can grow into the very
+   * pixels the finger is on and take the pointerup meant for the map.
+   * By the click every other event of the tap has landed where it was
+   * aimed. The pill is the one thing outside the card that is not "else":
+   * it is the toggle, and it opens with this very click.
+   */
+  createEffect(() => {
+    if (!isCompact() || !buildOpen()) return;
+    const foldOnTapOutside = (e: MouseEvent): void => {
+      if (!(e.target instanceof Element)) return;
+      if (e.target.closest('.hud-build, .hud-build-pill')) return;
+      setBuildOpen(false);
+    };
+    document.addEventListener('click', foldOnTapOutside);
+    onCleanup(() => document.removeEventListener('click', foldOnTapOutside));
+  });
   const soloMode = (): boolean => playersMeta().length <= 1;
+
+  /**
+   * Enter opens the chat line, the way it does in StarCraft and Warcraft:
+   * no chord to learn, and the key a player reaches for to "say something"
+   * anyway. Only in a networked match — solo has nobody to tell, and a
+   * replay's seats are not at the table — and only when the key is not
+   * already someone's: a field being typed into (typingInto), a button
+   * or dialog holding focus (the quit card's autofocused Leave, where
+   * Enter means leave), Alt+Enter (the fullscreen toggle), or a chord the
+   * platform owns. The canvas never takes focus, so during play the
+   * active element is the body itself — that, and only that, is the
+   * state where Enter has nobody else to answer to. Once the line is
+   * open the input has focus, so this sees Enter no more: the field
+   * takes it as Send, Esc as Never mind (see the form below).
+   */
+  const onChatKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Enter' && e.code !== 'NumpadEnter') return;
+    if (foreignChord(e) || e.ctrlKey || e.repeat || typingInto(e.target)) {
+      return;
+    }
+    const focused = document.activeElement;
+    if (focused && focused !== document.body) return;
+    if (!netMode() || replayMode() || chatOpen()) return;
+    e.preventDefault();
+    setChatOpen(true);
+  };
+  window.addEventListener('keydown', onChatKey);
+  onCleanup(() => window.removeEventListener('keydown', onChatKey));
+  /** Send what was typed, if anything was, and put the keyboard back. */
+  const sendChat = (input: HTMLInputElement): void => {
+    const text = sanitizeChatText(input.value);
+    setChatOpen(false);
+    if (text !== null) props.onChat(text);
+  };
   /**
    * The seat chip's click: the next seat along, wrapping. Picking a seat's
    * people or buildings on the map is the ordinary way to turn the HUD
@@ -1179,6 +1254,29 @@ export function Hud(props: {
         /* A toast that knows a place: click pans the camera there. */
         #ui .toast.clickable { cursor: pointer; border-color: rgba(214, 106, 80, 0.55); }
         #ui .toast.clickable:hover { border-color: rgba(214, 106, 80, 0.9); }
+        /* A line of chat: the same card as a notice, told apart by its
+           border — cool where an alarm's is warm — and set left like
+           speech rather than centred like an announcement. Capped in
+           width so a long line wraps into a card instead of a banner. */
+        #ui .toast.chat {
+          text-align: left; max-width: min(360px, 70vw);
+          overflow-wrap: anywhere;
+          border-color: rgba(120, 170, 214, 0.45);
+        }
+        .toast.chat b { color: #e5c469; font-weight: 600; margin-right: 4px; }
+        /* The line being typed. It sits at the foot of the toasts, where
+           the reply reads under what it answers, and is wide enough for a
+           sentence without a scroll. */
+        .hud-chat { padding: 5px 6px; width: min(360px, 70vw); }
+        #ui .hud-chat input {
+          box-sizing: border-box; width: 100%;
+          font-family: inherit; font-size: 13px; color: #eceade;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 10px; padding: 6px 10px; outline: none;
+        }
+        #ui .hud-chat input:focus { border-color: rgba(120, 170, 214, 0.7); }
+        #ui .hud-chat input::placeholder { color: rgba(236, 234, 222, 0.45); }
         /* Fixed rather than absolute: the briefing card uses this class
            too, and it renders from inside the left rail — an absolute
            inset: 0 would size it to that column instead of the screen. */
@@ -1506,6 +1604,19 @@ export function Hud(props: {
           .hud-bottom > .hud-build,
           .hud-bottom > .hud-selection { box-sizing: border-box; flex: 1 0 100%; }
           .hud-selection { margin-left: 0; width: auto; }
+          /* Not both cards at once. The open build card is a quarter of
+             the screen and its strip a line more, and a castle's card
+             under it — repair, hire, a five-slot queue, the stock line —
+             is most of what is left: together they stood on the goods
+             strip with no map between. Sideways the sheet already
+             covers the selection card for as long as the menu is open,
+             on the argument that nothing else on the HUD matters while
+             you are picking a building. The same argument holds upright,
+             so the selection card stands down until the menu folds — the
+             pick itself folds it (place()), and the card is back for the
+             placing bar. Hidden, not unmounted: the card keeps whatever
+             it was showing. */
+          .hud-bottom.build-open > .hud-selection { display: none; }
           /* The thumb rail joins the flow instead of floating over it.
              Fixed at 38vh it was a guess about how tall the cards would
              be, and a barracks with touch-sized buttons is 370px of
@@ -1943,7 +2054,8 @@ export function Hud(props: {
             </Show>
             <Show when={techs().festivalTicksLeft > 0}>
               <div class="hud-festival panel">
-                Festival! Everyone works faster
+                Festival! Everyone works and fights faster —{' '}
+                {Math.ceil(techs().festivalTicksLeft / TICKS_PER_SECOND)}s
               </div>
             </Show>
             {/* Posts standing open for tools. In the rail, not the strip,
@@ -1994,18 +2106,70 @@ export function Hud(props: {
                 {t => (
                   <div
                     class="panel toast"
-                    classList={{clickable: !!t.focus}}
+                    classList={{
+                      clickable: !!t.focus,
+                      chat: t.from !== undefined,
+                    }}
                     onClick={() => {
                       if (!t.focus) return;
                       props.onFocus(t.focus.x, t.focus.y);
                       dismissToast(t.id);
                     }}
                   >
+                    <Show when={t.from !== undefined}>
+                      <b>{t.from}:</b>
+                    </Show>
                     {t.text}
                   </div>
                 )}
               </For>
             </div>
+            <Show when={chatOpen()}>
+              <div class="panel hud-chat">
+                <input
+                  type="text"
+                  placeholder="Say to everyone…"
+                  aria-label="Say to everyone"
+                  // The browser's cap counts UTF-16 units where the wire's
+                  // counts code points, so a line of emoji stops a little
+                  // short of the limit — never past it. Kept anyway: the
+                  // field refusing the 201st character beats the sanitizer
+                  // cutting a sent line down in silence.
+                  maxLength={MAX_CHAT_CHARS}
+                  autocomplete="off"
+                  spellcheck={false}
+                  // Focus once it is in the document — the Enter that
+                  // opened the line has already been handled by then, so
+                  // the field never sees it as a send. Unless the line
+                  // has already gone (the match tore down under it):
+                  // focusing a node nobody can see is at best a no-op.
+                  ref={el =>
+                    queueMicrotask(() => {
+                      if (el.isConnected) el.focus();
+                    })
+                  }
+                  // Enter sends, Esc drops — read off the key itself
+                  // rather than a form's implicit submit, which needs the
+                  // keypress a synthetic or IME-mediated Enter may not
+                  // bring. Not mid-composition: the Enter that commits a
+                  // kana candidate is the IME's, not ours.
+                  onKeyDown={e => {
+                    if (e.isComposing) return;
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      sendChat(e.currentTarget);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setChatOpen(false);
+                    }
+                  }}
+                  // A click on the map takes the keyboard back for the
+                  // game; the half-typed line goes with it, the way an
+                  // RTS chat box drops when you look away from it.
+                  onBlur={() => setChatOpen(false)}
+                />
+              </div>
+            </Show>
             <Show when={debugOpen()}>
               <div class="hud-debug panel">
                 <b>jobs ({debugJobs().length})</b>
@@ -2170,7 +2334,11 @@ export function Hud(props: {
         </div>
       </div>
 
-      <div class="hud-bottom">
+      {/* .build-open — the card is unfolded. Upright, the stylesheet
+          takes the selection card out of the stack while it is (see the
+          NARROW block); markup says so rather than a :has() on the
+          card, for the reasons speedIsSingle gives. */}
+      <div class="hud-bottom" classList={{'build-open': buildOpen()}}>
         {/* Upright, the cards stack and these two stand on the last line
             of them; every other shape lays the row out in a line and the
             rail floats clear of it above. Rendered from one end of the row

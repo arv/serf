@@ -72,6 +72,15 @@ export interface Building {
   /** Convert recipe: ticks left on the current batch (undefined = not running). */
   prodTicksLeft?: number;
   /**
+   * What that clock was set to when the batch took the fire. Display only —
+   * no tick reads it — but it is stamped rather than recomputed because a
+   * speed tech landing mid-batch shortens what a NEW batch would take
+   * without touching the one already running. Measured against today's
+   * length, a half-done batch would read as less done than it did a tick
+   * ago; measured against this, it never does.
+   */
+  prodTicksTotal?: number;
+  /**
    * Gather recipe with a ration (the mines): loads still covered by the
    * food already eaten, NOT counting the one being paid for right now.
    *

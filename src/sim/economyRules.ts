@@ -1063,8 +1063,11 @@ const FORGE_GLUT_CLEAR = 4;
  * out, because only the wood is being spent on something nobody wants —
  * and a village whose shelf reads zero wood cannot place anything costing
  * ten of it, which is most of the buildings a plan has left by then. The
- * Abbot's brewery, last in its build order and gated behind Brewing, is
- * never raised at all in sixty thousand ticks of peace.
+ * Abbot's brewery, last in its build order and gated behind Brewing, was
+ * never raised at all in sixty thousand ticks of peace — and this rule did
+ * not rescue it, because the range drinks the bow shelf down to four or
+ * five and the glut never comes. The brewery is priced in stone now
+ * (defs/buildings.ts), which is the good that does pile up.
  *
  * Halting is the lever the sim already documents for this — `tick.ts` calls
  * `setBuildingPaused` "the lever for 'the bowyer is eating all my wood'".

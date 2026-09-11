@@ -49,6 +49,10 @@ export interface SimHost {
   /** Playback reached the recording's end and the sim paused itself. */
   onReplayEnded?(cb: () => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
+  /** A line of chat from the table (multiplayer only). */
+  onChat?(cb: (playerId: number, text: string) => void): void;
+  /** Say one line to every seat; a host with nobody to tell may omit it. */
+  sendChat?(text: string): void;
   /**
    * The sim broke after the match came up, and the HUD is no longer being
    * told what the world looks like. Called at most once. Registering is
@@ -92,6 +96,12 @@ export class WorkerSimHost implements SimHost {
    * registers — and an unlatched signal left the HUD with no end card. */
   #replayEndedPending = false;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
+  #chatCb: ((playerId: number, text: string) => void) | null = null;
+  /** Lines that arrived before anyone registered for them, held the way
+   * structural frames are: a replay starts ticking the moment the worker
+   * is up, while runMatch is still awaiting its assets, so a line said in
+   * the opening seconds would otherwise land with no listener and vanish. */
+  #chatPending: {playerId: number; text: string}[] = [];
   #fatalCb: ((message: string) => void) | null = null;
   /** Whether 'ready' has landed — which is what decides where a worker
    * failure is reported (see onerror). */
@@ -191,6 +201,9 @@ export class WorkerSimHost implements SimHost {
           else this.#replayEndedPending = true;
         } else if (msg.type === WorkerToMainKind.netStatus) {
           this.#netStatusCb?.(msg.status);
+        } else if (msg.type === WorkerToMainKind.chat) {
+          if (this.#chatCb) this.#chatCb(msg.playerId, msg.text);
+          else this.#chatPending.push({playerId: msg.playerId, text: msg.text});
         } else if (msg.type === WorkerToMainKind.log) {
           console.log(msg.message);
         }
@@ -222,6 +235,8 @@ export class WorkerSimHost implements SimHost {
     this.#replayCbs = [];
     this.#replayEndedCb = null;
     this.#netStatusCb = null;
+    this.#chatCb = null;
+    this.#chatPending = [];
     this.#worker.onmessage = null;
     this.#worker.onerror = null;
     this.#worker.terminate();
@@ -258,6 +273,21 @@ export class WorkerSimHost implements SimHost {
 
   onNetStatus(cb: (status: NetStatus) => void): void {
     this.#netStatusCb = cb;
+  }
+
+  /** A line of chat arrived from the table, or off a replay's log. Lines
+   * that came before this registration are delivered now, in order. */
+  onChat(cb: (playerId: number, text: string) => void): void {
+    this.#chatCb = cb;
+    const pending = this.#chatPending;
+    this.#chatPending = [];
+    for (const line of pending) cb(line.playerId, line.text);
+  }
+
+  /** Say one line to every seat. The solo worker drops it; the net worker
+   * relays it and the answer comes back through onChat like anyone's. */
+  sendChat(text: string): void {
+    this.#post({type: MainToWorkerKind.chat, text});
   }
 
   onFatal(cb: (message: string) => void): void {

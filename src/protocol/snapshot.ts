@@ -11,11 +11,13 @@
 import type {Enum} from '../shared/enum.ts';
 import {exactDist} from '../shared/math.ts';
 import {distToFootprint} from '../sim/arrival.ts';
+import {batchTicks} from '../sim/batchTicks.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
 import {
   TOOL_OF,
   buildingDef,
+  convertRecipeOf,
   gatherOrigin,
   gatherRecipeOf,
   type BuildingDef,
@@ -30,12 +32,19 @@ import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
+
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import type {Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
 import type {World} from '../sim/world.ts';
 import type {BuildingSnap, JobSnap, PlayerSnap} from './messages.ts';
-import {ACTION, PROFESSION, WORK, type UnitSnapshot} from './sabLayout.ts';
+import {
+  ACTION,
+  BUFF,
+  PROFESSION,
+  WORK,
+  type UnitSnapshot,
+} from './sabLayout.ts';
 import * as StaffingState from './staffingStateEnum.ts';
 
 type GoodId = Enum<typeof GoodId>;
@@ -100,6 +109,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     paused: b.paused,
     recipeIndex: b.recipeIndex,
     prodRecipeIndex: b.prodRecipeIndex,
+    prodProgress01: batchProgress01(world, b, def),
     forgeQueue: b.forgeQueue?.map(q => ({
       recipeIndex: q.recipeIndex,
       started: q.started,
@@ -120,6 +130,44 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
       : undefined,
   };
+}
+
+/**
+ * How far the batch on the fire has come, 0..1 — the smith's clock, and
+ * every other converter's for whoever draws them next. Undefined when
+ * nothing is burning, which is what a cold fire should draw: no bar at
+ * all rather than an empty one that reads as "just started".
+ *
+ * Measured against the length the batch was STARTED with, which the sim
+ * stamps beside the clock (Building.prodTicksTotal). Recomputing it here
+ * would be wrong, not merely approximate: a speed tech landing mid-batch
+ * shortens what a new batch would take without touching the one already
+ * running, so the same clock read against a shorter yardstick reads as
+ * LESS done than it did a tick ago — the bar steps backwards, and no
+ * clamp to [0,1] catches a step taken in the middle of the range.
+ *
+ * The recomputed length survives as the fallback for one case only: a
+ * save written before the stamp existed, restored with a batch already
+ * on the fire (an optional field costs no save-version bump, so such
+ * saves still load). One batch of a slightly-off bar, once, and the
+ * clamp is what keeps that case inside its own ends.
+ */
+function batchProgress01(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+): number | undefined {
+  if (b.prodTicksLeft === undefined) return undefined;
+  // What is actually on the fire: the option it was stamped with at batch
+  // start (a smith retuned mid-batch is still hammering the old thing),
+  // else the building's one fixed recipe.
+  const recipe =
+    b.prodRecipeIndex !== undefined
+      ? def.recipeOptions?.[b.prodRecipeIndex]?.recipe
+      : convertRecipeOf(def, b);
+  if (!recipe) return undefined;
+  const total = b.prodTicksTotal ?? batchTicks(world, b, recipe);
+  return Math.min(1, Math.max(0, 1 - b.prodTicksLeft / total));
 }
 
 /**
@@ -543,6 +591,20 @@ function workKindOf(w: World, u: Unit): number {
   return WORK.tend;
 }
 
+/**
+ * The BUFF bits a unit wears: the festival, for every living unit whose
+ * owner is holding one — the serfs and workers it speeds as much as the
+ * soldiers, so a village under one reads as a village under one. Bandits
+ * have no player entry and so no festival, and the lookup says so rather
+ * than indexing past the seats with their raw owner byte.
+ */
+function buffsOf(w: World, u: Unit, action: number): number {
+  if (action === ACTION.dead) return 0;
+  return (w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
+    ? BUFF.festival
+    : 0;
+}
+
 export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
   for (const u of w.units.values()) {
     // Combat corpses (deathTick set) stay visible for the death animation;
@@ -577,6 +639,7 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       profession: professionOf(w, u),
       facing: engaged ? facingByte(u, engaged) : 0,
       targetDist: engaged ? targetDistByte(u, engaged) : 0,
+      buffs: buffsOf(w, u, action),
     };
   }
 }

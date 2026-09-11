@@ -21,3 +21,7 @@ export const replayEnded = 8 as const;
 export type replayEnded = typeof replayEnded;
 export const log = 9 as const;
 export type log = typeof log;
+/** A line of chat from a seat at the table, the client's own echoed back
+ * among them — the relay stamps who said it. */
+export const chat = 10 as const;
+export type chat = typeof chat;

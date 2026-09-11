@@ -237,8 +237,9 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   // The consumers no def table names, because they are mechanics rather
   // than recipe rows: hiring is priced in balance.ts, every construction
   // site borrows a hammer (see TOOL_OF), and ale is drunk in two places —
-  // the abbey's festivals and the barracks' cask. Without these the ale
-  // page would list what research costs and nothing about what ale is for.
+  // the abbey's festivals and the casks at the barracks and the range.
+  // Without these the ale page would list what research costs and nothing
+  // about what ale is for.
   push(map, GoodId.silver, {kind: 'hire'});
   push(map, GoodId.hammer, {kind: 'siteLoan'});
   push(map, GoodId.ale, {kind: 'festival'});

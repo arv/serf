@@ -435,7 +435,8 @@ const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.sword]: 'Forged by the swordsmith. Arms one knight.',
   [GoodId.spear]: 'Shafted by the spearmaker. Arms one spearman.',
   [GoodId.bow]: 'Strung by the bowyer. Arms one archer.',
-  [GoodId.ale]: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
+  [GoodId.ale]:
+    'Brewed from wheat and water. Fuels festivals at the Abbey — the village works and its soldiers fight a quarter faster — and, with Ale Rations, the casks at the barracks and the range.',
   [GoodId.flour]: 'Ground at the mill. On its own it feeds nobody.',
   [GoodId.food]: 'Baked from flour and water. What a soldier costs.',
   [GoodId.axe]:
@@ -487,7 +488,7 @@ function recipeText(recipe: Recipe): string {
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.abbey]:
-    'Monks research the tech tree here — a study’s goods are hauled in before the books open — and delivered ale throws work-speed festivals.',
+    'Monks research the tech tree here — a study’s goods are hauled in before the books open — and delivered ale throws festivals that speed the village’s work and its soldiers’ blows alike.',
   [BuildingTypeId.barracks]:
     'Trains knights and spearmen from bread and forged weapons. Archers are trained at the Archery Range.',
   [BuildingTypeId.archeryRange]:

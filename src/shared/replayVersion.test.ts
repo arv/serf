@@ -623,8 +623,42 @@ import {REPLAY_VERSION} from './replayVersion';
 // and is not replayed state — its only non-test callers are the perf
 // tools (tools/perf/digest.ts, stress.ts) — so this is the same "Still"
 // as the study-bill entry above it.
-const EXPECTED_VERSION = 62;
-const EXPECTED_HASH = '76728c8e342557a3349dbc6642837451';
+// Still 62 after the replay learned to carry what the table said
+// (app/replay.ts): an optional `chat` list beside the commands, never
+// among them. Compatible both ways — a file without it plays as it always
+// did, and a file with it plays on an older build minus the words, since
+// parseReplay ignores what it does not know — and chat never reaches the
+// sim, so no tick moved. Format in the file, nothing in the world; and 62
+// is this build's own bump and has never shipped besides. Still 62 again
+// after the parser began holding a line's seat to the table the config
+// lays: a screen on read, the shape of the file untouched.
+// 63: the festival reaches the field (systems/combat.ts strikeCooldown, and
+// the fightSpeed key in techHelpers.ts), and the brewery is priced in stone
+// (defs/buildings.ts). Both are sim behavior — a strike lands on a different
+// tick, a site asks for different loads — and the note in replayVersion.ts
+// says which logs diverge and where.
+// Still 63 after the brewery went to twelve stone (defs/buildings.ts): 63
+// is this build's own bump and has never shipped, so there is nothing older
+// to break, and the note above already names the price among its reasons.
+// Still 63 after the research walker learned to skip a study nobody can
+// supply (systems/ai.ts): brain, not sim — playback never runs a brain,
+// and the log already holds every order the seat gave.
+// Still 63 after the Abbot finished the ale line and the Warlord's long-war
+// tail took it (defs/aiStrategies.ts): playbook data, and playback never
+// runs a brain — the log holds every order the seats gave.
+// Still 63 after Ale Rations' description named the range's cask beside the
+// barracks' (defs/techs.ts): prose in a def, and the cask was always both.
+// Still 63 after a batch's length became a named function in its own file
+// (batchTicks.ts) and the batch started remembering it
+// (Building.prodTicksTotal): the same modifiers over the same recipe,
+// rounded the same way, stamped where the card's forge bar can read it.
+// The stamp is written by the tick and read by nothing in it — a logged
+// command re-runs through the same arithmetic it always did — and a save
+// that predates the field loads as it always did, the field simply
+// absent (the banditsEnabled precedent in save.ts: an optional field is
+// no format break).
+const EXPECTED_VERSION = 63;
+const EXPECTED_HASH = 'd2c739f319ca0d4ccc5dd39b60d42af0';
 
 /**
  * Everything a replay's playback depends on, as raw source:

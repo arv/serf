@@ -2,6 +2,7 @@ import type {Enum} from '../../shared/enum.ts';
 import {tileX, tileY} from '../../shared/grid.ts';
 import {Rng} from '../../shared/rng.ts';
 import {atBuilding, atTile, walkToBuilding, walkToTile} from '../arrival.ts';
+import {batchTicks} from '../batchTicks.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {WOOD_MAX_AMT, REGROW_INTERVAL} from '../defs/balance.ts';
 import {
@@ -14,7 +15,6 @@ import {
   type BuildingDef,
   type Recipe,
 } from '../defs/buildings.ts';
-import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries} from '../defs/goods.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
@@ -111,6 +111,7 @@ function convertStep(
         if (b.forgeQueue!.length === 0) b.forgeQueue = undefined;
       }
       b.prodTicksLeft = undefined;
+      b.prodTicksTotal = undefined;
       b.prodRecipeIndex = undefined;
     }
     return;
@@ -154,18 +155,12 @@ function convertStep(
     b.inputs[good] = (b.inputs[good] ?? 0) - n;
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
   }
-  const speedup =
-    getModifier(world, b.owner, ModifierKey.workSpeed) *
-    (b.type === BuildingTypeId.wheatFarm
-      ? getModifier(world, b.owner, ModifierKey.farmSpeed)
-      : 1) *
-    (b.type === BuildingTypeId.mill || b.type === BuildingTypeId.bakery
-      ? getModifier(world, b.owner, ModifierKey.foodSpeed)
-      : 1) *
-    (b.type === BuildingTypeId.weaponsmith
-      ? getModifier(world, b.owner, ModifierKey.forgeSpeed)
-      : 1);
-  b.prodTicksLeft = Math.max(1, Math.round(active.durationTicks / speedup));
+  // Both numbers, together: the clock and the length it started at. The
+  // length is display-only — no tick reads it — but it has to be
+  // remembered rather than recomputed, because a speed tech landing
+  // mid-batch does NOT re-scale the clock already running, and a bar
+  // measured against today's length would step backwards under one.
+  b.prodTicksLeft = b.prodTicksTotal = batchTicks(world, b, active);
   if (def.recipeOptions) {
     b.prodRecipeIndex = activeIndex;
     if (queueSlot >= 0) b.forgeQueue![queueSlot]!.started = true;

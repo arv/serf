@@ -24,3 +24,6 @@ export type workSpeed = typeof workSpeed;
 /** military max hp at training time */
 export const militaryHp = 7 as const;
 export type militaryHp = typeof militaryHp;
+/** soldier strike and tower volley rate (festival buff) */
+export const fightSpeed = 8 as const;
+export type fightSpeed = typeof fightSpeed;

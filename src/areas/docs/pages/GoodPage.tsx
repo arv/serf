@@ -1,4 +1,5 @@
 import {For, Show, type JSX} from 'solid-js';
+import {FESTIVAL_SPEEDUP} from '../../../sim/defs/balance.ts';
 import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
 import type {GoodId} from '../../../sim/defs/goods';
 import * as TechId from '../../../sim/defs/techIdEnum.ts';
@@ -99,7 +100,8 @@ function ConsumerLine(props: {entry: ConsumerRef}): JSX.Element {
           <DocLink href={buildingHref(BuildingTypeId.abbey)}>
             {buildingName(BuildingTypeId.abbey)}
           </DocLink>{' '}
-          to hold a festival, once{' '}
+          to hold a festival — everyone works, and every soldier and tower
+          fights, ×{FESTIVAL_SPEEDUP} faster while it runs — once{' '}
           <DocLink href={techHref(TechId.festivals)}>
             {techName(TechId.festivals)}
           </DocLink>{' '}
@@ -109,11 +111,15 @@ function ConsumerLine(props: {entry: ConsumerRef}): JSX.Element {
     case 'ration':
       return (
         <li>
-          Kept in the{' '}
+          Kept in the casks at the{' '}
           <DocLink href={buildingHref(BuildingTypeId.barracks)}>
             {buildingName(BuildingTypeId.barracks)}
           </DocLink>{' '}
-          cask — with{' '}
+          and the{' '}
+          <DocLink href={buildingHref(BuildingTypeId.archeryRange)}>
+            {buildingName(BuildingTypeId.archeryRange)}
+          </DocLink>{' '}
+          — with{' '}
           <DocLink href={techHref(TechId.aleRations)}>
             {techName(TechId.aleRations)}
           </DocLink>{' '}

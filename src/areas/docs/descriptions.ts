@@ -83,7 +83,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.fishery]:
     'One hut, one hand, and a pier that must touch water. Nothing goes in and food comes out slowly: the poor village’s food, ready long before the first loaf.',
   [BuildingTypeId.brewery]:
-    'Wheat and water into ale, for the Abbey’s festivals and the barracks’ cask. Wants Brewing researched before the roof goes up.',
+    'Wheat and water into ale, for the Abbey’s festivals and the casks at the barracks and the range. Wants Brewing researched before the roof goes up, and is quarried rather than felled: twelve stone and no wood, so the bowyer cannot starve it.',
   [BuildingTypeId.ironMine]:
     'Cut into the hillside over an iron seam. Every weapon and most tools start here, which is why Ironworking gates it.',
   [BuildingTypeId.silverMine]:
@@ -144,7 +144,7 @@ export const GOOD_DESC: Record<GoodId, string> = {
     'The spearman’s arm: iron and wood, the cheapest way to put a soldier in the field.',
   [GoodId.bow]: `${forgeCost(GoodId.bow, GoodId.wood)} wood and no iron — the weapon a poor village can still field, once Archery is read.`,
   [GoodId.ale]:
-    'Brewed from wheat and water. The Abbey drinks it as festivals; the barracks as faster training.',
+    'Brewed from wheat and water. The Abbey drinks it as festivals — everyone works, and every soldier and tower fights, a quarter faster while one runs; the barracks and the range drink it as faster training.',
   [GoodId.flour]: 'Milled wheat, halfway to bread.',
   [GoodId.food]:
     'What soldiers train on and the village fights for: baked at the oven, or pulled from the shore.',

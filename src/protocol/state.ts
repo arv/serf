@@ -211,6 +211,10 @@ export function encodeHot(
     // print the pair. Stored raw like every byte above it — the row arrives
     // already in range (UnitSnapshot).
     out[off + 21] = u.maxHp;
+    // The festival mark and whatever joins it (BUFF). A rival's research is
+    // redacted from the struct channel, so this byte is the only way a
+    // seat learns that the column at its gate has been drinking.
+    out[off + 22] = u.buffs ?? 0;
     off += UNIT_BYTES;
   }
   return out;
@@ -243,6 +247,7 @@ function decodeHot(data: Uint8Array): HotFrame {
       facing: data[off + 19]!,
       targetDist: data[off + 20]!,
       maxHp: data[off + 21]!,
+      buffs: data[off + 22]!,
     });
     off += UNIT_BYTES;
   }

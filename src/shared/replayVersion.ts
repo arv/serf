@@ -20,6 +20,28 @@
  * directly.
  */
 /**
+ * 63: the festival reaches the field, and the brewery is quarried.
+ *
+ * Ale used to buy the village a quarter more work and nothing else. A
+ * festival now also divides every soldier's recovery between blows and
+ * every tower's between volleys by the same FESTIVAL_SPEEDUP
+ * (systems/combat.ts strikeCooldown, techHelpers.ts getModifier on
+ * ModifierKey.fightSpeed): a knight under one swings every 16 ticks
+ * rather than 20, an archer every 19 rather than 24, and the archer's
+ * kite plant is measured off that shorter clock so the man is still
+ * planted eight ticks of it. Every fight an owner with ale in the Abbey
+ * takes lands its blows on different ticks with different men standing,
+ * so a log recorded on 62 diverges at the first arrow of its first
+ * festival.
+ *
+ * The brewery's bill moves in the same build, from ten wood and four stone
+ * to twelve stone (defs/buildings.ts): a site raised on an old log asks
+ * the matcher for different loads, and the hauls that answer it take
+ * different hands off the board on different ticks.
+ *
+ * 62's note follows.
+ */
+/**
  * 62: a study is carried to the Abbey before it begins.
  *
  * The research command used to take a tech's goods off the storehouse
@@ -977,4 +999,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 62;
+export const REPLAY_VERSION = 63;
