@@ -183,7 +183,7 @@ export function SelectionPanel(props: {
   /** Hold ground — sent on the spot, unlike the two orders above. */
   onHold: () => void;
   /** Stop — sent on the spot too, and for everyone in hand, not just the
-   * fighters: a serf walks under orders like anyone else. */
+   * fighters: a serf walks like anyone else. */
   onStop: () => void;
   onClearRally: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
@@ -1788,7 +1788,7 @@ export function SelectionPanel(props: {
                 tip={() => (
                   <TextTip
                     title="Stop"
-                    body="They drop the order they are walking — march, attack-move or assault — and stand where they are. Soldiers still answer an enemy that comes to them; Hold is the order that never gives ground."
+                    body="They stop walking and stand where they are — march, attack-move, assault or chase. An errand in hand is left alone. Soldiers still answer an enemy that comes to them; Hold is the order that never gives ground."
                   />
                 )}
               >

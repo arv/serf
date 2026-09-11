@@ -696,8 +696,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // out of a log recorded here — the squad marches on there, and the battle
 // that follows is fought from different ground. In replayVersion.ts at
 // length.
+// Still 66 after the stop learned to reach a chaser: a focused or
+// acquired target is spelled as a target with the task left idle, so the
+// order now reads a man's feet and his target rather than his task alone.
+// Real tick behavior — a stopped man drops a chase he used to keep — but
+// 66 is this build's own bump and has never shipped, so there is nothing
+// older to break.
 const EXPECTED_VERSION = 66;
-const EXPECTED_HASH = '78d48716e3692b158b47ca8147d8ad72';
+const EXPECTED_HASH = '4101b5ca0b28c1d8665a2086fa46b2e2';
 
 /**
  * Everything a replay's playback depends on, as raw source:

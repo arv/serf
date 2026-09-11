@@ -2522,10 +2522,10 @@ export class Controls {
   }
 
   /**
-   * Stop: everyone in hand drops the order he is walking and stands
-   * where he is (sim: the walk, the attack-move and the assault all end,
-   * and the route queued behind them with them). The S key and the card's
-   * Stop button both land here.
+   * Stop: everyone in hand stops walking and stands where he is (sim: the
+   * march, the attack-move, the assault and the chase all end, and the
+   * route queued behind them with them; an errand is left alone). The S
+   * key and the card's Stop button both land here.
    *
    * An order rather than a mode, exactly as the hold beside it is: there
    * is no tile to pick, so the press is the order, and sending it disarms
@@ -2534,8 +2534,8 @@ export class Controls {
    *
    * The whole selection goes out, soldiers and serfs alike, where the
    * hold sends only its fighters. Two reasons, and they are the same
-   * reason twice: a stop IS an order a civilian can take (he walks under
-   * orders like anyone else), and this layer cannot tell who is walking
+   * reason twice: a stop IS an order a civilian can take (he walks like
+   * anyone else), and this layer cannot tell who is walking
    * anyway — the published byte says what a man is visibly doing, not
    * which order put him there. So the sim decides who had something to
    * drop, and the ring here confirms that the order went out rather than

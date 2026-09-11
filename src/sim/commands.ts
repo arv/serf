@@ -105,11 +105,17 @@ export type SimCommand =
    * Stop is how a charge is called off; hold is how a line is drawn.
    *
    * Unlike the hold, this takes civilians too — a serf sent across the
-   * valley is under an order like anyone else, and "stop" means stop. An
-   * errand is not an order the player gave (hauling, a worker's gather
-   * loop, a walk to a post to take it up), so it is left alone: nothing
-   * here strands a good on a shoulder or empties a building of its
-   * worker.
+   * valley is walking like anyone else, and "stop" means stop. What it
+   * does not touch is an errand (hauling, a worker's gather loop, a walk
+   * to a post to take it up): those are not walks the man can be halted
+   * in the middle of without stranding a good on a shoulder or leaving a
+   * building unworked, so they are left alone, as a hold is.
+   *
+   * Every other walk is stopped, whoever set it going — the player's
+   * march, a recruit's walk to his rally flag, a serf's stroll, the
+   * chase or the siege the combat system walks for a soldier with a
+   * target. The man was selected and the key was pressed; "stop" is not
+   * a question about where the walk came from.
    */
   | {kind: CommandKindNs.stopUnits; unitIds: EntityId[]}
   | {

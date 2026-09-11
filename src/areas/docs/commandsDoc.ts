@@ -122,7 +122,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.stopUnits]: {
     summary:
-      'Stop, on S. Everyone named drops the order he is walking — a march, an attack-move, an assault on a building — along with the route queued behind it, and stands where his feet are. Serfs included: a walk is a walk. An errand is not an order the player gave, so hauling, a worker’s gather loop and a walk to a post to take it up all survive a stop, as does a hold. Not the hold’s quieter cousin: a stopped soldier is an idle soldier, so he still answers an enemy that comes within his acquire radius — stop calls a charge off, hold draws a line.',
+      'Stop, on S. Everyone named stops walking and stands where his feet are — a march, an attack-move, an assault on a building, the chase or siege a soldier walks for a target, and the route queued behind any of them. Serfs included: a walk is a walk. An errand is the exception, since it cannot be halted mid-step without stranding what it carries — hauling, a worker’s gather loop and a walk to a post to take it up all survive a stop, as does a hold. Not the hold’s quieter cousin: a stopped soldier is an idle soldier, so he still answers an enemy that comes within his acquire radius — stop calls a charge off, hold draws a line.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
   },
   [CommandKind.focusTarget]: {

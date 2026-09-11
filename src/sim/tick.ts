@@ -210,32 +210,37 @@ export function applyCommand(
       }
       break;
     case CommandKind.stopUnits:
-      // Halt: drop the order in hand and stand here. Only an order the
-      // player gave is dropped — a walk, an attack-move, or an assault on
-      // a building — so a serf's errand survives a stop the way it
-      // survives a hold (see the command's note in commands.ts), and a
-      // soldier already holding ground is left holding it: a stop that
-      // lifted a hold would make S the one key that quietly undoes H.
+      // Halt: drop the walk in hand and stand here. What is stopped is
+      // movement the man was making under an order — a march, an
+      // attack-move, an assault on a building — and the chase or the
+      // siege combat walks for him, which wears no task of its own: a
+      // focused target (and an acquired one) is spelled as a target and
+      // nothing else, with the task left idle, so the stop has to reach
+      // him through his feet and his target rather than through his task
+      // alone. An errand is not movement under an order and survives
+      // untouched (hauling, a worker's gather loop, a walk to a post to
+      // take it up), and so does a hold: a stop that lifted one would
+      // make S the key that quietly undoes H.
       //
-      // What goes is everything that was carrying him somewhere: the
-      // path under his feet, the pace his squad marched at, the route
-      // queued behind the leg he was walking ("stop" is not "stop, then
-      // carry on"), and the target, since a man told to stop must not go
-      // on chasing. He lands in the idle stance rather than the hold —
-      // his own march ending would have left him exactly there, and
-      // combat re-acquires from idle on the next tick, which is what
-      // makes a stop an interruption rather than a stance.
+      // Everything that was carrying him somewhere goes: the path under
+      // his feet, the pace his squad marched at, the route queued behind
+      // the leg he was walking ("stop" is not "stop, then carry on"), and
+      // the target, since a man told to stop must not go on chasing. He
+      // lands in the idle stance rather than the hold — his own march
+      // ending would have left him exactly there, and combat re-acquires
+      // from idle on the next tick, which is what makes a stop an
+      // interruption rather than a stance.
       for (const id of cmd.unitIds) {
         const unit = world.units.get(id);
         if (!unit || unit.dead || unit.owner !== playerId) continue;
-        if (
-          unit.task.t !== UnitTaskKind.move &&
-          unit.task.t !== UnitTaskKind.attackMove &&
-          unit.task.t !== UnitTaskKind.raid
-        ) {
-          continue;
-        }
-        unit.task = {t: UnitTaskKind.idle, until: world.tick};
+        const walking =
+          unit.task.t === UnitTaskKind.move ||
+          unit.task.t === UnitTaskKind.attackMove ||
+          unit.task.t === UnitTaskKind.raid;
+        // Idle covers the chaser and the besieger; anything else is an
+        // errand or a stance, and neither is this order's business.
+        if (!walking && unit.task.t !== UnitTaskKind.idle) continue;
+        if (walking) unit.task = {t: UnitTaskKind.idle, until: world.tick};
         unit.path = null;
         unit.pathIdx = 0;
         clearMarchSpeed(unit);

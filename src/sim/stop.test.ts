@@ -162,6 +162,71 @@ describe('the stop order', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it('calls off a chase after a focused target', () => {
+    // A focus order is a target and nothing else: the man stays idle
+    // while combat walks him at what he was put on (sim/commands.ts
+    // focusTarget). Read through the task alone, a stop would miss him —
+    // and he would go on chasing. The prey stands beyond a knight's
+    // acquire radius (6) so nothing re-acquires him after the stop; what
+    // is being measured is the chase ending, not the man going blind.
+    const {world, man} = stand(UnitTypeId.knight);
+    const prey = spawnUnit(world, UnitTypeId.serf, 1, MID + 8.5, MID + 0.5);
+    prey.task = {t: UnitTaskKind.idle, until: Number.MAX_SAFE_INTEGER};
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.focusTarget,
+        unitIds: [man.id],
+        targetId: prey.id,
+      }),
+    );
+    run(world, 5);
+    expect(man.task.t).toBe(UnitTaskKind.idle); // no task of its own
+    expect(man.x).toBeGreaterThan(MID + 0.5); // and yet he is closing
+
+    stop(world, man.id);
+    const x = man.x;
+    run(world, 30);
+
+    expect(man.targetId).toBeUndefined();
+    expect(man.path).toBeNull();
+    expect(man.x).toBe(x);
+  });
+
+  it('calls off a siege the squad was focused on', () => {
+    // The same shape with a building, and worse without the stop: a
+    // building target never drops by distance, so a man walked at one
+    // keeps walking until he reaches it.
+    const {world, man} = stand(UnitTypeId.knight);
+    const hut = placeBuiltBuilding(
+      world,
+      BuildingTypeId.woodcutter,
+      1,
+      MID + 12,
+      MID,
+    );
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.focusTarget,
+        unitIds: [man.id],
+        targetId: hut.id,
+        building: true,
+      }),
+    );
+    run(world, 5);
+    expect(man.targetIsBuilding).toBe(true);
+    expect(man.x).toBeGreaterThan(MID + 0.5);
+
+    stop(world, man.id);
+    const x = man.x;
+    run(world, 30);
+
+    expect(man.targetId).toBeUndefined();
+    expect(man.path).toBeNull();
+    expect(man.x).toBe(x);
+  });
+
   it('leaves a soldier holding ground holding', () => {
     const {world, man} = stand(UnitTypeId.knight);
     tickWorld(world, cmds({kind: CommandKind.holdGround, unitIds: [man.id]}));

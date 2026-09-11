@@ -142,9 +142,10 @@ export function canRally(b: BuildingSnap): boolean {
 export const HOLD_KEY = 'H';
 
 /**
- * Stop, for the selection that is in hand: everyone under an order drops
- * it and stands where he is — the march, the attack-move, the assault and
- * the route queued behind any of them. S, the key StarCraft and Warcraft
+ * Stop, for the selection that is in hand: everyone walking stops where
+ * he is — the march, the attack-move, the assault, the chase, and the
+ * route queued behind any of them. An errand is the one walk it leaves
+ * alone (the sim's note, sim/commands.ts, says why). S, the key StarCraft and Warcraft
  * both put Stop on, and free here: the other two S's are the barracks'
  * Spearman and the build chord's Smith, and neither is ever being read at
  * the same time as this one — a building selection is never a unit

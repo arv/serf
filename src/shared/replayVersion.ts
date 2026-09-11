@@ -23,10 +23,11 @@
  * 66: the stop order.
  *
  * A twentieth command kind (`stopUnits`, commands.ts): everyone named
- * drops the order he is walking — a march, an attack-move, an assault on
- * a building — along with the route queued behind it, the pace his squad
- * marched at and the target he was closing on, and stands where his feet
- * are (tick.ts applyCommand). S, where every RTS puts it.
+ * stops walking — a march, an attack-move, an assault on a building, and
+ * the chase or siege the combat system walks for a soldier with a target
+ * — along with the route queued behind it, the pace his squad marched at
+ * and the target he was closing on, and stands where his feet are
+ * (tick.ts applyCommand). S, where every RTS puts it.
  *
  * The bump is the one a new kind always earns, for the reason the hold
  * (44) and the focus order (39) record: an older build's sanitizeCommand
@@ -39,8 +40,8 @@
  *
  * It is deliberately NOT the hold's stance. A stopped man is an idle man,
  * so he answers what walks into his acquire radius; hold is the promise
- * that he never leaves the tile. And only an order the player gave is
- * dropped — a serf's haul, a worker's gather loop and a walk to a post to
+ * that he never leaves the tile. And an errand is the one walk it leaves
+ * alone — a serf's haul, a worker's gather loop and a walk to a post to
  * take it up all survive a stop, as does a hold — so nothing here strands
  * a good on a shoulder or empties a building of its worker.
  *
