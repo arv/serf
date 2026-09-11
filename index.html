@@ -225,11 +225,74 @@
           --ui-scale: 2.4;
         }
       }
-      /* The last rung is a ceiling as much as a step: past here the screen
-         is bigger than anything sold, and the HUD stops taking the extra. */
-      @media (min-width: 3600px) and (min-height: 2250px) {
+      /* Past 2.4 the rungs are 0.2 apart. What a rung costs is how far the
+         floor can round a window down — a step over the rung it lands on —
+         and 0.2 over 2.6 is 7.7%, less than the 9% that 0.1 over 1.1
+         already costs at the bottom of the ladder. Ten-hundredths all the
+         way up would be twice the rungs for no share anyone can see.
+
+         The ladder runs to 8K (7680x4320 at 100% system scaling, 4.8x)
+         and 5K lands exactly on 3.2. Past 8K there is no desktop to
+         measure against; a window bigger still is drawn at 4.8 and
+         the HUD takes a little less than its share. */
+      @media (min-width: 3744px) and (min-height: 2340px) {
         :root {
-          --ui-scale: 2.5;
+          --ui-scale: 2.6;
+        }
+      }
+      @media (min-width: 4032px) and (min-height: 2520px) {
+        :root {
+          --ui-scale: 2.8;
+        }
+      }
+      @media (min-width: 4320px) and (min-height: 2700px) {
+        :root {
+          --ui-scale: 3;
+        }
+      }
+      @media (min-width: 4608px) and (min-height: 2880px) {
+        :root {
+          --ui-scale: 3.2;
+        }
+      }
+      @media (min-width: 4896px) and (min-height: 3060px) {
+        :root {
+          --ui-scale: 3.4;
+        }
+      }
+      @media (min-width: 5184px) and (min-height: 3240px) {
+        :root {
+          --ui-scale: 3.6;
+        }
+      }
+      @media (min-width: 5472px) and (min-height: 3420px) {
+        :root {
+          --ui-scale: 3.8;
+        }
+      }
+      @media (min-width: 5760px) and (min-height: 3600px) {
+        :root {
+          --ui-scale: 4;
+        }
+      }
+      @media (min-width: 6048px) and (min-height: 3780px) {
+        :root {
+          --ui-scale: 4.2;
+        }
+      }
+      @media (min-width: 6336px) and (min-height: 3960px) {
+        :root {
+          --ui-scale: 4.4;
+        }
+      }
+      @media (min-width: 6624px) and (min-height: 4140px) {
+        :root {
+          --ui-scale: 4.6;
+        }
+      }
+      @media (min-width: 6912px) and (min-height: 4320px) {
+        :root {
+          --ui-scale: 4.8;
         }
       }
 
