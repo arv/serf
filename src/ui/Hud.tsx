@@ -187,6 +187,7 @@ export function Hud(props: {
   onPlace: (type: BuildingTypeId | null) => void;
   onArmOrder: (mode: OrderMode | null) => void;
   onHold: () => void;
+  onStop: () => void;
   onHire: () => void;
   onCancelHire: (index: number) => void;
   onResearch: (tech: TechId) => void;
@@ -2486,6 +2487,7 @@ export function Hud(props: {
           onPickUnit={props.onPickUnit}
           onArmOrder={props.onArmOrder}
           onHold={props.onHold}
+          onStop={props.onStop}
           onClearRally={props.onClearRally}
           onSell={props.onSell}
           onRepair={props.onRepair}

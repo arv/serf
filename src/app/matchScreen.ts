@@ -1010,6 +1010,7 @@ export async function runMatch(
     place: type => controls.setPlacement(type),
     armOrder: mode => controls.armOrder(mode),
     holdGround: () => void controls.holdGround(),
+    stopUnits: () => void controls.stopUnits(),
     save: saveGame,
     saveReplay: async () => {
       // Empty means there is nothing to save: the server declines while
