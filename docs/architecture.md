@@ -16,7 +16,7 @@ are talking to.
 | --- | --- |
 | ~115k | TypeScript lines including tests |
 | 20 Hz | tick and publish rate (`TICK_MS = 50`) |
-| 17 | systems per tick, in a fixed order |
+| 18 | steps per tick, in a fixed order |
 | 2 | owners of the World: `simWorker.ts`, `server/src/rooms.ts` |
 | 1 | worker protocol both owners speak |
 
@@ -45,7 +45,7 @@ flowchart TB
     net["net<br/>predict (own units only)<br/>lobbyClient"]
     ai["ai<br/>advice contract · posture<br/>fog-honest summary"]
   end
-  sim["sim · any owner · pure<br/>world · tick (17 systems) · commands · path · map · visibility<br/>save / clone / hash pinned together · aiSeats<br/>defs/ (buildings, goods, techs, units, balance, aiStrategies, maps)<br/>systems/ (logistics, production, movement, combat, bandits…)"]
+  sim["sim · any owner · pure<br/>world · tick (18 steps) · commands · path · map · visibility<br/>save / clone / hash pinned together · aiSeats<br/>defs/ (buildings, goods, techs, units, balance, aiStrategies, maps)<br/>systems/ (logistics, production, movement, combat, bandits…)"]
   shared["shared · primitives<br/>grid · rng · math · enum modules · base64 · saveVersion · replayVersion"]
   server["server/<br/>rooms · sync · persist"]
   tools["tools/<br/>aiLab · perf · modelLab · mapAuthor"]
@@ -183,9 +183,9 @@ the same state everyone else sees; deciding afterwards would hand them a
 frame of hindsight.
 
 ```
-commands → research → production → logistics → construction → staffing →
-training → hiring → wander → movement → separation → combat → waypoints →
-bandits → trails → victory → removeDead
+commands → research → production → logistics → clearSpentSalvage →
+construction → staffing → training → hiring → wander → movement →
+separation → combat → waypoints → bandits → trails → victory → removeDead
 ```
 
 **In**
@@ -208,9 +208,11 @@ bandits → trails → victory → removeDead
   a change left it bit-identical.
 
 Order is content. Logistics runs before construction so a load delivered
-this tick counts this tick; movement runs before separation so soldiers are
-pushed apart from where they actually stepped; victory is judged before the
-dead are removed.
+this tick counts this tick; `clearSpentSalvage`, a step in `tick.ts` rather
+than a system of its own, runs right after logistics so a salvage pile whose
+last good was just carried off gives its ground back the same tick;
+movement runs before separation so soldiers are pushed apart from where
+they actually stepped; victory is judged before the dead are removed.
 
 ## Directory guide
 
