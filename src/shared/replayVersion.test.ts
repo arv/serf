@@ -669,12 +669,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // one predicate in world.ts (stillWants) that the matcher's clearDemandAge
 // asks along with the study's two endings — and the study's hauls are now
 // called off in one place (dropStudyHauls), before those clocks are read
-// and on the debug lever's path as well as the player's. 64 is this
-// build's own bump and
+// and on the debug lever's path as well as the player's, and a delivered
+// load gives up its reservation before it goes through the door rather
+// than after (systems/logistics.ts), since the threshold is where that
+// question is now asked. 64 is this build's own bump and
 // has never shipped, so there is nothing older to break; the tick really
 // does move, which is why the hash is re-pinned rather than argued away.
 const EXPECTED_VERSION = 64;
-const EXPECTED_HASH = '37df87464cc83b1c63544dfe03febf98';
+const EXPECTED_HASH = 'd3c6d53ed32a159ff1cf8d222af42b8f';
 
 /**
  * Everything a replay's playback depends on, as raw source:

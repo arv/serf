@@ -1222,8 +1222,15 @@ function progress(world: World): void {
         }
         continue;
       }
-      deliver(world, to, job.good);
+      // The reservation goes BEFORE the good does: he is standing at the
+      // door, so this load is no longer on its way — and `inbound` is read
+      // at the threshold now. A study's last barrel settling its bill asks
+      // whether anybody else still wants ale (stillWants, world.ts), and
+      // counted as inbound it stood in the Abbey's own festival cap and
+      // took that demand's FIFO age with it. Nothing else deliver() looks
+      // at is a reservation.
       releaseDest(world, job);
+      deliver(world, to, job.good);
       unit.carrying = undefined;
       unit.jobId = undefined;
       unit.task = {t: UnitTaskKind.idle, until: world.tick};
