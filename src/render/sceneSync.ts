@@ -1101,13 +1101,23 @@ export class SceneSync {
       // hammered the whole house up with his back to it. The sim publishes
       // the bearing to the work (the frame, the tree, the post) in the same
       // byte, and the range byte off zero is what says it means anything.
-      // The pier, field and windlass branches below turn their own workers
-      // and overwrite this.
+      //
+      // Not for the three posts the render places itself, though — the
+      // fisherman's pier, the farmer's rows, the well's windlass. Those
+      // branches set a heading on the frames they move a man and let it
+      // stand on the frames they don't: a farmer mid-stroke is turned by
+      // nothing at all, on purpose, because the row he is cutting is the
+      // one he walked in along. A bearing written over that would have him
+      // scything at the farm building for the length of every stroke.
+      const renderTurned =
+        workKind === WORK.fish ||
+        workKind === WORK.mow ||
+        workKind === WORK.draw;
       if (
         !moving &&
         !dead &&
         (action === ACTION.fight ||
-          (action === ACTION.work && latest.aux[a + 8]! > 0))
+          (action === ACTION.work && !renderTurned && latest.aux[a + 8]! > 0))
       ) {
         visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
       }

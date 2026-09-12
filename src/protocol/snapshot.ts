@@ -537,11 +537,15 @@ function targetDistByte(u: Unit, at: {x: number; y: number}): number {
  * uses (facingByte above): nobody is mid-swing and mid-batch at once, and
  * the renderer reads the pair under whichever action came with it.
  *
- * Three posts are placed by the render instead, which turns those workers
- * itself and overwrites this: the fisherman on his pier, the farmer in his
- * rows, the hauler at a well's windlass. The bearing is still published for
- * them — it is what they fall back to on a frame with no pier, field or
- * well to stand against.
+ * Three posts are placed by the render instead, and it turns those workers
+ * itself: the fisherman on his pier, the farmer in his rows, the hauler at
+ * a well's windlass. It ignores this bearing for them — those walks set a
+ * heading when they move a man and let it stand when they don't, so a
+ * farmer mid-stroke is holding the row he walked in along and a bearing
+ * laid over it would turn him to the farm building instead. The byte is
+ * still filled for them rather than special-cased here: which of them the
+ * render can actually place is the render's own business (it may have no
+ * pier or field registered yet), and the wire cost is a byte either way.
  */
 function workFocus(w: World, u: Unit): {x: number; y: number} | undefined {
   let at: {x: number; y: number} | undefined;

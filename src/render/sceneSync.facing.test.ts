@@ -119,4 +119,30 @@ describe('a standing worker faces his work', () => {
     const idle = worker({action: ACTION.idle, facing: WEST, targetDist: 12});
     expect(yawAfter(idle, idle)).toBeCloseTo(0);
   });
+
+  // The pier, the rows and the windlass are placed by the render, which
+  // turns those workers on the frames it moves them and leaves the heading
+  // standing on the frames it does not: a farmer mid-stroke is holding the
+  // row he walked in along. Writing the sim's bearing over that would have
+  // him scything at the farm building for the length of every stroke.
+  for (const [name, kind] of [
+    ['fisherman', WORK.fish],
+    ['farmer', WORK.mow],
+    ['hauler at a windlass', WORK.draw],
+  ] as const) {
+    it(`keeps the bearing off the ${name}, whose post the render turns`, () => {
+      const stand = worker({
+        x: 32,
+        workKind: kind,
+        facing: WEST,
+        targetDist: 12,
+      });
+      const yaw = yawAfter(
+        worker({x: 31, workKind: kind, facing: WEST, targetDist: 12}),
+        stand,
+        stand,
+      );
+      expect(yaw).toBeCloseTo(Math.PI / 2); // the walk in, not the bearing
+    });
+  }
 });
