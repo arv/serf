@@ -37,6 +37,17 @@ import {vermillion} from './palette';
  * and the visibility of the original for free, and cost no skinning work
  * on the CPU.
  *
+ * Every hidden unit writes the same bit, and three draws all the masks
+ * before any of the hulls, so what the hulls test against is the union of
+ * the hidden silhouettes rather than each man's own. A crowd behind a keep
+ * therefore wears one edge around the group instead of a tangle of edges
+ * crossing each other — deliberate, and the reason this is two passes and
+ * not three. The alternative is a stencil bit per unit (eight, and there
+ * are more men than that) or an unmask pass after each hull, which is half
+ * as many units per frame for internal boundaries that read as noise. What
+ * it costs is the count: eight men shoulder to shoulder read as a crowd,
+ * not as eight.
+ *
  * Which units get one is decided on the CPU (`occludedBy`), not by the
  * depth buffer: the depth buffer cannot tell a building from a crag or an
  * oak, and an outline for every man behind every tree is noise. Because

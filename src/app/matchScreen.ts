@@ -621,6 +621,15 @@ export async function runMatch(
   sync.setFog(fog);
   buildingSync.setFog(fog);
   footprints.setFog(fog);
+  // Which buildings this seat can see is decided inside BuildingSync's own
+  // pass, and it needs the fog to decide it — so the pass above, and the
+  // occluder snapshot feedWells took off it, both ran while every root in
+  // the valley was still visible, unexplored enemy walls included. Run
+  // both again now that the fog is installed: on the ordinary path the
+  // viewer already is this seat, so nothing below sets `turned` and
+  // nothing would correct it until the first roster message.
+  buildingSync.update(init.buildings);
+  feedWells();
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
 
