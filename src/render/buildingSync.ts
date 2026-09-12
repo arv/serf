@@ -34,6 +34,13 @@ import {
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
+import type {OccluderBox} from './xrayOutline';
+
+/** How tall a building has to stand before it can hide anybody, and how
+ * far past its footprint its eaves are assumed to reach (see
+ * occluderBoxes). */
+const OCCLUDER_MIN_HEIGHT = 0.4;
+const OCCLUDER_PAD = 0.35;
 
 type BuildingState = Enum<typeof BuildingState>;
 type GoodId = Enum<typeof GoodId>;
@@ -283,6 +290,10 @@ interface BuildingVisual {
   clip?: {plane: THREE.Plane; height: number; baseY: number};
   /** Model height above ground, for floating the hp bar. */
   topY: number;
+  /** Half the footprint, in tiles — the box the x-ray outlines test a
+   * unit's line of sight against (see occluderBoxes). */
+  halfW: number;
+  halfD: number;
   /**
    * A road: flat ground once it is laid, and a thing units walk along
    * rather than a thing anyone clicks. Its scaffolding is not worth a pick
@@ -551,7 +562,10 @@ export class BuildingSync {
    */
   heightOf(id: number): number {
     const v = this.#visuals.get(id);
-    if (!v) return 0;
+    return v ? this.#heightOfVisual(v) : 0;
+  }
+
+  #heightOfVisual(v: BuildingVisual): number {
     // A road is ground. Its site frame stands 0.7 up for the twenty ticks
     // it takes to lay, and roads are laid in long chains along the very
     // ground people order units down — a pick box on each would hang a
@@ -837,6 +851,8 @@ export class BuildingSync {
       model,
       clip,
       topY,
+      halfW: b.w / 2,
+      halfD: b.h / 2,
       road,
       pct: 1,
       pileKey: '',
@@ -863,6 +879,39 @@ export class BuildingSync {
       levied: false,
       salvage: b.type === BuildingTypeId.salvage,
     };
+  }
+
+  /**
+   * The standing buildings as plain boxes, for the x-ray outlines: a unit
+   * whose line to the camera crosses one of these is hidden behind a wall
+   * and gets an outline drawn over it (xrayOutline.ts).
+   *
+   * Roads and salvage piles are not in it — nothing ankle-high hides
+   * anybody — and the horizontal extent is padded past the footprint,
+   * because eaves overhang and the test is allowed to be generous but
+   * never mean: a box that missed would cost an outline, where a box that
+   * over-reaches costs two draws the depth test throws away.
+   */
+  occluderBoxes(): OccluderBox[] {
+    const out: OccluderBox[] = [];
+    for (const v of this.#visuals.values()) {
+      if (v.salvage) continue;
+      // What it has raised so far, not what it will be — the same measure
+      // the pointer picks against, so a foundation hides nobody and a
+      // half-built keep hides them to exactly the course it has reached.
+      const top = this.#heightOfVisual(v);
+      if (top < OCCLUDER_MIN_HEIGHT) continue;
+      const {x, y, z} = v.root.position;
+      out.push({
+        minX: x - v.halfW - OCCLUDER_PAD,
+        maxX: x + v.halfW + OCCLUDER_PAD,
+        minZ: z - v.halfD - OCCLUDER_PAD,
+        maxZ: z + v.halfD + OCCLUDER_PAD,
+        baseY: y,
+        topY: y + top,
+      });
+    }
+    return out;
   }
 
   /** Built wells' world centers, windlasses and grip handles — sceneSync

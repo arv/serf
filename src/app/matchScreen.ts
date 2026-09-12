@@ -506,12 +506,15 @@ export async function runMatch(
   };
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip), where the fishery piers run (fishermen walk
-  // out and cast off the end), and where the farm fields lie (farmers
-  // mow their rows).
+  // out and cast off the end), where the farm fields lie (farmers mow
+  // their rows), and what shape each building is as an occluder.
   const feedWells = (): void => {
     sync.setWells(buildingSync.wellCranks());
     sync.setPiers(buildingSync.fisheryPiers());
     sync.setFields(buildingSync.farmFields());
+    // ...and which of them stand tall enough to hide a man from the
+    // camera, so the ones behind a wall can be outlined over it.
+    sync.setOccluders(buildingSync.occluderBoxes());
   };
   feedWells();
   // A replay keeps every seat's memory, not just the recorded seat's: the
@@ -601,9 +604,14 @@ export async function runMatch(
   if (import.meta.env.DEV) {
     // Console handles for forensics and screenshot tooling: the fog for
     // visibility checks, the rig and heights for scripted camera jumps and
-    // world->screen math (the wardrobe exposes its own pair).
+    // world->screen math, the two syncs for poking at what is drawn (the
+    // x-ray outlines are switched from there — setOccluders([]) off, the
+    // building sync's own boxes back on) — and the wardrobe exposes its
+    // own pair.
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
+      __sync: sync,
+      __buildings: buildingSync,
       __renderer: renderer,
       __rig: renderer.rig,
       __heights: heights,
