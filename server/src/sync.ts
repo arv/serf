@@ -338,7 +338,25 @@ export function facedPoint(
   const dist = (u.targetDist ?? 0) / 8;
   if (dist <= 0) return undefined;
   const yaw = ((u.facing ?? 0) / 256) * Math.PI * 2;
-  return {x: u.x + Math.sin(yaw) * dist, y: u.y + Math.cos(yaw) * dist};
+  return {
+    x: onGrid(u.x + Math.sin(yaw) * dist),
+    y: onGrid(u.y + Math.cos(yaw) * dist),
+  };
+}
+
+/**
+ * A coordinate a whisker off a whole tile line, put back on it. The
+ * quarter-turn bearings do not come out of sin/cos exactly — cos(3π/2) is
+ * -1.8e-16, not 0 — so a point that belongs on a tile line lands a hair
+ * below it, and `canSee` floors, which reads that hair as the tile before.
+ * A man working due west of ground the seat CAN see had his bearing
+ * redacted for it. The pair is quantized to an eighth of a tile and a
+ * 1.4-degree step in the first place, so a billionth either way is noise
+ * beside what the bytes can say at all.
+ */
+function onGrid(v: number): number {
+  const whole = Math.round(v);
+  return Math.abs(v - whole) < 1e-9 ? whole : v;
 }
 
 export function sendHot(room: Room): void {

@@ -128,6 +128,36 @@ describe('sendHot: a bearing is a location too', () => {
     expect(pairFor(frames, builderId)).toEqual({facing: 64, dist: 20});
   });
 
+  it('puts a bearing that lands on a tile line back on it', () => {
+    // cos(3π/2) is -1.8e-16 rather than 0, so a point due west of a man
+    // whose own y is a whole number lands a hair below the tile line and
+    // floors into the tile before it. Near the top of the map that hair is
+    // bigger than the gap between doubles, and the pair was redacted for
+    // ground the seat could see perfectly well.
+    const at = facedPoint({...row, y: 3, facing: 192, targetDist: 20})!;
+    expect(at.x).toBeCloseTo(28);
+    expect(Math.floor(at.y)).toBe(3); // not 2
+  });
+
+  it('keeps an enemy’s pair when his work lies due west on lit ground', () => {
+    const {room, seat, builderId, frames} = rig();
+    const world = room.world!;
+    const builder = world.units.get(builderId)!;
+    const site = world.buildings.get(builder.homeId!)!;
+    // Move his site due west of him instead: center (30, 3), which is a
+    // tile line in y, and stand him at (32.5, 3) — the floating-point case.
+    site.x = 29;
+    site.y = 2;
+    builder.x = 32.5;
+    builder.y = 3;
+    const vision = seat.view!.vision;
+    vision.visible.fill(0);
+    vision.visible[tileIdx(32, 3, world.map.size)] = 1; // his own tile
+    vision.visible[tileIdx(30, 3, world.map.size)] = 1; // the site's center
+    sendHot(room);
+    expect(pairFor(frames, builderId)).toEqual({facing: 192, dist: 20});
+  });
+
   it('never redacts the seat’s own men', () => {
     const {room, seat, builderId, frames} = rig();
     const builder = room.world!.units.get(builderId)!;

@@ -136,6 +136,35 @@ describe('a standing worker faces his work', () => {
     expect(yaw).toBeCloseTo(Math.PI / 2);
   });
 
+  it('leaves a redacted fighter his own walk rather than due south', () => {
+    // Multiplayer: the server drops the pair for an enemy whose target
+    // stands on ground this seat cannot see, and a fight row then arrives
+    // with a 0 bearing that means "nothing to face" rather than "north".
+    // Read as a bearing it snapped every such man a quarter turn.
+    const stand = worker({
+      x: 32,
+      action: ACTION.fight,
+      facing: 0,
+      targetDist: 0,
+    });
+    const yaw = yawAfter(
+      worker({x: 31, action: ACTION.fight, targetDist: 0}),
+      stand,
+      stand,
+    );
+    expect(yaw).toBeCloseTo(Math.PI / 2); // the walk in, not the redaction
+  });
+
+  it('still turns a fighter the sim did send a target for', () => {
+    const stand = worker({
+      x: 32,
+      action: ACTION.fight,
+      facing: WEST,
+      targetDist: 8,
+    });
+    expect(yawAfter(stand, stand)).toBeCloseTo(Math.PI * 1.5);
+  });
+
   it('ignores a bearing under an action that is not work or a fight', () => {
     const idle = worker({action: ACTION.idle, facing: WEST, targetDist: 12});
     expect(yawAfter(idle, idle)).toBeCloseTo(0);
