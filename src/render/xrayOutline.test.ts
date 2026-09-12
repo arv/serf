@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
+import {TALLEST_UNIT, TARGET_HEIGHT} from './characters';
 import {attachXrayOutline, occludedBy, type OccluderBox} from './xrayOutline';
 
 /** A hut two tiles square standing on flat ground, four units tall. */
@@ -55,6 +56,17 @@ describe('occludedBy', () => {
 
   it('answers for the whole roster, not just the first hut', () => {
     expect(occludedBy([hut(20, 20), hut()], -3, 0, -3, MAN, VIEW)).toBe(true);
+  });
+});
+
+describe('the height the sweep uses', () => {
+  it('is the tallest body drawn, not the one they are normalized to', () => {
+    // A spec may scale a body back up after the normalize — the Barbarian
+    // stands a head over everyone at 1.18 — and a sweep that took the
+    // nominal height would under-report for him, which is the one thing
+    // this test is not allowed to do.
+    expect(TALLEST_UNIT).toBeGreaterThan(TARGET_HEIGHT);
+    expect(TALLEST_UNIT).toBeCloseTo(TARGET_HEIGHT * 1.18, 6);
   });
 });
 

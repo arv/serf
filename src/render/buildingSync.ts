@@ -905,9 +905,21 @@ export class BuildingSync {
    * overhang and the test is allowed to be generous but never mean: a box
    * that missed would cost an outline, where a box that over-reaches
    * costs two draws the depth test throws away.
+   *
+   * Read every frame rather than snapshotted when the roster changes, and
+   * that is the whole of why: what belongs in this list turns on more than
+   * the roster message. The fog decides it, and reaches this sync after
+   * the first pass and turns again with the viewed seat in a replay;
+   * forgetMonuments drops visuals on a players-only frame; a construction
+   * site rises between messages. Three snapshot points had been found by
+   * the time this comment was written and a fourth was waiting. Reading it
+   * live has none. The array and the boxes in it are reused, so a caller
+   * must read them rather than keep them, and a quiet frame allocates
+   * nothing.
    */
-  occluderBoxes(): OccluderBox[] {
-    const out: OccluderBox[] = [];
+  occluderBoxes(): readonly OccluderBox[] {
+    const out = this.#occluders;
+    let n = 0;
     for (const v of this.#visuals.values()) {
       if (v.salvage || !v.root.visible) continue;
       // What the model has raised so far, not what it will be, and not
@@ -916,17 +928,28 @@ export class BuildingSync {
       const top = v.road ? 0 : this.#raised(v);
       if (top < OCCLUDER_MIN_HEIGHT) continue;
       const {x, y, z} = v.root.position;
-      out.push({
-        minX: x - v.halfW - OCCLUDER_PAD,
-        maxX: x + v.halfW + OCCLUDER_PAD,
-        minZ: z - v.halfD - OCCLUDER_PAD,
-        maxZ: z + v.halfD + OCCLUDER_PAD,
-        baseY: y,
-        topY: y + top,
+      const box = (out[n] ??= {
+        minX: 0,
+        maxX: 0,
+        minZ: 0,
+        maxZ: 0,
+        baseY: 0,
+        topY: 0,
       });
+      box.minX = x - v.halfW - OCCLUDER_PAD;
+      box.maxX = x + v.halfW + OCCLUDER_PAD;
+      box.minZ = z - v.halfD - OCCLUDER_PAD;
+      box.maxZ = z + v.halfD + OCCLUDER_PAD;
+      box.baseY = y;
+      box.topY = y + top;
+      n++;
     }
+    out.length = n;
     return out;
   }
+
+  /** Reused frame to frame by occluderBoxes — see the note there. */
+  #occluders: OccluderBox[] = [];
 
   /** Built wells' world centers, windlasses and grip handles — sceneSync
    * stands the drawing serf beside the crank, IK-glues their hand to the

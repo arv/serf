@@ -19,6 +19,7 @@ import {crossedRelease} from './arrows';
 import type {FieldInfo, PierInfo} from './buildingSync';
 import type {ViewBounds} from './cameraRig';
 import {
+  TALLEST_UNIT,
   TARGET_HEIGHT,
   gaitAnimKey,
   updateBow,
@@ -1628,10 +1629,13 @@ export class SceneSync {
               ? Math.max(groundY, field.padY)
               : groundY;
         visual.group.position.set(px, standY + bob, pz);
-        // Behind a wall this frame? Then draw his edge over it.
+        // Behind a wall this frame? Then draw his edge over it. The
+        // tallest body rather than this one's: the sweep is allowed to
+        // over-report and never to miss, and a man's own height is only
+        // ever shorter.
         visual.outline.setVisible(
           occluders.length > 0 &&
-            occludedBy(occluders, px, standY, pz, TARGET_HEIGHT, toCamera),
+            occludedBy(occluders, px, standY, pz, TALLEST_UNIT, toCamera),
         );
         if (barPct >= 0) {
           // Exactly where the child mesh used to land. A unit's facing is a

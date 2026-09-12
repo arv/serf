@@ -506,15 +506,14 @@ export async function runMatch(
   };
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip), where the fishery piers run (fishermen walk
-  // out and cast off the end), where the farm fields lie (farmers mow
-  // their rows), and what shape each building is as an occluder.
+  // out and cast off the end), and where the farm fields lie (farmers
+  // mow their rows). What each building is as an occluder is NOT here:
+  // that answer moves with the fog and with a rising site, not only with
+  // the roster, so the frame loop reads it live (occluderBoxes).
   const feedWells = (): void => {
     sync.setWells(buildingSync.wellCranks());
     sync.setPiers(buildingSync.fisheryPiers());
     sync.setFields(buildingSync.farmFields());
-    // ...and which of them stand tall enough to hide a man from the
-    // camera, so the ones behind a wall can be outlined over it.
-    sync.setOccluders(buildingSync.occluderBoxes());
   };
   feedWells();
   // A replay keeps every seat's memory, not just the recorded seat's: the
@@ -622,14 +621,11 @@ export async function runMatch(
   buildingSync.setFog(fog);
   footprints.setFog(fog);
   // Which buildings this seat can see is decided inside BuildingSync's own
-  // pass, and it needs the fog to decide it — so the pass above, and the
-  // occluder snapshot feedWells took off it, both ran while every root in
-  // the valley was still visible, unexplored enemy walls included. Run
-  // both again now that the fog is installed: on the ordinary path the
-  // viewer already is this seat, so nothing below sets `turned` and
-  // nothing would correct it until the first roster message.
+  // pass, and it needs the fog to decide it — so the pass above ran while
+  // every root in the valley was still visible, unexplored enemy walls
+  // included. Run it again now that the fog is installed, rather than
+  // leaving the first frames drawn against a roster nobody has scouted.
   buildingSync.update(init.buildings);
-  feedWells();
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
 
@@ -1149,13 +1145,7 @@ export async function runMatch(
     const turned = fog.owner !== viewerId() || fog.enabled !== fogOn;
     fog.setOwner(viewerId());
     fog.setEnabled(fogOn);
-    if (turned) {
-      buildingSync.update(roster);
-      // That pass is what decides which buildings this seat can see, and
-      // an unseen one is no longer an occluder — so the snapshot the
-      // outlines test against has to turn with it.
-      sync.setOccluders(buildingSync.occluderBoxes());
-    }
+    if (turned) buildingSync.update(roster);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,
@@ -1182,6 +1172,10 @@ export async function runMatch(
     const bounds = renderer.rig.viewBounds(3, boundsScratch);
     setAudioView(renderer.rig.viewFrame(3, frameScratch));
     setAudioPaused(speed() === 0);
+    // Live, not snapshotted: which buildings can hide a man turns on the
+    // fog, on a monument dropped for a rebuild, and on how far a site has
+    // risen — none of which arrive with the roster message.
+    sync.setOccluders(buildingSync.occluderBoxes());
     sync.update(
       now,
       controls.hoverUnit,
