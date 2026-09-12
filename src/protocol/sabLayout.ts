@@ -151,6 +151,10 @@ export interface UnitSnapshot {
    * With `facing` it reconstructs the point itself, which is what lets the
    * renderer fly an archer's arrow at the enemy the sim actually shot —
    * the bearing alone says which way, never how far.
+   *
+   * Which is also why the multiplayer server drops the pair for an enemy
+   * unit whose point the watching seat cannot see (`sendHot`): a bearing
+   * and a range are a location, and that one may stand on dark ground.
    */
   targetDist?: number;
   /** BUFF bits the unit wears; absent reads as none. */

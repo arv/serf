@@ -539,13 +539,13 @@ function targetDistByte(u: Unit, at: {x: number; y: number}): number {
  *
  * Three posts are placed by the render instead, and it turns those workers
  * itself: the fisherman on his pier, the farmer in his rows, the hauler at
- * a well's windlass. It ignores this bearing for them — those walks set a
- * heading when they move a man and let it stand when they don't, so a
- * farmer mid-stroke is holding the row he walked in along and a bearing
- * laid over it would turn him to the farm building instead. The byte is
- * still filled for them rather than special-cased here: which of them the
- * render can actually place is the render's own business (it may have no
- * pier or field registered yet), and the wire cost is a byte either way.
+ * a well's windlass. It ignores this bearing for them and keeps its own
+ * heading — those walks turn a man on the frames they move him and let the
+ * heading stand on the frames they don't, so a farmer mid-stroke is holding
+ * the row he walked in along, and a bearing laid over it would turn him to
+ * the farm building for the length of every stroke. The byte is filled for
+ * them all the same: which work kinds the render turns is not this layer's
+ * business to know, and the row costs the same either way.
  */
 function workFocus(w: World, u: Unit): {x: number; y: number} | undefined {
   let at: {x: number; y: number} | undefined;

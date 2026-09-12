@@ -8,6 +8,7 @@ import {
   WORK,
   type UnitSnapshot,
 } from '../protocol/sabLayout';
+import type {FieldInfo} from './buildingSync';
 import type {HeightField} from './heightField';
 
 /**
@@ -70,6 +71,26 @@ function worker(over: Partial<UnitSnapshot> = {}): UnitSnapshot {
     ...over,
   };
 }
+
+/**
+ * The farmer's rows: a lane running due +z out of a farm centred at
+ * (30, 30), which is the post #nearestField matches him to.
+ */
+const FIELD: FieldInfo = {
+  bx: 30,
+  bz: 30,
+  gateX: 31,
+  gateZ: 31.5,
+  points: [
+    {x: 31, z: 32},
+    {x: 31, z: 33.5},
+  ],
+  minX: 29,
+  maxX: 33,
+  minZ: 30.5,
+  maxZ: 34,
+  padY: 0.05,
+};
 
 /** Publish a run of frames and hand back the body's yaw. */
 function yawAfter(...frames: UnitSnapshot[]): number {
@@ -145,4 +166,39 @@ describe('a standing worker faces his work', () => {
       expect(yaw).toBeCloseTo(Math.PI / 2); // the walk in, not the bearing
     });
   }
+
+  it('leaves a farmer on a registered field cutting his row, not the barn', () => {
+    // The case the gate is really for: the render walks him up his lane and
+    // then stands him still for a full stroke, assigning no yaw at all
+    // while the scythe sweeps. A bearing written on those frames turns him
+    // to the farm building mid-swing — every stroke, not an edge case.
+    groups.length = 0;
+    const sab = new SharedArrayBuffer(SAB_BYTES);
+    const writer = new SabWriter(sab);
+    const reader = new SabReader(sab);
+    const sync = new SceneSync(new THREE.Scene(), reader, flat);
+    sync.setFields([FIELD]);
+    // Parked beside his rows, the way the sim leaves him, and turned toward
+    // the farm building by the publish.
+    const farmer = worker({
+      x: 30.5,
+      y: 31,
+      workKind: WORK.mow,
+      facing: WEST,
+      targetDist: 12,
+    });
+    let now = 0;
+    let mowed = false;
+    for (let f = 0; f < 900; f++) {
+      now += 1000 / 60;
+      writer.publish([farmer]);
+      reader.poll(now);
+      sync.update(now);
+      const yaw = groups[0]!.rotation.y;
+      // Never the bearing, on any frame of the circuit.
+      expect(Math.abs(yaw - Math.PI * 1.5)).toBeGreaterThan(0.01);
+      if (Math.abs(yaw) < 0.01) mowed = true; // walking the lane, due +z
+    }
+    expect(mowed).toBe(true); // he really did get out into the rows
+  });
 });

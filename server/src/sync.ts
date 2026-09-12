@@ -322,6 +322,25 @@ export function sendInit(room: Room, seat: Seat): void {
 }
 
 /** The 20 Hz frame, built per seat: our own units, plus whoever is lit. */
+/**
+ * The point a unit's facing + range bytes reconstruct: the enemy it is
+ * striking, or the work under its hands — the site it is raising, the tile
+ * it is felling, the post it is tending (snapshot.ts). Undefined when the
+ * pair says there is nothing to face, which the range byte marks with zero.
+ *
+ * Exactly the arithmetic the renderer does to fly an archer's arrow, which
+ * is the point: the pair IS that location, to an eighth of a tile, and
+ * whoever holds the pair holds the location.
+ */
+export function facedPoint(
+  u: UnitSnapshot,
+): {x: number; y: number} | undefined {
+  const dist = (u.targetDist ?? 0) / 8;
+  if (dist <= 0) return undefined;
+  const yaw = ((u.facing ?? 0) / 256) * Math.PI * 2;
+  return {x: u.x + Math.sin(yaw) * dist, y: u.y + Math.cos(yaw) * dist};
+}
+
 export function sendHot(room: Room): void {
   const world = room.world;
   if (!world) return;
@@ -338,12 +357,23 @@ export function sendHot(room: Room): void {
     const spectator = world.players[seat.playerId]?.alive === false;
     const mine: UnitSnapshot[] = [];
     for (const u of all) {
-      if (
-        spectator ||
-        u.owner === seat.playerId ||
-        view.vision.canSee(u.x, u.y)
-      )
-        mine.push(u);
+      const own = spectator || u.owner === seat.playerId;
+      if (!own && !view.vision.canSee(u.x, u.y)) continue;
+      // A man can stand at the edge of what this seat can see while what he
+      // is turned toward lies past it — an archer loosing into the dark, a
+      // woodcutter at a tree or a builder at a frame on unseen ground. The
+      // facing + range pair is that location (facedPoint above), so sending
+      // it hands over ground buildingsFor would not: that holds a building
+      // back until its own center is seen. The bytes go out only when the
+      // point is visible too; zero is the wire's "nothing to face", so a
+      // redacted unit reads as one that is simply not turned at anything,
+      // and the renderer faces him by his own walk like any other.
+      const at = own ? undefined : facedPoint(u);
+      mine.push(
+        at && !view.vision.canSee(at.x, at.y)
+          ? {...u, facing: 0, targetDist: 0}
+          : u,
+      );
     }
     send(seat, encodeHot(world.tick, mine), true);
   }
