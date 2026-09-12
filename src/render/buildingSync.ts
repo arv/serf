@@ -34,6 +34,13 @@ import {
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
+import type {OccluderBox} from './xrayOutline';
+
+/** How tall a building has to stand before it can hide anybody, and how
+ * far past its footprint its eaves are assumed to reach (see
+ * occluderBoxes). */
+const OCCLUDER_MIN_HEIGHT = 0.4;
+const OCCLUDER_PAD = 0.35;
 
 type BuildingState = Enum<typeof BuildingState>;
 type GoodId = Enum<typeof GoodId>;
@@ -283,6 +290,10 @@ interface BuildingVisual {
   clip?: {plane: THREE.Plane; height: number; baseY: number};
   /** Model height above ground, for floating the hp bar. */
   topY: number;
+  /** Half the footprint, in tiles — the box the x-ray outlines test a
+   * unit's line of sight against (see occluderBoxes). */
+  halfW: number;
+  halfD: number;
   /**
    * A road: flat ground once it is laid, and a thing units walk along
    * rather than a thing anyone clicks. Its scaffolding is not worth a pick
@@ -557,13 +568,24 @@ export class BuildingSync {
     // ground people order units down — a pick box on each would hang a
     // wall of them over the route. Nobody means to click a road anyway.
     if (v.road) return 0;
+    // Scaffolding you can see is scaffolding you can click, so the pick
+    // box never falls below the frame. The occluders take the bare
+    // #raised instead: a frame is four posts and some rails, and a man
+    // behind one is not hidden by it.
+    return Math.max(
+      v.state === BuildingState.site ? SITE_FRAME_H : 0,
+      this.#raised(v),
+    );
+  }
+
+  /** How far the model itself has actually risen above its own base. */
+  #raised(v: BuildingVisual): number {
     if (v.state !== BuildingState.site) return v.topY;
-    const raised = v.clip
+    return v.clip
       ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
       : // The ghost site grows by scale rather than by clip, and topY was
         // measured at the seed scale — read the drawn height back off it.
         (v.topY * v.model.scale.y) / GHOST_SEED_SCALE;
-    return Math.max(SITE_FRAME_H, raised);
   }
 
   /** The elevation this building stands on — see BuildingHeights.baseOf. */
@@ -837,6 +859,8 @@ export class BuildingSync {
       model,
       clip,
       topY,
+      halfW: b.w / 2,
+      halfD: b.h / 2,
       road,
       pct: 1,
       pileKey: '',
@@ -864,6 +888,80 @@ export class BuildingSync {
       salvage: b.type === BuildingTypeId.salvage,
     };
   }
+
+  /**
+   * The standing buildings as plain boxes, for the x-ray outlines: a unit
+   * whose line to the camera crosses one of these is hidden behind a wall
+   * and gets an outline drawn over it (xrayOutline.ts).
+   *
+   * Roads, salvage piles and bare foundations are not in it — nothing
+   * ankle-high hides anybody — and neither is a building this seat has
+   * never seen: it is not drawn, so it cannot be what is standing in
+   * front of anyone, and the same rule that keeps a cue from announcing
+   * construction in unexplored ground keeps an outline from being drawn
+   * against a wall nobody knows is there.
+   *
+   * The horizontal extent is padded past the footprint, because eaves
+   * overhang and the test is allowed to be generous but never mean: a box
+   * that missed would cost an outline, where a box that over-reaches
+   * costs two draws the depth test throws away.
+   *
+   * Read every frame rather than snapshotted when the roster changes, and
+   * that is the whole of why: what belongs in this list turns on more than
+   * the roster message. The fog decides it, and reaches this sync after
+   * the first pass and turns again with the viewed seat in a replay;
+   * forgetMonuments drops visuals on a players-only frame; a construction
+   * site rises between messages. Three snapshot points had been found by
+   * the time this comment was written and a fourth was waiting. Reading it
+   * live has none. The array and the boxes in it are reused, so a caller
+   * must read them rather than keep them, and a quiet frame allocates
+   * nothing.
+   */
+  occluderBoxes(): readonly OccluderBox[] {
+    const out = this.#occluders;
+    let n = 0;
+    for (const v of this.#visuals.values()) n = this.#addBox(out, n, v);
+    // A wreck is still a wall until the dust settles: teardown takes the
+    // building off the roster at once and spends the next second sinking
+    // and tilting the model, which goes on writing depth the whole time.
+    // Left out, a man behind a collapsing keep would lose his edge while
+    // the keep was still in front of him. The box follows the sink (it is
+    // read off the live root) and ignores the tilt, which is what the
+    // eaves padding is there to absorb.
+    for (const d of this.#dying) n = this.#addBox(out, n, d.visual);
+    out.length = n;
+    return out;
+  }
+
+  /** One building's box appended at `n`, or nothing if it cannot hide
+   * anybody. Returns where the next one goes. */
+  #addBox(out: OccluderBox[], n: number, v: BuildingVisual): number {
+    if (v.salvage || !v.root.visible) return n;
+    // What the model has raised so far, not what it will be, and not the
+    // frame the pick box floors at: a foundation hides nobody and a
+    // half-built keep hides them to exactly the course it has reached.
+    const top = v.road ? 0 : this.#raised(v);
+    if (top < OCCLUDER_MIN_HEIGHT) return n;
+    const {x, y, z} = v.root.position;
+    const box = (out[n] ??= {
+      minX: 0,
+      maxX: 0,
+      minZ: 0,
+      maxZ: 0,
+      baseY: 0,
+      topY: 0,
+    });
+    box.minX = x - v.halfW - OCCLUDER_PAD;
+    box.maxX = x + v.halfW + OCCLUDER_PAD;
+    box.minZ = z - v.halfD - OCCLUDER_PAD;
+    box.maxZ = z + v.halfD + OCCLUDER_PAD;
+    box.baseY = y;
+    box.topY = y + top;
+    return n + 1;
+  }
+
+  /** Reused frame to frame by occluderBoxes — see the note there. */
+  #occluders: OccluderBox[] = [];
 
   /** Built wells' world centers, windlasses and grip handles — sceneSync
    * stands the drawing serf beside the crank, IK-glues their hand to the

@@ -883,3 +883,68 @@ describe('the seat the fog is drawn through', () => {
     expect(root.visible).toBe(false);
   });
 });
+
+describe('occluderBoxes', () => {
+  /** Nothing lit and nothing remembered, and its opposite. */
+  const blind: FogQuery = {
+    owner: 0,
+    visibleAt: () => false,
+    exploredAt: () => false,
+    litAt: () => 0,
+  };
+  const lifted: FogQuery = {
+    owner: 0,
+    visibleAt: () => true,
+    exploredAt: () => true,
+    litAt: () => 1,
+  };
+
+  it('boxes a standing building around its footprint and model', () => {
+    const {sync} = makeSync();
+    sync.update([snap({x: 10, y: 20, w: 2, h: 4})]);
+    const [box] = sync.occluderBoxes();
+    expect(box).toBeDefined();
+    // Centred on the footprint, padded a little for the eaves, and rising
+    // from the ground to the top of the model.
+    expect(box!.minX).toBeLessThan(11);
+    expect(box!.maxX).toBeGreaterThan(12);
+    expect(box!.minZ).toBeLessThan(22);
+    expect(box!.maxZ).toBeGreaterThan(24);
+    expect(box!.topY).toBeGreaterThan(box!.baseY);
+  });
+
+  it('leaves out what nothing can hide behind', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({id: 1, type: BuildingTypeId.roadSite, x: 4, y: 4, w: 1, h: 1}),
+      snap({id: 2, type: BuildingTypeId.salvage, x: 6, y: 6, w: 1, h: 1}),
+    ]);
+    expect(sync.occluderBoxes()).toHaveLength(0);
+  });
+
+  it('leaves out a foundation, and boxes the keep that rises off it', () => {
+    const {sync} = makeSync();
+    // Nothing raised: four posts and some rails hide nobody, even though
+    // the pick box floors at the frame so the site can still be clicked.
+    sync.update([snap({state: BuildingState.site, hp: 1})]);
+    expect(sync.occluderBoxes()).toHaveLength(0);
+    expect(sync.heightOf(7)).toBeGreaterThanOrEqual(SITE_FRAME_H);
+
+    // Topped out: a building like any other.
+    sync.update([snap({state: BuildingState.built})]);
+    expect(sync.occluderBoxes()).toHaveLength(1);
+  });
+
+  it('leaves out a building this seat has never seen', () => {
+    const {sync} = makeSync();
+    sync.setFog(blind);
+    sync.update([snap({owner: 1})]);
+    // Standing in unexplored ground: not drawn, so not an occluder — an
+    // outline against it would be a wall nobody knows is there.
+    expect(sync.occluderBoxes()).toHaveLength(0);
+
+    sync.setFog(lifted);
+    sync.update([snap({owner: 1})]);
+    expect(sync.occluderBoxes()).toHaveLength(1);
+  });
+});

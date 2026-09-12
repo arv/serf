@@ -19,6 +19,7 @@ import {crossedRelease} from './arrows';
 import type {FieldInfo, PierInfo} from './buildingSync';
 import type {ViewBounds} from './cameraRig';
 import {
+  TALLEST_UNIT,
   TARGET_HEIGHT,
   gaitAnimKey,
   updateBow,
@@ -33,6 +34,12 @@ import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
 import {makeCarryProp} from './models';
 import {goldOre} from './palette';
+import {
+  attachXrayOutline,
+  occludedBy,
+  type OccluderBox,
+  type XrayOutline,
+} from './xrayOutline';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -43,6 +50,9 @@ interface UnitVisual {
   carryBox: THREE.Object3D | null;
   /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
+  /** The colored edge this unit wears while a building is between it and
+   * the camera (xrayOutline.ts). Switched on and off per frame. */
+  outline: XrayOutline;
   /** Smoothed visual de-overlap offset — render-only; the sim's positions
    * stay untouched. The sim keeps soldiers apart itself (separation.ts);
    * this is what keeps serfs, who walk through everyone, from being drawn
@@ -431,6 +441,8 @@ const HP_SCALE = new THREE.Vector3(1, 1, 1);
 const HP_MATRIX = new THREE.Matrix4();
 /** Stands in for the camera before boot has handed one over. */
 const HP_IDENTITY = new THREE.Quaternion();
+/** Scratch for the direction the camera lies in, recomputed each frame. */
+const TO_CAMERA = new THREE.Vector3();
 
 /**
  * The only module that creates/destroys unit visuals. Reconciles against the
@@ -512,6 +524,15 @@ export class SceneSync {
 
   setFields(fields: FieldInfo[]): void {
     this.#fields = fields;
+  }
+
+  #occluders: readonly OccluderBox[] = [];
+
+  /** The buildings tall enough to hide somebody, as boxes. Fed from
+   * buildingSync whenever the roster changes; a unit whose line to the
+   * camera crosses one of them wears an outline for that frame. */
+  setOccluders(boxes: readonly OccluderBox[]): void {
+    this.#occluders = boxes;
   }
 
   /** Fog test; enemies standing in unlit ground are not drawn at all. */
@@ -924,6 +945,12 @@ export class SceneSync {
     const ringScale = lerp(RING_SCALE_MAX, RING_SCALE_MIN, breath);
     auraRingMaterial.opacity = lerp(RING_OPACITY_MIN, RING_OPACITY_MAX, breath);
     const camQuat = this.cameraQuaternion ?? HP_IDENTITY;
+    // Which way the camera lies from the valley. One vector for every unit
+    // on the map, because the match rig is orthographic — there is no eye
+    // point to aim a ray at, only a direction of view — and (0, 0, 1) in
+    // view space is the one that points back down the lens.
+    const toCamera = TO_CAMERA.set(0, 0, 1).applyQuaternion(camQuat);
+    const occluders = this.#occluders;
     this.#hidden.clear();
     this.#spun.clear();
 
@@ -956,6 +983,7 @@ export class SceneSync {
           carrying: 0,
           carryBox: null,
           char: skinned.visual,
+          outline: attachXrayOutline(skinned.group, owner),
           sepX: 0,
           sepY: 0,
           speedSm: 0,
@@ -1601,6 +1629,14 @@ export class SceneSync {
               ? Math.max(groundY, field.padY)
               : groundY;
         visual.group.position.set(px, standY + bob, pz);
+        // Behind a wall this frame? Then draw his edge over it. The
+        // tallest body rather than this one's: the sweep is allowed to
+        // over-report and never to miss, and a man's own height is only
+        // ever shorter.
+        visual.outline.setVisible(
+          occluders.length > 0 &&
+            occludedBy(occluders, px, standY, pz, TALLEST_UNIT, toCamera),
+        );
         if (barPct >= 0) {
           // Exactly where the child mesh used to land. A unit's facing is a
           // Y rotation, which leaves a point on the Y axis where it was, and
