@@ -920,32 +920,44 @@ export class BuildingSync {
   occluderBoxes(): readonly OccluderBox[] {
     const out = this.#occluders;
     let n = 0;
-    for (const v of this.#visuals.values()) {
-      if (v.salvage || !v.root.visible) continue;
-      // What the model has raised so far, not what it will be, and not
-      // the frame the pick box floors at: a foundation hides nobody and a
-      // half-built keep hides them to exactly the course it has reached.
-      const top = v.road ? 0 : this.#raised(v);
-      if (top < OCCLUDER_MIN_HEIGHT) continue;
-      const {x, y, z} = v.root.position;
-      const box = (out[n] ??= {
-        minX: 0,
-        maxX: 0,
-        minZ: 0,
-        maxZ: 0,
-        baseY: 0,
-        topY: 0,
-      });
-      box.minX = x - v.halfW - OCCLUDER_PAD;
-      box.maxX = x + v.halfW + OCCLUDER_PAD;
-      box.minZ = z - v.halfD - OCCLUDER_PAD;
-      box.maxZ = z + v.halfD + OCCLUDER_PAD;
-      box.baseY = y;
-      box.topY = y + top;
-      n++;
-    }
+    for (const v of this.#visuals.values()) n = this.#addBox(out, n, v);
+    // A wreck is still a wall until the dust settles: teardown takes the
+    // building off the roster at once and spends the next second sinking
+    // and tilting the model, which goes on writing depth the whole time.
+    // Left out, a man behind a collapsing keep would lose his edge while
+    // the keep was still in front of him. The box follows the sink (it is
+    // read off the live root) and ignores the tilt, which is what the
+    // eaves padding is there to absorb.
+    for (const d of this.#dying) n = this.#addBox(out, n, d.visual);
     out.length = n;
     return out;
+  }
+
+  /** One building's box appended at `n`, or nothing if it cannot hide
+   * anybody. Returns where the next one goes. */
+  #addBox(out: OccluderBox[], n: number, v: BuildingVisual): number {
+    if (v.salvage || !v.root.visible) return n;
+    // What the model has raised so far, not what it will be, and not the
+    // frame the pick box floors at: a foundation hides nobody and a
+    // half-built keep hides them to exactly the course it has reached.
+    const top = v.road ? 0 : this.#raised(v);
+    if (top < OCCLUDER_MIN_HEIGHT) return n;
+    const {x, y, z} = v.root.position;
+    const box = (out[n] ??= {
+      minX: 0,
+      maxX: 0,
+      minZ: 0,
+      maxZ: 0,
+      baseY: 0,
+      topY: 0,
+    });
+    box.minX = x - v.halfW - OCCLUDER_PAD;
+    box.maxX = x + v.halfW + OCCLUDER_PAD;
+    box.minZ = z - v.halfD - OCCLUDER_PAD;
+    box.maxZ = z + v.halfD + OCCLUDER_PAD;
+    box.baseY = y;
+    box.topY = y + top;
+    return n + 1;
   }
 
   /** Reused frame to frame by occluderBoxes — see the note there. */

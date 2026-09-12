@@ -203,9 +203,19 @@ export interface XrayOutline {
 const NO_OUTLINE: XrayOutline = {setVisible: () => undefined};
 
 /**
- * Hang a mask/hull pair off every mesh in a character, in the owner's
- * color, and hand back the switch. Starts hidden: `SceneSync` turns it on
- * for the frames the unit spends behind a building.
+ * Hang a mask/hull pair off every mesh a character has *now*, in the
+ * owner's color, and hand back the switch. Starts hidden: `SceneSync`
+ * turns it on for the frames the unit spends behind a building.
+ *
+ * "Now" is the whole of the contract, and worth being exact about: the
+ * body, its cloth and whatever the wardrobe built it holding are all
+ * covered, because they exist by the time this runs. A work tool swapped
+ * in later (setWorkTool) and a good picked up later (makeCarryProp) are
+ * not — a hidden serf is outlined as a man, without the plank on his
+ * shoulder. Reconciling them would mean re-walking the rig on the frames
+ * a tool changes hands, and an outline missing a plank costs less than
+ * that. The tower garrison is outside this too: those bodies belong to
+ * BuildingSync, not the unit roster, and nothing attaches them here.
  */
 export function attachXrayOutline(
   root: THREE.Object3D,
