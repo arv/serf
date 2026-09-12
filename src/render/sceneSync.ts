@@ -1094,7 +1094,35 @@ export class SceneSync {
       // so it would keep the yaw it walked in with and hack at the air beside
       // its enemy. The sim sends the bearing to whatever it is actually
       // hitting; a chaser is still moving, so this only lands once it stands.
-      if (!moving && !dead && action === ACTION.fight) {
+      // The range byte off zero is what says the bearing means anything —
+      // the multiplayer server redacts the pair for an enemy whose point
+      // this seat cannot see, and without that check a redacted fighter
+      // would swing due south (a 0 bearing) instead of keeping his walk.
+      //
+      // A worker at his post is the same story with a building for an enemy:
+      // he walks up from whichever side the path came in, stands, and starts
+      // swinging — and a builder whose road reached his site from behind
+      // hammered the whole house up with his back to it. The sim publishes
+      // the bearing to the work (the frame, the tree, the post) in the same
+      // byte, and the range byte off zero is what says it means anything.
+      //
+      // Not for the three posts the render places itself, though — the
+      // fisherman's pier, the farmer's rows, the well's windlass. Those
+      // branches set a heading on the frames they move a man and let it
+      // stand on the frames they don't: a farmer mid-stroke is turned by
+      // nothing at all, on purpose, because the row he is cutting is the
+      // one he walked in along. A bearing written over that would have him
+      // scything at the farm building for the length of every stroke.
+      const renderTurned =
+        workKind === WORK.fish ||
+        workKind === WORK.mow ||
+        workKind === WORK.draw;
+      if (
+        !moving &&
+        !dead &&
+        latest.aux[a + 8]! > 0 &&
+        (action === ACTION.fight || (action === ACTION.work && !renderTurned))
+      ) {
         visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
       }
       // Drawing at a well with a crank: the serf stands beside the windlass

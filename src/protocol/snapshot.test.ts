@@ -11,6 +11,7 @@ import {BANDIT} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {findResourceNear} from '../sim/map.ts';
 import {populationOf} from '../sim/population.ts';
+import {bindWorker} from '../sim/systems/production.ts';
 import {
   addBuiltHut,
   addResourceTile,
@@ -21,13 +22,16 @@ import {
 } from '../sim/testUtils.ts';
 import {tickWorld} from '../sim/tick.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
+import type {Unit} from '../sim/units.ts';
+import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
 import {
   destroyBuilding,
   placeBuiltBuilding,
+  placeSite,
   spawnUnit,
   type World,
 } from '../sim/world.ts';
-import {BUFF, type UnitSnapshot} from './sabLayout.ts';
+import {ACTION, BUFF, WORK, type UnitSnapshot} from './sabLayout.ts';
 import {
   snapBuilding,
   snapBuildings,
@@ -454,5 +458,77 @@ describe('snapBuilding: prodProgress01', () => {
     );
     tickWorld(world, cmds());
     expect(snapBuilding(world, smith).prodProgress01!).toBeGreaterThan(before);
+  });
+});
+
+/**
+ * Which way a working man is turned. The renderer can only face a unit by
+ * the ground it covered, so anyone who stops to work keeps the yaw he
+ * walked up in — and a builder whose road reached his site from the far
+ * side hammered the entire house up with his back to it. The sim publishes
+ * the bearing to the work in the same bytes a fight uses.
+ */
+describe('unitSnapshots: which way a worker faces', () => {
+  const snapOf = (world: World, id: number): UnitSnapshot => {
+    for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;
+    throw new Error(`unit ${id} is not in the snapshot`);
+  };
+
+  /** A site with its materials in and a builder parked east of the frame. */
+  const builderEastOfHisSite = (world: World): Unit => {
+    const site = placeSite(world, BuildingTypeId.woodcutter, 0, 30, 30);
+    site.siteNeeds = {}; // every load delivered: he is hammering, not waiting
+    const builder = spawnUnit(
+      world,
+      UnitTypeId.worker,
+      0,
+      site.x + site.w + 0.5,
+      site.y + site.h / 2,
+    );
+    bindWorker(site, builder);
+    return builder;
+  };
+
+  it('turns a hammering builder toward the frame he is raising', () => {
+    const world = bareWorld();
+    const builder = builderEastOfHisSite(world);
+    const snap = snapOf(world, builder.id);
+    expect(snap.action).toBe(ACTION.work);
+    expect(snap.workKind).toBe(WORK.hammer);
+    // The site is due WEST of him: atan2(-1, 0) is three quarters of a turn
+    // in the renderer's convention (yaw 0 faces +y), so 3 * 256 / 4.
+    expect(snap.facing).toBe(192);
+    // ...and the range byte off zero is what tells the renderer the bearing
+    // means something this publish.
+    expect(snap.targetDist).toBeGreaterThan(0);
+  });
+
+  it('leaves a builder still waiting on his loads facing where he likes', () => {
+    const world = bareWorld();
+    const builder = builderEastOfHisSite(world);
+    const site = world.buildings.get(builder.homeId!)!;
+    site.siteNeeds = {[GoodId.wood]: 1}; // one load short
+    const snap = snapOf(world, builder.id);
+    expect(snap.action).not.toBe(ACTION.work);
+    expect(snap.facing).toBe(0);
+    expect(snap.targetDist).toBe(0);
+  });
+
+  it('turns a gatherer toward the tile he is working, not his hut', () => {
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30);
+    const worker = world.units.get(hut.workerId!)!;
+    // Standing north of a tree with the hut somewhere else entirely.
+    const tree = tileIdx(40, 41, world.map.size);
+    addResourceTile(world, 40, 41);
+    worker.x = 40.5;
+    worker.y = 40.5;
+    worker.task = {t: UnitTaskKind.gatherWork, tile: tree, until: 999};
+    const snap = snapOf(world, worker.id);
+    expect(snap.action).toBe(ACTION.work);
+    // Due south of him: yaw 0 in this convention, and the range byte is
+    // what separates that from "nothing to face".
+    expect(snap.facing).toBe(0);
+    expect(snap.targetDist).toBe(8); // one tile, in eighth-tiles
   });
 });
