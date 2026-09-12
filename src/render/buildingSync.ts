@@ -562,22 +562,30 @@ export class BuildingSync {
    */
   heightOf(id: number): number {
     const v = this.#visuals.get(id);
-    return v ? this.#heightOfVisual(v) : 0;
-  }
-
-  #heightOfVisual(v: BuildingVisual): number {
+    if (!v) return 0;
     // A road is ground. Its site frame stands 0.7 up for the twenty ticks
     // it takes to lay, and roads are laid in long chains along the very
     // ground people order units down — a pick box on each would hang a
     // wall of them over the route. Nobody means to click a road anyway.
     if (v.road) return 0;
+    // Scaffolding you can see is scaffolding you can click, so the pick
+    // box never falls below the frame. The occluders take the bare
+    // #raised instead: a frame is four posts and some rails, and a man
+    // behind one is not hidden by it.
+    return Math.max(
+      v.state === BuildingState.site ? SITE_FRAME_H : 0,
+      this.#raised(v),
+    );
+  }
+
+  /** How far the model itself has actually risen above its own base. */
+  #raised(v: BuildingVisual): number {
     if (v.state !== BuildingState.site) return v.topY;
-    const raised = v.clip
+    return v.clip
       ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
       : // The ghost site grows by scale rather than by clip, and topY was
         // measured at the seed scale — read the drawn height back off it.
         (v.topY * v.model.scale.y) / GHOST_SEED_SCALE;
-    return Math.max(SITE_FRAME_H, raised);
   }
 
   /** The elevation this building stands on — see BuildingHeights.baseOf. */
@@ -886,20 +894,26 @@ export class BuildingSync {
    * whose line to the camera crosses one of these is hidden behind a wall
    * and gets an outline drawn over it (xrayOutline.ts).
    *
-   * Roads and salvage piles are not in it — nothing ankle-high hides
-   * anybody — and the horizontal extent is padded past the footprint,
-   * because eaves overhang and the test is allowed to be generous but
-   * never mean: a box that missed would cost an outline, where a box that
-   * over-reaches costs two draws the depth test throws away.
+   * Roads, salvage piles and bare foundations are not in it — nothing
+   * ankle-high hides anybody — and neither is a building this seat has
+   * never seen: it is not drawn, so it cannot be what is standing in
+   * front of anyone, and the same rule that keeps a cue from announcing
+   * construction in unexplored ground keeps an outline from being drawn
+   * against a wall nobody knows is there.
+   *
+   * The horizontal extent is padded past the footprint, because eaves
+   * overhang and the test is allowed to be generous but never mean: a box
+   * that missed would cost an outline, where a box that over-reaches
+   * costs two draws the depth test throws away.
    */
   occluderBoxes(): OccluderBox[] {
     const out: OccluderBox[] = [];
     for (const v of this.#visuals.values()) {
-      if (v.salvage) continue;
-      // What it has raised so far, not what it will be — the same measure
-      // the pointer picks against, so a foundation hides nobody and a
+      if (v.salvage || !v.root.visible) continue;
+      // What the model has raised so far, not what it will be, and not
+      // the frame the pick box floors at: a foundation hides nobody and a
       // half-built keep hides them to exactly the course it has reached.
-      const top = this.#heightOfVisual(v);
+      const top = v.road ? 0 : this.#raised(v);
       if (top < OCCLUDER_MIN_HEIGHT) continue;
       const {x, y, z} = v.root.position;
       out.push({

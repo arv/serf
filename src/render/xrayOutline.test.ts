@@ -126,7 +126,7 @@ describe('attachXrayOutline', () => {
     expect(twins(root).every(m => !m.castShadow)).toBe(true);
   });
 
-  it('draws the mask before the hull', () => {
+  it('draws the mask before the hull, and both under the overlays', () => {
     const {root} = character();
     attachXrayOutline(root, 0);
     const orders = [...new Set(twins(root).map(m => m.renderOrder))].sort(
@@ -134,6 +134,12 @@ describe('attachXrayOutline', () => {
     );
     expect(orders).toHaveLength(2);
     expect(orders[0]).toBeLessThan(orders[1]!);
+    // Over the world, which is renderOrder 0...
+    expect(orders[0]).toBeGreaterThan(0);
+    // ...and under the hp bars, which are 10 and draw with no depth test:
+    // a hull painted across a man's own bar is the overlay contract
+    // broken (sceneSync.ts, #hpBars.renderOrder).
+    expect(orders[1]).toBeLessThan(10);
   });
 
   it('paints a rival in their own color and a bandit in the alarm red', () => {

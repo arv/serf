@@ -1140,7 +1140,13 @@ export async function runMatch(
     const turned = fog.owner !== viewerId() || fog.enabled !== fogOn;
     fog.setOwner(viewerId());
     fog.setEnabled(fogOn);
-    if (turned) buildingSync.update(roster);
+    if (turned) {
+      buildingSync.update(roster);
+      // That pass is what decides which buildings this seat can see, and
+      // an unseen one is no longer an occluder — so the snapshot the
+      // outlines test against has to turn with it.
+      sync.setOccluders(buildingSync.occluderBoxes());
+    }
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,

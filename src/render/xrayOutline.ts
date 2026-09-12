@@ -50,11 +50,14 @@ import {vermillion} from './palette';
  * touches the stencil buffer, so one bit is the whole budget it needs. */
 const BODY_BIT = 0x01;
 
-/** Both passes ride after the opaque world (renderOrder 0) — three sorts
- * the opaque queue by renderOrder first, which is what guarantees the mask
- * has written its bit before the hull tests it. */
-const MASK_ORDER = 20;
-const HULL_ORDER = 21;
+/** Both passes ride after the opaque world (renderOrder 0) and before the
+ * overlays that sit over everything — the hp bars at 10, which draw with
+ * no depth test and would otherwise have a hull painted across them.
+ * Three sorts the opaque queue by renderOrder first, which is what puts
+ * the outline between the two and what guarantees the mask has written
+ * its bit before the hull tests it. */
+const MASK_ORDER = 8;
+const HULL_ORDER = 9;
 
 /** How wide the edge is drawn, in device pixels. Wide enough to survive a
  * zoomed-out valley, narrow enough that a man does not become a blob. */
