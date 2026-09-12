@@ -9,6 +9,7 @@
  * stay separable.
  */
 import type {Enum} from '../shared/enum.ts';
+import {tileX, tileY} from '../shared/grid.ts';
 import {exactDist} from '../shared/math.ts';
 import {distToFootprint} from '../sim/arrival.ts';
 import {batchTicks} from '../sim/batchTicks.ts';
@@ -498,10 +499,11 @@ function engagedTarget(w: World, u: Unit): {x: number; y: number} | undefined {
 }
 
 /**
- * Bearing from a unit to what it is hitting, quantized to a byte over a full
- * turn. A stationary unit's yaw is otherwise frozen at whatever direction it
- * last walked in, so fighters swung and loosed arrows facing away from the
- * enemy they were killing.
+ * Bearing from a unit to what it is turned toward, quantized to a byte over
+ * a full turn. A stationary unit's yaw is otherwise frozen at whatever
+ * direction it last walked in, so fighters swung and loosed arrows facing
+ * away from the enemy they were killing, and a builder raised his house
+ * with his back to it.
  */
 function facingByte(u: Unit, at: {x: number; y: number}): number {
   // atan2(dx, dy) is the renderer's yaw convention (x east, y south).
@@ -510,16 +512,57 @@ function facingByte(u: Unit, at: {x: number; y: number}): number {
 }
 
 /**
- * Range to what it is hitting, quantized to eighth-tiles and held off zero
- * — 0 is the wire's "no target", and a melee fighter standing on its victim
- * is still engaged. An eighth of a tile is finer than the error the facing
- * byte's 1.4° steps put on the same point at any weapon range, so bearing
- * plus this reconstructs where the target stands as well as either byte
- * allows. What the renderer flies an archer's arrow to.
+ * Range to that same point, quantized to eighth-tiles and held off zero — 0
+ * is the wire's "nothing to face", and a melee fighter standing on its
+ * victim is still engaged. An eighth of a tile is finer than the error the
+ * facing byte's 1.4° steps put on the same point at any weapon range, so
+ * bearing plus this reconstructs where the target stands as well as either
+ * byte allows. What the renderer flies an archer's arrow to.
  */
 function targetDistByte(u: Unit, at: {x: number; y: number}): number {
   const d = Math.round(exactDist(at.x - u.x, at.y - u.y) * 8);
   return Math.max(1, Math.min(255, d));
+}
+
+/**
+ * Where the work in front of a unit stands: the frame it is hammering, the
+ * tree it is felling, the post it is tending. The same problem
+ * `engagedTarget` solves for a swordsman — a man who has stopped to work
+ * has no movement for the renderer to face him by, so he kept the yaw he
+ * walked up in, and a builder whose path came in from behind his site
+ * raised the whole building with his back to it.
+ *
+ * Only the sim can say which thing that is; the renderer sees a man
+ * standing near several. It rides the same bearing + range bytes a fight
+ * uses (facingByte above): nobody is mid-swing and mid-batch at once, and
+ * the renderer reads the pair under whichever action came with it.
+ *
+ * Three posts are placed by the render instead, which turns those workers
+ * itself and overwrites this: the fisherman on his pier, the farmer in his
+ * rows, the hauler at a well's windlass. The bearing is still published for
+ * them — it is what they fall back to on a frame with no pier, field or
+ * well to stand against.
+ */
+function workFocus(w: World, u: Unit): {x: number; y: number} | undefined {
+  let at: {x: number; y: number} | undefined;
+  if (u.task.t === UnitTaskKind.gatherWork) {
+    // The middle of the worked tile: he stands on a neighbour and swings in.
+    const size = w.map.size;
+    at = {
+      x: tileX(u.task.tile, size) + 0.5,
+      y: tileY(u.task.tile, size) + 0.5,
+    };
+  } else {
+    const post =
+      drawingAt(w, u) ??
+      (u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined);
+    if (post && !post.dead) at = centerOf(post);
+  }
+  // Standing dead on the point is no bearing at all — atan2(0, 0) is due
+  // north, which would spin him to face the top of the map. Leave the yaw
+  // he has: half of the range byte's own eighth-tile step is nearer than
+  // any worker ever parks to what he works on.
+  return at && exactDist(at.x - u.x, at.y - u.y) > 1 / 16 ? at : undefined;
 }
 
 /** What is this unit visibly doing? Drives limb animation in the renderer. */
@@ -612,6 +655,11 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
     if (u.dead && u.deathTick === undefined) continue;
     const engaged = u.dead ? undefined : engagedTarget(w, u);
     const action = actionOf(w, u, engaged !== undefined);
+    // What this unit is turned toward: its enemy while it fights, else the
+    // work under its hands. Only while it is actually working — an idle
+    // serf has no business snapping to attention at a wall.
+    const facingAt =
+      engaged ?? (action === ACTION.work ? workFocus(w, u) : undefined);
     yield {
       id: u.id,
       x: u.x,
@@ -637,8 +685,8 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
           ? workKindOf(w, u)
           : WORK.none,
       profession: professionOf(w, u),
-      facing: engaged ? facingByte(u, engaged) : 0,
-      targetDist: engaged ? targetDistByte(u, engaged) : 0,
+      facing: facingAt ? facingByte(u, facingAt) : 0,
+      targetDist: facingAt ? targetDistByte(u, facingAt) : 0,
       buffs: buffsOf(w, u, action),
     };
   }

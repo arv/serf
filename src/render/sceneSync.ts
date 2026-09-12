@@ -1094,7 +1094,21 @@ export class SceneSync {
       // so it would keep the yaw it walked in with and hack at the air beside
       // its enemy. The sim sends the bearing to whatever it is actually
       // hitting; a chaser is still moving, so this only lands once it stands.
-      if (!moving && !dead && action === ACTION.fight) {
+      //
+      // A worker at his post is the same story with a building for an enemy:
+      // he walks up from whichever side the path came in, stands, and starts
+      // swinging — and a builder whose road reached his site from behind
+      // hammered the whole house up with his back to it. The sim publishes
+      // the bearing to the work (the frame, the tree, the post) in the same
+      // byte, and the range byte off zero is what says it means anything.
+      // The pier, field and windlass branches below turn their own workers
+      // and overwrite this.
+      if (
+        !moving &&
+        !dead &&
+        (action === ACTION.fight ||
+          (action === ACTION.work && latest.aux[a + 8]! > 0))
+      ) {
         visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
       }
       // Drawing at a well with a crank: the serf stands beside the windlass
