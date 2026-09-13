@@ -72,8 +72,8 @@ import {vermillion} from './palette';
 
 /** The two stencil bits this pass owns.
  *
- * WALL is stamped by the buildings themselves (markOccluder, called from
- * BuildingSync) wherever their fragments win the depth test — the only
+ * WALL is stamped by the buildings themselves (occluderMaterial, applied
+ * by BuildingSync) wherever their fragments win the depth test — the only
  * honest answer to "is a building covering this pixel". BODY is stamped by
  * the mask over the man, so the hull can cut its own middle out.
  *

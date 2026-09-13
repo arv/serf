@@ -188,6 +188,47 @@ describe('attachXrayOutline', () => {
     expect(orders[1]).toBeLessThan(10);
   });
 
+  it('has each pass write only its own bit, and the hull ask for both', () => {
+    const {root} = character();
+    attachXrayOutline(root, 0);
+    const hung = twins(root);
+    const orders = [...new Set(hung.map(m => m.renderOrder))].sort(
+      (a, b) => a - b,
+    );
+    const mask = hung.find(m => m.renderOrder === orders[0])!
+      .material as THREE.Material;
+    const hull = hung.find(m => m.renderOrder === orders[1])!
+      .material as THREE.Material;
+
+    // The mask marks where the body is on screen, hidden or not, and
+    // marks NOTHING else. Its Replace writes ref & writeMask, so the
+    // default 0xff would wipe the wall bit out from under the man and the
+    // hull would find no wall anywhere it looked — every outline in the
+    // game would vanish with every other test still green. Hence the
+    // literal: what is pinned is the width of the write, not the name of
+    // the constant.
+    expect(mask.stencilWrite).toBe(true);
+    expect(mask.stencilRef).toBe(0x01);
+    expect(mask.stencilWriteMask).toBe(0x01);
+    expect(mask.stencilFunc).toBe(THREE.AlwaysStencilFunc);
+    expect(mask.stencilZPass).toBe(THREE.ReplaceStencilOp);
+    expect(mask.depthTest).toBe(false);
+    expect(mask.side).toBe(THREE.DoubleSide);
+
+    // The hull reads and never writes: a wall bit set and a body bit
+    // clear, which is one Equal against both. Widen its ref or its func
+    // mask and it paints over the man's own face.
+    expect(hull.stencilWrite).toBe(true);
+    expect(hull.stencilWriteMask).toBe(0x00);
+    expect(hull.stencilFunc).toBe(THREE.EqualStencilFunc);
+    expect(hull.stencilRef).toBe(0x02);
+    expect(hull.stencilFuncMask).toBe(0x03);
+    // ...and behind what is drawn there, drawn inside out.
+    expect(hull.depthFunc).toBe(THREE.GreaterDepth);
+    expect(hull.depthWrite).toBe(false);
+    expect(hull.side).toBe(THREE.BackSide);
+  });
+
   it('paints a rival in their own color and a bandit in the alarm red', () => {
     const hullOf = (owner: number): THREE.Color => {
       const {root} = character();
