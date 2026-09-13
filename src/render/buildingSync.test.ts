@@ -13,6 +13,7 @@ import type {FogQuery} from './fogOfWar';
 import {HeightField} from './heightField';
 import {eachMaterial} from './materials';
 import {SITE_FRAME_H} from './models';
+import {WALL_RENDER_ORDER} from './xrayOutline';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -1151,27 +1152,54 @@ describe('the seat the fog is drawn through', () => {
   });
 });
 
-describe('markOccluder', () => {
-  it('has the building stamp the wall bit where it draws', () => {
+describe('the wall bit', () => {
+  /** Every material the visual draws with, in traversal order. */
+  function materialsOf(root: THREE.Object3D): THREE.Material[] {
+    const out: THREE.Material[] = [];
+    root.traverse(o => {
+      if (o instanceof THREE.Mesh) eachMaterial(o, m => out.push(m));
+    });
+    return out;
+  }
+
+  it('has the building stamp it where it draws, and nothing else', () => {
     const {sync, scene} = makeSync();
     sync.update([snap({})]);
     const root = scene.children[0]!;
-    const marked: boolean[] = [];
+    const mats = materialsOf(root);
+    expect(mats.length).toBeGreaterThan(0);
+    for (const m of mats) {
+      expect(m.stencilWrite).toBe(true);
+      expect(m.stencilFunc).toBe(THREE.AlwaysStencilFunc);
+      expect(m.stencilZPass).toBe(THREE.ReplaceStencilOp);
+      // Only where it wins the depth test: a fragment behind something
+      // else is not a wall in front of this pixel.
+      expect(m.stencilFail).toBe(THREE.KeepStencilOp);
+      expect(m.stencilZFail).toBe(THREE.KeepStencilOp);
+      // The wall bit, and the wall bit only. Spelt out rather than read
+      // off the source: a Replace at the default 0xff writes the same ref
+      // and would clobber the body bit the unit mask puts down, so the
+      // mask is the assertion, not an implementation detail of it.
+      expect(m.stencilRef).toBe(0x02);
+      expect(m.stencilWriteMask).toBe(0x02);
+    }
+    // Drawn after everything unmarked in the opaque queue, because the bit
+    // is never cleared.
     root.traverse(o => {
-      if (o instanceof THREE.Mesh) {
-        eachMaterial(o, m => {
-          marked.push(
-            m.stencilWrite &&
-              m.stencilZPass === THREE.ReplaceStencilOp &&
-              // Its own bit only: a Replace at the default 0xff would
-              // clobber the body bit the unit mask writes.
-              (m.stencilRef & m.stencilWriteMask) !== 0,
-          );
-        });
-      }
+      if (o instanceof THREE.Mesh)
+        expect(o.renderOrder).toBe(WALL_RENDER_ORDER);
     });
-    expect(marked.length).toBeGreaterThan(0);
-    expect(marked.every(Boolean)).toBe(true);
+  });
+
+  it('is left alone by what nothing can hide behind', () => {
+    const {sync, scene} = makeSync();
+    // A road's pile of stone is ankle-high and is not in occluderBoxes;
+    // stamping a wall under it would hand every serf walking a road an
+    // outline drawn over the road itself.
+    sync.update([snap({type: BuildingTypeId.roadSite, w: 1, h: 1})]);
+    const mats = materialsOf(scene.children[0]!);
+    expect(mats.length).toBeGreaterThan(0);
+    for (const m of mats) expect(m.stencilWrite).toBe(false);
   });
 });
 

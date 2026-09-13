@@ -19,6 +19,7 @@ import {tickWorld} from '../sim/tick.ts';
 import {placeBuiltBuilding} from '../sim/world.ts';
 import type {PierInfo} from './buildingSync';
 import type {HeightField} from './heightField';
+import type {OccluderBox} from './xrayOutline';
 
 /**
  * The fisherman's trip along his deck. It is render-side — the sim parks
@@ -32,6 +33,12 @@ import type {HeightField} from './heightField';
  *
  * Positions come back through positionOfInto — the channel picking reads —
  * so what is asserted is where the player's mouse would find him.
+ *
+ * The stub carries one box for a body. It is not there to be looked at:
+ * the x-ray outline copies every mesh under a unit's root, and a wardrobe
+ * with no meshes in it would leave the outline pass nothing to hang, so
+ * the deck's exemption from it could be deleted with every test here
+ * still green.
  */
 vi.mock('./characters', async importOriginal => {
   const real = await importOriginal<typeof import('./characters')>();
@@ -39,6 +46,7 @@ vi.mock('./characters', async importOriginal => {
     ...real,
     makeCharacter: () => {
       const group = new THREE.Group();
+      group.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.85, 0.3)));
       return {
         group,
         visual: {
@@ -90,15 +98,18 @@ function fisherman(action: number = ACTION.work): UnitSnapshot {
 }
 
 /** One parked fisherman, one pier, and a clock that advances in frames. */
-function rig(): {
+function rig(occluders: OccluderBox[] = []): {
   step: (frames: number, action?: number, at?: {x: number; y: number}) => void;
   where: () => {x: number; y: number};
+  outlined: () => boolean;
 } {
   const sab = new SharedArrayBuffer(SAB_BYTES);
   const writer = new SabWriter(sab);
   const reader = new SabReader(sab);
-  const sync = new SceneSync(new THREE.Scene(), reader, flat);
+  const scene = new THREE.Scene();
+  const sync = new SceneSync(scene, reader, flat);
   sync.setPiers([PIER]);
+  sync.setOccluders(occluders);
   let now = 0;
   // Twice, so the second publish has a predecessor to read "standing
   // still" from.
@@ -124,6 +135,20 @@ function rig(): {
     where() {
       sync.positionOfInto(1, now, out);
       return {x: out.x, y: out.y};
+    },
+    /**
+     * Is he wearing his outline? The pass hangs its two extra draws as
+     * children of the mesh they copy, so a twin is a mesh under a mesh.
+     */
+    outlined() {
+      const twins: THREE.Object3D[] = [];
+      scene.traverse(o => {
+        if (o instanceof THREE.Mesh && o.parent instanceof THREE.Mesh) {
+          twins.push(o);
+        }
+      });
+      expect(twins.length).toBeGreaterThan(0); // ...or nothing is observed
+      return twins.every(t => t.visible);
     },
   };
 }
@@ -216,6 +241,40 @@ describe('the fisherman on his deck', () => {
     // sim's own inland walk cannot drag him off the side of it.
     expect(worst).toBeLessThan(0.01);
     expect(along(r.where())).toBeLessThan(1.3); // and he did walk in
+  });
+
+  /**
+   * A wall due north of the whole pier, so the line to the camera — which
+   * runs +z with no camera set — crosses it from anywhere along the deck
+   * and from the ground behind it alike. The deck is the only thing that
+   * can be telling the two apart.
+   */
+  const WALL: OccluderBox = {
+    minX: 25,
+    maxX: 40,
+    minZ: 32,
+    maxZ: 34,
+    baseY: 0,
+    topY: 5,
+  };
+
+  it('wears no outline out on his own planks, and one back ashore', () => {
+    const r = rig([WALL]);
+    r.step(240); // out to the tip, fishing
+    expect(along(r.where())).toBeGreaterThan(1.4);
+    // At his post with the deck and its rails under him: he is at the
+    // pier, not behind it, and a green edge round him says a wall is in
+    // front of him when none is.
+    expect(r.outlined()).toBe(false);
+
+    // Off post and walked inland, well past the landward end and off the
+    // deck line. Nothing about the wall has changed, so the ordinary path
+    // has to still fire.
+    for (let f = 1; f <= 200; f++) {
+      r.step(1, ACTION.idle, {x: 29 - f * 0.01, y: 30.5});
+    }
+    expect(along(r.where())).toBeLessThan(-0.5);
+    expect(r.outlined()).toBe(true);
   });
 });
 

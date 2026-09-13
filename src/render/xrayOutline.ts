@@ -183,25 +183,56 @@ const maskMaterial = new THREE.MeshBasicMaterial({
 });
 
 /**
- * Have a building stamp the wall bit wherever it draws.
+ * Where a building draws in the opaque queue: after the whole rest of the
+ * world, and still well before the mask and the hull.
  *
- * Called by BuildingSync on the meshes of a building's model — and only
- * those: the terrain, the trees and the crags deliberately stamp nothing,
- * which is what keeps an oak from putting an edge on the man behind it.
- * ZPass, so a fragment marks the pixel only where it actually won the
- * depth test and is the thing being looked at.
- *
- * Building materials are shared templates, so this runs many times over
- * the same handful of materials and is written to be idempotent.
+ * This is not cosmetic, it is what makes the wall bit mean anything. The
+ * bit is stamped on ZPass — where the fragment wins the depth test — and
+ * nothing ever clears it. So if an unmarked thing that writes depth were
+ * drawn *after* a building at the same pixel, it would take the depth and
+ * leave the bit behind, and the hull would read a wall where a tree now
+ * stands. Three sorts the opaque queue by renderOrder before it sorts by
+ * distance, and a Group only sets the group order when it carries one of
+ * its own — so putting the buildings' meshes last inside the same group
+ * order is the whole guarantee: nothing unmarked draws after them, so a
+ * standing bit is always a building that is still the nearest thing here.
  */
-export function markOccluder(material: THREE.Material): void {
-  material.stencilWrite = true;
-  material.stencilRef = WALL_BIT;
-  material.stencilWriteMask = WALL_BIT;
-  material.stencilFunc = THREE.AlwaysStencilFunc;
-  material.stencilFail = THREE.KeepStencilOp;
-  material.stencilZFail = THREE.KeepStencilOp;
-  material.stencilZPass = THREE.ReplaceStencilOp;
+export const WALL_RENDER_ORDER = 1;
+
+/**
+ * The wall-stamping twin of a building material: the same material, plus
+ * the stencil state that says "a building is covering this pixel".
+ *
+ * A clone rather than a flag flipped in place, and that is load-bearing.
+ * The packs hand the same material *object* to a building's yard decor and
+ * to the goods a serf carries — `assets.props` holds the very scenes the
+ * decor is cloned from, and three's Mesh.copy takes the material by
+ * reference. Marked in place, a mill's static sack would quietly make
+ * every sack carried across open ground into a wall.
+ *
+ * Cached by source, so all the buildings sharing a template share one
+ * marked clone and the draw call count does not move. Weak, because a
+ * construction site's materials are its own private clip-plane clones and
+ * go away with the site.
+ */
+const wallMaterials = new WeakMap<THREE.Material, THREE.Material>();
+
+export function occluderMaterial(src: THREE.Material): THREE.Material {
+  const had = wallMaterials.get(src);
+  if (had) return had;
+  const m = src.clone();
+  m.stencilWrite = true;
+  m.stencilRef = WALL_BIT;
+  // Its own bit only, so a building can never disturb the body bit.
+  m.stencilWriteMask = WALL_BIT;
+  m.stencilFunc = THREE.AlwaysStencilFunc;
+  m.stencilFail = THREE.KeepStencilOp;
+  m.stencilZFail = THREE.KeepStencilOp;
+  // ZPass: mark the pixel only where this fragment actually won the depth
+  // test and is the thing being looked at.
+  m.stencilZPass = THREE.ReplaceStencilOp;
+  wallMaterials.set(src, m);
+  return m;
 }
 
 const hullMaterials = new Map<number, THREE.ShaderMaterial>();

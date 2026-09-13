@@ -35,7 +35,12 @@ import {
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
-import {markOccluder, OCCLUDER_PAD, type OccluderBox} from './xrayOutline';
+import {
+  occluderMaterial,
+  OCCLUDER_PAD,
+  WALL_RENDER_ORDER,
+  type OccluderBox,
+} from './xrayOutline';
 
 /** How tall a building has to stand before it can hide anybody (the pad
  * that goes with it lives with the test that reads it — see
@@ -1032,18 +1037,6 @@ export class BuildingSync {
       root.add(model);
     }
 
-    // The walls say where they are, for the x-ray outlines: every fragment
-    // of the model stamps a stencil bit where it wins the depth test, and
-    // that bit — not "something is nearer than me" — is what lets an
-    // outline be drawn over it. The model and the site frame only; the
-    // stock piles and the yard props against the wall are not walls, and
-    // the terrain and scenery mark nothing at all.
-    for (const part of [model, frame]) {
-      part?.traverse(o => {
-        if (o instanceof THREE.Mesh) eachMaterial(o, markOccluder);
-      });
-    }
-
     // Shore buildings turn to face their water (Building.facing). Only the
     // model turns, not the root: the footprint stays axis-aligned, and the
     // root's own x/z rotation belongs to the collapse animation.
@@ -1082,6 +1075,28 @@ export class BuildingSync {
     // claim on the camera ceiling; the tile pick still selects it.
     const road =
       buildingDef(b.type).isRoad === true || b.type === BuildingTypeId.salvage;
+
+    // The walls say where they are, for the x-ray outlines: every fragment
+    // of the model stamps a stencil bit where it wins the depth test, and
+    // that bit — not "something is nearer than me" — is what lets an
+    // outline be drawn over it.
+    //
+    // Only what occluderBoxes is willing to call an occluder: a road's
+    // pile of stone and a salvage heap are ankle-high and are left out of
+    // the boxes, so they have no business stamping a wall either. Drawn
+    // last among the opaque world (WALL_RENDER_ORDER), because a bit is
+    // never cleared and anything unmarked drawing after a building would
+    // leave one standing over its own depth.
+    if (!road) {
+      for (const part of [model, frame]) {
+        part?.traverse(o => {
+          if (o instanceof THREE.Mesh) {
+            mapMaterials(o, occluderMaterial);
+            o.renderOrder = WALL_RENDER_ORDER;
+          }
+        });
+      }
+    }
     const finished =
       b.state === BuildingState.site
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)

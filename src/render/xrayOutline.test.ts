@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
 import {TALLEST_UNIT, TARGET_HEIGHT} from './characters';
-import {attachXrayOutline, occludedBy, type OccluderBox} from './xrayOutline';
+import {
+  attachXrayOutline,
+  occludedBy,
+  occluderMaterial,
+  type OccluderBox,
+} from './xrayOutline';
 
 /** A hut two tiles square standing on flat ground, four units tall. */
 function hut(cx = 0, cz = 0, top = 4): OccluderBox {
@@ -212,5 +217,30 @@ describe('attachXrayOutline', () => {
     expect(n.length()).toBeCloseTo(1, 5);
     expect(Math.abs(n.x)).toBeCloseTo(Math.abs(n.y), 5);
     expect(Math.abs(n.y)).toBeCloseTo(Math.abs(n.z), 5);
+  });
+});
+
+describe('occluderMaterial', () => {
+  it('leaves the material it was handed alone', () => {
+    // The GLB scenes are shared: a mill's sack is the same material object
+    // as the sack a serf carries (assets.ts hands both out of one loaded
+    // scene, and Mesh.copy takes the material by reference). Stamping it
+    // in place would have every carried sack claim to be a wall.
+    const src = new THREE.MeshStandardMaterial({color: 0x445566});
+    const wall = occluderMaterial(src);
+    expect(wall).not.toBe(src);
+    expect(src.stencilWrite).toBe(false);
+    expect(wall.stencilWrite).toBe(true);
+    expect((wall as THREE.MeshStandardMaterial).color.getHex()).toBe(
+      src.color.getHex(),
+    );
+  });
+
+  it('hands the same wall back for the same source', () => {
+    // Every hut of a type shares one loaded scene, so this runs once per
+    // material in the pack rather than once per building on the map — and
+    // a program per building is what it is avoiding.
+    const src = new THREE.MeshStandardMaterial();
+    expect(occluderMaterial(src)).toBe(occluderMaterial(src));
   });
 });
