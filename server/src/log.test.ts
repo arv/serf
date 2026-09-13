@@ -57,6 +57,14 @@ describe('clientIp', () => {
     );
   });
 
+  it('ignores an X-Real-IP that is only whitespace', () => {
+    // Judging it by its length before trimming blanked the address.
+    expect(
+      clientIp(request({'x-real-ip': '   ', 'x-forwarded-for': '203.0.113.7'})),
+    ).toBe('203.0.113.7');
+    expect(clientIp(request({'x-real-ip': '  '}))).toBe('10.0.0.9');
+  });
+
   it('prefers X-Real-IP when a proxy sets it', () => {
     expect(
       clientIp(
@@ -77,5 +85,35 @@ describe('clientIp', () => {
       ua: '',
       forwardedFor: '1.1.1.1, 203.0.113.7',
     });
+  });
+
+  it('reads a repeated header the same way clientIp does', () => {
+    // Node joins duplicates into one string, so this is belt and braces —
+    // but the chain must not vanish from the fields while the ip resolves.
+    const req = request({'x-forwarded-for': ['1.1.1.1', '203.0.113.7']});
+    expect(clientIp(req)).toBe('203.0.113.7');
+    expect(clientFields(req).forwardedFor).toBe('1.1.1.1, 203.0.113.7');
+  });
+});
+
+describe('reserved keys', () => {
+  it("keeps the line's own fields authoritative", () => {
+    const parsed = JSON.parse(
+      formatLogLine('connect', 'real message', {
+        level: 'error',
+        message: 'spoofed',
+        event: 'match_start',
+        time: 'nonsense',
+        room: 'ABCD',
+      }),
+    );
+    expect(parsed).toEqual({
+      level: 'info',
+      time: parsed.time,
+      message: 'real message',
+      event: 'connect',
+      room: 'ABCD',
+    });
+    expect(Number.isNaN(Date.parse(parsed.time))).toBe(false);
   });
 });

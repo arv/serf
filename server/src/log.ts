@@ -34,6 +34,11 @@ export function setLogSink(next: ((line: string) => void) | null): void {
   sink = next ?? (line => process.stdout.write(line + '\n'));
 }
 
+/** The keys the line's own shape owns. An event that names one of these
+ * would rewrite the very fields the log explorer filters and groups on,
+ * so the fixed values win and the caller's copy is dropped. */
+const RESERVED = new Set(['level', 'time', 'message', 'event']);
+
 export function formatLogLine(
   event: LogEvent,
   message: string,
@@ -42,12 +47,16 @@ export function formatLogLine(
   // Fixed keys first so the line reads the same way every time, then the
   // event's own. `event` last among the fixed ones because it is the key
   // an operator filters on and it should sit next to what describes it.
+  const own: LogFields = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (!RESERVED.has(key)) own[key] = value;
+  }
   return JSON.stringify({
     level: 'info',
     time: new Date().toISOString(),
     message,
     event,
-    ...fields,
+    ...own,
   });
 }
 
@@ -69,18 +78,30 @@ export function logEvent(
  */
 export function clientIp(req: IncomingMessage): string {
   const real = req.headers['x-real-ip'];
-  if (typeof real === 'string' && real.length > 0) return real.trim();
+  // Trimmed before it is judged: a header of nothing but spaces is not an
+  // address, and taking it at its length would blank the ip rather than
+  // fall through to the chain below.
+  if (typeof real === 'string' && real.trim().length > 0) return real.trim();
+  const parts = forwardedChain(req);
+  const last = parts[parts.length - 1];
+  if (last) return last;
+  return req.socket.remoteAddress ?? 'unknown';
+}
+
+/**
+ * X-Forwarded-For as a list of hops. Node joins repeated headers into one
+ * comma-separated string, so the array arm is only ever belt and braces —
+ * but it lives here, in one place, so that everything reading the chain
+ * reads the same chain.
+ */
+function forwardedChain(req: IncomingMessage): string[] {
   const forwarded = req.headers['x-forwarded-for'];
   const raw = Array.isArray(forwarded) ? forwarded.join(',') : forwarded;
-  if (raw) {
-    const parts = raw
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-    const last = parts[parts.length - 1];
-    if (last) return last;
-  }
-  return req.socket.remoteAddress ?? 'unknown';
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
 }
 
 /** What a request says about the client, as the fields every event with a
@@ -95,13 +116,12 @@ export interface ClientFields extends LogFields {
 }
 
 export function clientFields(req: IncomingMessage): ClientFields {
-  const forwarded = req.headers['x-forwarded-for'];
+  const chain = forwardedChain(req);
   const fields: ClientFields = {
     ip: clientIp(req),
     ua: req.headers['user-agent'] ?? '',
   };
-  if (typeof forwarded === 'string' && forwarded.includes(',')) {
-    fields.forwardedFor = forwarded;
-  }
+  // Only when there is a chain to see — one hop is the ip already logged.
+  if (chain.length > 1) fields.forwardedFor = chain.join(', ');
   return fields;
 }
