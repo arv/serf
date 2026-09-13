@@ -9,11 +9,21 @@
  * west, the STONE SHOULDER to the east, and open meadow south of the keep
  * with nothing on it — the beds go there.
  *
- * What the map deliberately does not hold: silver, gold, and any iron a
- * six-serf village could reach. One seam sits in the far north-eastern
- * hills where the eye can find it and the mission cannot, because the
- * valley should not lie about what this country holds — but a mine is not
- * this commission's business and nothing near the town invites one.
+ * What the map deliberately does not hold: gold, and any metal a
+ * six-serf village trips over. The iron sits in the far north-eastern
+ * hills where the eye can find it and the mission cannot, and the silver
+ * lies on the shoulder below it — both far enough out that a mine is a
+ * decision rather than a doorstep, because the valley should not lie
+ * about what this country holds.
+ *
+ * The silver is there because the purse can run dry. The commission is
+ * counted in hires (four silver a head, eleven souls), and the crown's
+ * opening grant is scaled by the difficulty tier — on `hard` it is a
+ * third lighter, which is a purse two hires short of the checklist. A
+ * commission has to be winnable at every tier it is offered at, so the
+ * ground carries the way back: one reserve-priced seam, a valley's walk
+ * north-east, that a reeve who counts his silver can go and dig. On
+ * `normal` the purse still covers the checklist and the seam is scenery.
  */
 import {HILL, MEADOW, Valley, type Authored} from '../kit.ts';
 import {keepAnchor, keepCenter, seats} from '../layout.ts';
@@ -73,7 +83,20 @@ export function build(): Authored {
   v.outcrop(at(-21, 17), 2.4, 0.8);
 
   // --- What this country holds, for later --------------------------------
+  // The iron: a valley away, and mission 4's business rather than this
+  // one's — a six-serf village has no pick to spare for it and no tech to
+  // sink a shaft with.
   v.ironSeam(120, at(27, -23));
+  // The silver: the same north-eastern hills, a shoulder nearer, on open
+  // ground with no timber or stone on it — nothing the eye reads as part
+  // of the town. Twenty-five tiles out, which is deliberate on both
+  // counts: past HOME_SEAM_BAND.wide (17), so it is nowhere near the
+  // opening view and the first commission is still read off the treeline
+  // and the stone shoulder; and inside RESERVE_SEAM_BAND, so a village
+  // that needs it can still walk there and haul it home. Priced like a
+  // reserve seam (SILVER_RESERVE_WORTH) — one shaft's worth of hires, not
+  // a second economy.
+  v.silverSeam(120, at(18, -18));
 
   // The town's own meadow: the woods have an edge, and it is out here
   // rather than one stray tree from the keep's doorstep.
@@ -90,7 +113,9 @@ export function build(): Authored {
     intent: [
       'a treeline west and a stone shoulder east, both in the opening view',
       'open meadow south of the keep — the houses go there',
-      'no silver, no gold, and the only iron a valley away',
+      'no gold, and the metals a walk out — iron north-east and silver ' +
+        'on the shoulder below it, a mine for a purse that has run dry ' +
+        'rather than a hut the opening view invites',
     ],
     drowned,
   };
