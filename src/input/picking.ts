@@ -79,6 +79,19 @@ export interface BuildingHeights {
    * which reduces every pick to its ground hit.
    */
   ceiling(): number;
+  /**
+   * How far along the ray this building is met *as it is drawn*, or -1
+   * where the ray passes through its box and touches nothing — the pick's
+   * narrow phase, and the whole of what keeps a click on the silhouette
+   * rather than on the box around it. The ray is the one the walk below
+   * runs: `origin` + `dir` * t, with dir a unit vector, so the answer is
+   * directly comparable with the walk's own t.
+   *
+   * Optional. Without it a pick is the box hit it always was, which is
+   * what a renderer-less probe (a test, or the boot before the scene is
+   * wired in) answers with.
+   */
+  silhouetteT?(id: number, origin: THREE.Vector3, dir: THREE.Vector3): number;
 }
 
 /** What screenToBuilding needs to know about what is standing where. */
@@ -112,16 +125,34 @@ const HEADROOM = 0.2;
 const MAX_PROBES = 64;
 
 /**
- * The building under a screen point, or -1 — the footprint's whole box, not
- * just the plate it stands on. Clicking a castle's towers picks the castle,
- * where a ground hit alone would read through the model and land on
- * whatever tile lies behind it.
+ * Every building the ray could possibly be meeting, nearest the camera
+ * first — reused frame to frame, because a pick runs every time the
+ * pointer moves. A handful at the very most: the buildings whose footprint
+ * the ray crosses under their own roofline.
+ */
+const candidates: number[] = [];
+/** Where each of those was first met, as a distance along the ray: the
+ * probe that found its box, which is within a step of where the box really
+ * begins. What lets the tracing below stop early. */
+const entries: number[] = [];
+
+/**
+ * The building under a screen point, or -1 — its silhouette where the
+ * renderer can trace one, the footprint's whole box where it cannot.
+ * Clicking a castle's towers picks the castle, where a ground hit alone
+ * would read through the model and land on whatever tile lies behind it.
  *
- * The walk climbs the ray back toward the camera in world-height steps and
- * then tests top down, which is near-to-far: the first box it lands in is
- * the one nearest the camera, so a building never picks through one standing
- * in front of it. The ground hit itself is the last word and the old rule
- * unchanged — the tile you clicked, whatever is drawn over it.
+ * Two phases, because the exact test is the expensive one. The broad phase
+ * climbs the ray back toward the camera in world-height steps and collects
+ * the boxes it passes through, near to far. The narrow phase then asks the
+ * renderer where each of those buildings is actually *drawn* across the ray
+ * and takes the nearest real hit — so the sky between a keep's towers
+ * belongs to the cottage standing behind it, and the sky over a cottage's
+ * ridge belongs to nobody. A probe with no silhouette to offer keeps the
+ * old answer: the first box the walk landed in.
+ *
+ * The ground hit itself is the last word and the oldest rule unchanged —
+ * the tile you clicked, whatever is drawn over it.
  */
 export function screenToBuilding(
   camera: THREE.Camera,
@@ -147,17 +178,52 @@ export function screenToBuilding(
     if (t < 0 || origin.y + dir.y * t > ceiling) break;
     steps++;
   }
+  candidates.length = 0;
+  entries.length = 0;
   for (let i = steps; i > 0; i--) {
     const t = ground - i * dt;
     const x = origin.x + dir.x * t;
     const z = origin.z + dir.z * t;
     const id = probe.idAt(x, z);
-    if (
-      id >= 0 &&
-      origin.y + dir.y * t <= probe.baseOf(id) + probe.heightOf(id) + HEADROOM
-    ) {
-      return id;
+    if (id < 0) continue;
+    if (origin.y + dir.y * t > probe.baseOf(id) + probe.heightOf(id) + HEADROOM)
+      continue;
+    // Consecutive probes land on the same building all the way up a wall,
+    // and a ray can leave a footprint and come back to it over a courtyard.
+    if (candidates.includes(id)) continue;
+    candidates.push(id);
+    entries.push(t);
+  }
+  if (candidates.length > 0) {
+    if (!probe.silhouetteT) return candidates[0]!;
+    // Box order is not model order: a keep's box is entered long before a
+    // cottage's, and the keep is still the thing further along the ray
+    // when the ray goes between its towers. So every candidate is traced
+    // and the nearest real hit wins, rather than the first box.
+    let best = -1;
+    let bestT = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < candidates.length; i++) {
+      // Tracing a model is the expensive half of a pick, so stop as soon as
+      // the rest cannot win. Nothing is drawn outside its own box, and the
+      // boxes left begin further along the ray than this one's did — bar
+      // the step of sampling slack between the probe that found it and the
+      // face it really crossed.
+      if (best >= 0 && bestT <= entries[i]! - dt) break;
+      const id = candidates[i]!;
+      const t = probe.silhouetteT(id, origin, dir);
+      // Anything past the ground hit is inside the hill — a model's buried
+      // skirt, or the underside of a shell the ray went in over the roof
+      // of. The camera shows terrain at those pixels, so the pointer reads
+      // terrain there too. A step of slack: the ground hit is a refined
+      // guess, and a wall meets the ray a hair either side of the plate it
+      // stands on.
+      if (t < 0 || t > ground + dt) continue;
+      if (t < bestT) {
+        bestT = t;
+        best = id;
+      }
     }
+    if (best >= 0) return best;
   }
   return probe.idAt(origin.x + dir.x * ground, origin.z + dir.z * ground);
 }

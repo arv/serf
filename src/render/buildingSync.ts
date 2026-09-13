@@ -481,6 +481,37 @@ const BAR_QUAT_EPS = 1e-12;
 const BAR_CAPACITY_MIN = 32;
 
 /**
+ * Marks a branch of a building's tree as no part of its shape — see
+ * silhouetteT. Set on the thing hung off the root, and the whole branch
+ * under it goes with it.
+ */
+const PICK_IGNORE = 'noPick';
+
+/** Whether `o` hangs somewhere under `of` — itself included. */
+function descends(o: THREE.Object3D, of: THREE.Object3D): boolean {
+  for (let n: THREE.Object3D | null = o; n; n = n.parent) {
+    if (n === of) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether a ray hit on this object is a hit on the building it hangs
+ * under: drawn, and built into the thing rather than merely standing in
+ * its air. Walks up to the building's own root, which is where the
+ * question stops being about this building.
+ */
+function pickable(hit: THREE.Object3D, root: THREE.Object3D): boolean {
+  for (let o: THREE.Object3D | null = hit; o && o !== root; o = o.parent) {
+    // A raycast reaches what the camera does not: three tests geometry, not
+    // visibility, so an unlit puff or a part the model keeps hidden would
+    // otherwise be as clickable as a wall.
+    if (!o.visible || o.userData[PICK_IGNORE] === true) return false;
+  }
+  return true;
+}
+
+/**
  * Mirrors the building list into the scene. Sites show a timber frame with
  * the real building rising out of it half-built (clip-plane reveal) while a
  * peasant hammers away; completion swaps in the solid model. Without loaded
@@ -515,6 +546,10 @@ export class BuildingSync {
    * more, every raze.
    */
   #ceiling = Number.NEGATIVE_INFINITY;
+  /** Reused by silhouetteT: a pick runs every frame the pointer moves, and
+   * a fresh raycaster and hit list each would be an allocation a frame. */
+  #pickRay = new THREE.Raycaster();
+  #pickHits: THREE.Intersection[] = [];
   /**
    * Presentation cue channel, injected from main. Every call is guarded
    * on `v.root.visible`: unlike sceneSync, this loop does NOT skip fogged
@@ -596,6 +631,53 @@ export class BuildingSync {
   /** The highest roofline standing — see #ceiling. */
   ceiling(): number {
     return this.#ceiling;
+  }
+
+  /**
+   * How far along the ray this building is met as it is actually drawn, or
+   * -1 where the ray passes through its box and touches nothing of it — the
+   * pick's narrow phase (see screenToBuilding).
+   *
+   * The box a footprint and a roofline make is far more building than the
+   * building: a keep is towers with sky between them, a cottage is a ridge
+   * with sky over its eaves, and a click on that sky went to the box. So
+   * the model itself answers, triangle by triangle. What is hung in a
+   * building's air rather than built into it — its chimney smoke, the fish
+   * off a fishery's pier, the archers posted on its roof — is not part of
+   * the shape (see PICK_IGNORE): the smoke would hand back exactly the
+   * column of dead sky this exists to give up, and a man is not a wall.
+   */
+  silhouetteT(id: number, origin: THREE.Vector3, dir: THREE.Vector3): number {
+    const v = this.#visuals.get(id);
+    // Nothing drawn has no silhouette to meet: a road is ground, and a
+    // building on unscouted land is a memory the fog has not handed back
+    // yet. Both fall through to the caller's ground hit, which is the pick
+    // they had before any of this.
+    if (!v || v.road || !v.root.visible) return -1;
+    // A pick runs between frames — after a roster arrived and before the
+    // render that settles the scene's matrices — so settle this one's.
+    v.root.updateWorldMatrix(true, true);
+    this.#pickRay.set(origin, dir);
+    const hits = this.#pickHits;
+    hits.length = 0;
+    this.#pickRay.intersectObject(v.root, true, hits);
+    for (const hit of hits) {
+      // A site is revealed bottom-up by a clip plane, and clipping is a
+      // shader's business: the courses nobody has laid yet are still there
+      // in the geometry for a ray to hit. Half a keep is half a keep to the
+      // pointer too. The plane is installed on the model's own materials
+      // and on nothing else, so the frame around it is not cut — its posts
+      // stand to their full height from the first tick.
+      if (
+        v.clip &&
+        hit.point.y > v.clip.plane.constant &&
+        descends(hit.object, v.model)
+      ) {
+        continue;
+      }
+      if (pickable(hit.object, v.root)) return hit.distance;
+    }
+    return -1;
   }
 
   constructor(scene: THREE.Scene, heights: HeightField) {
@@ -824,9 +906,13 @@ export class BuildingSync {
     // waterline. Re-seat the group so they swim just under the surface: a
     // world-unit drop, folded back into the model's vertical scale.
     const shoal = model.getObjectByName('fisheryShoal') ?? undefined;
-    if (shoal)
+    if (shoal) {
       shoal.position.y =
         (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
+      // The fish swim off the end of the pier, out over open water: a
+      // click on them is a click on the sea, not on the hut — silhouetteT.
+      shoal.userData[PICK_IGNORE] = true;
+    }
 
     const topY = clip
       ? clip.height
@@ -1454,6 +1540,8 @@ export class BuildingSync {
     v.root.worldToLocal(SCRATCH_POS);
     const group = new THREE.Group();
     group.name = 'chimneySmoke';
+    // Smoke is weather, not masonry — see silhouetteT.
+    group.userData[PICK_IGNORE] = true;
     group.position.copy(SCRATCH_POS);
     const puffs: SmokePuff[] = [];
     for (let i = 0; i < SMOKE_PUFFS; i++) {
@@ -1608,6 +1696,10 @@ export class BuildingSync {
       // Face outward, away from the tower's middle: two men shoulder to
       // shoulder staring the same way read as a rank, not a watch.
       made.group.rotation.y = Math.atan2(SCRATCH_POS.x, SCRATCH_POS.z);
+      // A man on the roof is not the roof (see silhouetteT) — and he is a
+      // skinned mesh besides, the one shape on a building whose triangles
+      // a ray cannot test cheaply.
+      made.group.userData[PICK_IGNORE] = true;
       v.root.add(made.group);
       v.manned.push({group: made.group, char: made.visual});
     }

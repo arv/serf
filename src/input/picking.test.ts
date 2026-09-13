@@ -99,6 +99,178 @@ function at(
   return worldToScreen(cam, CANVAS, x, y, z);
 }
 
+/**
+ * A standing building for the silhouette pick: the tiles it covers, how
+ * tall its box stands, and — the part the box pick never had — the one
+ * solid the renderer actually draws inside that box.
+ */
+interface Stand {
+  id: number;
+  x0: number;
+  z0: number;
+  size: number;
+  top: number;
+  /** What is drawn, in world space. A keep is its towers, not its yard. */
+  model: THREE.Box3;
+}
+
+const RAY = new THREE.Ray();
+const HIT = new THREE.Vector3();
+
+/** A settlement of those, as the pick sees it. */
+function town(...stands: Stand[]): BuildingProbe {
+  const buildingAt = new Int32Array(tileCount(SIZE)).fill(-1);
+  const byId = new Map<number, Stand>();
+  for (const s of stands) {
+    byId.set(s.id, s);
+    for (let z = s.z0; z < s.z0 + s.size; z++)
+      for (let x = s.x0; x < s.x0 + s.size; x++)
+        buildingAt[tileIdx(x, z, SIZE)] = s.id;
+  }
+  return {
+    idAt: (x, z) => {
+      const tx = Math.floor(x);
+      const tz = Math.floor(z);
+      if (tx < 0 || tz < 0 || tx >= SIZE || tz >= SIZE) return -1;
+      return buildingAt[tileIdx(tx, tz, SIZE)]!;
+    },
+    heightOf: id => byId.get(id)?.top ?? 0,
+    baseOf: () => 0,
+    ceiling: () => Math.max(...stands.map(s => s.top)),
+    silhouetteT: (id, origin, dir) => {
+      const s = byId.get(id);
+      if (!s) return -1;
+      RAY.set(origin, dir);
+      return RAY.intersectBox(s.model, HIT) ? HIT.distanceTo(origin) : -1;
+    },
+  };
+}
+
+/** The same settlement with no model to trace — the box pick this started
+ * as, kept beside each case to say what the silhouette changed. */
+function boxesOnly(p: BuildingProbe): BuildingProbe {
+  return {
+    idAt: (x, z) => p.idAt(x, z),
+    heightOf: id => p.heightOf(id),
+    baseOf: id => p.baseOf(id),
+    ceiling: () => p.ceiling(),
+  };
+}
+
+/** A keep: three tiles square, six high, and mostly sky — one tower in the
+ * middle of a yard is all that is drawn. */
+const KEEP: Stand = {
+  id: 7,
+  x0: 14,
+  z0: 14,
+  size: 3,
+  top: 6,
+  model: new THREE.Box3(
+    new THREE.Vector3(15, 0, 15),
+    new THREE.Vector3(16, 6, 16),
+  ),
+};
+
+/** A cottage a couple of tiles behind it, knee-high by comparison — the
+ * one the keep's box used to swallow. */
+const COTTAGE: Stand = {
+  id: 9,
+  x0: 12,
+  z0: 12,
+  size: 1,
+  top: 1,
+  model: new THREE.Box3(
+    new THREE.Vector3(12, 0, 12),
+    new THREE.Vector3(13, 1, 13),
+  ),
+};
+
+describe('a pick on the silhouette', () => {
+  it('picks the cottage behind the keep, through the gap beside its tower', () => {
+    const cam = camera();
+    const heights = flat();
+    const probe = town(KEEP, COTTAGE);
+    // The cottage's own roof, in the open as far as the eye is concerned:
+    // the keep's tower stands to the side of this pixel, not across it.
+    const roof = at(cam, 12.5, 1, 12.5);
+
+    // The box pick answers with the keep: its box reaches over the cottage
+    // whether or not anything is drawn in it, and the box nearest the
+    // camera wins. That is the bug.
+    expect(
+      screenToBuilding(cam, CANVAS, roof.x, roof.y, heights, boxesOnly(probe)),
+    ).toBe(KEEP.id);
+
+    expect(screenToBuilding(cam, CANVAS, roof.x, roof.y, heights, probe)).toBe(
+      COTTAGE.id,
+    );
+  });
+
+  it('gives up the sky its box claims over the tower', () => {
+    const cam = camera();
+    const heights = flat();
+    const probe = town(KEEP, COTTAGE);
+    // Inside the keep's box — over its far yard, high up — but past the
+    // top of the only thing standing there. Bare sky, and the ground under
+    // those pixels is bare too.
+    const sky = at(cam, 14.5, 5.9, 14.5);
+    expect(
+      screenToBuilding(cam, CANVAS, sky.x, sky.y, heights, boxesOnly(probe)),
+    ).toBe(KEEP.id);
+
+    expect(screenToBuilding(cam, CANVAS, sky.x, sky.y, heights, probe)).toBe(
+      -1,
+    );
+  });
+
+  it('still picks a keep clicked anywhere on the tower itself', () => {
+    const cam = camera();
+    const heights = flat();
+    const probe = town(KEEP, COTTAGE);
+    for (const y of [0.5, 3, 5.8]) {
+      const p = at(cam, 15.5, y, 15.5);
+      expect(screenToBuilding(cam, CANVAS, p.x, p.y, heights, probe)).toBe(
+        KEEP.id,
+      );
+    }
+  });
+
+  it('traces no further than it has to: the keep answers, the cottage is left alone', () => {
+    const cam = camera();
+    const heights = flat();
+    const probe = town(KEEP, COTTAGE);
+    const traced: number[] = [];
+    const counted: BuildingProbe = {
+      ...probe,
+      silhouetteT: (id, origin, dir) => {
+        traced.push(id);
+        return probe.silhouetteT!(id, origin, dir);
+      },
+    };
+    // Halfway up the tower, with the cottage's box somewhere behind it.
+    const tower = at(cam, 15.5, 3, 15.5);
+    expect(
+      screenToBuilding(cam, CANVAS, tower.x, tower.y, heights, counted),
+    ).toBe(KEEP.id);
+    // The keep is met before the cottage's box even begins, and nothing is
+    // drawn outside its own box: there is nothing back there that could win.
+    expect(traced).toEqual([KEEP.id]);
+  });
+
+  it('still picks the plate a building stands on, model or no model', () => {
+    const cam = camera();
+    const heights = flat();
+    const probe = town(KEEP, COTTAGE);
+    // The bare corner of the keep's yard: nothing is drawn over this tile,
+    // and it is the keep's tile all the same.
+    const yard = at(cam, 14.2, 0, 14.2);
+    expect(probe.idAt(14.2, 14.2)).toBe(KEEP.id);
+    expect(screenToBuilding(cam, CANVAS, yard.x, yard.y, heights, probe)).toBe(
+      KEEP.id,
+    );
+  });
+});
+
 describe('screenToBuilding', () => {
   it('picks a castle clicked on its roof, where the ground plane reads past it', () => {
     const cam = camera();

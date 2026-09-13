@@ -1099,6 +1099,17 @@ export class Controls {
   /** Wire in the renderer's model measurements — see #buildingHeights. */
   setBuildingHeights(heights: BuildingHeights): void {
     this.#buildingHeights = heights;
+    // The narrow phase is offered only where something can actually trace
+    // a silhouette. "Missed the model" and "has no model to miss" are
+    // different answers, and a measurer that cannot trace — a stand-in, or
+    // a renderer that grows one later — has to leave the pick on its boxes
+    // rather than have every candidate read as a miss.
+    if (heights.silhouetteT) {
+      this.#probe.silhouetteT = (id, origin, dir) =>
+        this.#buildingHeights?.silhouetteT?.(id, origin, dir) ?? -1;
+    } else {
+      delete this.#probe.silhouetteT;
+    }
   }
 
   /**
