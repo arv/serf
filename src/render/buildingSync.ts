@@ -47,6 +47,17 @@ import {
  * occluderBoxes and OCCLUDER_PAD). */
 const OCCLUDER_MIN_HEIGHT = 0.4;
 
+/** Model nodes that reach outside the footprint their building is boxed
+ * by, and so may not stamp the wall bit (see the marking in #create).
+ *
+ * A fishery's deck runs a couple of tiles out over open water and its
+ * shoal swims off the end of it, while occluderBoxes only ever emits the
+ * footprint. Marked, they would put the bit down over water no box
+ * vouches for. Named rather than measured because the model names them
+ * already — everything else a building carries stands within its own
+ * walls. */
+const BEYOND_FOOTPRINT = new Set(['fisheryPier', 'fisheryShoal']);
+
 type BuildingState = Enum<typeof BuildingState>;
 type GoodId = Enum<typeof GoodId>;
 
@@ -1133,13 +1144,18 @@ export class BuildingSync {
     // would leave one standing over its own depth.
     const wall: THREE.Mesh[] = [];
     if (!road) {
-      model.traverse(o => {
+      // Walked rather than traversed, so a subtree that reaches past the
+      // footprint can be left whole where it stands.
+      const mark = (o: THREE.Object3D): void => {
+        if (BEYOND_FOOTPRINT.has(o.name)) return;
         if (o instanceof THREE.Mesh) {
           mapMaterials(o, occluderMaterial);
           o.renderOrder = WALL_RENDER_ORDER;
           wall.push(o);
         }
-      });
+        for (const child of o.children) mark(child);
+      };
+      mark(model);
     }
     const finished =
       b.state === BuildingState.site

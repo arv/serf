@@ -471,7 +471,15 @@ export function occludedBy(
     // fence he is working behind put an edge across his shins. Measured
     // against the footprint rather than the padded box, so a man pressed
     // against the far wall of a keep is still hidden by it.
+    //
+    // Its own GROUND, so the ground is part of the test: a man standing
+    // more than his own height below a building's floor is under it, not
+    // on it, and a building he is that far beneath is one that can hide
+    // him. The slack is a body rather than nothing because a footprint
+    // sits on sloping ground and its far corner is not its center's
+    // height.
     if (
+      baseY > b.baseY - height &&
       x > b.minX + OCCLUDER_PAD &&
       x < b.maxX - OCCLUDER_PAD &&
       z > b.minZ + OCCLUDER_PAD &&

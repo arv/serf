@@ -1202,6 +1202,30 @@ describe('the wall bit', () => {
     for (const m of mats) expect(m.stencilWrite).toBe(false);
   });
 
+  it('leaves the fishery its deck and its fish, which stand outside the box', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({type: BuildingTypeId.fishery, w: 2, h: 2})]);
+    const root = scene.children[0]!;
+    const hut: THREE.Material[] = [];
+    const beyond: THREE.Material[] = [];
+    root.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      // Anything hanging off the named deck or shoal, however deep.
+      let out = false;
+      for (let a: THREE.Object3D | null = o; a; a = a.parent) {
+        if (a.name === 'fisheryPier' || a.name === 'fisheryShoal') out = true;
+      }
+      eachMaterial(o, m => (out ? beyond : hut).push(m));
+    });
+    expect(hut.length).toBeGreaterThan(0);
+    expect(beyond.length).toBeGreaterThan(0);
+    // The deck runs a couple of tiles out over open water and the shoal
+    // swims off the end of it, while the box is the footprint. A bit out
+    // there is one no box vouches for.
+    expect(hut.every(m => m.stencilWrite)).toBe(true);
+    expect(beyond.every(m => !m.stencilWrite)).toBe(true);
+  });
+
   it('follows a site up: marked exactly when it is boxed, scaffolding never', () => {
     const {sync, scene} = makeSync();
     const site = (progress01: number): BuildingSnap =>

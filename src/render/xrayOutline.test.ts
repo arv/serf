@@ -55,6 +55,28 @@ describe('occludedBy', () => {
     expect(occludedBy([onACrag], -1.05, 0, -1.05, 0.05, VIEW)).toBe(false);
   });
 
+  it('counts a keep standing on the ledge above him', () => {
+    // Six tiles of keep on a shelf three and a half up, and a man on the
+    // ground under it. His feet are inside its footprint, so the "he is
+    // on this building's own ground" exemption would take his edge away —
+    // but he is not on its ground, he is beneath its floor, and it is
+    // squarely between him and the camera.
+    const onALedge: OccluderBox = {
+      minX: -3,
+      maxX: 3,
+      minZ: -3,
+      maxZ: 3,
+      baseY: 3.5,
+      topY: 6,
+    };
+    expect(occludedBy([onALedge], 0, 0, 0, MAN, VIEW)).toBe(true);
+    // Standing on the shelf itself, he is at it and not behind it — and
+    // still is a body's slack lower, because a footprint on sloping
+    // ground does not sit at one height.
+    expect(occludedBy([onALedge], 0, 3.5, 0, MAN, VIEW)).toBe(false);
+    expect(occludedBy([onALedge], 0, 3.0, 0, MAN, VIEW)).toBe(false);
+  });
+
   it("leaves a man standing on the building's own ground alone", () => {
     // The farmer mowing his rows is inside his farm's own fence, not
     // behind it — and the rails he works between would otherwise put an
