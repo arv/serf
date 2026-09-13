@@ -16,27 +16,32 @@
 
     And every edge in it is a contrast ratio, because at 48px value is all
     that is left — the merlons, the window and the eaves have gone. So no
-    two touching surfaces sit closer than 2.7:1, and the ones carrying the
-    silhouette are wider than that (sampled off the baked 512):
+    boundary that carries the silhouette sits closer than 2.7:1 (sampled
+    off the baked 512):
 
       wall  vs field   10.4:1      roof lit   vs field    3.8:1
       door  vs wall    10.2:1      roof shade vs field    2.8:1
       eave  vs roof     4.1:1      pennant    vs field    7.2:1
 
-    Those are a deliberate step down from a first pass that ran them to
-    14.2 / 4.7 / 3.4: legible was never the question past about 2.6:1 here,
-    and the louder setting bought nothing the eye wanted.
+    The lit and shaded halves of one wall (1.7:1) and of one roof (1.4:1)
+    sit far closer than that on purpose: those are shading within a
+    surface, not a boundary between two, and pushing them apart reads as
+    two materials rather than one in the light.
+
+    The ratios above are a deliberate step down from a first pass that ran
+    them to 14.2 / 4.7 / 3.4. Legible was never the question past about
+    2.6:1 here, and the louder setting bought nothing the eye wanted.
 
     Which is what decides the colours. A green roof on a green field is the
     one thing this cannot do — the old drawing had its shaded roof face at
     1.11:1 against the ground, which is not a dark roof, it is no roof —
     so the field drops well below the manifest's theme_color #223526 and
-    the roof parts from it in value rather than hue — it is the faction
-    green the game paints this very surface with, softened (
-    src/render/factionPalette.ts repaints the roof slot #008454 per owner).
-    Roof and wall still only part at 2.4:1, so a dark timber eave is drawn
-    along the join and does the separating there. Walls stay the plaster #efe3cc of
-    src/render/palette.ts, and the gold is the menu's GOLD accent.
+    the roof parts from it in value rather than hue: it is a softened take
+    on the faction green the game paints this very surface with, since
+    src/render/factionPalette.ts repaints the roof slot #008454 per owner.
+    Roof and wall still only part at 2.5:1, so a dark timber eave is drawn
+    along the join and does the separating there. Walls stay the plaster
+    #efe3cc of src/render/palette.ts, and the gold is the menu's GOLD.
   -->
   <defs>
     <radialGradient id="field" cx="50%" cy="34%" r="78%">

@@ -7,8 +7,10 @@
   the circle a maskable icon is cropped to, so the mask takes only its
   corners.
 
-  Baked by `pnpm icons` (../render.ts), which draws ../stable/icon.svg
-  first so the background this composites over is the current one.
+  Baked by `pnpm icons` (../render.ts). The band is composited over
+  ../stable/icon.svg rather than over a baked PNG of it, so a 180px staging
+  icon rasterises the drawing at 180 instead of shrinking the 512 — and so
+  there is no order to get wrong between the two channels.
 
   The box takes its edge from --edge, which the renderer sets once per
   size; opened in a browser on its own it falls back to filling the
@@ -38,7 +40,7 @@
         container-type: size;
         width: var(--edge, 100vw);
         height: var(--edge, 100vw);
-        background: url('../stable/icon-512.png') center / 100% 100% no-repeat;
+        background: url('../stable/icon.svg') center / 100% 100% no-repeat;
       }
       .band {
         position: absolute;

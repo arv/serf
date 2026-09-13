@@ -1,9 +1,11 @@
-import {existsSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from 'vitest';
 import {ICON_FILES, channelFor, identityFor} from './appIdentity';
 import {retitle} from './appIdentityPlugin';
+import {decodePng} from './identity/png.ts';
+import {SIZES} from './identity/render.ts';
 
 describe('channelFor', () => {
   it('is stable only for the stable branch', () => {
@@ -48,6 +50,29 @@ describe('identityFor', () => {
       );
       for (const file of ICON_FILES)
         expect(existsSync(join(dir, file))).toBe(true);
+    },
+  );
+
+  // The icons are generated (`pnpm icons`) and committed, and CI has no
+  // browser to regenerate them with — so this is the check that a bad bake
+  // cannot be committed silently. It catches the failure the renderer is
+  // most exposed to: headless Chromium quietly laying out at a size other
+  // than the one asked for, which yields a plausible PNG of the wrong edge
+  // rather than an error.
+  it.each(['stable', 'staging'] as const)(
+    'has each committed %s icon at the size it is declared to be',
+    channel => {
+      const dir = fileURLToPath(
+        new URL(`./identity/${channel}/`, import.meta.url),
+      );
+      for (const file of ICON_FILES) {
+        const {width, height} = decodePng(readFileSync(join(dir, file)));
+        expect({file, width, height}).toEqual({
+          file,
+          width: SIZES[file],
+          height: SIZES[file],
+        });
+      }
     },
   );
 });
