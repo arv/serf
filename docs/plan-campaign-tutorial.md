@@ -514,3 +514,41 @@ the raids) and a scripted hand makes the three clicks the commission is
 about. It has to be — no playbook ever sites a Monument, and a mission
 checklist replaces the raze-the-camp win, so a purely AI-driven seat
 razes the camp and then plays on forever.
+
+## Addendum: mission 1 was unwinnable on hard
+
+The plan above prices mission 1 exactly: six hands, five hires at four
+silver, and a 24-silver purse that "affords them with a little slack".
+That arithmetic is the printed game's, and the difficulty tiers
+(`src/sim/defs/difficulty.ts`) landed after it. A tier scales the human
+seat's opening — `hard` takes a hand out of the yard (`startSerfs: -1`)
+and 30% off the larder (`startStockPct: 70`) — so The Clearing opened
+with five hands and 17 silver: four hires, nine souls, against a
+checklist that counts eleven. There was no silver anywhere on the map
+and no other way to earn a coin, so the mission could not be finished at
+that tier at all. Not hard — unwinnable, and only on the commission whose
+checklist counts heads. (It is the only one that does; the other seven
+ask for buildings, stock, research or a razed camp.)
+
+The fix is on the ground rather than in the numbers, because the purse
+being tight is the lesson and a bigger purse erases it:
+
+- **A silver seam, 25 tiles north-east**, on the shoulder below the iron
+  (`tools/mapAuthor/missions/clearing.ts`). Priced like a reserve seam
+  (`SILVER_RESERVE_WORTH`, 120) and placed past `HOME_SEAM_BAND.wide`, so
+  the opening view still teaches timber, stone and beds and nothing else.
+  A reeve who never counts his silver never walks out there.
+- **A spare pick and eight loaves in the opening stock**, which scale to
+  two picks and six loaves on `hard`. A seam is only an answer if the
+  village can work it: a mine binds a tool the way the quarry does, and a
+  mine eats (`MINE_RATION_PER`). This is the same thing mission 3 does
+  when it sends the picks and the bread with the commission — a larder,
+  not a third lesson. On `normal` nobody has to touch it.
+
+`missions.test.ts` holds the claim at the tier that needed it: the
+opening purse is asserted to fall short of the checklist, and then the
+mission is won inside its 36k budget by sinking a shaft (~10k ticks).
+`missionMaps.test.ts`'s "tutorial maps hold only the metals their lesson
+is about" now pins the distance rather than the absence — no silver in
+the home ring or the opening view, a reserve seam's worth within a
+reserve seam's walk.
