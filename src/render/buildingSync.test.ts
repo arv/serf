@@ -1221,7 +1221,7 @@ describe('the wall bit', () => {
     // bits either. A bit the boxes do not vouch for is an edge drawn over
     // something that is not hiding the man.
     expect(sync.occluderBoxes()).toHaveLength(0);
-    expect(rising().some(m => m.stencilWrite)).toBe(false);
+    expect(rising().every(m => !m.stencilWrite)).toBe(true);
 
     // Topped out: boxed, and stamping.
     sync.update([site(1)]);
@@ -1231,7 +1231,7 @@ describe('the wall bit', () => {
     // The frame stamps at no height at all. Its sill lies along the
     // ground, and ground that stamps is how a green arc ends up under a
     // man's boots.
-    expect(scaffold().some(m => m.stencilWrite)).toBe(false);
+    expect(scaffold().every(m => !m.stencilWrite)).toBe(true);
   });
 });
 

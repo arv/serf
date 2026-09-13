@@ -27,10 +27,11 @@ import {vermillion} from './palette';
  *  2. **Hull.** The body once more, back faces only, every vertex pushed
  *     out along its normal by a few screen pixels, drawn where the depth
  *     test is inverted (`GreaterDepth`: pass only where something nearer
- *     has already been drawn) and the stencil test *skips* the bit the
- *     mask wrote. What survives is the ring of pushed-out body that falls
- *     outside the body and behind the wall: the outline, and only around
- *     the part of him the wall has taken.
+ *     has already been drawn) and the stencil says a building's own bit
+ *     is set and the mask's is not — one Equal against both. What
+ *     survives is the ring of pushed-out body that falls outside the body
+ *     and over a wall: the outline, and only around the part of him the
+ *     wall has taken.
  *
  * Both passes share the character's own geometry and skeleton — the twins
  * hang off the meshes they copy, so they inherit the pose, the transform
