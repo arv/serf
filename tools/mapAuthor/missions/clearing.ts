@@ -83,9 +83,12 @@ export function build(): Authored {
   v.outcrop(at(-21, 17), 2.4, 0.8);
 
   // --- What this country holds, for later --------------------------------
-  // The iron: a valley away, and mission 4's business rather than this
-  // one's — a six-serf village has no pick to spare for it and no tech to
-  // sink a shaft with.
+  // The iron: a valley away, and out of this commission's reach for a
+  // reason no map edit can undo — the Iron Mine is gated behind
+  // `ironworking` (defs/buildings.ts) and The Clearing grants no techs
+  // and has nowhere to research one. That gate is why the seam below can
+  // be silver and not iron: the Silver Mine carries no tech at all, so
+  // the only thing standing between a reeve and a shaft is the walk.
   v.ironSeam(120, at(27, -23));
   // The silver: the same north-eastern hills, a shoulder nearer, on open
   // ground with no timber or stone on it — nothing the eye reads as part
