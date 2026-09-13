@@ -53,12 +53,19 @@ describe('identityFor', () => {
     },
   );
 
-  // The icons are generated (`pnpm icons`) and committed, and CI has no
-  // browser to regenerate them with — so this is the check that a bad bake
-  // cannot be committed silently. It catches the failure the renderer is
-  // most exposed to: headless Chromium quietly laying out at a size other
-  // than the one asked for, which yields a plausible PNG of the wrong edge
-  // rather than an error.
+  // The icons are generated (`pnpm icons`) and committed, so this is the
+  // check that a bad bake cannot be committed silently. It catches the
+  // failure the renderer is most exposed to: headless Chromium quietly
+  // laying out at a size other than the one asked for, which yields a
+  // plausible PNG of the wrong edge rather than an error.
+  //
+  // Not re-rendering in CI and diffing is a choice, not a limitation —
+  // ubuntu-latest ships Chrome and the renderer reads CHROME_PATH. But the
+  // bake is byte-identical only on one Chromium build, and this drawing is
+  // mostly gradients, so a strict diff would fail on a runner rasterising
+  // an edge differently rather than on anything being stale. Catching
+  // "edited the SVG, forgot to re-bake" wants a tolerance-based image
+  // comparison; this catches the wrong-size case without one.
   it.each(['stable', 'staging'] as const)(
     'has each committed %s icon at the size it is declared to be',
     channel => {

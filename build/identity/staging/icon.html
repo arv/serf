@@ -13,9 +13,11 @@
   there is no order to get wrong between the two channels.
 
   The box takes its edge from --edge, which the renderer sets once per
-  size; opened in a browser on its own it falls back to filling the
-  viewport. Everything inside is sized against that box in cqw rather than
-  against the window in vw — the renderer draws a 180px icon in a 512px
+  size. Opened in a browser on its own there is no --edge, and it falls
+  back to the largest square the viewport holds — square because the icon
+  is, so a window that is not takes letterboxing rather than a stretched
+  castle. Everything inside is sized against that box in cqw rather than
+  against the window in vw: the renderer draws a 180px icon in a 512px
   window, and vw would set the band's type for the window.
 -->
 <html>
@@ -38,8 +40,8 @@
       .icon {
         position: relative;
         container-type: size;
-        width: var(--edge, 100vw);
-        height: var(--edge, 100vw);
+        width: var(--edge, min(100vw, 100vh));
+        height: var(--edge, min(100vw, 100vh));
         background: url('../stable/icon.svg') center / 100% 100% no-repeat;
       }
       .band {
