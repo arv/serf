@@ -237,6 +237,25 @@ export function Hud(props: {
   const fs = fullscreen();
   const [activeTab, setActiveTab] = createSignal(0);
   /**
+   * The page actually on the glass, which is not the same question as which
+   * tab is chosen and must not be answered with the same signal.
+   *
+   * activeTab is a decision — what the strip lights, where a chord lands,
+   * where a reopened card stands — and showTab makes it the instant the
+   * player clicks, because a tab that waits 300ms to light up reads as a
+   * click that missed. This is a measurement, and it lags that decision by
+   * exactly the length of the glide.
+   *
+   * The ribbon's `inert` hangs off this one. Off the decision it would
+   * switch the page the player is still looking at off the moment they
+   * asked for a different one: for the whole of a Village→Arms glide,
+   * Village fills the frame with every button on it dead, and Arms takes
+   * taps aimed at a page nobody can see yet. A tap landing in that window
+   * is a tap on a building, from a player who has not noticed the ribbon
+   * is still moving — the most ordinary thing in the world to do.
+   */
+  const [shownPage, setShownPage] = createSignal(0);
+  /**
    * Small screen, either way up — the question every collapsible part
    * of the HUD actually wants answered. It used to be `(max-width:
    * 760px)`, which a phone held sideways fails: 844x390 is wide, and
@@ -543,7 +562,22 @@ export function Hud(props: {
     // scroll, and so no scroll event coming: arming the guard below on a
     // scroll that will never happen would have it sit there ignoring the
     // player's own swipes until the timer let go of it.
-    if (Math.abs(el.scrollLeft - left) < 1) return;
+    if (Math.abs(el.scrollLeft - left) < 1) {
+      // Parked here and still gliding elsewhere is the one way that gets
+      // interesting: click Arms, then change your mind and click Village
+      // before the ribbon has left it. Returning here and no more would
+      // leave the Arms glide running with nothing to stop it, and its
+      // arrival would light Arms and show Arms — the tab clicked first,
+      // not the one clicked last. Stopping it is scrolling to where it
+      // already is, which is a snap point precisely because this branch
+      // was taken, so nothing jumps.
+      if (heading !== null) {
+        heading = null;
+        clearTimeout(settling);
+        el.scrollTo({left, behavior: 'instant'});
+      }
+      return;
+    }
     heading = i;
     clearTimeout(settling);
     settling = setTimeout(releaseGuard, 700);
@@ -586,6 +620,11 @@ export function Hud(props: {
     onMount(() => {
       ribbon = el;
       el.scrollLeft = activeTab() * el.clientWidth;
+      // Stated rather than left to the scroll event that assignment
+      // queues: until that event lands, shownPage would still be
+      // answering for the ribbon before this one, and `inert` would have
+      // the page on the glass switched off for a frame.
+      setShownPage(activeTab());
     });
     // The guard goes with it. A phone folding the card mid-glide leaves a
     // target no scroller is heading for any more, and a timer that would
@@ -603,6 +642,11 @@ export function Hud(props: {
         onScroll={() => {
           const i = shownTab();
           if (i === null) return;
+          // What is on the glass is never in doubt and never guarded: the
+          // guard below is about which tab was *chosen*, and a page the
+          // player can see is a page the player can press whoever chose
+          // it and whatever the scroller is still doing.
+          setShownPage(i);
           if (heading !== null) {
             if (i !== heading) return;
             heading = null;
@@ -613,7 +657,7 @@ export function Hud(props: {
       >
         <For each={BUILD_GROUPS}>
           {(group, i) => (
-            <div class="build-page" inert={activeTab() !== i()}>
+            <div class="build-page" inert={shownPage() !== i()}>
               <For each={group.types}>
                 {type => (
                   <TipWrap tip={() => <BuildingTip type={type} />}>
