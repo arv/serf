@@ -1201,6 +1201,38 @@ describe('the wall bit', () => {
     expect(mats.length).toBeGreaterThan(0);
     for (const m of mats) expect(m.stencilWrite).toBe(false);
   });
+
+  it('follows a site up: marked exactly when it is boxed, scaffolding never', () => {
+    const {sync, scene} = makeSync();
+    const site = (progress01: number): BuildingSnap =>
+      snap({state: BuildingState.site, hp: 1, progress01});
+    sync.update([site(0.1)]);
+    const root = scene.children[0]!;
+    // The clip plane tells the building rising out of the ground from the
+    // frame standing round it: only the model carries one.
+    const rising = (): THREE.Material[] =>
+      materialsOf(root).filter(m => (m.clippingPlanes?.length ?? 0) > 0);
+    const scaffold = (): THREE.Material[] =>
+      materialsOf(root).filter(m => (m.clippingPlanes?.length ?? 0) === 0);
+    expect(rising().length).toBeGreaterThan(0);
+    expect(scaffold().length).toBeGreaterThan(0);
+
+    // A sliver of wall inside a frame hides nobody: no box, and so no
+    // bits either. A bit the boxes do not vouch for is an edge drawn over
+    // something that is not hiding the man.
+    expect(sync.occluderBoxes()).toHaveLength(0);
+    expect(rising().some(m => m.stencilWrite)).toBe(false);
+
+    // Topped out: boxed, and stamping.
+    sync.update([site(1)]);
+    expect(sync.occluderBoxes()).toHaveLength(1);
+    expect(rising().every(m => m.stencilWrite)).toBe(true);
+
+    // The frame stamps at no height at all. Its sill lies along the
+    // ground, and ground that stamps is how a green arc ends up under a
+    // man's boots.
+    expect(scaffold().some(m => m.stencilWrite)).toBe(false);
+  });
 });
 
 describe('occluderBoxes', () => {

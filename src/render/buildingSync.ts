@@ -295,6 +295,11 @@ interface BuildingVisual {
   clip?: {plane: THREE.Plane; height: number; baseY: number};
   /** Model height above ground, for floating the hp bar. */
   topY: number;
+  /** A site's own wall-bit materials, so the stamping can be turned on
+   * and off as it rises (see #syncWall). Absent on a finished building,
+   * whose marked materials are shared with every other of its type and
+   * are never turned off. */
+  wall?: THREE.Material[];
   /** Half the footprint, in tiles — the box the x-ray outlines test a
    * unit's line of sight against (see occluderBoxes). */
   halfW: number;
@@ -659,6 +664,16 @@ export class BuildingSync {
         (v.topY * v.model.scale.y) / GHOST_SEED_SCALE;
   }
 
+  /** Turn a site's wall stamping on or off. Cheap enough to call every
+   * frame: stencilWrite is a state flag, not a shader define, and the
+   * write is skipped while it is already where it should be. */
+  #syncWall(v: BuildingVisual, on: boolean): void {
+    if (!v.wall) return;
+    for (const m of v.wall) {
+      if (m.stencilWrite !== on) m.stencilWrite = on;
+    }
+  }
+
   /** The elevation this building stands on — see BuildingHeights.baseOf. */
   baseOf(id: number): number {
     return this.#visuals.get(id)?.root.position.y ?? 0;
@@ -777,6 +792,15 @@ export class BuildingSync {
             GHOST_SEED_SCALE + (1 - GHOST_SEED_SCALE) * p,
           );
         }
+        // ...and the wall bit says exactly what occluderBoxes says. A
+        // site is only an occluder once what has RISEN inside its frame
+        // is tall enough to hide somebody; before that the boxes leave it
+        // out, and the pixels have to agree — a sill lying along the
+        // ground and four ankle-high posts that stamp are how a green arc
+        // gets drawn under a man's boots, which is the whole artefact
+        // this pass was rewritten to stop. Read off the same #raised as
+        // the box, every frame, because it is what changes.
+        this.#syncWall(v, this.#raised(v) >= OCCLUDER_MIN_HEIGHT);
       }
 
       // Enemy buildings are remembered: once you have seen a camp it stays
@@ -1081,21 +1105,28 @@ export class BuildingSync {
     // that bit — not "something is nearer than me" — is what lets an
     // outline be drawn over it.
     //
-    // Only what occluderBoxes is willing to call an occluder: a road's
-    // pile of stone and a salvage heap are ankle-high and are left out of
-    // the boxes, so they have no business stamping a wall either. Drawn
-    // last among the opaque world (WALL_RENDER_ORDER), because a bit is
-    // never cleared and anything unmarked drawing after a building would
-    // leave one standing over its own depth.
+    // Only what occluderBoxes is willing to call an occluder, because a
+    // bit the boxes do not vouch for is a green arc drawn over something
+    // that is not hiding anybody. A road's pile of stone and a salvage
+    // heap are ankle-high and are left out of the boxes, so they stamp
+    // nothing. Neither does a site's frame: the boxes measure a site by
+    // what has RISEN inside it (#raised), never by its scaffolding, and
+    // that scaffolding is a sill lying along the ground — exactly the
+    // thing that must not stamp. The model alone, and for a site only
+    // once it has risen far enough to earn a box (#syncWall).
+    //
+    // Drawn last among the opaque world (WALL_RENDER_ORDER), because a
+    // bit is never cleared and anything unmarked drawing after a building
+    // would leave one standing over its own depth.
+    const wall: THREE.Material[] = [];
     if (!road) {
-      for (const part of [model, frame]) {
-        part?.traverse(o => {
-          if (o instanceof THREE.Mesh) {
-            mapMaterials(o, occluderMaterial);
-            o.renderOrder = WALL_RENDER_ORDER;
-          }
-        });
-      }
+      model.traverse(o => {
+        if (o instanceof THREE.Mesh) {
+          mapMaterials(o, occluderMaterial);
+          eachMaterial(o, m => wall.push(m));
+          o.renderOrder = WALL_RENDER_ORDER;
+        }
+      });
     }
     const finished =
       b.state === BuildingState.site
@@ -1116,6 +1147,11 @@ export class BuildingSync {
       model,
       clip,
       topY,
+      // Only a site's, and only because its model's materials are
+      // per-site clones (the clip and ghost passes above): turning those
+      // off turns off this one building. A finished building's are the
+      // marked templates its whole type shares, and are never off.
+      wall: b.state === BuildingState.site ? wall : undefined,
       halfW: b.w / 2,
       halfD: b.h / 2,
       road,
