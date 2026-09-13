@@ -391,8 +391,10 @@ describe('the campaign’s authored ground', () => {
 
   it('the tutorial maps hold only the metals their lesson is about', async () => {
     // The first commissions are read off the ground, so the ground is not
-    // allowed to be about anything else: no silver and no gold before the
-    // mission that teaches them, and Hammer and Haft is one hill of iron.
+    // allowed to be about anything else: no gold before the mission that
+    // teaches it, and no silver on the ground mission 4 reads (Hammer and
+    // Haft is one hill of iron). The Clearing is the one exception, and
+    // it is an exception in worth rather than in sight — see below.
     const has = async (
       id: MissionId,
       code: TileResourceKind,
@@ -405,13 +407,45 @@ describe('the campaign’s authored ground', () => {
     };
     for (const id of [MissionId.clearing, MissionId.hammerAndHaft]) {
       expect(
-        await has(id, TileResource.SilverDep),
-        `${MISSION_KEYS[id]}: silver`,
-      ).toBe(false);
-      expect(
         await has(id, TileResource.GoldDep),
         `${MISSION_KEYS[id]}: gold`,
       ).toBe(false);
+    }
+    expect(
+      await has(MissionId.hammerAndHaft, TileResource.SilverDep),
+      `${MISSION_KEYS[MissionId.hammerAndHaft]}: silver`,
+    ).toBe(false);
+    // The Clearing is the exception, and the distance is the whole of it.
+    // Its silver exists so the commission stays winnable at a tier that
+    // opens the purse two hires short (missions.ts, the clearing's
+    // startStock) — but it lies a valley out, past every home ring, so the
+    // lesson in the opening view is still timber, stone and beds and
+    // nothing else. A seam that crept inside the home band would be a
+    // third resource in the tutorial's white room.
+    {
+      const {map, starts} = await mapFor(MissionId.clearing);
+      const c = keepCenter(starts[0]!);
+      expect(
+        await has(MissionId.clearing, TileResource.SilverDep),
+        'the clearing: silver somewhere',
+      ).toBe(true);
+      expect(
+        amountWithin(map, c, TileResource.SilverDep, HOME_SEAM_BAND.wide),
+        'the clearing: silver inside the home ring',
+      ).toBe(0);
+      expect(
+        amountWithin(map, c, TileResource.SilverDep, CASTLE_OPENING_SIGHT),
+        'the clearing: silver in the opening view',
+      ).toBe(0);
+      // Far, but not out of the world: a seam past every band is a seam
+      // nobody walks to, and an answer nobody can reach is not one. A
+      // reserve seam's own distance, and a reserve seam's own worth —
+      // the walk itself is the test above's question (no ore behind a
+      // lake), asked of every map.
+      expect(
+        amountWithin(map, c, TileResource.SilverDep, RESERVE_SEAM_BAND.wide),
+        'the clearing: silver inside a reserve seam’s walk',
+      ).toBeGreaterThanOrEqual(SILVER_RESERVE_WORTH);
     }
     // Every later mission has silver: it is what hands are hired with.
     for (const id of [

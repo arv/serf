@@ -20,6 +20,32 @@
  * directly.
  */
 /**
+ * 67: the clearing keeps a silver seam, and the crown sends the kit for it.
+ *
+ * Mission 1's ground changed — six tiles of silver about twenty-five out
+ * on the north-eastern shoulder (mapAuthor/missions/clearing.ts) — and so
+ * did the commission's opening larder: a third pick and eight loaves
+ * (defs/missions.ts). Both are replay surface twice over. The map file is
+ * the world a mission log re-runs in, and six tiles that used to be bare
+ * grass now carry ore a mine can be placed against; the larder is the
+ * first tick's stock, which every haul, every bind and every hire after
+ * it is timed against. A log recorded before this build re-runs into a
+ * different valley with a different castle in it.
+ *
+ * Why the ground moved at all: the tier scales the human seat's opening
+ * (defs/difficulty.ts), and on `hard` The Clearing opened a hand short
+ * and a third lighter — five hands and a purse that buys four hires
+ * against a checklist counting eleven souls, with no silver in the world
+ * to make up the two. The commission was unwinnable at that tier, not
+ * merely hard. The seam is the way back, far enough out (past
+ * HOME_SEAM_BAND.wide) that the opening view still teaches timber, stone
+ * and beds and nothing else, and the pick and the bread are what let a
+ * village work it — a mine binds a tool like the quarry does and eats
+ * while it digs (MINE_RATION_PER).
+ *
+ * 66's note follows.
+ */
+/**
  * 66: the stop order.
  *
  * A twentieth command kind (`stopUnits`, commands.ts): everyone named
@@ -1109,4 +1135,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 66;
+export const REPLAY_VERSION = 67;
