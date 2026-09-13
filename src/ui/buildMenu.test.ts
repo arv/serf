@@ -9,6 +9,7 @@ import {
   buildTab,
   buildingForKey,
   playerBuildable,
+  tabForScroll,
 } from './buildMenu';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -105,5 +106,47 @@ describe('the build chord', () => {
       expect(buildingForKey(buildKey(type).toLowerCase())).toBe(type);
     }
     expect(buildingForKey('Z')).toBeNull();
+  });
+});
+
+/**
+ * The swipe, as arithmetic. The gesture itself is the browser's — CSS
+ * scroll snapping moves the pages and decides which one a fling lands on
+ * — and all this has to get right is reading the answer back off the
+ * scroll offset so the tab strip agrees with what the player is looking
+ * at. Getting it wrong is silent in the worst way: the ribbon shows Arms
+ * and the strip says Food, and every tap on the strip from then on is
+ * aimed at the wrong tab.
+ */
+describe('the swiped ribbon', () => {
+  const N = BUILD_GROUPS.length;
+  const W = 300;
+
+  it('names the tab each page is parked on', () => {
+    for (let i = 0; i < N; i++) expect(tabForScroll(i * W, W, N)).toBe(i);
+  });
+
+  it('crosses to the next tab at the halfway mark', () => {
+    // Where a released swipe snaps to, near enough, so this is where the
+    // highlight should move — not at the first pixel and not at the last.
+    expect(tabForScroll(0.49 * W, W, N)).toBe(0);
+    expect(tabForScroll(0.51 * W, W, N)).toBe(1);
+    expect(tabForScroll(1.51 * W, W, N)).toBe(2);
+  });
+
+  it('stays inside the ribbon when the scroller overshoots', () => {
+    // Rubber-band on a touchscreen scrolls past both ends, and the index
+    // it computes there is a tab that does not exist. BUILD_GROUPS[-1] is
+    // undefined and the card renders empty.
+    expect(tabForScroll(-80, W, N)).toBe(0);
+    expect(tabForScroll((N - 1) * W + 80, W, N)).toBe(N - 1);
+  });
+
+  it('answers a ribbon nobody has measured yet with the first tab', () => {
+    // A folded card has no layout, so clientWidth is 0 and the division
+    // is NaN — which would clamp to NaN and index nothing at all.
+    expect(tabForScroll(0, 0, N)).toBe(0);
+    expect(tabForScroll(600, 0, N)).toBe(0);
+    expect(tabForScroll(0, W, 0)).toBe(0);
   });
 });

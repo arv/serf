@@ -4,6 +4,7 @@ import {
   createEffect,
   createSignal,
   onCleanup,
+  onMount,
   type JSX,
 } from 'solid-js';
 import {missionUrl} from '../app/gameConfig';
@@ -26,7 +27,13 @@ import type {UnitTypeId} from '../sim/defs/units';
 import * as MatchState from '../sim/matchStateEnum.ts';
 import {AdminPanel} from './AdminPanel';
 import {COMPACT, NARROW, SHORT, useMedia} from './breakpoints';
-import {BUILD_GROUPS, buildKey, buildTab, buildUnlocked} from './buildMenu';
+import {
+  BUILD_GROUPS,
+  buildKey,
+  buildTab,
+  buildUnlocked,
+  tabForScroll,
+} from './buildMenu';
 import {EconomyPanel} from './EconomyPanel';
 import {fullscreen} from './fullscreen';
 import * as HudPanel from './hudPanelEnum.ts';
@@ -467,6 +474,154 @@ export function Hud(props: {
     </>
   );
   /**
+   * The open ribbon, while it is open. BuildRibbon hands it over on mount
+   * and takes it back on cleanup, because the card unmounts every time a
+   * phone folds it and a stale node would be scrolled to no effect.
+   */
+  let ribbon: HTMLDivElement | undefined;
+  /**
+   * The tab a programmatic scroll is on its way to, or null when the
+   * scroller is the player's.
+   *
+   * A smooth scroll from Village to Arms crosses Food, and every frame of
+   * that crossing is a scroll event the handler below would otherwise read
+   * as "the player is looking at Food" — so a click on the third tab lights
+   * the second one for a sixth of a second on its way. Ignoring the
+   * in-between readings is the whole job; the timer is only so that a
+   * player who grabs the ribbon mid-animation (which cancels the scroll,
+   * and with it any hope of ever reaching the target) gets the scroller
+   * back rather than a strip frozen on a tab nobody is looking at.
+   */
+  let heading: number | null = null;
+  let settling: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(settling));
+  const reduceMotion = useMedia('(prefers-reduced-motion: reduce)');
+  /**
+   * Show a tab, from the strip or from the keyboard — the signal for
+   * everything that reads which tab is up, and the scroll for the ribbon
+   * itself, which is the one place the answer is a position rather than a
+   * number.
+   *
+   * Both, and in that order, because the ribbon is not always there to be
+   * scrolled: a chord typed at a folded card names its tab before the card
+   * exists, and the signal is what BuildRibbon reads to place itself when
+   * it finally mounts.
+   */
+  const showTab = (i: number): void => {
+    setActiveTab(i);
+    const el = ribbon;
+    if (!el) return;
+    const left = i * el.clientWidth;
+    // Already there — which is most clicks on the strip, because the tab
+    // the player reaches for is usually the one already up. Nothing to
+    // scroll, and so no scroll event coming: arming the guard below on a
+    // scroll that will never happen would have it sit there ignoring the
+    // player's own swipes until the timer let go of it.
+    if (Math.abs(el.scrollLeft - left) < 1) return;
+    heading = i;
+    clearTimeout(settling);
+    settling = setTimeout(() => (heading = null), 700);
+    el.scrollTo({left, behavior: reduceMotion() ? 'instant' : 'smooth'});
+  };
+  /**
+   * The ribbon — every tab's buildings at once, laid out as pages side by
+   * side inside a horizontal scroller, so that a swipe changes tab.
+   *
+   * The snapping is CSS's and not a gesture handler's: `scroll-snap-type: x
+   * mandatory` on the scroller and `scroll-snap-align: start` on each page
+   * (the stylesheet below). That buys the whole of the feel for free — the
+   * page follows the finger, a fling lands on one page rather than between
+   * two (`scroll-snap-stop: always`, so a hard flick cannot skip Food), the
+   * rubber-band at either end says there is no fourth tab, and a resize
+   * re-snaps to the page that was showing instead of stranding the ribbon
+   * mid-gap. A pointer handler doing the same by hand would have to
+   * reimplement every one of those, and would still be wrong on a trackpad.
+   *
+   * So the scroll position is the truth and `activeTab` follows it: onScroll
+   * reads which page is under the eye and tells the strip, live, so the
+   * highlight crosses as the page does. Nothing drives the scroller from a
+   * `createEffect` on the signal — that loop (scroll sets the signal, signal
+   * scrolls) fights the finger mid-swipe. The two ways in are showTab, for
+   * a click or a chord, and the player's own hand.
+   *
+   * Every tab is mounted, which the old one-tab-at-a-time ribbon was not,
+   * so the two off-stage pages are `inert`: without it a screen reader
+   * reads eighteen buildings for the six on screen, and Tab walks focus
+   * onto a button two pages over — which the browser answers by scrolling
+   * it into view, silently changing tab under a player who only wanted the
+   * next button.
+   */
+  const BuildRibbon = (): JSX.Element => {
+    let el!: HTMLDivElement;
+    // The card mounts at scrollLeft 0, which is Village, and the tab that
+    // was up when it folded — or the one a chord just named on its way to
+    // opening it — is whatever activeTab says. No animation: this is where
+    // the ribbon has always been standing, as far as the player knows.
+    onMount(() => {
+      ribbon = el;
+      el.scrollLeft = activeTab() * el.clientWidth;
+    });
+    onCleanup(() => (ribbon = undefined));
+    return (
+      <div
+        class="hud-items"
+        ref={el}
+        onScroll={() => {
+          const i = tabForScroll(
+            el.scrollLeft,
+            el.clientWidth,
+            BUILD_GROUPS.length,
+          );
+          if (heading !== null) {
+            if (i !== heading) return;
+            heading = null;
+            clearTimeout(settling);
+          }
+          setActiveTab(i);
+        }}
+      >
+        <For each={BUILD_GROUPS}>
+          {(group, i) => (
+            <div class="build-page" inert={activeTab() !== i()}>
+              <For each={group.types}>
+                {type => (
+                  <TipWrap tip={() => <BuildingTip type={type} />}>
+                    <Show
+                      when={unlocked(type)}
+                      fallback={
+                        <button disabled>
+                          <LockIcon />{' '}
+                          <Key label={buildingName(type)} k={buildKey(type)} />
+                        </button>
+                      }
+                    >
+                      <button
+                        classList={{active: placing() === type}}
+                        onClick={() => place(placing() === type ? null : type)}
+                      >
+                        <Key label={buildingName(type)} k={buildKey(type)} />
+                        <span class="cost">
+                          <For each={cost(type)}>
+                            {([good, n]) => (
+                              <span classList={{short: short(good, n)}}>
+                                <GoodIcon good={good} size={11} />
+                                {n}
+                              </span>
+                            )}
+                          </For>
+                        </span>
+                      </button>
+                    </Show>
+                  </TipWrap>
+                )}
+              </For>
+            </div>
+          )}
+        </For>
+      </div>
+    );
+  };
+  /**
    * The build card's tab strip — its head at a desk, and under COMPACT its
    * foot, where a thumb already is.
    *
@@ -491,7 +646,7 @@ export function Hud(props: {
         {(group, i) => (
           <button
             classList={{active: activeTab() === i()}}
-            onClick={() => setActiveTab(i())}
+            onClick={() => showTab(i())}
           >
             {group.label}
           </button>
@@ -526,7 +681,7 @@ export function Hud(props: {
     const type = buildAim();
     if (!type) return;
     const i = buildTab(type);
-    if (i >= 0) setActiveTab(i);
+    if (i >= 0) showTab(i);
   });
   // Phones fold the card down to a pill, and a chord typed at a folded card
   // would arm a building with nothing on screen to show for it.
@@ -1119,38 +1274,72 @@ export function Hud(props: {
         }
         #ui .hud-tabs button:not(.build-fold):hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
         #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
-        /* A declared grid, not a wrapping row. Shrink-to-fit made the
-           card a different width per tab — a six-building tab 613px,
-           a two-building one 295px — so picking a tab jumped the card's
-           whole right edge by three hundred pixels and every button
-           under the cursor with it.
-           The frame below is one size for all three tabs, and because
-           the cells are declared rather than measured, a building that
-           unlocks and gains a price tag grows inside its own cell
-           instead of re-wrapping the tab around it. */
+        /* The frame the tabs live in, and a scroller across them: every
+           tab is a page one frame wide, the pages stand in a row, and
+           the row snaps. That is the whole of swipe-to-change-tab (see
+           BuildRibbon) — the finger drags the row, the snap decides
+           which page it lands on, and the strip above only reports what
+           the scroller already did.
+           One size for all three tabs, which the card has always needed
+           for its own reason: shrink-to-fit made it a different width
+           per tab — a six-building tab 613px, a two-building one 295px
+           — so picking a tab jumped the card's whole right edge by
+           three hundred pixels and every button under the cursor with
+           it. A row of equal pages is that guarantee made structural
+           rather than restated per tab. */
         .hud-items {
-          display: grid;
-          /* auto-fill rather than a flat three: a cell is never allowed
-             below --build-col, so when the card is squeezed — a narrow
-             desktop with a selection card beside it, a landscape phone
-             — the ribbon drops to two columns and then one instead of
-             slicing "Weaponsmith ⛏10 🪨6" off mid-price. Three is
-             simply how many fit at the width below. */
-          grid-template-columns: repeat(auto-fill, minmax(var(--build-col), 1fr));
-          grid-auto-rows: var(--build-row);
-          gap: 6px;
-          align-content: start;
+          display: flex;
           width: calc(3 * var(--build-col) + 12px);
           max-width: 100%;
           /* A flat height, not a floor: the frame has to be the same
              frame on every tab, and losing a column is what makes the
-             rows overflow. They scroll inside it. */
+             rows overflow. They scroll inside their own page. */
           height: calc(2 * var(--build-row) + 6px);
+          overflow-x: auto;
+          overflow-y: hidden;
+          /* mandatory, not proximity: there is no resting place between
+             two tabs, so a swipe that stops short has to finish. It is
+             also what re-seats the showing page when the frame is
+             resized — a rotation, a selection card opening beside the
+             ribbon — instead of leaving it stranded across a seam.
+             scroll-snap-stop keeps a hard flick from skipping Food:
+             one swipe is one tab, always. */
+          scroll-snap-type: x mandatory;
+          /* The ribbon is the end of the line for a horizontal swipe.
+             Without this, a flick past Arms walks the browser's own
+             back gesture and the player leaves the match. */
+          overscroll-behavior-x: contain;
+          /* The tab strip is the position indicator; a scrollbar under
+             the buildings would be a second one, and on a desktop it
+             would eat a row of the frame to say what three highlighted
+             words already say. */
+          scrollbar-width: none;
+        }
+        .hud-items::-webkit-scrollbar { display: none; }
+        /* One tab's worth of buildings: exactly the frame's width, so
+           that page N sits at scrollLeft N × width and tabForScroll can
+           do the division (see buildMenu.ts). No gap between pages for
+           the same reason — a gutter would put the arithmetic out by
+           one gutter per tab, and there is nothing to see in it anyway.
+           The grid inside is the old ribbon unchanged: auto-fill rather
+           than a flat three, so a cell is never allowed below
+           --build-col and a squeezed card — a narrow desktop with a
+           selection card beside it, a landscape phone — drops to two
+           columns and then one instead of slicing "Weaponsmith ⛏10 🪨6"
+           off mid-price. */
+        .build-page {
+          flex: 0 0 100%; min-width: 0; min-height: 0;
+          scroll-snap-align: start; scroll-snap-stop: always;
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(var(--build-col), 1fr));
+          grid-auto-rows: var(--build-row);
+          gap: 6px;
+          align-content: start;
           overflow-y: auto;
         }
         /* The tooltip wrapper is what the grid actually places; the
            button has to fill it to keep the cell's edges. */
-        .hud-items > .tipwrap { display: block; min-width: 0; }
+        .build-page > .tipwrap { display: block; min-width: 0; }
         #ui .hud-items button {
           width: 100%; height: 100%; min-height: 0;
           display: flex; align-items: center; justify-content: flex-start;
@@ -1481,9 +1670,18 @@ export function Hud(props: {
              coarse padding, but the tighter one is what leaves a fourth
              room to come back. */
           #ui .hud-tabs button:not(.build-fold) { padding: 9px 12px; }
+          /* pan-x as well as pan-y, and this is the line the swipe
+             lives or dies on: touch-action narrows as it descends, so
+             a lone pan-y here would have the browser refuse every
+             horizontal drag inside the ribbon before scroll-snap ever
+             got a say — the buildings would scroll up and down and the
+             tabs would only ever change by tapping one. Both axes are
+             named rather than left at auto, which is what this rule was
+             always for: a pinch or a double-tap zoom on the HUD is not
+             a gesture anybody meant. */
           .hud-build .hud-items {
             width: auto;
-            touch-action: pan-y;
+            touch-action: pan-x pan-y;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
           }
@@ -1803,10 +2001,20 @@ export function Hud(props: {
             display: block; position: fixed; inset: 0;
             pointer-events: auto; z-index: 19;
           }
-          /* The ribbon is as many rows as the tab has, not a declared
-             two: the Village tab's four buildings are one row here, and
-             the sheet is the height of one row. Only a tab that outgrows
-             the sheet's cap scrolls. */
+          /* The ribbon is as many rows as its tabs need, not a declared
+             two: here the sheet is the width of the screen and a tab is
+             one or two rows of it, so the frame is measured rather than
+             counted. Only a ribbon that outgrows the sheet's cap
+             scrolls.
+             Measured across all three tabs, which is the one thing the
+             swipe changed: the pages stand in a row and stretch to the
+             tallest of them, so the sheet is Arms' height on every tab
+             and Village carries an empty row it did not use to. That is
+             the price of the gesture and it is the right way round —
+             the alternative is a sheet that grows and shrinks under the
+             finger mid-swipe, with the buildings sliding vertically
+             while they slide horizontally and the fold button walking
+             up and down the screen as they do. */
           .hud-build .hud-items { flex: 0 1 auto; min-height: 0; height: auto; }
           /* Down the right edge, not across the band above the cards.
              Across was a way of clearing them — a column of four is
@@ -2438,40 +2646,7 @@ export function Hud(props: {
             <Show when={!isCompact()}>
               <BuildTabs />
             </Show>
-            <div class="hud-items">
-              <For each={BUILD_GROUPS[activeTab()]!.types}>
-                {type => (
-                  <TipWrap tip={() => <BuildingTip type={type} />}>
-                    <Show
-                      when={unlocked(type)}
-                      fallback={
-                        <button disabled>
-                          <LockIcon />{' '}
-                          <Key label={buildingName(type)} k={buildKey(type)} />
-                        </button>
-                      }
-                    >
-                      <button
-                        classList={{active: placing() === type}}
-                        onClick={() => place(placing() === type ? null : type)}
-                      >
-                        <Key label={buildingName(type)} k={buildKey(type)} />
-                        <span class="cost">
-                          <For each={cost(type)}>
-                            {([good, n]) => (
-                              <span classList={{short: short(good, n)}}>
-                                <GoodIcon good={good} size={11} />
-                                {n}
-                              </span>
-                            )}
-                          </For>
-                        </span>
-                      </button>
-                    </Show>
-                  </TipWrap>
-                )}
-              </For>
-            </div>
+            <BuildRibbon />
             <Show when={isCompact()}>
               <BuildTabs />
             </Show>
