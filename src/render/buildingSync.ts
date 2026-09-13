@@ -4,6 +4,7 @@ import type {CueId} from '../audio/cues';
 import type {BuildingSnap} from '../protocol/messages';
 import * as StaffingState from '../protocol/staffingStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
+import {tileIdx} from '../shared/grid';
 import {hash2} from '../shared/math';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import {buildingDef} from '../sim/defs/buildings';
@@ -304,6 +305,13 @@ interface BuildingVisual {
   /** A salvage pile: no model, only piles — and no collapse when it
    * clears, because the goods left one by one on serfs' shoulders. */
   salvage: boolean;
+  /** The tiles outside its own footprint this building is drawn over, as
+   * keys into #drawn — hers to give back when she comes down. */
+  drawn: number[];
+  /** The model's own box, in root space: what those tiles were read off.
+   * Kept so that a re-claim for a pile at the door does not have to walk
+   * every vertex of the building again. */
+  modelBox: THREE.Box3;
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
   /** Physical stock piles against the front wall. */
@@ -481,6 +489,46 @@ const BAR_QUAT_EPS = 1e-12;
 const BAR_CAPACITY_MIN = 32;
 
 /**
+ * Marks a branch of a building's tree as no part of its shape — see
+ * silhouetteT. Set on the thing hung off the root, and the whole branch
+ * under it goes with it.
+ */
+const PICK_IGNORE = 'noPick';
+
+/** Scratch for #reclaimDrawn — a pile rebuild is a common event. */
+const CLAIM_BOX = new THREE.Box3();
+const PILE_BOX = new THREE.Box3();
+
+/** Whether `o` hangs somewhere under `of` — itself included. */
+function descends(o: THREE.Object3D, of: THREE.Object3D): boolean {
+  for (let n: THREE.Object3D | null = o; n; n = n.parent) {
+    if (n === of) return true;
+  }
+  return false;
+}
+
+/**
+ * The meshes of a building that are the building: drawn, and built into it
+ * rather than merely standing in its air (see PICK_IGNORE).
+ *
+ * Gathered before the ray is cast rather than sieved out of its hits
+ * afterwards, because a raycaster tests the triangles of everything it is
+ * handed and only then reports what it met. The roof watch is the reason
+ * the difference matters: those are skinned meshes, and skinned triangles
+ * are the dearest kind there are — a hover over a manned tower would pay
+ * for every one of them to learn they are not the tower.
+ *
+ * A raycast also reaches what the camera does not, since three tests
+ * geometry and never visibility: an unlit puff or a part the model keeps
+ * hidden would be as clickable as a wall.
+ */
+function collectPickable(o: THREE.Object3D, out: THREE.Object3D[]): void {
+  if (!o.visible || o.userData[PICK_IGNORE] === true) return;
+  if (o instanceof THREE.Mesh) out.push(o);
+  for (const child of o.children) collectPickable(child, out);
+}
+
+/**
  * Mirrors the building list into the scene. Sites show a timber frame with
  * the real building rising out of it half-built (clip-plane reveal) while a
  * peasant hammers away; completion swaps in the solid model. Without loaded
@@ -515,6 +563,25 @@ export class BuildingSync {
    * more, every raze.
    */
   #ceiling = Number.NEGATIVE_INFINITY;
+  /**
+   * Tile -> the buildings drawn over it from off their own plots. The
+   * sim's map says which building *stands* on a tile, and for the pointer
+   * that is not the same question: a fishery's jetty runs a good two tiles
+   * out over the water (assets.ts PIER_TILES), drawn on ground the
+   * footprint never claims. Without this the walk finds no candidate out
+   * there and a click on the planks reads as a click on the lake.
+   *
+   * Every claimant, not the first: two jetties can cross the same water —
+   * a pier reaches 2.54 tiles and placement only holds a ring of one — and
+   * a tile that named one of them would hide the other from the trace, and
+   * then go empty the moment the one it named came down.
+   */
+  #drawn = new Map<number, number[]>();
+  /** Reused by silhouetteT: a pick runs every frame the pointer moves, and
+   * a fresh raycaster and hit list each would be an allocation a frame. */
+  #pickRay = new THREE.Raycaster();
+  #pickHits: THREE.Intersection[] = [];
+  #pickMeshes: THREE.Object3D[] = [];
   /**
    * Presentation cue channel, injected from main. Every call is guarded
    * on `v.root.visible`: unlike sceneSync, this loop does NOT skip fogged
@@ -598,6 +665,72 @@ export class BuildingSync {
     return this.#ceiling;
   }
 
+  /**
+   * The buildings drawn over this ground from off their own plots, pushed
+   * onto `out` — see #drawn. The broad phase asks it beside the footprint
+   * the sim keeps, so that what a building reaches out over gets a
+   * candidate at all; whether the ray truly meets one is still
+   * silhouetteT's to answer.
+   */
+  drawnAt(x: number, z: number, out: number[]): void {
+    const size = this.#heights.size;
+    const tx = Math.floor(x);
+    const tz = Math.floor(z);
+    if (tx < 0 || tz < 0 || tx >= size || tz >= size) return;
+    const here = this.#drawn.get(tileIdx(tx, tz, size));
+    if (here) out.push(...here);
+  }
+
+  /**
+   * How far along the ray this building is met as it is actually drawn, or
+   * -1 where the ray passes through its box and touches nothing of it — the
+   * pick's narrow phase (see screenToBuilding).
+   *
+   * The box a footprint and a roofline make is far more building than the
+   * building: a keep is towers with sky between them, a cottage is a ridge
+   * with sky over its eaves, and a click on that sky went to the box. So
+   * the model itself answers, triangle by triangle. What is hung in a
+   * building's air rather than built into it — its chimney smoke, the fish
+   * off a fishery's pier, the archers posted on its roof — is not part of
+   * the shape (see PICK_IGNORE): the smoke would hand back exactly the
+   * column of dead sky this exists to give up, and a man is not a wall.
+   */
+  silhouetteT(id: number, origin: THREE.Vector3, dir: THREE.Vector3): number {
+    const v = this.#visuals.get(id);
+    // Nothing drawn has no silhouette to meet: a road is ground, and a
+    // building on unscouted land is a memory the fog has not handed back
+    // yet. Both fall through to the caller's ground hit, which is the pick
+    // they had before any of this.
+    if (!v || v.road || !v.root.visible) return -1;
+    // A pick runs between frames — after a roster arrived and before the
+    // render that settles the scene's matrices — so settle this one's.
+    v.root.updateWorldMatrix(true, true);
+    const meshes = this.#pickMeshes;
+    meshes.length = 0;
+    collectPickable(v.root, meshes);
+    this.#pickRay.set(origin, dir);
+    const hits = this.#pickHits;
+    hits.length = 0;
+    this.#pickRay.intersectObjects(meshes, false, hits);
+    for (const hit of hits) {
+      // A site is revealed bottom-up by a clip plane, and clipping is a
+      // shader's business: the courses nobody has laid yet are still there
+      // in the geometry for a ray to hit. Half a keep is half a keep to the
+      // pointer too. The plane is installed on the model's own materials
+      // and on nothing else, so the frame around it is not cut — its posts
+      // stand to their full height from the first tick.
+      if (
+        v.clip &&
+        hit.point.y > v.clip.plane.constant &&
+        descends(hit.object, v.model)
+      ) {
+        continue;
+      }
+      return hit.distance;
+    }
+    return -1;
+  }
+
   constructor(scene: THREE.Scene, heights: HeightField) {
     this.#scene = scene;
     this.#heights = heights;
@@ -661,7 +794,13 @@ export class BuildingSync {
       v.working = b.working === true;
       v.firing = b.firing === true;
       v.volleyRange = volleyRangeOf(b);
+      const pileKey = v.pileKey;
       this.#syncPiles(v, b);
+      // The stock at the door stands a third of a tile outside the front
+      // wall, on ground the footprint never covers, and it comes and goes
+      // with the hauling: when it changes, so does the ground this
+      // building is drawn over.
+      if (v.pileKey !== pileKey) this.#reclaimDrawn(b.id, v);
       this.#syncGarrison(v, b);
 
       // Damage bar: appears once hurt (highlight() shows it on healthy
@@ -683,6 +822,85 @@ export class BuildingSync {
     this.#rebuildHpBars();
   }
 
+  /**
+   * Take the tiles this building is drawn over but does not stand on, and
+   * hand back the keys to them — see #drawn. The footprint's own tiles are
+   * left out: the sim's map already answers for those, and the smaller
+   * this stays the less there is to keep straight.
+   */
+  #claimDrawn(
+    id: number,
+    root: THREE.Group,
+    halfW: number,
+    halfD: number,
+    bbox: THREE.Box3 | null,
+  ): number[] {
+    const drawn: number[] = [];
+    if (!bbox || bbox.isEmpty()) return drawn;
+    const size = this.#heights.size;
+    const x0 = Math.floor(root.position.x + bbox.min.x);
+    const x1 = Math.floor(root.position.x + bbox.max.x);
+    const z0 = Math.floor(root.position.z + bbox.min.z);
+    const z1 = Math.floor(root.position.z + bbox.max.z);
+    // The footprint, back out of the center the root stands on.
+    const fx = root.position.x - halfW;
+    const fz = root.position.z - halfD;
+    for (let tz = z0; tz <= z1; tz++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        if (tx < 0 || tz < 0 || tx >= size || tz >= size) continue;
+        if (tx >= fx && tx < fx + halfW * 2 && tz >= fz && tz < fz + halfD * 2)
+          continue;
+        const key = tileIdx(tx, tz, size);
+        const here = this.#drawn.get(key);
+        if (here) here.push(id);
+        else this.#drawn.set(key, [id]);
+        drawn.push(key);
+      }
+    }
+    return drawn;
+  }
+
+  /** Give back the tiles a visual claimed, leaving any neighbour that
+   * reaches over the same ground still holding it. */
+  #releaseDrawn(id: number, v: BuildingVisual): void {
+    for (const key of v.drawn) {
+      const here = this.#drawn.get(key);
+      if (!here) continue;
+      const at = here.indexOf(id);
+      if (at >= 0) here.splice(at, 1);
+      if (here.length === 0) this.#drawn.delete(key);
+    }
+    v.drawn.length = 0;
+  }
+
+  /**
+   * Re-take the ground this building is drawn over, model and door piles
+   * together. The claim #create made is only as good as the building was
+   * that moment: the stock at the door comes and goes (#syncPiles stands
+   * it a third of a tile OUTSIDE the front wall, which is ground the
+   * footprint never covers), and a jetty is aimed after it is built.
+   */
+  #reclaimDrawn(id: number, v: BuildingVisual): void {
+    if (v.road) return;
+    this.#releaseDrawn(id, v);
+    CLAIM_BOX.copy(v.modelBox);
+    if (v.piles) {
+      // Settle the pile group's own matrices first: a claim runs when the
+      // roster lands, which can be before any frame has been drawn, and a
+      // box read off an unsettled tree is a box at the origin. Its own,
+      // not the whole building's — the parents walk up to the scene and
+      // the props under it are a handful.
+      v.piles.updateWorldMatrix(true, true);
+      // The root is in the scene by now, so this reads world space; the
+      // claim wants the model's own, as at creation. The root carries no
+      // rotation or scale, so its position is the whole of the difference.
+      PILE_BOX.setFromObject(v.piles);
+      PILE_BOX.translate(SCRATCH_POS.copy(v.root.position).negate());
+      CLAIM_BOX.union(PILE_BOX);
+    }
+    v.drawn = this.#claimDrawn(id, v.root, v.halfW, v.halfD, CLAIM_BOX);
+  }
+
   #beginTeardown(id: number): void {
     const v = this.#visuals.get(id);
     if (!v) return;
@@ -695,6 +913,8 @@ export class BuildingSync {
       return;
     }
     this.#visuals.delete(id);
+    // A model on its way into the ground is no longer drawn over anything.
+    this.#releaseDrawn(id, v);
     // The rumble belongs to the dust cloud below — and only where the
     // cloud is drawn (fog guard — see onCue).
     if (this.onCue && v.root.visible) {
@@ -824,17 +1044,24 @@ export class BuildingSync {
     // waterline. Re-seat the group so they swim just under the surface: a
     // world-unit drop, folded back into the model's vertical scale.
     const shoal = model.getObjectByName('fisheryShoal') ?? undefined;
-    if (shoal)
+    if (shoal) {
       shoal.position.y =
         (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
+      // The fish swim off the end of the pier, out over open water: a
+      // click on them is a click on the sea, not on the hut — silhouetteT.
+      shoal.userData[PICK_IGNORE] = true;
+    }
 
-    const topY = clip
-      ? clip.height
-      : b.type === BuildingTypeId.salvage
-        ? // An empty group's bbox has no max to read — and the pile is
-          // ankle-high anyway.
-          0
-        : new THREE.Box3().setFromObject(model).max.y;
+    // The model's own box. Root-local, like the clip's above: the root is
+    // not in the scene yet, so setFromObject reads the model's own space —
+    // which is what both readings below want, a height over the base and a
+    // reach out from the center. An empty group (salvage) has no box to
+    // read, and the pile is ankle-high anyway.
+    const bbox =
+      b.type === BuildingTypeId.salvage
+        ? null
+        : new THREE.Box3().setFromObject(model);
+    const topY = clip ? clip.height : (bbox?.max.y ?? 0);
     // Where this building's roof will reach when it is finished, which is
     // what the pick walk wants as its ceiling: a site's finished height
     // (topY is already that for a clipped one, and the seed scale away from
@@ -850,6 +1077,10 @@ export class BuildingSync {
         : topY;
     if (!road)
       this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
+    const modelBox = bbox ?? new THREE.Box3().makeEmpty();
+    const drawn = road
+      ? []
+      : this.#claimDrawn(b.id, root, b.w / 2, b.h / 2, modelBox);
     this.#scene.add(root);
     return {
       root,
@@ -862,6 +1093,8 @@ export class BuildingSync {
       halfW: b.w / 2,
       halfD: b.h / 2,
       road,
+      drawn,
+      modelBox,
       pct: 1,
       pileKey: '',
       pileLanes: new Map(),
@@ -1000,9 +1233,21 @@ export class BuildingSync {
    * on whatever tile the path found. */
   fisheryPiers(): PierInfo[] {
     const out: PierInfo[] = [];
-    for (const v of this.#visuals.values()) {
+    for (const [id, v] of this.#visuals) {
       if (v.state !== BuildingState.built || !v.pier) continue;
-      out.push((v.pierLine ??= this.#measurePier(v)));
+      if (!v.pierLine) {
+        v.pierLine = this.#measurePier(v);
+        // The fit can turn the hut and trim the deck, so the water this
+        // building is drawn over is no longer the water #create claimed
+        // for it (see #drawn). Measured once, re-claimed once.
+        v.model.updateWorldMatrix(true, true);
+        v.modelBox.setFromObject(v.model);
+        // setFromObject reads world space now that the root is in the
+        // scene; the claim wants the model's own, as at creation.
+        v.modelBox.translate(SCRATCH_POS.copy(v.root.position).negate());
+        this.#reclaimDrawn(id, v);
+      }
+      out.push(v.pierLine);
     }
     return out;
   }
@@ -1454,6 +1699,8 @@ export class BuildingSync {
     v.root.worldToLocal(SCRATCH_POS);
     const group = new THREE.Group();
     group.name = 'chimneySmoke';
+    // Smoke is weather, not masonry — see silhouetteT.
+    group.userData[PICK_IGNORE] = true;
     group.position.copy(SCRATCH_POS);
     const puffs: SmokePuff[] = [];
     for (let i = 0; i < SMOKE_PUFFS; i++) {
@@ -1608,6 +1855,10 @@ export class BuildingSync {
       // Face outward, away from the tower's middle: two men shoulder to
       // shoulder staring the same way read as a rank, not a watch.
       made.group.rotation.y = Math.atan2(SCRATCH_POS.x, SCRATCH_POS.z);
+      // A man on the roof is not the roof (see silhouetteT) — and he is a
+      // skinned mesh besides, the one shape on a building whose triangles
+      // a ray cannot test cheaply.
+      made.group.userData[PICK_IGNORE] = true;
       v.root.add(made.group);
       v.manned.push({group: made.group, char: made.visual});
     }
@@ -1853,6 +2104,7 @@ export class BuildingSync {
     if (!v) return;
     this.#scene.remove(v.root);
     this.#freeGpu(v);
+    this.#releaseDrawn(id, v);
     this.#visuals.delete(id);
   }
 
