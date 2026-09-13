@@ -110,8 +110,9 @@ interface Stand {
   z0: number;
   size: number;
   top: number;
-  /** What is drawn, in world space. A keep is its towers, not its yard. */
-  model: THREE.Box3;
+  /** What is drawn, in world space. A keep is its towers, not its yard,
+   * and a fishery is a hut with a jetty off the end of it. */
+  model: THREE.Box3[];
 }
 
 const RAY = new THREE.Ray();
@@ -141,8 +142,52 @@ function town(...stands: Stand[]): BuildingProbe {
       const s = byId.get(id);
       if (!s) return -1;
       RAY.set(origin, dir);
-      return RAY.intersectBox(s.model, HIT) ? HIT.distanceTo(origin) : -1;
+      let best = -1;
+      for (const box of s.model) {
+        if (!RAY.intersectBox(box, HIT)) continue;
+        const t = HIT.distanceTo(origin);
+        if (best < 0 || t < best) best = t;
+      }
+      return best;
     },
+    // The renderer's own book of what it draws over ground nobody stands
+    // on — BuildingSync keeps this by stamping each model's box.
+    drawnAt: (x, z) => {
+      const tx = Math.floor(x);
+      const tz = Math.floor(z);
+      for (const s of stands) {
+        if (
+          tx >= s.x0 &&
+          tx < s.x0 + s.size &&
+          tz >= s.z0 &&
+          tz < s.z0 + s.size
+        )
+          continue; // its own plot; idAt answers for that
+        for (const box of s.model) {
+          if (
+            tx >= Math.floor(box.min.x) &&
+            tx <= Math.floor(box.max.x) &&
+            tz >= Math.floor(box.min.z) &&
+            tz <= Math.floor(box.max.z)
+          ) {
+            return s.id;
+          }
+        }
+      }
+      return -1;
+    },
+  };
+}
+
+/** The same settlement as a renderer that traces models but never says
+ * what they are drawn over — the state this PR's first pass was in. */
+function footprintOnly(p: BuildingProbe): BuildingProbe {
+  return {
+    idAt: (x, z) => p.idAt(x, z),
+    heightOf: id => p.heightOf(id),
+    baseOf: id => p.baseOf(id),
+    ceiling: () => p.ceiling(),
+    silhouetteT: (id, o, d) => p.silhouetteT!(id, o, d),
   };
 }
 
@@ -165,10 +210,9 @@ const KEEP: Stand = {
   z0: 14,
   size: 3,
   top: 6,
-  model: new THREE.Box3(
-    new THREE.Vector3(15, 0, 15),
-    new THREE.Vector3(16, 6, 16),
-  ),
+  model: [
+    new THREE.Box3(new THREE.Vector3(15, 0, 15), new THREE.Vector3(16, 6, 16)),
+  ],
 };
 
 /** A cottage a couple of tiles behind it, knee-high by comparison — the
@@ -179,10 +223,32 @@ const COTTAGE: Stand = {
   z0: 12,
   size: 1,
   top: 1,
-  model: new THREE.Box3(
-    new THREE.Vector3(12, 0, 12),
-    new THREE.Vector3(13, 1, 13),
-  ),
+  model: [
+    new THREE.Box3(new THREE.Vector3(12, 0, 12), new THREE.Vector3(13, 1, 13)),
+  ],
+};
+
+/**
+ * A fishery: a hut on one tile, and a jetty drawn two and a half tiles out
+ * over open water — ground the hut's footprint never claims (assets.ts
+ * PIER_TILES).
+ */
+const FISHERY: Stand = {
+  id: 11,
+  x0: 18,
+  z0: 18,
+  size: 1,
+  top: 1.2,
+  model: [
+    new THREE.Box3(
+      new THREE.Vector3(18, 0, 18),
+      new THREE.Vector3(19, 1.2, 19),
+    ),
+    new THREE.Box3(
+      new THREE.Vector3(19, 0.05, 18.3),
+      new THREE.Vector3(21.5, 0.15, 18.7),
+    ),
+  ],
 };
 
 describe('a pick on the silhouette', () => {
@@ -233,6 +299,45 @@ describe('a pick on the silhouette', () => {
         KEEP.id,
       );
     }
+  });
+
+  it('picks a fishery clicked out on the planks it is drawn over', () => {
+    const cam = camera();
+    const heights = flat();
+    const probe = town(FISHERY);
+    // Out near the end of the deck, a good two tiles off the hut's plot.
+    const planks = at(cam, 20.5, 0.15, 18.5);
+    expect(probe.idAt(20.5, 18.5)).toBe(-1);
+
+    // The footprint is the only ground the walk knows about without the
+    // renderer's book of what it draws where, so nothing out here is even
+    // a candidate and a hit on the planks is never looked for.
+    expect(
+      screenToBuilding(
+        cam,
+        CANVAS,
+        planks.x,
+        planks.y,
+        heights,
+        footprintOnly(probe),
+      ),
+    ).toBe(-1);
+
+    expect(
+      screenToBuilding(cam, CANVAS, planks.x, planks.y, heights, probe),
+    ).toBe(FISHERY.id);
+  });
+
+  it('leaves the water beside the planks alone', () => {
+    const cam = camera();
+    const heights = flat();
+    const probe = town(FISHERY);
+    // The same tiles the jetty is drawn over, a plank's width to the side
+    // of it: claimed ground, nothing drawn on it.
+    const water = at(cam, 20.5, 0, 19.4);
+    expect(
+      screenToBuilding(cam, CANVAS, water.x, water.y, heights, probe),
+    ).toBe(-1);
   });
 
   it('traces no further than it has to: the keep answers, the cottage is left alone', () => {

@@ -861,6 +861,91 @@ describe('the silhouette the pointer picks against', () => {
     const [from, dir] = ray(new THREE.Vector3(11, 1, 11), DOWN);
     expect(sync.silhouetteT(99, from, dir)).toBe(-1);
   });
+
+  it('never rays what is not the building, rather than ray it and drop it', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.bakery,
+        working: true,
+        staffing: StaffingState.staffed,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    // Count what the raycaster is actually handed. Testing the answer is
+    // not enough: a puff sieved out of the hits was still tested triangle
+    // by triangle, and the roof watch — skinned, and the dearest shape on
+    // any building — is excluded by this same flag.
+    let rayed = 0;
+    for (const puff of smoke.children) {
+      const mesh = puff as THREE.Mesh;
+      const real = mesh.raycast.bind(mesh);
+      mesh.raycast = (r, hits) => {
+        rayed++;
+        real(r, hits);
+      };
+    }
+    const [from, dir] = ray(new THREE.Vector3(11, 4, 11), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10 + 4 - MODEL_TOP);
+    expect(rayed).toBe(0);
+  });
+});
+
+describe('the ground a building is drawn over but does not stand on', () => {
+  it("claims the water under a fishery's jetty, and gives it back", () => {
+    const {sync} = makeSync();
+    sync.update([snap({type: BuildingTypeId.fishery})]);
+    // The hut stands on the 10..11 square and the mocked deck runs out
+    // along +z to about z 14.35 — two tiles of open water past it.
+    expect(sync.drawnAt(11, 13)).toBe(7);
+    expect(sync.drawnAt(11, 14.2)).toBe(7);
+    // Its own plot is the map's to answer for, not this.
+    expect(sync.drawnAt(11, 11.5)).toBe(-1);
+    // And ground nothing reaches over is nobody's.
+    expect(sync.drawnAt(11, 15.5)).toBe(-1);
+    expect(sync.drawnAt(20, 20)).toBe(-1);
+
+    sync.update([]);
+    expect(sync.drawnAt(11, 13)).toBe(-1);
+  });
+
+  it('follows the jetty when the fit turns the whole building', () => {
+    // The one wet column is west of the hut (tx 9) while the facing sends
+    // the deck north, so #measurePier turns hut and jetty together — and
+    // the water it is drawn over turns with them.
+    const {sync} = makeSync(shoreHeights(tx => tx === 9));
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
+    // Authored: straight north, the -z tiles.
+    expect(sync.drawnAt(11, 8)).toBe(7);
+    expect(sync.drawnAt(9.5, 9.5)).toBe(-1);
+
+    sync.fisheryPiers();
+    // Turned 30° west, the far planks lie over the wet column — ground
+    // the authored claim never covered. What a turned jetty claims is the
+    // box around it rather than the planks themselves, so the tiles it
+    // swung off stay claimed: a candidate too many costs one trace that
+    // finds nothing, where a candidate too few costs the pick.
+    expect(sync.drawnAt(9.5, 9.5)).toBe(7);
+    // Past any reach of it, turned or not.
+    expect(sync.drawnAt(12.5, 8)).toBe(-1);
+  });
+
+  it('leaves a road, which is ground, claiming nothing', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.roadSite,
+        w: 1,
+        h: 1,
+        state: BuildingState.site,
+        progress01: 0,
+        siteNeeds: {},
+      }),
+    ]);
+    for (let z = 8; z < 13; z++)
+      for (let x = 8; x < 13; x++) expect(sync.drawnAt(x, z)).toBe(-1);
+  });
 });
 
 describe('the stock piles at a building door', () => {

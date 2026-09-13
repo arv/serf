@@ -92,6 +92,18 @@ export interface BuildingHeights {
    * wired in) answers with.
    */
   silhouetteT?(id: number, origin: THREE.Vector3, dir: THREE.Vector3): number;
+  /**
+   * A building drawn over this ground from off its own plot, or -1 — a
+   * fishery's jetty runs a couple of tiles out over open water, and the
+   * tiles it is drawn on belong to no building as far as the map is
+   * concerned. The broad phase asks this beside idAt so that what a
+   * building reaches out over gets a candidate at all.
+   *
+   * Optional, and offered with silhouetteT or not at all: a candidate
+   * nothing can trace is a box hung over open water, which is the very
+   * thing the silhouette is here to take away.
+   */
+  drawnAt?(x: number, z: number): number;
 }
 
 /** What screenToBuilding needs to know about what is standing where. */
@@ -135,6 +147,24 @@ const candidates: number[] = [];
  * probe that found its box, which is within a step of where the box really
  * begins. What lets the tracing below stop early. */
 const entries: number[] = [];
+
+/**
+ * Take a building the walk has found over a probe, unless the ray is over
+ * the top of it there, or it is already down.
+ */
+function consider(id: number, t: number, probe: BuildingProbe): void {
+  if (id < 0) return;
+  // Nothing is drawn above its own roofline, so a ray already over it is
+  // past this building whatever else it meets.
+  if (origin.y + dir.y * t > probe.baseOf(id) + probe.heightOf(id) + HEADROOM) {
+    return;
+  }
+  // Consecutive probes land on the same building all the way up a wall,
+  // and a ray can leave a footprint and come back to it over a courtyard.
+  if (candidates.includes(id)) return;
+  candidates.push(id);
+  entries.push(t);
+}
 
 /**
  * The building under a screen point, or -1 — its silhouette where the
@@ -184,15 +214,11 @@ export function screenToBuilding(
     const t = ground - i * dt;
     const x = origin.x + dir.x * t;
     const z = origin.z + dir.z * t;
-    const id = probe.idAt(x, z);
-    if (id < 0) continue;
-    if (origin.y + dir.y * t > probe.baseOf(id) + probe.heightOf(id) + HEADROOM)
-      continue;
-    // Consecutive probes land on the same building all the way up a wall,
-    // and a ray can leave a footprint and come back to it over a courtyard.
-    if (candidates.includes(id)) continue;
-    candidates.push(id);
-    entries.push(t);
+    // What stands on this tile, and what is merely drawn over it from off
+    // its own plot — a jetty, an eave. Both are asked at every probe: the
+    // two can be different buildings over one patch of ground.
+    consider(probe.idAt(x, z), t, probe);
+    if (probe.drawnAt) consider(probe.drawnAt(x, z), t, probe);
   }
   if (candidates.length > 0) {
     if (!probe.silhouetteT) return candidates[0]!;
@@ -204,10 +230,11 @@ export function screenToBuilding(
     let bestT = Number.POSITIVE_INFINITY;
     for (let i = 0; i < candidates.length; i++) {
       // Tracing a model is the expensive half of a pick, so stop as soon as
-      // the rest cannot win. Nothing is drawn outside its own box, and the
-      // boxes left begin further along the ray than this one's did — bar
-      // the step of sampling slack between the probe that found it and the
-      // face it really crossed.
+      // the rest cannot win. A building is drawn only over ground the walk
+      // counts as its own — its footprint and what drawnAt adds to it — so
+      // a candidate cannot be met before the probe that turned it up, bar
+      // the one step of sampling slack behind that probe. Everything left
+      // was turned up later still.
       if (best >= 0 && bestT <= entries[i]! - dt) break;
       const id = candidates[i]!;
       const t = probe.silhouetteT(id, origin, dir);
