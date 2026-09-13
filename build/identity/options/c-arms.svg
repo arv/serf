@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>C — Heraldic arms</title>
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="36%" r="76%">
+      <stop offset="0" stop-color="#3a5a3d"/>
+      <stop offset="1" stop-color="#1a2a1e"/>
+    </radialGradient>
+    <!-- one ear of wheat, drawn about the point the sheaf is tied at -->
+    <g id="ear">
+      <path d="M256 322 L256 236" stroke="#c08f2e" stroke-width="11" stroke-linecap="round"/>
+      <g fill="#e5c469">
+        <ellipse cx="256" cy="160" rx="12" ry="24"/>
+        <ellipse cx="240" cy="192" rx="12" ry="22" transform="rotate(-26 240 192)"/>
+        <ellipse cx="272" cy="192" rx="12" ry="22" transform="rotate(26 272 192)"/>
+        <ellipse cx="238" cy="224" rx="12" ry="22" transform="rotate(-26 238 224)"/>
+        <ellipse cx="274" cy="224" rx="12" ry="22" transform="rotate(26 274 224)"/>
+        <ellipse cx="240" cy="256" rx="11" ry="20" transform="rotate(-26 240 256)"/>
+        <ellipse cx="272" cy="256" rx="11" ry="20" transform="rotate(26 272 256)"/>
+      </g>
+      <g stroke="#e5c469" stroke-width="6" stroke-linecap="round" opacity="0.85">
+        <path d="M256 140 L256 112"/>
+        <path d="M248 144 L232 118"/>
+        <path d="M264 144 L280 118"/>
+      </g>
+    </g>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <circle cx="256" cy="256" r="172" fill="#20351d"/>
+  <circle cx="256" cy="256" r="172" fill="none" stroke="#e5c469" stroke-width="16"/>
+
+  <!-- a sheaf: the bread chain is the spine of the whole valley -->
+  <g transform="translate(256 336) scale(0.92) translate(-256 -336)">
+    <use href="#ear" transform="rotate(-29 256 340)"/>
+    <use href="#ear" transform="rotate(29 256 340)"/>
+    <use href="#ear"/>
+    <rect x="220" y="324" width="72" height="26" rx="11" fill="#a37d46"/>
+    <rect x="220" y="324" width="72" height="10" rx="5" fill="#c8a066"/>
+  </g>
+</svg>

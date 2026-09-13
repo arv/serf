@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>D — Isometric keep</title>
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="34%" r="76%">
+      <stop offset="0" stop-color="#3a5a3d"/>
+      <stop offset="1" stop-color="#1a2a1e"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <g transform="translate(0 16)">
+    <!-- ground tile -->
+    <path d="M256 228 L416 300 L256 372 L96 300 Z" fill="#4d8f28"/>
+    <path d="M256 372 L416 300 L416 312 L256 384 L96 312 L96 300 Z" fill="#2f5c1c"/>
+
+    <!-- keep: two faces -->
+    <path d="M166 282 L256 328 L256 218 L166 172 Z" fill="#f2e8d3"/>
+    <path d="M256 328 L346 282 L346 172 L256 218 Z" fill="#c3b294"/>
+
+    <!-- pyramid roof -->
+    <path d="M256 80 L166 172 L256 218 Z" fill="#41803c"/>
+    <path d="M256 80 L346 172 L256 218 Z" fill="#2c552c"/>
+
+    <!-- pennant -->
+    <rect x="252" y="52" width="8" height="34" rx="3" fill="#4a3220"/>
+    <path d="M260 56 L302 68 L260 80 Z" fill="#e5c469"/>
+
+    <!-- door and lit windows -->
+    <path d="M200 288 L228 302 L228 258 A16 16 0 0 0 200 244 Z" fill="#4a3220"/>
+    <path d="M198 214 L220 225 L220 199 L198 188 Z" fill="#e5c469"/>
+    <path d="M292 225 L314 214 L314 188 L292 199 Z" fill="#c9a24f"/>
+  </g>
+</svg>

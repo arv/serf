@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>E — The lane</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2d20"/>
+      <stop offset="1" stop-color="#3b5c3e"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3c6f26"/>
+      <stop offset="1" stop-color="#2a4d1b"/>
+    </linearGradient>
+    <linearGradient id="pave" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#847e6f"/>
+      <stop offset="1" stop-color="#b3ab98"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- the valley floor, and the ridge it ends at -->
+  <path d="M-8 268 C 96 236 190 250 256 250 C 322 250 416 236 520 268 L520 520 L-8 520 Z"
+        fill="url(#field)"/>
+
+  <!-- the keep on the ridge -->
+  <g>
+    <rect x="228" y="192" width="56" height="60" fill="#eee3cc"/>
+    <rect x="266" y="192" width="18" height="60" fill="#c1b093"/>
+    <path d="M256 142 L300 196 L256 196 Z" fill="#2c552c"/>
+    <path d="M256 142 L212 196 L256 196 Z" fill="#41803c"/>
+    <rect x="252" y="118" width="7" height="28" rx="3" fill="#4a3220"/>
+    <path d="M259 121 L294 131 L259 141 Z" fill="#e5c469"/>
+  </g>
+
+  <!-- the lane up to its gate -->
+  <path d="M166 404 L232 252 L280 252 L346 404 Z" fill="url(#pave)"/>
+  <g stroke="#6d6759" stroke-width="3" opacity="0.34">
+    <path d="M228 296 L284 296"/>
+    <path d="M208 348 L304 348"/>
+  </g>
+  <path d="M166 404 L232 252 L242 252 L188 404 Z" fill="#cec7b3" opacity="0.28"/>
+
+  <!-- a conifer either side of it -->
+  <g>
+    <rect x="122" y="332" width="13" height="28" fill="#4a3220"/>
+    <path d="M128 258 L160 310 L96 310 Z" fill="#25551a"/>
+    <path d="M128 292 L166 342 L90 342 Z" fill="#36761f"/>
+    <rect x="377" y="332" width="13" height="28" fill="#4a3220"/>
+    <path d="M384 258 L416 310 L352 310 Z" fill="#25551a"/>
+    <path d="M384 292 L422 342 L346 342 Z" fill="#36761f"/>
+  </g>
+</svg>
