@@ -1633,8 +1633,15 @@ export class SceneSync {
         // tallest body rather than this one's: the sweep is allowed to
         // over-report and never to miss, and a man's own height is only
         // ever shorter.
+        //
+        // A man out on his own pier is not behind anything — he is at his
+        // post, with the deck he is standing on and its rails below him.
+        // The farmer's equivalent falls out of occludedBy itself (he mows
+        // inside his farm's own footprint); a pier reaches out past the
+        // fishery's, so it takes saying here.
         visual.outline.setVisible(
           occluders.length > 0 &&
+            !onDeck &&
             occludedBy(occluders, px, standY, pz, TALLEST_UNIT, toCamera),
         );
         if (barPct >= 0) {

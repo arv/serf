@@ -35,13 +35,12 @@ import {
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
-import type {OccluderBox} from './xrayOutline';
+import {markOccluder, OCCLUDER_PAD, type OccluderBox} from './xrayOutline';
 
-/** How tall a building has to stand before it can hide anybody, and how
- * far past its footprint its eaves are assumed to reach (see
- * occluderBoxes). */
+/** How tall a building has to stand before it can hide anybody (the pad
+ * that goes with it lives with the test that reads it — see
+ * occluderBoxes and OCCLUDER_PAD). */
 const OCCLUDER_MIN_HEIGHT = 0.4;
-const OCCLUDER_PAD = 0.35;
 
 type BuildingState = Enum<typeof BuildingState>;
 type GoodId = Enum<typeof GoodId>;
@@ -1031,6 +1030,18 @@ export class BuildingSync {
       // terrain itself, so the pile marker covers the site moment only.
       model = makeGlbBuilding(b.type, b.owner) ?? makeRoadPile();
       root.add(model);
+    }
+
+    // The walls say where they are, for the x-ray outlines: every fragment
+    // of the model stamps a stencil bit where it wins the depth test, and
+    // that bit — not "something is nearer than me" — is what lets an
+    // outline be drawn over it. The model and the site frame only; the
+    // stock piles and the yard props against the wall are not walls, and
+    // the terrain and scenery mark nothing at all.
+    for (const part of [model, frame]) {
+      part?.traverse(o => {
+        if (o instanceof THREE.Mesh) eachMaterial(o, markOccluder);
+      });
     }
 
     // Shore buildings turn to face their water (Building.facing). Only the

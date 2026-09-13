@@ -11,6 +11,7 @@ import type {GoodAmounts} from '../sim/defs/goods';
 import {WATER_LEVEL} from '../sim/map';
 import type {FogQuery} from './fogOfWar';
 import {HeightField} from './heightField';
+import {eachMaterial} from './materials';
 import {SITE_FRAME_H} from './models';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -1147,6 +1148,30 @@ describe('the seat the fog is drawn through', () => {
     sync.setFog(blindFor(0));
     sync.update([snap({owner: 1})]);
     expect(root.visible).toBe(false);
+  });
+});
+
+describe('markOccluder', () => {
+  it('has the building stamp the wall bit where it draws', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({})]);
+    const root = scene.children[0]!;
+    const marked: boolean[] = [];
+    root.traverse(o => {
+      if (o instanceof THREE.Mesh) {
+        eachMaterial(o, m => {
+          marked.push(
+            m.stencilWrite &&
+              m.stencilZPass === THREE.ReplaceStencilOp &&
+              // Its own bit only: a Replace at the default 0xff would
+              // clobber the body bit the unit mask writes.
+              (m.stencilRef & m.stencilWriteMask) !== 0,
+          );
+        });
+      }
+    });
+    expect(marked.length).toBeGreaterThan(0);
+    expect(marked.every(Boolean)).toBe(true);
   });
 });
 

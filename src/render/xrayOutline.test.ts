@@ -50,6 +50,35 @@ describe('occludedBy', () => {
     expect(occludedBy([onACrag], -1.05, 0, -1.05, 0.05, VIEW)).toBe(false);
   });
 
+  it("leaves a man standing on the building's own ground alone", () => {
+    // The farmer mowing his rows is inside his farm's own fence, not
+    // behind it — and the rails he works between would otherwise put an
+    // edge across his shins. Measured on a real 3x3 farmstead: the box
+    // spans 37.65..41.35 / 45.65..49.35 and every mowing mark of the
+    // circuit falls inside the footprint the pad was added to.
+    const farm: OccluderBox = {
+      minX: 37.65,
+      maxX: 41.35,
+      minZ: 45.65,
+      maxZ: 49.35,
+      baseY: 0.05,
+      topY: 1.37,
+    };
+    for (const [x, z] of [
+      [38.39, 48.67],
+      [40.69, 48.67],
+      [40.69, 47.21],
+      [38.39, 47.21],
+    ] as const) {
+      expect(occludedBy([farm], x, 0.05, z, MAN, VIEW)).toBe(false);
+    }
+    // ...but a man just OUTSIDE the fence, on the far side, is hidden by
+    // it as ever. The exemption is the footprint and not the padded box,
+    // which is what keeps a man pressed against the far wall of a keep
+    // from quietly losing his edge.
+    expect(occludedBy([farm], 37.5, 0.05, 45.5, MAN, VIEW)).toBe(true);
+  });
+
   it('is false with nothing standing', () => {
     expect(occludedBy([], -3, 0, -3, MAN, VIEW)).toBe(false);
   });
