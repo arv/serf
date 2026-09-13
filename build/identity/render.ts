@@ -28,7 +28,7 @@
 import {execFileSync} from 'node:child_process';
 import {readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {ICON_FILES} from '../appIdentity.ts';
 import {cropCorner, decodePng} from './png.ts';
 
@@ -47,7 +47,9 @@ const CHROME =
 const WINDOW = {width: 512, height: 752};
 
 /** What each icon the build ships is the size of. Typed against the list
- * itself so adding a file there and forgetting it here does not compile. */
+ * itself so adding a file there and forgetting it here does not compile —
+ * `pnpm typecheck` covers this directory (build/tsconfig.json), since the
+ * strip-types loader `pnpm icons` runs on would not notice. */
 export const SIZES: Record<(typeof ICON_FILES)[number], number> = {
   'icon-512.png': 512,
   'icon-192.png': 192,
@@ -91,7 +93,7 @@ function bake(): void {
             '--force-device-scale-factor=1',
             `--window-size=${WINDOW.width},${WINDOW.height}`,
             `--screenshot=${png}`,
-            `file://${html}`,
+            pathToFileURL(html).href,
           ],
           {stdio: 'ignore'},
         );
@@ -112,5 +114,9 @@ function bake(): void {
 }
 
 /** Only when run, not when imported — the test reads SIZES from here and
- * has no business launching a browser to do it. */
-if (import.meta.filename === process.argv[1]) bake();
+ * has no business launching a browser to do it. Spelled the way
+ * tools/aiLab does it, which is the spelling that survives a path the
+ * shell would have escaped. */
+const entry = process.argv[1];
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href)
+  bake();
