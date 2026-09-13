@@ -1,9 +1,10 @@
-import {existsSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from 'vitest';
-import {ICON_FILES, channelFor, identityFor} from './appIdentity';
+import {ICON_FILES, ICON_SIZES, channelFor, identityFor} from './appIdentity';
 import {retitle} from './appIdentityPlugin';
+import {decodePng} from './identity/png.ts';
 
 describe('channelFor', () => {
   it('is stable only for the stable branch', () => {
@@ -48,6 +49,36 @@ describe('identityFor', () => {
       );
       for (const file of ICON_FILES)
         expect(existsSync(join(dir, file))).toBe(true);
+    },
+  );
+
+  // The icons are generated (`pnpm icons`) and committed, so this is the
+  // check that a bad bake cannot be committed silently. It catches the
+  // failure the renderer is most exposed to: headless Chromium quietly
+  // laying out at a size other than the one asked for, which yields a
+  // plausible PNG of the wrong edge rather than an error.
+  //
+  // Not re-rendering in CI and diffing is a choice, not a limitation —
+  // ubuntu-latest ships Chrome and the renderer reads CHROME_PATH. But the
+  // bake is byte-identical only on one Chromium build, and this drawing is
+  // mostly gradients, so a strict diff would fail on a runner rasterising
+  // an edge differently rather than on anything being stale. Catching
+  // "edited the SVG, forgot to re-bake" wants a tolerance-based image
+  // comparison; this catches the wrong-size case without one.
+  it.each(['stable', 'staging'] as const)(
+    'has each committed %s icon at the size it is declared to be',
+    channel => {
+      const dir = fileURLToPath(
+        new URL(`./identity/${channel}/`, import.meta.url),
+      );
+      for (const file of ICON_FILES) {
+        const {width, height} = decodePng(readFileSync(join(dir, file)));
+        expect({file, width, height}).toEqual({
+          file,
+          width: ICON_SIZES[file],
+          height: ICON_SIZES[file],
+        });
+      }
     },
   );
 });

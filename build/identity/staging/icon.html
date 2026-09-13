@@ -7,15 +7,18 @@
   the circle a maskable icon is cropped to, so the mask takes only its
   corners.
 
-  Rendered with headless Chromium, once per size, from this directory:
+  Baked by `pnpm icons` (../render.ts). The band is composited over
+  ../stable/icon.svg rather than over a baked PNG of it, so a 180px staging
+  icon rasterises the drawing at 180 instead of shrinking the 512 — and so
+  there is no order to get wrong between the two channels.
 
-    for s in 512 192 180; do
-      chromium --headless --hide-scrollbars --window-size=$s,$s \
-        --screenshot=out-$s.png icon.html
-    done
-
-  512 and 192 are icon-512.png and icon-192.png; 180 is apple-touch-icon.png.
-  Everything is sized in vw so one document renders at any edge.
+  The box takes its edge from --edge, which the renderer sets once per
+  size. Opened in a browser on its own there is no --edge, and it falls
+  back to the largest square the viewport holds — square because the icon
+  is, so a window that is not takes letterboxing rather than a stretched
+  castle. Everything inside is sized against that box in cqw rather than
+  against the window in vw: the renderer draws a 180px icon in a 512px
+  window, and vw would set the band's type for the window.
 -->
 <html>
   <head>
@@ -36,9 +39,10 @@
       }
       .icon {
         position: relative;
-        width: 100vw;
-        height: 100vh;
-        background: url('../stable/icon-512.png') center / 100% 100% no-repeat;
+        container-type: size;
+        width: var(--edge, min(100vw, 100vh));
+        height: var(--edge, min(100vw, 100vh));
+        background: url('../stable/icon.svg') center / 100% 100% no-repeat;
       }
       .band {
         position: absolute;
@@ -50,10 +54,10 @@
         align-items: center;
         justify-content: center;
         background: #e0a92e;
-        box-shadow: 0 -1.2vw 0 rgba(20, 30, 20, 0.35);
+        box-shadow: 0 -1.2cqw 0 rgba(20, 30, 20, 0.35);
         font-family: 'Space Grotesk', sans-serif;
         font-weight: 600;
-        font-size: 9.5vw;
+        font-size: 9.5cqw;
         letter-spacing: 0.16em;
         text-indent: 0.16em;
         color: #2a2205;
