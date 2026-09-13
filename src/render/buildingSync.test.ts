@@ -730,6 +730,272 @@ describe('the measurements the pointer picks against', () => {
   });
 });
 
+describe('the silhouette the pointer picks against', () => {
+  /** The mocked model is a unit box centered on its origin, standing in the
+   * middle of a two-by-two footprint — so the box the old pick used covers
+   * half a tile of bare grass on every side of it. */
+  const MODEL_TOP = 0.5;
+  const DOWN = new THREE.Vector3(0, -1, 0);
+  /** The rig's own line of sight: pitched 35°, yawed 30°. */
+  const PITCHED = new THREE.Vector3(
+    Math.cos((35 * Math.PI) / 180) * Math.sin(Math.PI / 6),
+    Math.sin((35 * Math.PI) / 180),
+    Math.cos((35 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  )
+    .normalize()
+    .negate();
+
+  /** A ray that arrives at `aim` from `dir`, starting `back` away from it. */
+  function ray(
+    aim: THREE.Vector3,
+    dir: THREE.Vector3,
+    back = 10,
+  ): [THREE.Vector3, THREE.Vector3] {
+    return [aim.clone().addScaledVector(dir, -back), dir];
+  }
+
+  it('is met on the model and missed in the air the box claims beside it', () => {
+    const {sync} = makeSync();
+    sync.update([snap({state: BuildingState.built})]);
+
+    // Straight down the middle: the roof, where the model is.
+    const [from, dir] = ray(new THREE.Vector3(11, MODEL_TOP, 11), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10);
+
+    // Half a tile out, still inside the footprint and so inside the old
+    // pick box — and nothing is drawn there at any height.
+    const [beside, down] = ray(new THREE.Vector3(10.2, MODEL_TOP, 10.2), DOWN);
+    expect(sync.silhouetteT(7, beside, down)).toBe(-1);
+  });
+
+  it('is met only as high as a site has actually risen', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0.5, siteNeeds: {}}),
+    ]);
+    // Where the reveal plane stands at half progress (#create: a sliver of
+    // lift, then the model's own height by progress).
+    const risen = 0.08 + MODEL_TOP * 0.5;
+
+    // Aimed at the roofline, which the plane has not reached: clipping is a
+    // shader's business and the geometry up there is still in the model, so
+    // without the clip test the ray would meet a roof nobody has laid.
+    const [from, dir] = ray(new THREE.Vector3(11, MODEL_TOP, 11), PITCHED);
+    const t = sync.silhouetteT(7, from, dir);
+    expect(t).toBeGreaterThan(0);
+    // What it meets instead is the far wall's inside, below the plane —
+    // which is exactly what a half-raised building shows the camera.
+    expect(from.y + dir.y * t).toBeLessThan(risen);
+  });
+
+  it('counts the scaffolding a site stands in', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0, siteNeeds: {}}),
+    ]);
+    // A corner post of the frame: the model is a sliver at this point, and
+    // the posts are all there is to click.
+    const [from, dir] = ray(
+      new THREE.Vector3(11.85, SITE_FRAME_H, 11.85),
+      DOWN,
+    );
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10);
+  });
+
+  it('is the building, never the smoke standing over it', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.bakery,
+        working: true,
+        staffing: StaffingState.staffed,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    expect(smoke.visible).toBe(true);
+
+    // Straight down the column, which the mock parks two units over the
+    // roof: the puffs are in the way and are not the bakery. Picking them
+    // would hand back the very pillar of dead sky the silhouette exists to
+    // give up — a hover that lights the bakery from a storey above it.
+    const [from, dir] = ray(new THREE.Vector3(11, 4, 11), DOWN);
+    // The roof, four units under where the ray was aimed — not the puffs
+    // it fell through on the way.
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10 + 4 - MODEL_TOP);
+  });
+
+  it('has nothing to meet on a road, whose pick is its ground', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.roadSite,
+        w: 1,
+        h: 1,
+        state: BuildingState.site,
+        progress01: 0,
+        siteNeeds: {},
+      }),
+    ]);
+    const [from, dir] = ray(new THREE.Vector3(10.5, 0.3, 10.5), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBe(-1);
+  });
+
+  it('has nothing to meet on ground the fog has not handed back', () => {
+    const {sync} = makeSync();
+    sync.setFog({
+      owner: 0,
+      visibleAt: () => false,
+      exploredAt: () => false,
+      litAt: () => 0,
+    });
+    sync.update([snap({owner: 1, state: BuildingState.built})]);
+    // A rival's camp on unscouted ground is in the scene but not on the
+    // screen. You cannot click what is not drawn.
+    const [from, dir] = ray(new THREE.Vector3(11, MODEL_TOP, 11), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBe(-1);
+  });
+
+  it('knows nothing of a building that never stood', () => {
+    const {sync} = makeSync();
+    const [from, dir] = ray(new THREE.Vector3(11, 1, 11), DOWN);
+    expect(sync.silhouetteT(99, from, dir)).toBe(-1);
+  });
+
+  it('never rays what is not the building, rather than ray it and drop it', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.bakery,
+        working: true,
+        staffing: StaffingState.staffed,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    // Count what the raycaster is actually handed. Testing the answer is
+    // not enough: a puff sieved out of the hits was still tested triangle
+    // by triangle, and the roof watch — skinned, and the dearest shape on
+    // any building — is excluded by this same flag.
+    let rayed = 0;
+    for (const puff of smoke.children) {
+      const mesh = puff as THREE.Mesh;
+      const real = mesh.raycast.bind(mesh);
+      mesh.raycast = (r, hits) => {
+        rayed++;
+        real(r, hits);
+      };
+    }
+    const [from, dir] = ray(new THREE.Vector3(11, 4, 11), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10 + 4 - MODEL_TOP);
+    expect(rayed).toBe(0);
+  });
+});
+
+describe('the ground a building is drawn over but does not stand on', () => {
+  /** Who is drawn over this ground, as the broad phase asks it. */
+  const over = (
+    sync: InstanceType<typeof BuildingSync>,
+    x: number,
+    z: number,
+  ): number[] => {
+    const out: number[] = [];
+    sync.drawnAt(x, z, out);
+    return out;
+  };
+
+  it("claims the water under a fishery's jetty, and gives it back", () => {
+    const {sync} = makeSync();
+    sync.update([snap({type: BuildingTypeId.fishery})]);
+    // The hut stands on the 10..11 square and the mocked deck runs out
+    // along +z to about z 14.35 — two tiles of open water past it.
+    expect(over(sync, 11, 13)).toEqual([7]);
+    expect(over(sync, 11, 14.2)).toEqual([7]);
+    // Its own plot is the map's to answer for, not this.
+    expect(over(sync, 11, 11.5)).toEqual([]);
+    // And ground nothing reaches over is nobody's.
+    expect(over(sync, 11, 15.5)).toEqual([]);
+    expect(over(sync, 20, 20)).toEqual([]);
+
+    sync.update([]);
+    expect(over(sync, 11, 13)).toEqual([]);
+  });
+
+  it('holds every jetty over a tile two of them cross', () => {
+    const {sync} = makeSync();
+    // A second hut three tiles up the shore, its deck running out over the
+    // same water: 2.54 tiles of pier against a one-tile placement ring
+    // means jetties do cross.
+    sync.update([
+      snap({type: BuildingTypeId.fishery}),
+      snap({id: 9, type: BuildingTypeId.fishery, x: 10, y: 12}),
+    ]);
+    const both = over(sync, 11, 14).sort((a, b) => a - b);
+    expect(both).toEqual([7, 9]);
+
+    // And the survivor keeps the ground when its neighbour comes down —
+    // a tile that named one of them would have gone empty here.
+    sync.update([snap({id: 9, type: BuildingTypeId.fishery, x: 10, y: 12})]);
+    expect(over(sync, 11, 14)).toEqual([9]);
+  });
+
+  it('takes in the stock standing at the door, which the walls do not cover', () => {
+    const {sync} = makeSync();
+    // Piles wait a third of a tile OUTSIDE the front wall (#syncPiles), so
+    // a claim read off the model alone leaves them with no candidate and a
+    // click on the goods falls through to the grass they stand on.
+    const stocked = snap({
+      type: BuildingTypeId.storehouse,
+      w: 2,
+      h: 2,
+      stock: {[GoodId.wood]: 6},
+    });
+    sync.update([stocked]);
+    expect(over(sync, 11, 12.2)).toEqual([7]);
+
+    // Hauled away, and the ground goes back to being grass.
+    sync.update([snap({type: BuildingTypeId.storehouse, w: 2, h: 2})]);
+    expect(over(sync, 11, 12.2)).toEqual([]);
+  });
+
+  it('follows the jetty when the fit turns the whole building', () => {
+    // The one wet column is west of the hut (tx 9) while the facing sends
+    // the deck north, so #measurePier turns hut and jetty together — and
+    // the water it is drawn over turns with them.
+    const {sync} = makeSync(shoreHeights(tx => tx === 9));
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
+    // Authored: straight north, the -z tiles.
+    expect(over(sync, 11, 8)).toEqual([7]);
+    expect(over(sync, 9.5, 9.5)).toEqual([]);
+
+    sync.fisheryPiers();
+    // Turned 30° west, the far planks lie over the wet column — ground
+    // the authored claim never covered. What a turned jetty claims is the
+    // box around it rather than the planks themselves, so the tiles it
+    // swung off stay claimed: a candidate too many costs one trace that
+    // finds nothing, where a candidate too few costs the pick.
+    expect(over(sync, 9.5, 9.5)).toEqual([7]);
+    // Past any reach of it, turned or not.
+    expect(over(sync, 12.5, 8)).toEqual([]);
+  });
+
+  it('leaves a road, which is ground, claiming nothing', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.roadSite,
+        w: 1,
+        h: 1,
+        state: BuildingState.site,
+        progress01: 0,
+        siteNeeds: {},
+      }),
+    ]);
+    for (let z = 8; z < 13; z++)
+      for (let x = 8; x < 13; x++) expect(over(sync, x, z)).toEqual([]);
+  });
+});
+
 describe('the stock piles at a building door', () => {
   // The piles hang off the visual's root as one group, parked just outside
   // the front wall. Each good's stack is a cluster of props around its lane
