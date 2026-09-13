@@ -152,7 +152,7 @@ function town(...stands: Stand[]): BuildingProbe {
     },
     // The renderer's own book of what it draws over ground nobody stands
     // on — BuildingSync keeps this by stamping each model's box.
-    drawnAt: (x, z) => {
+    drawnAt: (x, z, out) => {
       const tx = Math.floor(x);
       const tz = Math.floor(z);
       for (const s of stands) {
@@ -170,11 +170,11 @@ function town(...stands: Stand[]): BuildingProbe {
             tz >= Math.floor(box.min.z) &&
             tz <= Math.floor(box.max.z)
           ) {
-            return s.id;
+            out.push(s.id);
+            break;
           }
         }
       }
-      return -1;
     },
   };
 }

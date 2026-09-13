@@ -1110,8 +1110,8 @@ export class Controls {
       // Its other half, and never without it: what a building is drawn
       // over from off its own plot is worth a candidate only because
       // something can then say whether the ray truly meets it.
-      this.#probe.drawnAt = (x, z) =>
-        this.#buildingHeights?.drawnAt?.(x, z) ?? -1;
+      this.#probe.drawnAt = (x, z, out) =>
+        this.#buildingHeights?.drawnAt?.(x, z, out);
     } else {
       delete this.#probe.silhouetteT;
       delete this.#probe.drawnAt;

@@ -93,17 +93,19 @@ export interface BuildingHeights {
    */
   silhouetteT?(id: number, origin: THREE.Vector3, dir: THREE.Vector3): number;
   /**
-   * A building drawn over this ground from off its own plot, or -1 — a
-   * fishery's jetty runs a couple of tiles out over open water, and the
-   * tiles it is drawn on belong to no building as far as the map is
-   * concerned. The broad phase asks this beside idAt so that what a
-   * building reaches out over gets a candidate at all.
+   * Every building drawn over this ground from off its own plot, pushed
+   * onto `out` — a fishery's jetty runs a couple of tiles out over open
+   * water, and the tiles it is drawn on belong to no building as far as
+   * the map is concerned. The broad phase asks this beside idAt so that
+   * what a building reaches out over gets a candidate at all. Every one of
+   * them, because two jetties can cross the same water and the ray may
+   * meet the second where it missed the first.
    *
    * Optional, and offered with silhouetteT or not at all: a candidate
    * nothing can trace is a box hung over open water, which is the very
    * thing the silhouette is here to take away.
    */
-  drawnAt?(x: number, z: number): number;
+  drawnAt?(x: number, z: number, out: number[]): void;
 }
 
 /** What screenToBuilding needs to know about what is standing where. */
@@ -143,6 +145,9 @@ const MAX_PROBES = 64;
  * the ray crosses under their own roofline.
  */
 const candidates: number[] = [];
+/** What the probe hands back at one point of the ray — reused for the
+ * same reason. */
+const reach: number[] = [];
 /** Where each of those was first met, as a distance along the ray: the
  * probe that found its box, which is within a step of where the box really
  * begins. What lets the tracing below stop early. */
@@ -218,7 +223,11 @@ export function screenToBuilding(
     // its own plot — a jetty, an eave. Both are asked at every probe: the
     // two can be different buildings over one patch of ground.
     consider(probe.idAt(x, z), t, probe);
-    if (probe.drawnAt) consider(probe.drawnAt(x, z), t, probe);
+    if (probe.drawnAt) {
+      reach.length = 0;
+      probe.drawnAt(x, z, reach);
+      for (const id of reach) consider(id, t, probe);
+    }
   }
   if (candidates.length > 0) {
     if (!probe.silhouetteT) return candidates[0]!;

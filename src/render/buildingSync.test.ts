@@ -893,21 +893,69 @@ describe('the silhouette the pointer picks against', () => {
 });
 
 describe('the ground a building is drawn over but does not stand on', () => {
+  /** Who is drawn over this ground, as the broad phase asks it. */
+  const over = (
+    sync: InstanceType<typeof BuildingSync>,
+    x: number,
+    z: number,
+  ): number[] => {
+    const out: number[] = [];
+    sync.drawnAt(x, z, out);
+    return out;
+  };
+
   it("claims the water under a fishery's jetty, and gives it back", () => {
     const {sync} = makeSync();
     sync.update([snap({type: BuildingTypeId.fishery})]);
     // The hut stands on the 10..11 square and the mocked deck runs out
     // along +z to about z 14.35 — two tiles of open water past it.
-    expect(sync.drawnAt(11, 13)).toBe(7);
-    expect(sync.drawnAt(11, 14.2)).toBe(7);
+    expect(over(sync, 11, 13)).toEqual([7]);
+    expect(over(sync, 11, 14.2)).toEqual([7]);
     // Its own plot is the map's to answer for, not this.
-    expect(sync.drawnAt(11, 11.5)).toBe(-1);
+    expect(over(sync, 11, 11.5)).toEqual([]);
     // And ground nothing reaches over is nobody's.
-    expect(sync.drawnAt(11, 15.5)).toBe(-1);
-    expect(sync.drawnAt(20, 20)).toBe(-1);
+    expect(over(sync, 11, 15.5)).toEqual([]);
+    expect(over(sync, 20, 20)).toEqual([]);
 
     sync.update([]);
-    expect(sync.drawnAt(11, 13)).toBe(-1);
+    expect(over(sync, 11, 13)).toEqual([]);
+  });
+
+  it('holds every jetty over a tile two of them cross', () => {
+    const {sync} = makeSync();
+    // A second hut three tiles up the shore, its deck running out over the
+    // same water: 2.54 tiles of pier against a one-tile placement ring
+    // means jetties do cross.
+    sync.update([
+      snap({type: BuildingTypeId.fishery}),
+      snap({id: 9, type: BuildingTypeId.fishery, x: 10, y: 12}),
+    ]);
+    const both = over(sync, 11, 14).sort((a, b) => a - b);
+    expect(both).toEqual([7, 9]);
+
+    // And the survivor keeps the ground when its neighbour comes down —
+    // a tile that named one of them would have gone empty here.
+    sync.update([snap({id: 9, type: BuildingTypeId.fishery, x: 10, y: 12})]);
+    expect(over(sync, 11, 14)).toEqual([9]);
+  });
+
+  it('takes in the stock standing at the door, which the walls do not cover', () => {
+    const {sync} = makeSync();
+    // Piles wait a third of a tile OUTSIDE the front wall (#syncPiles), so
+    // a claim read off the model alone leaves them with no candidate and a
+    // click on the goods falls through to the grass they stand on.
+    const stocked = snap({
+      type: BuildingTypeId.storehouse,
+      w: 2,
+      h: 2,
+      stock: {[GoodId.wood]: 6},
+    });
+    sync.update([stocked]);
+    expect(over(sync, 11, 12.2)).toEqual([7]);
+
+    // Hauled away, and the ground goes back to being grass.
+    sync.update([snap({type: BuildingTypeId.storehouse, w: 2, h: 2})]);
+    expect(over(sync, 11, 12.2)).toEqual([]);
   });
 
   it('follows the jetty when the fit turns the whole building', () => {
@@ -917,8 +965,8 @@ describe('the ground a building is drawn over but does not stand on', () => {
     const {sync} = makeSync(shoreHeights(tx => tx === 9));
     sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     // Authored: straight north, the -z tiles.
-    expect(sync.drawnAt(11, 8)).toBe(7);
-    expect(sync.drawnAt(9.5, 9.5)).toBe(-1);
+    expect(over(sync, 11, 8)).toEqual([7]);
+    expect(over(sync, 9.5, 9.5)).toEqual([]);
 
     sync.fisheryPiers();
     // Turned 30° west, the far planks lie over the wet column — ground
@@ -926,9 +974,9 @@ describe('the ground a building is drawn over but does not stand on', () => {
     // box around it rather than the planks themselves, so the tiles it
     // swung off stay claimed: a candidate too many costs one trace that
     // finds nothing, where a candidate too few costs the pick.
-    expect(sync.drawnAt(9.5, 9.5)).toBe(7);
+    expect(over(sync, 9.5, 9.5)).toEqual([7]);
     // Past any reach of it, turned or not.
-    expect(sync.drawnAt(12.5, 8)).toBe(-1);
+    expect(over(sync, 12.5, 8)).toEqual([]);
   });
 
   it('leaves a road, which is ground, claiming nothing', () => {
@@ -944,7 +992,7 @@ describe('the ground a building is drawn over but does not stand on', () => {
       }),
     ]);
     for (let z = 8; z < 13; z++)
-      for (let x = 8; x < 13; x++) expect(sync.drawnAt(x, z)).toBe(-1);
+      for (let x = 8; x < 13; x++) expect(over(sync, x, z)).toEqual([]);
   });
 });
 

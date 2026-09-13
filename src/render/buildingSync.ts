@@ -308,6 +308,10 @@ interface BuildingVisual {
   /** The tiles outside its own footprint this building is drawn over, as
    * keys into #drawn — hers to give back when she comes down. */
   drawn: number[];
+  /** The model's own box, in root space: what those tiles were read off.
+   * Kept so that a re-claim for a pile at the door does not have to walk
+   * every vertex of the building again. */
+  modelBox: THREE.Box3;
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
   /** Physical stock piles against the front wall. */
@@ -491,6 +495,10 @@ const BAR_CAPACITY_MIN = 32;
  */
 const PICK_IGNORE = 'noPick';
 
+/** Scratch for #reclaimDrawn — a pile rebuild is a common event. */
+const CLAIM_BOX = new THREE.Box3();
+const PILE_BOX = new THREE.Box3();
+
 /** Whether `o` hangs somewhere under `of` — itself included. */
 function descends(o: THREE.Object3D, of: THREE.Object3D): boolean {
   for (let n: THREE.Object3D | null = o; n; n = n.parent) {
@@ -556,17 +564,19 @@ export class BuildingSync {
    */
   #ceiling = Number.NEGATIVE_INFINITY;
   /**
-   * Tile -> the building drawn over it from off its own plot. The sim's
-   * map says which building *stands* on a tile, and for the pointer that
-   * is not the same question: a fishery's jetty runs a good two tiles out
-   * over the water (assets.ts PIER_TILES), drawn on ground the footprint
-   * never claims. Without this the walk finds no candidate out there and
-   * a click on the planks reads as a click on the lake.
+   * Tile -> the buildings drawn over it from off their own plots. The
+   * sim's map says which building *stands* on a tile, and for the pointer
+   * that is not the same question: a fishery's jetty runs a good two tiles
+   * out over the water (assets.ts PIER_TILES), drawn on ground the
+   * footprint never claims. Without this the walk finds no candidate out
+   * there and a click on the planks reads as a click on the lake.
    *
-   * First claim keeps a tile: two models can reach over the same ground,
-   * and the pick only needs a candidate to trace, not a census.
+   * Every claimant, not the first: two jetties can cross the same water —
+   * a pier reaches 2.54 tiles and placement only holds a ring of one — and
+   * a tile that named one of them would hide the other from the trace, and
+   * then go empty the moment the one it named came down.
    */
-  #drawn = new Map<number, number>();
+  #drawn = new Map<number, number[]>();
   /** Reused by silhouetteT: a pick runs every frame the pointer moves, and
    * a fresh raycaster and hit list each would be an allocation a frame. */
   #pickRay = new THREE.Raycaster();
@@ -656,17 +666,19 @@ export class BuildingSync {
   }
 
   /**
-   * The building drawn over this ground from off its own plot, or -1 — see
-   * #drawn. The broad phase asks it beside the footprint the sim keeps, so
-   * that what a building reaches out over gets a candidate at all; whether
-   * the ray truly meets it is still silhouetteT's to answer.
+   * The buildings drawn over this ground from off their own plots, pushed
+   * onto `out` — see #drawn. The broad phase asks it beside the footprint
+   * the sim keeps, so that what a building reaches out over gets a
+   * candidate at all; whether the ray truly meets one is still
+   * silhouetteT's to answer.
    */
-  drawnAt(x: number, z: number): number {
+  drawnAt(x: number, z: number, out: number[]): void {
     const size = this.#heights.size;
     const tx = Math.floor(x);
     const tz = Math.floor(z);
-    if (tx < 0 || tz < 0 || tx >= size || tz >= size) return -1;
-    return this.#drawn.get(tileIdx(tx, tz, size)) ?? -1;
+    if (tx < 0 || tz < 0 || tx >= size || tz >= size) return;
+    const here = this.#drawn.get(tileIdx(tx, tz, size));
+    if (here) out.push(...here);
   }
 
   /**
@@ -782,7 +794,13 @@ export class BuildingSync {
       v.working = b.working === true;
       v.firing = b.firing === true;
       v.volleyRange = volleyRangeOf(b);
+      const pileKey = v.pileKey;
       this.#syncPiles(v, b);
+      // The stock at the door stands a third of a tile outside the front
+      // wall, on ground the footprint never covers, and it comes and goes
+      // with the hauling: when it changes, so does the ground this
+      // building is drawn over.
+      if (v.pileKey !== pileKey) this.#reclaimDrawn(b.id, v);
       this.#syncGarrison(v, b);
 
       // Damage bar: appears once hurt (highlight() shows it on healthy
@@ -833,19 +851,54 @@ export class BuildingSync {
         if (tx >= fx && tx < fx + halfW * 2 && tz >= fz && tz < fz + halfD * 2)
           continue;
         const key = tileIdx(tx, tz, size);
-        if (this.#drawn.has(key)) continue;
-        this.#drawn.set(key, id);
+        const here = this.#drawn.get(key);
+        if (here) here.push(id);
+        else this.#drawn.set(key, [id]);
         drawn.push(key);
       }
     }
     return drawn;
   }
 
-  /** Give back the tiles a visual claimed. Only its own keys — a tile a
-   * neighbour got to first was never this one's to release. */
-  #releaseDrawn(v: BuildingVisual): void {
-    for (const key of v.drawn) this.#drawn.delete(key);
+  /** Give back the tiles a visual claimed, leaving any neighbour that
+   * reaches over the same ground still holding it. */
+  #releaseDrawn(id: number, v: BuildingVisual): void {
+    for (const key of v.drawn) {
+      const here = this.#drawn.get(key);
+      if (!here) continue;
+      const at = here.indexOf(id);
+      if (at >= 0) here.splice(at, 1);
+      if (here.length === 0) this.#drawn.delete(key);
+    }
     v.drawn.length = 0;
+  }
+
+  /**
+   * Re-take the ground this building is drawn over, model and door piles
+   * together. The claim #create made is only as good as the building was
+   * that moment: the stock at the door comes and goes (#syncPiles stands
+   * it a third of a tile OUTSIDE the front wall, which is ground the
+   * footprint never covers), and a jetty is aimed after it is built.
+   */
+  #reclaimDrawn(id: number, v: BuildingVisual): void {
+    if (v.road) return;
+    this.#releaseDrawn(id, v);
+    CLAIM_BOX.copy(v.modelBox);
+    if (v.piles) {
+      // Settle the pile group's own matrices first: a claim runs when the
+      // roster lands, which can be before any frame has been drawn, and a
+      // box read off an unsettled tree is a box at the origin. Its own,
+      // not the whole building's — the parents walk up to the scene and
+      // the props under it are a handful.
+      v.piles.updateWorldMatrix(true, true);
+      // The root is in the scene by now, so this reads world space; the
+      // claim wants the model's own, as at creation. The root carries no
+      // rotation or scale, so its position is the whole of the difference.
+      PILE_BOX.setFromObject(v.piles);
+      PILE_BOX.translate(SCRATCH_POS.copy(v.root.position).negate());
+      CLAIM_BOX.union(PILE_BOX);
+    }
+    v.drawn = this.#claimDrawn(id, v.root, v.halfW, v.halfD, CLAIM_BOX);
   }
 
   #beginTeardown(id: number): void {
@@ -861,7 +914,7 @@ export class BuildingSync {
     }
     this.#visuals.delete(id);
     // A model on its way into the ground is no longer drawn over anything.
-    this.#releaseDrawn(v);
+    this.#releaseDrawn(id, v);
     // The rumble belongs to the dust cloud below — and only where the
     // cloud is drawn (fog guard — see onCue).
     if (this.onCue && v.root.visible) {
@@ -1024,9 +1077,10 @@ export class BuildingSync {
         : topY;
     if (!road)
       this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
+    const modelBox = bbox ?? new THREE.Box3().makeEmpty();
     const drawn = road
       ? []
-      : this.#claimDrawn(b.id, root, b.w / 2, b.h / 2, bbox);
+      : this.#claimDrawn(b.id, root, b.w / 2, b.h / 2, modelBox);
     this.#scene.add(root);
     return {
       root,
@@ -1040,6 +1094,7 @@ export class BuildingSync {
       halfD: b.h / 2,
       road,
       drawn,
+      modelBox,
       pct: 1,
       pileKey: '',
       pileLanes: new Map(),
@@ -1185,12 +1240,12 @@ export class BuildingSync {
         // The fit can turn the hut and trim the deck, so the water this
         // building is drawn over is no longer the water #create claimed
         // for it (see #drawn). Measured once, re-claimed once.
-        this.#releaseDrawn(v);
-        const local = new THREE.Box3().setFromObject(v.model);
+        v.model.updateWorldMatrix(true, true);
+        v.modelBox.setFromObject(v.model);
         // setFromObject reads world space now that the root is in the
-        // scene; #claimDrawn wants the model's own, as at creation.
-        local.translate(new THREE.Vector3().copy(v.root.position).negate());
-        v.drawn = this.#claimDrawn(id, v.root, v.halfW, v.halfD, local);
+        // scene; the claim wants the model's own, as at creation.
+        v.modelBox.translate(SCRATCH_POS.copy(v.root.position).negate());
+        this.#reclaimDrawn(id, v);
       }
       out.push(v.pierLine);
     }
@@ -2049,7 +2104,7 @@ export class BuildingSync {
     if (!v) return;
     this.#scene.remove(v.root);
     this.#freeGpu(v);
-    this.#releaseDrawn(v);
+    this.#releaseDrawn(id, v);
     this.#visuals.delete(id);
   }
 
