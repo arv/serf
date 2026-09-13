@@ -177,11 +177,11 @@ function rightPtr(x: number, y: number): Record<string, unknown> {
   return {...ptr(x, y), button: 2, buttons: 2};
 }
 
-/** A storehouse of yours, as the HUD's card would have it. */
 /** Scratch for the test tracer's ray-vs-model math. */
 const RAY = new THREE.Ray();
 const HIT = new THREE.Vector3();
 
+/** A storehouse of yours, as the HUD's card would have it. */
 function building(id: number): BuildingSnap {
   return {
     id,
