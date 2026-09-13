@@ -487,15 +487,41 @@ export function Hud(props: {
    * that crossing is a scroll event the handler below would otherwise read
    * as "the player is looking at Food" — so a click on the third tab lights
    * the second one for a sixth of a second on its way. Ignoring the
-   * in-between readings is the whole job; the timer is only so that a
-   * player who grabs the ribbon mid-animation (which cancels the scroll,
-   * and with it any hope of ever reaching the target) gets the scroller
-   * back rather than a strip frozen on a tab nobody is looking at.
+   * in-between readings is the whole job, and arriving is what normally
+   * ends it: the reading that equals the target hands the scroller back.
+   * The timer is for the arrival that never comes — a player grabbing the
+   * ribbon mid-glide cancels the scroll — and releaseGuard is what it runs,
+   * because letting go is only half of what that case needs.
    */
   let heading: number | null = null;
   let settling: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(settling));
   const reduceMotion = useMedia('(prefers-reduced-motion: reduce)');
+  /** The tab the ribbon is actually parked on, or null while there is none. */
+  const shownTab = (): number | null => {
+    const el = ribbon;
+    return el
+      ? tabForScroll(el.scrollLeft, el.clientWidth, BUILD_GROUPS.length)
+      : null;
+  };
+  /**
+   * Let go of the guard — and reconcile the signal with where the ribbon
+   * actually came to rest, which is the half that cannot be skipped.
+   *
+   * The guard exists to ignore readings that are not the target, and a
+   * cancelled scroll never reaches the target: grab the ribbon while it is
+   * gliding to Arms, drag back to Village, and every reading from that drag
+   * — 1, then 0 — is one the guard throws away. Releasing it and no more
+   * would leave `activeTab` on Arms with Village on the glass: the strip
+   * lights the wrong tab, and the page the player is looking at is the one
+   * `inert` has switched off. Scrolling is over by then, so no further
+   * event would come along to put it right.
+   */
+  const releaseGuard = (): void => {
+    heading = null;
+    const i = shownTab();
+    if (i !== null) setActiveTab(i);
+  };
   /**
    * Show a tab, from the strip or from the keyboard — the signal for
    * everything that reads which tab is up, and the scroll for the ribbon
@@ -520,7 +546,7 @@ export function Hud(props: {
     if (Math.abs(el.scrollLeft - left) < 1) return;
     heading = i;
     clearTimeout(settling);
-    settling = setTimeout(() => (heading = null), 700);
+    settling = setTimeout(releaseGuard, 700);
     el.scrollTo({left, behavior: reduceMotion() ? 'instant' : 'smooth'});
   };
   /**
@@ -561,17 +587,22 @@ export function Hud(props: {
       ribbon = el;
       el.scrollLeft = activeTab() * el.clientWidth;
     });
-    onCleanup(() => (ribbon = undefined));
+    // The guard goes with it. A phone folding the card mid-glide leaves a
+    // target no scroller is heading for any more, and a timer that would
+    // come due inside the next ribbon's life — one that mounts wherever
+    // activeTab says and is owed no reconciling.
+    onCleanup(() => {
+      ribbon = undefined;
+      heading = null;
+      clearTimeout(settling);
+    });
     return (
       <div
         class="hud-items"
         ref={el}
         onScroll={() => {
-          const i = tabForScroll(
-            el.scrollLeft,
-            el.clientWidth,
-            BUILD_GROUPS.length,
-          );
+          const i = shownTab();
+          if (i === null) return;
           if (heading !== null) {
             if (i !== heading) return;
             heading = null;
