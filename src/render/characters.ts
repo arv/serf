@@ -1225,6 +1225,25 @@ const PROF_LOOKS = new Map<number, ProfLook>([
   ],
 ]);
 
+/**
+ * The tallest a drawn unit stands, in world units.
+ *
+ * TARGET_HEIGHT is what a body is normalized *to*, not what it ends up:
+ * a spec may scale it again afterwards (the Barbarian's 1.18 puts him a
+ * head over everyone). Anything that needs a bound on how tall a man can
+ * be — the x-ray occlusion sweep, which must never under-report — takes
+ * this rather than TARGET_HEIGHT. Both spec tables are read, so a scale
+ * added to either is covered without anyone remembering this line.
+ */
+export const TALLEST_UNIT =
+  TARGET_HEIGHT *
+  Math.max(
+    1,
+    ...[...KK_SPECS.values(), ...[...PROF_LOOKS.values()].map(l => l.spec)].map(
+      spec => spec.scale ?? 1,
+    ),
+  );
+
 function makeKayKitCharacter(
   kind: number,
   profession = 0,

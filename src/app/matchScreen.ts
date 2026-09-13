@@ -507,7 +507,9 @@ export async function runMatch(
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip), where the fishery piers run (fishermen walk
   // out and cast off the end), and where the farm fields lie (farmers
-  // mow their rows).
+  // mow their rows). What each building is as an occluder is NOT here:
+  // that answer moves with the fog and with a rising site, not only with
+  // the roster, so the frame loop reads it live (occluderBoxes).
   const feedWells = (): void => {
     sync.setWells(buildingSync.wellCranks());
     sync.setPiers(buildingSync.fisheryPiers());
@@ -598,12 +600,30 @@ export async function runMatch(
   // Its haze layer is a child of document.body, so nothing else takes it
   // down: not the canvas swap, not the HUD's Solid root.
   teardown.push(() => damageAlerts.dispose());
+  // Whether the frame loop keeps feeding the outlines their occluders.
+  // Only __xray (DEV, just below) ever turns it off.
+  let xrayOutlines = true;
   if (import.meta.env.DEV) {
     // Console handles for forensics and screenshot tooling: the fog for
     // visibility checks, the rig and heights for scripted camera jumps and
-    // world->screen math (the wardrobe exposes its own pair).
+    // world->screen math, the two syncs for poking at what is drawn, and
+    // __xray.off()/.on() for a before/after of the outlines. That last one
+    // is the flag above rather than a setOccluders([]) from the console,
+    // because the frame loop reads the boxes live and would put them
+    // straight back on the next frame. (The wardrobe has its own pair.)
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
+      __sync: sync,
+      __buildings: buildingSync,
+      __xray: {
+        off: () => {
+          xrayOutlines = false;
+          sync.setOccluders([]);
+        },
+        on: () => {
+          xrayOutlines = true;
+        },
+      },
       __renderer: renderer,
       __rig: renderer.rig,
       __heights: heights,
@@ -613,6 +633,12 @@ export async function runMatch(
   sync.setFog(fog);
   buildingSync.setFog(fog);
   footprints.setFog(fog);
+  // Which buildings this seat can see is decided inside BuildingSync's own
+  // pass, and it needs the fog to decide it — so the pass above ran while
+  // every root in the valley was still visible, unexplored enemy walls
+  // included. Run it again now that the fog is installed, rather than
+  // leaving the first frames drawn against a roster nobody has scouted.
+  buildingSync.update(init.buildings);
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
 
@@ -1159,6 +1185,12 @@ export async function runMatch(
     const bounds = renderer.rig.viewBounds(3, boundsScratch);
     setAudioView(renderer.rig.viewFrame(3, frameScratch));
     setAudioPaused(speed() === 0);
+    // Live, not snapshotted: which buildings can hide a man turns on the
+    // fog, on a monument dropped for a rebuild, on a wreck still sinking,
+    // and on how far a site has risen — none of which arrive with the
+    // roster message. The flag is the DEV switch above and nothing else
+    // ever clears it.
+    if (xrayOutlines) sync.setOccluders(buildingSync.occluderBoxes());
     sync.update(
       now,
       controls.hoverUnit,
