@@ -295,11 +295,11 @@ interface BuildingVisual {
   clip?: {plane: THREE.Plane; height: number; baseY: number};
   /** Model height above ground, for floating the hp bar. */
   topY: number;
-  /** A site's own wall-bit materials, so the stamping can be turned on
-   * and off as it rises (see #syncWall). Absent on a finished building,
-   * whose marked materials are shared with every other of its type and
-   * are never turned off. */
-  wall?: THREE.Material[];
+  /** A site's own marked meshes, so the stamping can be turned on and off
+   * as it rises (see #syncWall). Absent on a finished building, whose
+   * marked materials are shared with every other of its type and are
+   * never turned off. */
+  wall?: THREE.Mesh[];
   /** Half the footprint, in tiles — the box the x-ray outlines test a
    * unit's line of sight against (see occluderBoxes). */
   halfW: number;
@@ -665,12 +665,25 @@ export class BuildingSync {
   }
 
   /** Turn a site's wall stamping on or off. Cheap enough to call every
-   * frame: stencilWrite is a state flag, not a shader define, and the
-   * write is skipped while it is already where it should be. */
+   * frame: both of these are state flags, not shader defines, and the
+   * write is skipped while it is already where it should be.
+   *
+   * Both halves move together, and the render order is not the cosmetic
+   * one. The bit is never cleared, so an unmarked mesh left standing in
+   * the buildings' late slot is a way to inherit one: three sorts the
+   * opaque queue by renderOrder and then by MATERIAL ID, so an unmarked
+   * site sharing that slot can be drawn after a wall, win the depth test
+   * at a pixel that wall had stamped, and leave the bit behind over
+   * ground the wall no longer owns. Back in the ordinary world it draws
+   * before every marked building instead, and a building that then loses
+   * the depth test to it stamps nothing at all (ZFail keeps). */
   #syncWall(v: BuildingVisual, on: boolean): void {
     if (!v.wall) return;
-    for (const m of v.wall) {
-      if (m.stencilWrite !== on) m.stencilWrite = on;
+    for (const mesh of v.wall) {
+      mesh.renderOrder = on ? WALL_RENDER_ORDER : 0;
+      eachMaterial(mesh, m => {
+        if (m.stencilWrite !== on) m.stencilWrite = on;
+      });
     }
   }
 
@@ -1118,13 +1131,13 @@ export class BuildingSync {
     // Drawn last among the opaque world (WALL_RENDER_ORDER), because a
     // bit is never cleared and anything unmarked drawing after a building
     // would leave one standing over its own depth.
-    const wall: THREE.Material[] = [];
+    const wall: THREE.Mesh[] = [];
     if (!road) {
       model.traverse(o => {
         if (o instanceof THREE.Mesh) {
           mapMaterials(o, occluderMaterial);
-          eachMaterial(o, m => wall.push(m));
           o.renderOrder = WALL_RENDER_ORDER;
+          wall.push(o);
         }
       });
     }
@@ -1150,7 +1163,9 @@ export class BuildingSync {
       // Only a site's, and only because its model's materials are
       // per-site clones (the clip and ghost passes above): turning those
       // off turns off this one building. A finished building's are the
-      // marked templates its whole type shares, and are never off.
+      // marked templates its whole type shares, and are never off — nor
+      // is its place in the queue, which only an unmarked mesh has to
+      // give up.
       wall: b.state === BuildingState.site ? wall : undefined,
       halfW: b.w / 2,
       halfD: b.h / 2,

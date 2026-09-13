@@ -1217,16 +1217,38 @@ describe('the wall bit', () => {
     expect(rising().length).toBeGreaterThan(0);
     expect(scaffold().length).toBeGreaterThan(0);
 
+    /** Where the meshes of the rising building sit in the opaque queue. */
+    const orders = (): number[] => {
+      const out: number[] = [];
+      root.traverse(o => {
+        if (!(o instanceof THREE.Mesh)) return;
+        let clipped = false;
+        eachMaterial(o, m => {
+          if ((m.clippingPlanes?.length ?? 0) > 0) clipped = true;
+        });
+        if (clipped) out.push(o.renderOrder);
+      });
+      return out;
+    };
+
     // A sliver of wall inside a frame hides nobody: no box, and so no
     // bits either. A bit the boxes do not vouch for is an edge drawn over
     // something that is not hiding the man.
     expect(sync.occluderBoxes()).toHaveLength(0);
     expect(rising().every(m => !m.stencilWrite)).toBe(true);
+    // ...and it gives up the buildings' slot at the end of the opaque
+    // queue while it is unmarked. Left there it would be a way to inherit
+    // a bit: drawn after a wall (the queue sorts on material id inside a
+    // render order), winning the depth test, and leaving that wall's bit
+    // standing over a pixel it no longer owns.
+    expect(orders().length).toBeGreaterThan(0);
+    expect(orders().every(o => o === 0)).toBe(true);
 
-    // Topped out: boxed, and stamping.
+    // Topped out: boxed, stamping, and back in the buildings' slot.
     sync.update([site(1)]);
     expect(sync.occluderBoxes()).toHaveLength(1);
     expect(rising().every(m => m.stencilWrite)).toBe(true);
+    expect(orders().every(o => o === WALL_RENDER_ORDER)).toBe(true);
 
     // The frame stamps at no height at all. Its sill lies along the
     // ground, and ground that stamps is how a green arc ends up under a
