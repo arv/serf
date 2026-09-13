@@ -244,3 +244,36 @@ export function buildUnlocked(
     ? req.some(t => researched.includes(t))
     : researched.includes(req);
 }
+
+/**
+ * Which tab a swiped ribbon is showing, from how far it has been scrolled.
+ *
+ * The ribbon is a row of tab pages, each exactly one viewport of the
+ * scroller wide and butted against the next with no gap between them (the
+ * `.hud-items` / `.build-page` rules in Hud.tsx), so the page under the
+ * player's eye is simply the scroll offset divided by that width. Snapping
+ * is CSS's — `scroll-snap-type: x mandatory` is what makes a swipe land on
+ * a page rather than between two — and this is only how the tab strip is
+ * told where the snap landed, so it is read live during the gesture and the
+ * highlight crosses to the next tab as the page does. Rounding rather than
+ * flooring is what puts that crossing at the halfway mark, which is roughly
+ * where a released swipe snaps to.
+ *
+ * Here rather than inline in Hud.tsx for the same reason `buildTab` is:
+ * the arithmetic is the whole of the swipe, and a DOM is a heavy price for
+ * checking that a half-scrolled ribbon names the tab it is mostly showing.
+ *
+ * A width of zero is a ribbon nobody has laid out yet — a card still
+ * folded, or one measured before its first frame. The division is NaN
+ * there and NaN loses every comparison a clamp is made of, so it is
+ * answered first and answered with the first tab.
+ */
+export function tabForScroll(
+  scrollLeft: number,
+  pageWidth: number,
+  count: number,
+): number {
+  if (pageWidth <= 0 || count <= 0) return 0;
+  const i = Math.round(scrollLeft / pageWidth);
+  return Math.min(Math.max(i, 0), count - 1);
+}
