@@ -24,6 +24,7 @@ import {
   findSeatByToken,
   getRoom,
   listOpenRooms,
+  matchSummary,
   pumpRoom,
   queueCommands,
   removeSeat,
@@ -448,6 +449,10 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       const humans = room.seats.filter(s => s.kind === 'human').length;
       startMatch(room);
       const stats = serverStats();
+      // Off the built world, not off the lobby's config: an unknown tier
+      // or playbook name is resolved when the world is made, and the line
+      // must say what is being played.
+      const played = matchSummary(room);
       logEvent(
         'match_start',
         `match #${stats.matchesStarted} started in room ${room.code}: ` +
@@ -463,8 +468,8 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
           seed: room.config.seed,
           size: room.config.size,
           bandits: room.config.bandits,
-          difficulty: room.config.difficulty ?? 'normal',
-          bots: room.config.bots ?? [],
+          difficulty: played.difficulty,
+          bots: played.bots,
           // Since this process booted — the log is the durable count.
           matchesStarted: stats.matchesStarted,
           runningRooms: stats.running,

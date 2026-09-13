@@ -59,21 +59,26 @@ describe('clientIp', () => {
 
   it('ignores an X-Real-IP that is only whitespace', () => {
     // Judging it by its length before trimming blanked the address.
-    expect(
-      clientIp(request({'x-real-ip': '   ', 'x-forwarded-for': '203.0.113.7'})),
-    ).toBe('203.0.113.7');
     expect(clientIp(request({'x-real-ip': '  '}))).toBe('10.0.0.9');
   });
 
-  it('prefers X-Real-IP when a proxy sets it', () => {
+  it('falls back to X-Real-IP only when nothing was forwarded', () => {
+    expect(clientIp(request({'x-real-ip': '198.51.100.4'}))).toBe(
+      '198.51.100.4',
+    );
+  });
+
+  it('believes the forwarded chain over a client-supplied X-Real-IP', () => {
+    // Nothing appends to X-Real-IP, so a request can arrive carrying one;
+    // the rightmost forwarded entry is the hop the proxy itself wrote.
     expect(
       clientIp(
         request({'x-real-ip': '198.51.100.4', 'x-forwarded-for': '1.1.1.1'}),
       ),
-    ).toBe('198.51.100.4');
+    ).toBe('1.1.1.1');
   });
 
-  it('reports the whole chain only when there is one', () => {
+  it('reports forwardedFor only for a chain of more than one hop', () => {
     expect(clientFields(request({'user-agent': 'ua'}))).toEqual({
       ip: '10.0.0.9',
       ua: 'ua',

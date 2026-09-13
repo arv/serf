@@ -69,6 +69,8 @@ object per line for the events an operator wants to count or look up
 `@event:match_start` lists every multiplayer game that began, and
 `@ip:203.0.113.7` is everything one address did.
 
+Every field each event carries, in full:
+
 | `event` | when | fields |
 | --- | --- | --- |
 | `page_view` | the game's document was served (a visit; solo play never opens a socket, so this is most visitors' only trace) | `path`, `ip`, `ua` |
@@ -77,16 +79,24 @@ object per line for the events an operator wants to count or look up
 | `room_create` | a room was made | `conn`, `ip`, `room`, `visibility`, `ai` |
 | `room_join` | a human took a seat | `conn`, `ip`, `room`, `playerId`, `humans` |
 | `rejoin` | a token came back | `conn`, `ip`, `found`, `room`, `playerId` |
-| `match_start` | the host started a match | `room`, `humans`, `ai`, `seats`, `seed`, `size`, `bandits`, `difficulty`, `bots`, `matchesStarted` |
+| `match_start` | the host started a match | `conn`, `ip`, `room`, `visibility`, `humans`, `ai`, `seats`, `seed`, `size`, `bandits`, `difficulty`, `bots`, `matchesStarted`, `runningRooms` |
+
+`page_view` and `connect` also carry `forwardedFor` when the request
+crossed more than one proxy. Every line additionally has the fixed
+`level`, `time`, `message` and `event` keys, which an event's own fields
+can never overwrite.
 
 `conn` is a per-process socket number that ties one connection's lines
-together. `ip` is the rightmost `X-Forwarded-For` entry (the one
-Railway's edge appended; a client can prepend to that header but not
-append after the proxy), or `X-Real-IP` when set, or the socket peer with
-no proxy in front; `forwardedFor` carries the whole chain when there is
-more than one hop. `matchesStarted` counts since the process booted and
-resets with every deploy — the log lines are the durable record, within
-Railway's retention window for your plan.
+together. `ip` is the rightmost `X-Forwarded-For` entry — the hop
+Railway's edge appended, which is the one worth believing because a
+client can prepend to that header but cannot append after the proxy —
+falling back to `X-Real-IP` and then the socket peer when nothing was
+forwarded. `difficulty` and `bots` are read back off the world the match
+was actually built from, not off the lobby's config: the config screens
+shape only, so a client may name a tier or a playbook that does not
+exist, and the line says what is being played. `matchesStarted` counts
+since the process booted and resets with every deploy — the log lines are
+the durable record, within Railway's retention window for your plan.
 
 Railway's own **HTTP logs** (Observability → the service's HTTP Logs, for
 a service with a public domain) record every request the edge proxied,

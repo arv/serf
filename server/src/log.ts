@@ -73,18 +73,21 @@ export function logEvent(
  * peer is the proxy, and the client's address rides in X-Forwarded-For.
  * The rightmost entry is the one the proxy nearest to us appended — a
  * client can prepend anything it likes to that header, but it cannot
- * append after the proxy has. X-Real-IP, when a proxy sets it, is that
- * same address in one field.
+ * append after the proxy has, which is what makes that entry the one worth
+ * believing and why it is consulted first. X-Real-IP is the same address
+ * in one field when a proxy sets it, but nothing appends to it: a request
+ * that arrives carrying its own is indistinguishable from one a proxy
+ * wrote, so it is only ever the fallback, ahead of the bare socket peer.
  */
 export function clientIp(req: IncomingMessage): string {
-  const real = req.headers['x-real-ip'];
-  // Trimmed before it is judged: a header of nothing but spaces is not an
-  // address, and taking it at its length would blank the ip rather than
-  // fall through to the chain below.
-  if (typeof real === 'string' && real.trim().length > 0) return real.trim();
   const parts = forwardedChain(req);
   const last = parts[parts.length - 1];
   if (last) return last;
+  const real = req.headers['x-real-ip'];
+  // Trimmed before it is judged: a header of nothing but spaces is not an
+  // address, and taking it at its length would blank the ip rather than
+  // fall through to the socket peer.
+  if (typeof real === 'string' && real.trim().length > 0) return real.trim();
   return req.socket.remoteAddress ?? 'unknown';
 }
 
