@@ -702,8 +702,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // Real tick behavior — a stopped man drops a chase he used to keep — but
 // 66 is this build's own bump and has never shipped, so there is nothing
 // older to break.
-const EXPECTED_VERSION = 66;
-const EXPECTED_HASH = '4101b5ca0b28c1d8665a2086fa46b2e2';
+// 67 for the clearing's silver seam and the larder that works it: six
+// tiles of ore where bare grass was (defs/maps/clearing.json) and a
+// changed opening stock for mission 1 (defs/missions.ts). Ground and
+// first-tick stock are both worlds a log re-runs in, so a mission log
+// recorded before this build plays back in a different valley. See
+// replayVersion.ts for why the ground moved — the commission was
+// unwinnable on `hard` without it.
+const EXPECTED_VERSION = 67;
+const EXPECTED_HASH = 'c1723a2b4a72bfbec0e31614cb86c605';
 
 /**
  * Everything a replay's playback depends on, as raw source:
