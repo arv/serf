@@ -7,15 +7,14 @@
   the circle a maskable icon is cropped to, so the mask takes only its
   corners.
 
-  Rendered with headless Chromium, once per size, from this directory:
+  Baked by `pnpm icons` (../render.ts), which draws ../stable/icon.svg
+  first so the background this composites over is the current one.
 
-    for s in 512 192 180; do
-      chromium --headless --hide-scrollbars --window-size=$s,$s \
-        --screenshot=out-$s.png icon.html
-    done
-
-  512 and 192 are icon-512.png and icon-192.png; 180 is apple-touch-icon.png.
-  Everything is sized in vw so one document renders at any edge.
+  The box takes its edge from --edge, which the renderer sets once per
+  size; opened in a browser on its own it falls back to filling the
+  viewport. Everything inside is sized against that box in cqw rather than
+  against the window in vw — the renderer draws a 180px icon in a 512px
+  window, and vw would set the band's type for the window.
 -->
 <html>
   <head>
@@ -36,8 +35,9 @@
       }
       .icon {
         position: relative;
-        width: 100vw;
-        height: 100vh;
+        container-type: size;
+        width: var(--edge, 100vw);
+        height: var(--edge, 100vw);
         background: url('../stable/icon-512.png') center / 100% 100% no-repeat;
       }
       .band {
@@ -50,10 +50,10 @@
         align-items: center;
         justify-content: center;
         background: #e0a92e;
-        box-shadow: 0 -1.2vw 0 rgba(20, 30, 20, 0.35);
+        box-shadow: 0 -1.2cqw 0 rgba(20, 30, 20, 0.35);
         font-family: 'Space Grotesk', sans-serif;
         font-weight: 600;
-        font-size: 9.5vw;
+        font-size: 9.5cqw;
         letter-spacing: 0.16em;
         text-indent: 0.16em;
         color: #2a2205;

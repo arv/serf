@@ -1,5 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <title>A — Refined keep</title>
+  <title>Serf Valley</title>
+  <!--
+    Source of the stable icons beside this file; run `pnpm icons` to bake
+    them (../render.ts), which also re-bakes staging's, since the STAGING
+    band is composited over the 512 this produces.
+
+    Three things decide the drawing:
+
+    The manifest lists icon-512.png with `purpose: 'maskable'`, so Android
+    may crop to the middle 80% — a circle of radius 205 on this canvas.
+    Nothing lit reaches past 198.
+
+    Nothing load-bearing goes below y=425, which is where staging's band
+    starts (../staging/icon.html).
+
+    And the colours are the game's own, from src/render/palette.ts: plaster
+    #efe3cc walls over dark timber #4a3220, roofs in the meadow greens, and
+    one lit window in the gold the menu accents with. Pale walls are what
+    give the silhouette something to separate against at 48px, where the
+    merlons and the window have already gone.
+  -->
   <defs>
     <radialGradient id="sky" cx="50%" cy="34%" r="76%">
       <stop offset="0" stop-color="#3a5a3d"/>
@@ -14,7 +34,7 @@
   <rect width="512" height="512" fill="url(#sky)"/>
   <ellipse cx="256" cy="399" rx="168" ry="22" fill="#0d160f" opacity="0.42"/>
 
-  <!-- side towers: crenellated, no roof -->
+  <!-- side towers: crenellated, and not roofed as well -->
   <g>
     <rect x="118" y="252" width="68" height="147" fill="url(#lit)"/>
     <rect x="159" y="252" width="27" height="147" fill="#c3b294"/>
@@ -30,19 +50,16 @@
     <rect x="374" y="236" width="20" height="22" fill="#c3b294"/>
   </g>
 
-  <!-- keep -->
+  <!-- the keep -->
   <rect x="196" y="200" width="120" height="199" fill="url(#lit)"/>
   <rect x="284" y="200" width="32" height="199" fill="#c3b294"/>
 
-  <!-- roof -->
   <path d="M256 104 L344 204 L256 204 Z" fill="#2c552c"/>
   <path d="M256 104 L168 204 L256 204 Z" fill="#41803c"/>
 
-  <!-- pennant -->
   <rect x="252" y="72" width="8" height="40" rx="3" fill="#4a3220"/>
   <path d="M260 76 L308 90 L260 104 Z" fill="#e5c469"/>
 
-  <!-- lit window and door -->
   <rect x="242" y="240" width="28" height="34" rx="4" fill="#e5c469"/>
   <path d="M234 399 L234 348 A22 22 0 0 1 278 348 L278 399 Z" fill="#4a3220"/>
 </svg>
