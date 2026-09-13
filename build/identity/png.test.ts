@@ -5,10 +5,15 @@ import {cropCorner, decodePng, encodePng, type Raster} from './png.ts';
 /** A PNG encoded with one chosen filter on every row. The library encodes
  * with Paeth only, so round-tripping its own output would never exercise
  * the other four un-filter branches — which are exactly the ones Chromium
- * picks from and the ones a mistake would be silent in. */
+ * picks from and the ones a mistake would be silent in.
+ *
+ * `stamp` overwrites one row's filter byte after the rows are built, which
+ * is how a scanline gets a filter type the spec does not define without
+ * the bytes beside it being nonsense too. */
 function pngWithFilter(
   {width, height, channels, pixels}: Raster,
   filter: number,
+  stamp?: {row: number; value: number},
 ): Buffer {
   const paeth = (a: number, b: number, c: number) => {
     const p = a + b - c;
@@ -46,6 +51,7 @@ function pngWithFilter(
     o.writeUInt32BE(crc32(o.subarray(4, 8 + data.length)), 8 + data.length);
     return o;
   };
+  if (stamp !== undefined) out[stamp.row * (stride + 1)] = stamp.value;
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
@@ -108,6 +114,13 @@ describe('decodePng', () => {
 
   it('refuses what it cannot read rather than guessing', () => {
     expect(() => decodePng(Buffer.alloc(64))).toThrow(/not a PNG/);
+  });
+
+  it('refuses a filter type the spec does not define', () => {
+    // The spec stops at 4. Reading a 5 as though it were 0 would decode to
+    // a plausible, wrong image and bake it into a committed icon.
+    const png = pngWithFilter(fixture(12, 8, 4), 0, {row: 3, value: 5});
+    expect(() => decodePng(png)).toThrow(/scanline 3 has filter type 5/);
   });
 });
 

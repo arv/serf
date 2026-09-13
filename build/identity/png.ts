@@ -78,6 +78,12 @@ export function decodePng(png: Buffer): Raster {
   const pixels = Buffer.alloc(height * stride);
   for (let y = 0; y < height; y++) {
     const filter = packed[y * (stride + 1)];
+    // 0-4 is the whole set the spec defines. Anything else is a corrupt or
+    // unreadable scanline, and the one thing worse than refusing it is
+    // taking it for filter 0 and committing a plausible wrong icon.
+    if (filter === undefined || filter > 4) {
+      throw new Error(`PNG scanline ${y} has filter type ${filter}, not 0-4`);
+    }
     const row = y * stride;
     const above = row - stride;
     for (let x = 0; x < stride; x++) {
