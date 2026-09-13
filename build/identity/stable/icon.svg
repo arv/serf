@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <title>Serf Valley</title>
   <!--
-    Source of the stable icons beside this file; run `pnpm icons` to bake
-    them (../render.ts), which also re-bakes staging's, since the STAGING
-    band is composited over the 512 this produces.
+    Source of the stable icons beside this file, and of staging's too:
+    ../staging/icon.html lays its band over this drawing rather than over a
+    baked PNG of it, so `pnpm icons` (../render.ts) re-bakes all six from
+    here and neither channel has to be baked before the other.
 
     Three things decide the drawing:
 
