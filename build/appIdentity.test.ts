@@ -2,10 +2,9 @@ import {existsSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from 'vitest';
-import {ICON_FILES, channelFor, identityFor} from './appIdentity';
+import {ICON_FILES, ICON_SIZES, channelFor, identityFor} from './appIdentity';
 import {retitle} from './appIdentityPlugin';
 import {decodePng} from './identity/png.ts';
-import {SIZES} from './identity/render.ts';
 
 describe('channelFor', () => {
   it('is stable only for the stable branch', () => {
@@ -76,8 +75,8 @@ describe('identityFor', () => {
         const {width, height} = decodePng(readFileSync(join(dir, file)));
         expect({file, width, height}).toEqual({
           file,
-          width: SIZES[file],
-          height: SIZES[file],
+          width: ICON_SIZES[file],
+          height: ICON_SIZES[file],
         });
       }
     },

@@ -29,7 +29,7 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
-import {ICON_FILES} from '../appIdentity.ts';
+import {ICON_FILES, ICON_SIZES} from '../appIdentity.ts';
 import {cropCorner, decodePng} from './png.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -45,16 +45,6 @@ const CHROME =
  * and than the largest icon; taller again by enough to clear the chrome it
  * reserves, which comes out of the viewport rather than the screenshot. */
 const WINDOW = {width: 512, height: 752};
-
-/** What each icon the build ships is the size of. Typed against the list
- * itself so adding a file there and forgetting it here does not compile —
- * `pnpm typecheck` covers this directory (build/tsconfig.json), since the
- * strip-types loader `pnpm icons` runs on would not notice. */
-export const SIZES: Record<(typeof ICON_FILES)[number], number> = {
-  'icon-512.png': 512,
-  'icon-192.png': 192,
-  'apple-touch-icon.png': 180,
-};
 
 const CHANNELS = [
   {channel: 'stable', source: 'icon.svg'},
@@ -79,7 +69,7 @@ function bake(): void {
     const dir = join(HERE, channel);
     const body = readFileSync(join(dir, source), 'utf8');
     for (const file of ICON_FILES) {
-      const edge = SIZES[file];
+      const edge = ICON_SIZES[file];
       const html = join(dir, '.render.html');
       const png = join(dir, file);
       writeFileSync(html, document(source, body, edge));
@@ -113,10 +103,9 @@ function bake(): void {
   }
 }
 
-/** Only when run, not when imported — the test reads SIZES from here and
- * has no business launching a browser to do it. Spelled the way
- * tools/aiLab does it, which is the spelling that survives a path the
- * shell would have escaped. */
+/** Only when run, not when imported: importing this module should never
+ * launch a browser. Spelled the way tools/aiLab spells its own, which is
+ * the spelling that survives a path the shell would have escaped. */
 const entry = process.argv[1];
 if (entry !== undefined && import.meta.url === pathToFileURL(entry).href)
   bake();
