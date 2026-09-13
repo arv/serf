@@ -10,6 +10,7 @@ import {
 } from '../../src/protocol/lobby.ts';
 import {decodeState, encodePong} from '../../src/protocol/state.ts';
 import {sanitizeCommands} from '../../src/sim/commands.ts';
+import {clientFields, logEvent, type ClientFields} from './log.ts';
 import {persistRooms, restorePersistedRooms} from './persist.ts';
 import {
   MAX_COMMANDS_PER_FRAME,
@@ -154,6 +155,16 @@ const http = createServer((req, res) => {
   // The conditional half of no-cache: exact-match If-Modified-Since (the
   // tree is frozen at boot, so the stamp a client echoes back is the stamp
   // it was given). A miss just serves the bytes — never a false 304.
+  // A person opening the game — the document, by whatever path the SPA
+  // fallback mapped there. Counted before the 304 short-circuit: a return
+  // visit whose browser still holds the page is still a visit. Solo play
+  // never opens a socket, so for most visitors this is the only line.
+  if (req.method === 'GET' && file === join(DIST_DIR, 'index.html')) {
+    logEvent('page_view', `page view ${decoded}`, {
+      path: decoded,
+      ...clientFields(req),
+    });
+  }
   const lastModified = STATIC_FILES.get(file);
   if (lastModified !== undefined) {
     res.setHeader('last-modified', lastModified);
@@ -174,6 +185,12 @@ wss.on('error', err => console.error('[serf] websocket server error:', err));
 interface Conn {
   room?: Room;
   seat?: Seat;
+  /** Per-process socket number: what ties one connection's log lines
+   * together, so 'who made room X' is one filter away. */
+  id: number;
+  /** Where the socket came from, as logged with every action it takes. */
+  client: ClientFields;
+  openedMs: number;
   /** Last time this socket asked for the room list (rate limiting). */
   lastListMs?: number;
   /** Last time this socket said something to its table (rate limiting). */
@@ -227,8 +244,18 @@ function broadcastRoomState(room: Room): void {
   }
 }
 
-wss.on('connection', ws => {
-  const conn: Conn = {};
+let nextConnId = 1;
+
+wss.on('connection', (ws, req) => {
+  const conn: Conn = {
+    id: nextConnId++,
+    client: clientFields(req),
+    openedMs: Date.now(),
+  };
+  logEvent('connect', `ws #${conn.id} connected from ${conn.client.ip}`, {
+    conn: conn.id,
+    ...conn.client,
+  });
 
   // A client that vanishes rudely — phone reload, tab kill, radio drop —
   // surfaces as an 'error' on its socket, and an EventEmitter error with
@@ -264,6 +291,13 @@ wss.on('connection', ws => {
 
   ws.on('close', () => {
     const {room, seat} = conn;
+    logEvent('disconnect', `ws #${conn.id} closed`, {
+      conn: conn.id,
+      ip: conn.client.ip,
+      durationMs: Date.now() - conn.openedMs,
+      room: room?.code ?? null,
+      playerId: seat?.playerId ?? null,
+    });
     if (!room || !seat) return;
     // A newer socket may have taken this seat over (worker rejoin after the
     // lobby socket) — only the current socket's close disconnects the seat.
@@ -346,6 +380,17 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       const seat = addSeat(room, 'human', ws);
       conn.room = room;
       conn.seat = seat;
+      logEvent(
+        'room_create',
+        `room ${room.code} created (${room.visibility})`,
+        {
+          conn: conn.id,
+          ip: conn.client.ip,
+          room: room.code,
+          visibility: room.visibility,
+          ai: room.config.ai,
+        },
+      );
       broadcastRoomState(room);
       break;
     }
@@ -366,6 +411,17 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       const seat = addSeat(room, 'human', ws);
       conn.room = room;
       conn.seat = seat;
+      logEvent(
+        'room_join',
+        `room ${room.code} joined as seat ${seat.playerId}`,
+        {
+          conn: conn.id,
+          ip: conn.client.ip,
+          room: room.code,
+          playerId: seat.playerId,
+          humans: room.seats.length,
+        },
+      );
       broadcastRoomState(room);
       break;
     }
@@ -388,9 +444,31 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       if (room.state !== 'lobby') throw new Error('already started');
       // The server builds the world from room.config. With one simulator
       // there is no cross-engine worldgen risk and no blob to ship around.
+      // Humans are the lobby's seats; startMatch fills the rest with AI.
+      const humans = room.seats.filter(s => s.kind === 'human').length;
       startMatch(room);
-      console.log(
-        `[serf] room ${room.code} started, ${room.seats.length} seat(s)`,
+      const stats = serverStats();
+      logEvent(
+        'match_start',
+        `match #${stats.matchesStarted} started in room ${room.code}: ` +
+          `${humans} human(s), ${room.seats.length - humans} ai`,
+        {
+          conn: conn.id,
+          ip: conn.client.ip,
+          room: room.code,
+          visibility: room.visibility,
+          humans,
+          ai: room.seats.length - humans,
+          seats: room.seats.length,
+          seed: room.config.seed,
+          size: room.config.size,
+          bandits: room.config.bandits,
+          difficulty: room.config.difficulty ?? 'normal',
+          bots: room.config.bots ?? [],
+          // Since this process booted — the log is the durable count.
+          matchesStarted: stats.matchesStarted,
+          runningRooms: stats.running,
+        },
       );
       for (const s of room.seats) {
         if (s.connected && s.ws) {
@@ -406,8 +484,17 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
     }
     case 'rejoin': {
       const found = findSeatByToken(msg.token);
-      console.log(
-        `[relay] rejoin token=${msg.token.slice(0, 8)} found=${!!found}`,
+      logEvent(
+        'rejoin',
+        `rejoin token=${msg.token.slice(0, 8)} found=${!!found}` +
+          (found ? ` room ${found.room.code} seat ${found.seat.playerId}` : ''),
+        {
+          conn: conn.id,
+          ip: conn.client.ip,
+          found: !!found,
+          room: found?.room.code ?? null,
+          playerId: found?.seat.playerId ?? null,
+        },
       );
       if (!found) throw new Error('unknown token');
       const {room, seat} = found;

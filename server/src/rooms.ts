@@ -65,6 +65,11 @@ export interface Seat {
   wantsJobs?: boolean;
 }
 
+/** Matches begun since this process booted. Resets with every deploy, so
+ * it is a health-check curiosity; the durable count is the log's
+ * match_start lines. */
+let matchesStarted = 0;
+
 /** Cap on a listing response — the browser has no pagination. */
 const LIST_LIMIT = 20;
 
@@ -296,6 +301,7 @@ export function matchWorldConfig(room: Room): WorldConfig {
  * room's own sanitized settings: with one simulator there is no
  * cross-engine worldgen risk, and no blob to ship. */
 export function startMatch(room: Room): void {
+  matchesStarted++;
   // The computer seats the host asked for, minus the chairs humans took —
   // AI fills in, it never holds a seat against a person.
   const aiFill = Math.max(
@@ -479,6 +485,7 @@ export function serverStats(): {
   rooms: number;
   running: number;
   seats: number;
+  matchesStarted: number;
   pumpMsAvg: number;
   pumpMsPeak: number;
 } {
@@ -497,6 +504,7 @@ export function serverStats(): {
     rooms: rooms.size,
     running,
     seats,
+    matchesStarted,
     pumpMsAvg: running > 0 ? Number((avg / running).toFixed(3)) : 0,
     pumpMsPeak: Number(peak.toFixed(3)),
   };

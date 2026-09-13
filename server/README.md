@@ -60,13 +60,47 @@ Deploy the repo root as a single service:
 WebSockets are not subject to COEP/CORP, so no extra headers or services
 are needed.
 
+## Logs: who connected, which matches started
+
+Beyond the human-readable `[serf] ...` lines, the server writes one JSON
+object per line for the events an operator wants to count or look up
+(`src/log.ts`). Railway's log explorer parses these: `level` and
+`message` are the line, every other key is a filterable attribute — so
+`@event:match_start` lists every multiplayer game that began, and
+`@ip:203.0.113.7` is everything one address did.
+
+| `event` | when | fields |
+| --- | --- | --- |
+| `page_view` | the game's document was served (a visit; solo play never opens a socket, so this is most visitors' only trace) | `path`, `ip`, `ua` |
+| `connect` | a WebSocket client arrived | `conn`, `ip`, `ua` |
+| `disconnect` | ...and left | `conn`, `ip`, `durationMs`, `room`, `playerId` |
+| `room_create` | a room was made | `conn`, `ip`, `room`, `visibility`, `ai` |
+| `room_join` | a human took a seat | `conn`, `ip`, `room`, `playerId`, `humans` |
+| `rejoin` | a token came back | `conn`, `ip`, `found`, `room`, `playerId` |
+| `match_start` | the host started a match | `room`, `humans`, `ai`, `seats`, `seed`, `size`, `bandits`, `difficulty`, `bots`, `matchesStarted` |
+
+`conn` is a per-process socket number that ties one connection's lines
+together. `ip` is the rightmost `X-Forwarded-For` entry (the one
+Railway's edge appended; a client can prepend to that header but not
+append after the proxy), or `X-Real-IP` when set, or the socket peer with
+no proxy in front; `forwardedFor` carries the whole chain when there is
+more than one hop. `matchesStarted` counts since the process booted and
+resets with every deploy — the log lines are the durable record, within
+Railway's retention window for your plan.
+
+Railway's own **HTTP logs** (Observability → the service's HTTP Logs, for
+a service with a public domain) record every request the edge proxied,
+including the WebSocket upgrade, with the client address and user agent —
+that is the raw per-request traffic view; the lines above are the
+game-level one.
+
 ## Capacity
 
 `/health` reports load, not just liveness:
 
 ```json
 { "ok": true, "rooms": 100, "running": 100, "seats": 200,
-  "pumpMsAvg": 0.057, "pumpMsPeak": 1.587 }
+  "matchesStarted": 140, "pumpMsAvg": 0.057, "pumpMsPeak": 1.587 }
 ```
 
 `pumpMsAvg` is the per-room cost of one pump — simulate, recompute
