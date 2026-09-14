@@ -16,16 +16,23 @@ import {batchTicks} from '../sim/batchTicks.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
 import {
+  OUTPUT_CAP,
   TOOL_OF,
   buildingDef,
   convertRecipeOf,
   gatherOrigin,
   gatherRecipeOf,
+  rationOf,
   type BuildingDef,
 } from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import {GOODS, type GoodAmounts} from '../sim/defs/goods.ts';
+import {
+  GOODS,
+  goodEntries,
+  goodKeys,
+  type GoodAmounts,
+} from '../sim/defs/goods.ts';
 import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
 import {TECH_DEFS} from '../sim/defs/techs.ts';
 import {UNIT_DEFS, carryingCode} from '../sim/defs/units.ts';
@@ -126,6 +133,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,
     ...reachStock(world, b),
     outWaitingSince: outWaitingSinceOf(world, b),
+    ...shortageOf(world, b, def),
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
@@ -244,6 +252,125 @@ function outWaitingSinceOf(world: World, b: Building): number | undefined {
     if (oldest === undefined || j.createdTick < oldest) oldest = j.createdTick;
   }
   return oldest;
+}
+
+/**
+ * What this post is standing still FOR: the goods it has a standing ask
+ * out for, holds none of, and cannot work without — with the tick the
+ * oldest of those asks opened.
+ *
+ * The card could already name two of the three ways a building goes
+ * quiet: ground worked out (resourceLeft) and a shelf nobody comes for
+ * (outWaitingSince). The third is the one that draws as nothing at all —
+ * an empty input buffer prints as "none", so a mine idling for want of
+ * bread looks exactly like a mine that wants for nothing, and the player
+ * is left to know the ration rule or wonder.
+ *
+ * Mirrors the gates production.ts actually returns on, in production's own
+ * order: a full output shelf stalls a post before its ingredients are ever
+ * looked at, so a hut stopped by its own shelf is not also reported short
+ * of what it would have eaten next. The tool peg is asked separately
+ * because a different system holds that gate — staffing calls nobody to a
+ * post whose tool is missing (systems/staffing.ts), so the post has no
+ * worker to stop and no batch to stall, and the card's "needs a worker!"
+ * on its own never says why nobody came.
+ *
+ * Demand-clocked on purpose: the ask itself is what the logistics layer
+ * ages (Building.demandSince), so a good with no clock is one this post is
+ * not actually calling for, and the age comes from the same place the
+ * haulers' own queue reads it. A stable tick rather than an age, for
+ * outWaitingSince's reason — the roster ships only when its body changes.
+ */
+function shortageOf(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+): {shortOf?: GoodId[]; shortSince?: number} {
+  if (b.state !== BuildingState.built || b.paused) return {};
+  const short: Partial<Record<GoodId, true>> = {};
+
+  const tool = TOOL_OF[b.type];
+  const worker =
+    b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+  const manned = worker !== undefined && !worker.dead;
+  if (tool !== undefined && !manned && (b.inputs[tool] ?? 0) < 1)
+    short[tool] = true;
+
+  if (!outputFull(b, def)) {
+    const ration = rationOf(def);
+    if (ration && !b.rationLeft && (b.inputs[ration.good] ?? 0) < 1) {
+      // A gatherer's pantry: the one input a mine has, and the gate its
+      // worker idles on twenty ticks at a time (gatherStep).
+      short[ration.good] = true;
+    } else if (b.prodTicksLeft === undefined) {
+      // Nothing on the fire, so an ingredient it has none of is what the
+      // fire is waiting on. Filtered to ingredients this roof actually
+      // cooks with, so a storehouse's shopping list — it asks for
+      // everything — reports nothing.
+      const ingredients = ingredientsOf(def);
+      for (const good of goodKeys(b.demandSince)) {
+        if ((b.inputs[good] ?? 0) < 1 && ingredients.has(good))
+          short[good] = true;
+      }
+    }
+  }
+
+  // Only what this post is actually calling for. The clock is the filter
+  // as much as the age: a good the logistics layer has not booked a
+  // standing demand for is one nothing is on its way to fix, or one the
+  // post has no use for yet — an unmanned mine wants its pick, not the
+  // bread the miner it does not have would have eaten. In GOODS order
+  // however they were found, so the same shortage always serializes the
+  // same way.
+  let since: number | undefined;
+  const shortOf = GOODS.filter(good => {
+    if (!short[good]) return false;
+    const asked = b.demandSince[good];
+    if (asked === undefined) return false;
+    if (since === undefined || asked < since) since = asked;
+    return true;
+  });
+  return shortOf.length > 0 ? {shortOf, shortSince: since} : {};
+}
+
+/**
+ * Is this post's own shelf what stopped it? The first gate in both
+ * production steps: a gatherer at OUTPUT_CAP idles its worker, and a
+ * converter whose next batch would overflow the shelf never reaches the
+ * ingredient check. A Smith on auto answers no — what it would forge next
+ * is not knowable from the def alone (convertRecipeOf), and a forge whose
+ * shelf is full of tools is the haulers' story anyway.
+ */
+function outputFull(b: Building, def: BuildingDef): boolean {
+  const gather = gatherRecipeOf(def);
+  if (gather) return (b.stock[gather.output] ?? 0) >= OUTPUT_CAP;
+  const convert = convertRecipeOf(def, b);
+  if (!convert) return false;
+  for (const [good, n] of goodEntries(convert.outputs))
+    if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return true;
+  return false;
+}
+
+/**
+ * Every good this roof cooks with, across its fixed recipe and every
+ * option on its menu. Static table data, so it is computed once per def —
+ * the same bargain the sim's own recipe caches strike.
+ */
+const ingredientCache = new WeakMap<BuildingDef, Set<GoodId>>();
+function ingredientsOf(def: BuildingDef): Set<GoodId> {
+  let goods = ingredientCache.get(def);
+  if (goods) return goods;
+  goods = new Set<GoodId>();
+  const recipes = [
+    ...(def.recipe ? [def.recipe] : []),
+    ...(def.recipeOptions?.map(o => o.recipe) ?? []),
+  ];
+  for (const recipe of recipes) {
+    if (recipe.kind !== RecipeKind.convert) continue;
+    for (const good of goodKeys(recipe.inputs)) goods.add(good);
+  }
+  ingredientCache.set(def, goods);
+  return goods;
 }
 
 /**

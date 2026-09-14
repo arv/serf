@@ -9,7 +9,12 @@ import {
   TICKS_PER_SECOND,
   TRAIN_QUEUE_CAP,
 } from '../sim/defs/balance';
-import {BUILDING_DEFS, gatherRecipeOf, repairBill} from '../sim/defs/buildings';
+import {
+  BUILDING_DEFS,
+  TOOL_OF,
+  gatherRecipeOf,
+  repairBill,
+} from '../sim/defs/buildings';
 import {type GoodAmounts, goodEntries, goodKeys} from '../sim/defs/goods';
 import {UNIT_DEFS} from '../sim/defs/units';
 import {GoodIcon, LockIcon, UnitIcon} from './icons';
@@ -65,6 +70,7 @@ import {ROSTER_TILES, hpFraction, hpTone, rosterGroups} from './roster';
 import {hauledIn, hauledTotal, studyProgress01} from './techProgress.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
 type OrderMode = Enum<typeof OrderMode>;
 
@@ -170,6 +176,39 @@ const HAUL_STARVED_TIP =
   'goods home, so a village short of hands starves its storehouse first. ' +
   'Hire serfs at the castle, or let the sites and workshops ahead of ' +
   'this pile finish.';
+
+/**
+ * The same patience for the other empty readout. A building calls for what
+ * it needs and a hauler walks it over; asking and waiting a few seconds is
+ * the ordinary beat of every village, and a card that cried over it would
+ * cry all game. What is worth saying is a call nobody has answered.
+ */
+const SHORT_AFTER = 10 * TICKS_PER_SECOND;
+
+/**
+ * Why a post with a worker on it and ground under it still makes nothing:
+ * the buffer is empty. It is the one stall the card could not draw, since
+ * an empty buffer prints as "none" — the same nothing a post that wants
+ * nothing prints.
+ *
+ * Three sentences, one per shape of shortage, because the move each asks
+ * for is different: a peg wants the Smith, a pantry wants the bakery or
+ * the shore, a cold fire wants whatever feeds it.
+ */
+function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
+  const def = BUILDING_DEFS[b.type];
+  const named = goods.map(goodName).join(' and ');
+  // The peg first: a post reports its tool short only while nobody stands
+  // in it, so this branch is the empty rack and nothing else.
+  if (goods.some(good => good === TOOL_OF[b.type])) {
+    return `Nobody will take this post until a ${named} hangs on its peg — a tool is what a serf is handed on his way in, and the Smith is the only place one comes from. Queue one at the forge, and the post fills itself the moment it arrives.`;
+  }
+  const ration = gatherRecipeOf(def)?.ration;
+  if (ration) {
+    return `A mine feeds its miner: one ${named} buys a few loads out of the seam, and with the pantry empty he waits at the shaft head rather than going down. The bread chain is well, field, mill and oven — or a fishery, which wants no field and no iron at all. Until something in the valley makes food, no ore comes out of this hill.`;
+  }
+  return `The fire is cold for want of ${named}: this workshop has a standing call out for it and none in the buffer. Check that something in the valley still makes it, that the post that does has its own tool and worker, and that there are hands free to carry it here.`;
+}
 
 export function SelectionPanel(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
@@ -576,6 +615,18 @@ export function SelectionPanel(props: {
               on this card for as long as the building is selected or
               never on it. */
           const gather = () => gatherRecipeOf(def());
+          /** What this post has been calling for, unanswered long enough
+              to be worth saying — the goods themselves, so the line that
+              draws them is either on the card or not at all. Both halves
+              are needed: goods with no clock on them cannot be aged, and
+              an unaged shortage is the ordinary beat of haulage. */
+          const short = (): GoodId[] | undefined => {
+            const goods = b().shortOf;
+            const since = b().shortSince;
+            if (!goods || goods.length === 0 || since === undefined)
+              return undefined;
+            return simTick() - since >= SHORT_AFTER ? goods : undefined;
+          };
           /** Raised by the seat this client plays. What names the card
               when it is not — and, outside a replay, the only seat the
               pointer can reach at all. */
@@ -1473,6 +1524,46 @@ export function SelectionPanel(props: {
                   </span>
                 </Show>
               </div>
+              {/* What the empty half of that line means. GoodsLine prints a
+                  zero as "none", so the buffer a post is stopped on looks
+                  the same as a buffer it never wanted — the roster carries
+                  the difference (BuildingSnap.shortOf) and this is where it
+                  is said. Aged against the frame clock like the hauler
+                  line above, and for the same reason: the tick it ships is
+                  stable on purpose. */}
+              <Show when={short()}>
+                {goods => (
+                  <div class="sel-line">
+                    <TipWrap
+                      tip={() => (
+                        <TextTip
+                          title={`Waiting on ${goods().map(goodName).join(' and ')}`}
+                          body={shortTip(b(), goods())}
+                        />
+                      )}
+                    >
+                      <span class="sel-starved">
+                        short of
+                        <For each={goods()}>
+                          {good => (
+                            <>
+                              {' '}
+                              <GoodIcon good={good} size={12} />
+                            </>
+                          )}
+                        </For>{' '}
+                        for{' '}
+                        <span class="num">
+                          {Math.floor(
+                            (simTick() - b().shortSince!) / TICKS_PER_SECOND,
+                          )}
+                        </span>
+                        s
+                      </span>
+                    </TipWrap>
+                  </div>
+                )}
+              </Show>
               {/* The people card's last line, for the same reason: the
                   order rows above are drawn in a replay — the queue and
                   the locks are what a recording is opened to read — and

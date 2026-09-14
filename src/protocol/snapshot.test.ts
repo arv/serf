@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
+import {OUTPUT_CAP} from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as TechId from '../sim/defs/techIdEnum.ts';
@@ -232,6 +233,122 @@ describe('snapBuilding: outWaitingSince', () => {
       serfId: 99,
     });
     expect(snapBuilding(world, hut).outWaitingSince).toBeUndefined();
+  });
+});
+
+/**
+ * The empty-buffer readout: what a post is standing still FOR. The card
+ * prints a zero as "none", so this is the difference between a mine that
+ * wants nothing and a mine whose miner has no bread — and the sim knew it
+ * all along (Building.demandSince), it simply never reached the wire.
+ */
+describe('snapBuilding: shortOf', () => {
+  /** A mine with its pick on the peg, its miner in it, and a seam to work
+   *  — everything but the bread. */
+  function fedMine(world: World) {
+    const mine = placeBuiltBuilding(world, BuildingTypeId.ironMine, 0, 30, 30);
+    mine.inputs[GoodId.pickaxe] = 1;
+    staffBuilding(world, mine);
+    return mine;
+  }
+
+  it('names the ration a mine is idling on, and when it started asking', () => {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const mine = fedMine(world);
+    world.tick = 900;
+    mine.demandSince[GoodId.food] = 300;
+
+    const snap = snapBuilding(world, mine);
+    expect(snap.shortOf).toEqual([GoodId.food]);
+    expect(snap.shortSince).toBe(300);
+  });
+
+  it('says nothing while there is a ration in the pantry', () => {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const mine = fedMine(world);
+    mine.inputs[GoodId.food] = 1;
+    mine.demandSince[GoodId.food] = 300;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+
+    // ...nor while the ration already bought covers the next loads.
+    mine.inputs[GoodId.food] = 0;
+    mine.rationLeft = 2;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('blames the shelf before the pantry when the shelf is full', () => {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const mine = fedMine(world);
+    mine.demandSince[GoodId.food] = 300;
+    // A gatherer at OUTPUT_CAP downs tools before its ration is ever
+    // looked at (gatherStep), and the card says that with its own line.
+    mine.stock[GoodId.iron] = OUTPUT_CAP;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('names the tool an empty peg is waiting on', () => {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    // No pick, so staffing calls nobody: "needs a worker!" on its own
+    // never said why nobody came.
+    const mine = placeBuiltBuilding(world, BuildingTypeId.ironMine, 0, 30, 30);
+    mine.demandSince[GoodId.pickaxe] = 120;
+    const snap = snapBuilding(world, mine);
+    expect(snap.shortOf).toEqual([GoodId.pickaxe]);
+    expect(snap.shortSince).toBe(120);
+  });
+
+  it('names the ingredient a cold fire is asking for, once it is asked', () => {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    world.players[0]!.techs.researched.push(TechId.ironworking);
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      30,
+      30,
+    );
+    staffBuilding(world, smith);
+    smith.inputs[GoodId.wood] = 5;
+    smith.demandSince[GoodId.iron] = 805;
+    expect(snapBuilding(world, smith).shortOf).toEqual([GoodId.iron]);
+
+    // A batch on the fire is not a stall, whatever the buffer looks like.
+    smith.prodTicksLeft = 40;
+    expect(snapBuilding(world, smith).shortOf).toBeUndefined();
+  });
+
+  it('reports nothing for a shelf that merely wants restocking', () => {
+    const world = bareWorld();
+    // A castle asks for everything and cooks with nothing; a shopping
+    // list is not a stalled post.
+    const store = addStorehouse(world, 20, 20, {});
+    store.demandSince[GoodId.wood] = 100;
+    expect(snapBuilding(world, store).shortOf).toBeUndefined();
+  });
+
+  it('is silent on a post the player stood down', () => {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const mine = fedMine(world);
+    mine.demandSince[GoodId.food] = 300;
+    mine.paused = true;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('holds still while the wait stands, so the roster body does too', () => {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const mine = fedMine(world);
+    world.tick = 900;
+    mine.demandSince[GoodId.food] = 300;
+    const before = JSON.stringify(snapBuilding(world, mine));
+    world.tick = 9000; // the wait ages; nothing about the shortage moved
+    expect(JSON.stringify(snapBuilding(world, mine))).toBe(before);
   });
 });
 

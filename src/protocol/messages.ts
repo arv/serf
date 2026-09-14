@@ -178,6 +178,27 @@ export interface BuildingSnap {
    * (JobSnap below).
    */
   outWaitingSince?: number;
+  /**
+   * What this post is standing still for: goods it has a standing ask out
+   * for, holds none of, and cannot work without — its tool off the peg,
+   * the bread a mine's worker eats, the ingredients a cold fire wants.
+   * Absent when nothing is short, which is the ordinary case.
+   *
+   * The card's third silence, and the only one that drew as nothing: an
+   * empty buffer prints as "none", so a mine idling for want of a ration
+   * looked exactly like a mine wanting for nothing. In GOODS order, so the
+   * same shortage always serializes the same way.
+   */
+  shortOf?: GoodId[];
+  /**
+   * The tick the oldest of those asks opened (Building.demandSince).
+   * Present whenever shortOf is: a good with no clock on it is not
+   * something this post has booked a standing call for, and is left out of
+   * both. A tick rather than an age, for outWaitingSince's reason — the
+   * roster ships only when its serialized body changes, and the client
+   * turns this into a wait against the frame's own tick.
+   */
+  shortSince?: number;
 }
 
 /** Debug-overlay row for a haul job. */
