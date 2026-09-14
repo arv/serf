@@ -302,16 +302,19 @@ function shortageOf(
   let kinds = 0;
   if (!manned) kinds |= DemandKind.tool;
   if (!outputFull(b, def)) {
-    // At the shaft head, not on the road: the ration is charged when a
-    // load is won, so a miner who ate the last loaf on this trip is
-    // still walking his ore home with an empty pantry behind him. His
-    // post is not stopped until he is back and idle, which is the only
-    // task state gatherStep asks the question in.
+    // At the shaft head, empty-handed: the ration is charged when a load
+    // is won, so a miner who ate the last loaf on this trip is still
+    // walking his ore home with an empty pantry behind him. gatherStep
+    // asks the ration question in one state only — idle, carrying
+    // nothing — because a man idling with ore in his arms is stopped by
+    // the walk home he could not finish, not by the bread he has not
+    // got, and that is the wait worth naming.
     if (
       manned &&
       rationOf(def) &&
       !b.rationLeft &&
-      worker.task.t === UnitTaskKind.idle
+      worker.task.t === UnitTaskKind.idle &&
+      worker.carrying === undefined
     ) {
       kinds |= DemandKind.ration;
     }
@@ -372,19 +375,44 @@ const SHORT_AFTER = 10 * TICKS_PER_SECOND;
 function outputFull(b: Building, def: BuildingDef): boolean {
   const gather = gatherRecipeOf(def);
   if (gather) return (b.stock[gather.output] ?? 0) >= OUTPUT_CAP;
-  // Production's own order of service: the queue before the standing
-  // order (pickForgeBatch). An unstarted order HOLDS the fire rather than
-  // falling through, so the head of the queue is what the shelf has to be
-  // measured against — reading the standing recipe instead would blame a
-  // full spear shelf for a pickaxe order's missing stone.
-  const queued = b.forgeQueue?.find(o => !o.started);
-  const convert = queued
-    ? def.recipeOptions?.[queued.recipeIndex]?.recipe
-    : convertRecipeOf(def, b);
+  const convert = nextBatch(b, def);
   if (!convert) return false;
   for (const [good, n] of goodEntries(convert.outputs))
     if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return true;
   return false;
+}
+
+/**
+ * What this converter would put on the fire next, in production's own
+ * order of service (pickForgeBatch): the first queued order that is both
+ * unstarted and stocked — an unready one is passed over rather than
+ * holding the board — and, with no queue, the standing order.
+ *
+ * A Smith on auto answers undefined, which reads here as "shelf not the
+ * blocker". That is the honest answer and, as it happens, a harmless one:
+ * resolving auto means a census of the whole village (autoForgeIndex),
+ * which is not a bill four snapshots a second should pay — and an auto
+ * Smith whose shelf is full of a tool has that tool counted as free in
+ * its own census, so the gap it would forge against closes, no input
+ * demand is raised, and there is no shortage here to suppress either way.
+ */
+function nextBatch(
+  b: Building,
+  def: BuildingDef,
+): ReturnType<typeof convertRecipeOf> {
+  if (b.forgeQueue && def.recipeOptions) {
+    for (const order of b.forgeQueue) {
+      if (order.started) continue;
+      const recipe = def.recipeOptions[order.recipeIndex]?.recipe;
+      if (!recipe) continue;
+      const ready = goodEntries(recipe.inputs).every(
+        ([good, n]) => (b.inputs[good] ?? 0) >= n,
+      );
+      if (ready) return recipe;
+    }
+    return undefined;
+  }
+  return convertRecipeOf(def, b);
 }
 
 /**

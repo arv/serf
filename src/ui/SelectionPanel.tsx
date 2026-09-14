@@ -195,13 +195,19 @@ function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
   // ingredients at all (snapshot.ts) — nobody is at that fire to want
   // them. So this branch is the empty rack, never a rack and a recipe.
   if (goods.some(good => good === TOOL_OF[b.type])) {
-    return `Nobody will take this post until a ${named} hangs on its peg — a tool is what a serf is handed on his way in, and the Smith is the only place one comes from. Queue one at the forge, and the post fills itself the moment it arrives.`;
+    // No article in front of the tool: the names are title-case and some
+    // begin with a vowel, and "a Axe" is not a sentence anyone wants on a
+    // card. The peg takes the name plainly instead.
+    return `Nobody will take this post until its peg has a tool on it — ${named}. A tool is what a serf is handed on his way in, and the Smith is the only place one comes from. Queue one at the forge, and the post fills itself the moment it arrives.`;
   }
   const ration = gatherRecipeOf(def)?.ration;
   if (ration) {
     return `A mine feeds its miner: one ${named} buys a few loads out of the seam, and with the pantry empty he waits at the shaft head rather than going down. The bread chain is well, field, mill and oven — or a fishery, which wants no field and no iron at all. Until something in the valley makes food, no ore comes out of this hill.`;
   }
-  return `The fire is cold for want of ${named}: this workshop has a standing call out for it and none in the buffer. Check that something in the valley still makes it, that the post that does has its own tool and worker, and that there are hands free to carry it here.`;
+  // Neutral words: this branch is every converter, and most of them have
+  // no fire — a field waits on water and a mill on wheat, and telling
+  // their owner the forge has gone cold teaches him the wrong village.
+  return `Nothing is being made here for want of ${named}: this post has a standing call out for it and none in hand. Check that something in the valley still makes it, that the post that does has its own tool and worker, and that there are hands free to carry it here.`;
 }
 
 export function SelectionPanel(props: {

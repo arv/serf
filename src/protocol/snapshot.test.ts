@@ -400,6 +400,45 @@ describe('snapBuilding: shortOf', () => {
     expect(snapBuilding(world, smith).shortOf).toEqual([GoodId.stone]);
   });
 
+  it('is silent on a miner idling with ore in his arms', () => {
+    // gatherStep's idle branch tries the walk home first and leaves him
+    // idle-and-carrying when it fails, one gate before the ration is
+    // looked at. What stops that post is the road, not the bread.
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    const miner = staffBuilding(world, mine);
+    settle(world);
+    expect(snapBuilding(world, mine).shortOf).toEqual([GoodId.food]);
+
+    miner.carrying = GoodId.iron;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('passes over a queued order the fire would pass over', () => {
+    // pickForgeBatch takes the first queued order that is BOTH unstarted
+    // and stocked, so an unready one is stepped over rather than holding
+    // the board. The shelf that matters is the one the spear would fill.
+    const world = shortWorld();
+    const smith = smithIn(world);
+    smith.inputs[GoodId.iron] = 2; // the spear is ready...
+    smith.stock[GoodId.spear] = OUTPUT_CAP; // ...and its shelf is full
+    const opts = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!;
+    const PICKAXE = opts.findIndex(
+      o => (o.recipe.outputs[GoodId.pickaxe] ?? 0) > 0,
+    );
+    const SPEAR = opts.findIndex(
+      o => (o.recipe.outputs[GoodId.spear] ?? 0) > 0,
+    );
+    smith.forgeQueue = [
+      {recipeIndex: PICKAXE, started: false}, // wants stone it has not got
+      {recipeIndex: SPEAR, started: false},
+    ];
+    settle(world);
+
+    expect(snapBuilding(world, smith).shortOf).toBeUndefined();
+  });
+
   it('does not mistake a repair bill for an ingredient', () => {
     // demandSince is one clock per good and the masons share it: a
     // damaged Smith ages its repair stone on the same key its recipe
