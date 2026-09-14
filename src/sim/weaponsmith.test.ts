@@ -372,6 +372,41 @@ describe('the forge queue', () => {
       expect(smith.stock[GoodId.axe] ?? 0).toBe(0);
     });
 
+    it('will not pass over a ready peg for one it cannot forge yet', () => {
+      const {world, smith} = forgeWorld();
+      // One iron and two wood: the axe is a batch this fire can start, the
+      // shore's rod (three wood) is not. Naming the rod would stall the
+      // forge — and the axe is what puts the woodcutter back to cutting
+      // the very wood the rod is waiting for.
+      smith.inputs[GoodId.iron] = 1;
+      smith.inputs[GoodId.wood] = 2;
+      placeBuiltBuilding(world, BuildingTypeId.fishery, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 40, 40);
+
+      let guard = 0;
+      while ((smith.stock[GoodId.axe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.axe]).toBe(1);
+      expect(smith.stock[GoodId.rod] ?? 0).toBe(0);
+    });
+
+    it('lifts the peg the oven is asking for, not the one the brewery is', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      // Both roofs hang a cauldron and only one of them feeds anybody.
+      // With no oven open, the cauldron is a barrel of ale, so it earns
+      // no lift and the count decides: the axe, first in GOODS order.
+      placeBuiltBuilding(world, BuildingTypeId.brewery, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 40, 40);
+
+      let guard = 0;
+      while ((smith.stock[GoodId.axe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.axe]).toBe(1);
+      expect(smith.stock[GoodId.cauldron] ?? 0).toBe(0);
+    });
+
     it('hands the count back the moment there is bread anywhere', () => {
       const {world, smith} = forgeWorld();
       smith.inputs[GoodId.iron] = 4;

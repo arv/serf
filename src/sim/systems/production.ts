@@ -341,6 +341,7 @@ export function autoForgeIndex(
   // is identical to the dictionary version's.
   want.fill(0);
   free.fill(0);
+  larderWant.fill(0);
   const owner = b.owner;
   // Bread the village can actually eat: every output shelf, which is what
   // a hauler can lift and carry to whoever is hungry, plus the pantry of a
@@ -391,6 +392,8 @@ export function autoForgeIndex(
     if ((ob.inputs[tool] ?? 0) + (ob.inbound[tool] ?? 0) > 0) continue; // already served
     const slot = TOOL_SLOT[tool]!;
     want[slot] = want[slot]! + 1;
+    // ...and whether the post doing the asking is one that feeds anybody.
+    if (LARDER_POST[ob.type]) larderWant[slot] = 1;
   }
   const byTool = forgeIndexByTool(def);
   const starving = larder === 0;
@@ -403,11 +406,23 @@ export function autoForgeIndex(
   for (let i = 0; i < TOOL_COUNT; i++) {
     const gap = want[i]! - free[i]!;
     if (gap <= 0) continue;
-    const larderTool = starving ? LARDER_TOOL[i]! : 0;
-    if (larderTool < bestLarder) continue;
-    if (larderTool === bestLarder && gap <= bestGap) continue;
     const index = byTool[i]!;
     if (index < 0 || !optionUnlocked(world, owner, def, index)) continue;
+    // A peg only jumps the queue if this fire can fill it NOW. Auto is
+    // allowed to name a batch it cannot start — that is how the Smith asks
+    // for what it lacks (walkDemands reads this answer) — but a hungry
+    // village must not spend that on a rod it has no wood for while a
+    // ready axe, the one that puts the woodcutter back to work cutting
+    // that wood, stands untouched. Unready, the peg keeps its gap and
+    // competes on the count like any other.
+    const larderTool =
+      starving &&
+      larderWant[i] === 1 &&
+      inputsPresent(b, def.recipeOptions![index]!.recipe)
+        ? 1
+        : 0;
+    if (larderTool < bestLarder) continue;
+    if (larderTool === bestLarder && gap <= bestGap) continue;
     bestIndex = index;
     bestGap = gap;
     bestLarder = larderTool;
@@ -423,6 +438,8 @@ const HAMMER_SLOT = TOOL_SLOT[GoodId.hammer]!;
 /** Counts, not sums of measurements: whole tools, so exact as doubles. */
 const want = new Float64Array(TOOL_COUNT);
 const free = new Float64Array(TOOL_COUNT);
+/** Which of those wants came from a post on the bread chain, this census. */
+const larderWant = new Uint8Array(TOOL_COUNT);
 
 /**
  * What each post feeds its worker at the face, by building type — TOOL_OF's
@@ -441,22 +458,27 @@ for (const type of BUILDING_TYPES) {
 }
 
 /**
- * Which pegs the next meal hangs on, as 1/0 by tool slot — the table
+ * Which POSTS stand on the bread chain, by building type — what
  * autoForgeIndex lifts above the gap counts when every shelf is bare.
+ *
+ * By post and not by peg, because a peg can serve both sides: the oven and
+ * the brewery hang the same cauldron, and a cauldron forged for a village
+ * with no bakery open is a barrel of ale, not a meal. What earns the lift
+ * is an open post on the chain asking, which is a fact about this village
+ * at this tick — so the static half says which roofs are on the chain and
+ * the census below records which of them are actually calling.
  *
  * Closed over the defs rather than listed by hand. A GOOD is on the bread
  * chain if it is food itself, or if a recipe that makes something on the
- * chain consumes it; a TOOL is on it when the post that hangs it makes
- * anything on the chain. Today that reads scythe (the field), cauldron
- * (the oven) and rod (the shore) — the mill and the well are on the chain
- * too and hang no tool, which is exactly why the table is derived: it says
- * which pegs matter, not which roofs do. A new roof between the field and
- * the oven joins by existing, and one that goes takes its peg with it.
+ * chain consumes it; a POST is on it when it makes anything on the chain.
+ * Today that reads the field, the mill, the well, the oven and the shore —
+ * two of which hang no tool at all, which is exactly why this is derived.
+ * A new roof between the field and the oven joins by existing.
  *
  * Static table data, so it is computed once at module load rather than per
  * call — the same bargain forgeIndexByTool strikes below.
  */
-const LARDER_TOOL = (() => {
+const LARDER_POST = (() => {
   const recipesOf = (def: BuildingDef): Recipe[] =>
     def.recipeOptions
       ? def.recipeOptions.map(o => o.recipe)
@@ -495,14 +517,12 @@ const LARDER_TOOL = (() => {
     }
   }
 
-  const slots = new Uint8Array(TOOL_COUNT);
+  const posts: Partial<Record<BuildingTypeId, true>> = {};
   for (const type of BUILDING_TYPES) {
-    const tool = TOOL_OF[type];
-    if (tool === undefined) continue;
     if (recipesOf(BUILDING_DEFS[type]).some(r => onChain(r, chain)))
-      slots[TOOL_SLOT[tool]!] = 1;
+      posts[type] = true;
   }
-  return slots;
+  return posts;
 })();
 
 /**

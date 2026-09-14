@@ -716,7 +716,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // batch moves every haul and bind after it, so yesterday's logs cannot
 // re-run. replayVersion.ts carries the whole argument.
 const EXPECTED_VERSION = 68;
-const EXPECTED_HASH = '93cfe59090f650330a912bcd4a98aaf1';
+const EXPECTED_HASH = '2a45bdb25c098af79794620b582dc05f';
 
 /**
  * Everything a replay's playback depends on, as raw source:
