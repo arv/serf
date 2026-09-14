@@ -1224,14 +1224,15 @@ const SCYTHE_CARRY: Hold = {x: 0.35, y: Math.PI, z: -0.1};
  *
  * Read off the clip rather than guessed: at the cut (the fast third of
  * Melee_2H_Attack_Slice, where the blade crosses his front) these angles
- * put the blade's own plane within 5 degrees of level and its edge within
- * 36 of the direction of travel, tip at a hand's height over the turf.
- * Measured with the model lab's `?rx=/?ry=/?rz=` knobs on `_farm.html`.
+ * put the blade's own plane within 6 degrees of level and its edge within
+ * 39 of the direction of travel, tip at a hand's height over the turf.
+ * Measured with the model lab's `?rx=/?ry=/?rz=` knobs on `_farm.html`,
+ * averaged over the three frames of the cut itself.
  *
  * The aim is flatter than it was because the grip moved down the snath
  * (packScytheProp): the blade swings further out from a fist nearer the
  * butt, so less drop is needed to lay it on the stalks. That costs the
- * edge some of its lead — 30 degrees off the travel at the old grip, 36
+ * edge some of its lead — 27 degrees off the travel at the old grip, 39
  * at this one — which is the price of a mower's leverage and cheap at it.
  *
  * No single hold does both jobs: every hold that lays the blade flat in
