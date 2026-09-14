@@ -15,12 +15,14 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
  * shipped that way and nobody noticed until someone went looking for the
  * mill.
  *
- * Three tabs, and three is the count the frame asks for. The grid is a
- * declared three columns by two rows (Hud.tsx), so six is the most a tab
- * can hold before a button hides below a scroll line — and sixteen
- * buildings across three tabs is 5/6/5, nothing hidden and no tab that is
- * half an empty card. Four could not have both: War stood at two buttons
- * in a six-slot frame while the player hunted for the Smith that armed it.
+ * Three tabs, and three is the count the frame asks for. The grid is three
+ * columns and the frame two rows deep (Hud.tsx), so six is a tab's worth —
+ * and eighteen buildings across three tabs is 6/6/6, every tab full and
+ * none of them overflowing. Past six the frame grows a row rather than
+ * hiding a button, so a seventh building costs every tab the same row of
+ * empty cells; six is what keeps that bill at nothing. Four tabs could not:
+ * War stood at two buttons in a six-slot frame while the player hunted for
+ * the Smith that armed it.
  *
  * What each tab holds is one sentence — what the village is built from and
  * paid for with, what it eats and drinks, what it fights with. The sort is by what the output buys, which is the question the
@@ -39,10 +41,18 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
  * it. Three identical buildings, three different tabs, because the question
  * is what comes out and not what it looks like.
  *
- * The forge goes where its output is spent, which moves the Smith out of
- * Village, where it sat for being ungated and the source of every tool —
- * true, and still not a reason to look for a forge under housing. The chord
- * (B, then S) reaches it from any tab regardless.
+ * The Smith is the second exception, and it is filed by who comes looking
+ * rather than by what it makes. Sorting it by its output puts it on Arms,
+ * beside the spears — but it is also the village's only source of tools,
+ * nine of the ten posts want one (TOOL_OF), and it is ungated precisely so
+ * that it is reachable from a standing start. A player three minutes into a
+ * match, hunting for the building that lets a fisherman fish, should not
+ * have to reason that tools are a kind of weapon; a player raising an army
+ * already knows where spears are made. So the iron chain is the one chain
+ * that crosses a tab — mine on Arms, forge on Village — and the crossing is
+ * charged to the player who has already learned the chain rather than to
+ * the one who has not. The chord (B, then S) reaches it from either tab
+ * regardless.
  *
  * The Brewery is the one building placed by what goes in rather than what
  * comes out, and it earns the exception. Ale is brewed from the Food tab's
@@ -61,9 +71,9 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
  *
  * Each tab is filled in chain order, and the rows are three wide, so a
  * chain reads left to right the way it runs: well, farm, mill along the
- * first row of Food and the bakery under them; ore, forge, barracks along
- * the top of Arms. Following a chain never costs a click, because no chain
- * crosses a tab.
+ * first row of Food and the bakery under them. Following a chain costs no
+ * click anywhere except the one crossing above — the iron the Smith eats is
+ * mined a tab away.
  */
 /**
  * The tab names, as a union rather than bare strings: the field guide owes
@@ -75,14 +85,18 @@ export type BuildGroupLabel = 'Village' | 'Food' | 'Arms';
 
 export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
   [
-    // Top row the three you raise without thinking; under them the Abbey and
-    // the coin that pays for what it researches.
+    // Top row the three you raise without thinking. Under them the Smith,
+    // which is the fourth — nine of the ten posts want a tool and it is the
+    // only place tools come from — and then the Abbey and the coin that pays
+    // for what it researches, which stay side by side because they are one
+    // decision.
     {
       label: 'Village',
       types: [
         BuildingTypeId.house,
         BuildingTypeId.woodcutter,
         BuildingTypeId.quarry,
+        BuildingTypeId.weaponsmith,
         BuildingTypeId.abbey,
         BuildingTypeId.silverMine,
       ],
@@ -105,19 +119,18 @@ export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
         BuildingTypeId.brewery,
       ],
     },
-    // Ore, forge, army along the top, in that order and in that direction.
-    // Under them the ones that come later: the wall raised when the raids
-    // start, the gilding affordable once the army already stands — and the
-    // Monument, last because it is the end of that gold and the end of the
-    // match. It sits on Arms rather than Village for the reason the gold
-    // mine does: this tab is where the deep seam's chain lives, and the
-    // Monument is what the seam is finally for. That it wins the game
+    // Ore and the two musters along the top, in that order and in that
+    // direction. Under them the ones that come later: the wall raised when
+    // the raids start, the gilding affordable once the army already stands
+    // — and the Monument, last because it is the end of that gold and the
+    // end of the match. It sits on Arms rather than Village for the reason
+    // the gold mine does: this tab is where the deep seam's chain lives, and
+    // the Monument is what the seam is finally for. That it wins the game
     // without an army is the joke, not a filing error.
     {
       label: 'Arms',
       types: [
         BuildingTypeId.ironMine,
-        BuildingTypeId.weaponsmith,
         BuildingTypeId.barracks,
         BuildingTypeId.archeryRange,
         BuildingTypeId.guardTower,

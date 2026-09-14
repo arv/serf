@@ -2063,11 +2063,11 @@ export function Hud(props: {
             right: calc(var(--hud-margin) + var(--safe-right));
             left: calc(var(--hud-margin) + var(--safe-left));
             z-index: 20;
-            /* As tall as its own tab needs and no taller — four cells in
-               the Village tab is four cells, not the two declared rows
-               the bottom card always reserved whether or not anything
-               stood in the second one. Past the cap the ribbon scrolls,
-               which is what the War tab does on the shortest screens.
+            /* As tall as the ribbon needs and no taller — the cells a tab
+               actually holds, not the rows the bottom card always
+               reserved whether or not anything stood in them. Past the
+               cap the ribbon scrolls, which is what it does on the
+               shortest screens.
                The top edge stays auto for that: pinning both edges would
                stretch the sheet to fill, which is how the old card came
                to be mostly empty. It grows upward from the bottom
