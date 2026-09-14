@@ -407,6 +407,57 @@ describe('the forge queue', () => {
       expect(smith.stock[GoodId.cauldron] ?? 0).toBe(0);
     });
 
+    it('does not count a loaf a hauler has already claimed', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 40, 40);
+      // Two loaves on the castle shelf and both already promised to
+      // somewhere that is not a pantry — a training order, a Monument's
+      // bill. Nobody hungry can eat them.
+      const castle = castleOf(world);
+      castle.stock[GoodId.food] = 2;
+      castle.reservedOut[GoodId.food] = 2;
+
+      let guard = 0;
+      while ((smith.stock[GoodId.scythe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.scythe]).toBe(1);
+      expect(smith.stock[GoodId.axe] ?? 0).toBe(0);
+    });
+
+    it('counts a loaf on the road to a pantry, which is the same loaf', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 40, 40);
+      // The same two loaves, claimed for a mine's pantry: subtracted off
+      // the shelf they left and added back at the shaft they are walking
+      // to, so the village still reads as one that can eat, and the count
+      // decides — the axe, first in GOODS order.
+      const castle = castleOf(world);
+      castle.stock[GoodId.food] = 2;
+      castle.reservedOut[GoodId.food] = 2;
+      const mine = placeBuiltBuilding(
+        world,
+        BuildingTypeId.ironMine,
+        0,
+        44,
+        44,
+      );
+      mine.inputs[GoodId.pickaxe] = 1; // not an open peg: no gap of its own
+      staffBuilding(world, mine);
+      mine.inbound[GoodId.food] = 2;
+
+      let guard = 0;
+      while ((smith.stock[GoodId.axe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.axe]).toBe(1);
+      expect(smith.stock[GoodId.scythe] ?? 0).toBe(0);
+    });
+
     it('hands the count back the moment there is bread anywhere', () => {
       const {world, smith} = forgeWorld();
       smith.inputs[GoodId.iron] = 4;

@@ -343,20 +343,32 @@ export function autoForgeIndex(
   free.fill(0);
   larderWant.fill(0);
   const owner = b.owner;
-  // Bread the village can actually eat: every output shelf, which is what
-  // a hauler can lift and carry to whoever is hungry, plus the pantry of a
-  // post that eats at the face (RATION_OF) — a mine's loaf is bread doing
-  // its job rather than bread gone missing.
+  // Bread the village can actually eat, which is narrower than bread it
+  // holds. Three terms, and each of the other two is a way a loaf can be
+  // on a shelf and spoken for:
   //
-  // Not every input buffer, which is the same field wearing a different
-  // hat: a barracks holds its recruit's rations there (BUILDING_DEFS
-  // trains.cost) and nothing ever carries them out again, so counting them
-  // reads a village whose last three loaves are promised to a spearman as
-  // a village that can feed its miners.
+  // - every output shelf, MINUS what a hauler has already claimed off it
+  //   (reservedOut) — the same arithmetic the tool count does four lines
+  //   below, and for the same reason: a promised loaf is going somewhere
+  //   already, and where it is going decides whether it still feeds
+  //   anybody;
+  // - the pantry of a post that eats at the face (RATION_OF), because a
+  //   mine's loaf is bread doing its job rather than bread gone missing —
+  //   but NOT every input buffer, which is the same field wearing a
+  //   different hat: a barracks holds its recruit's rations there
+  //   (trains.cost) and nothing ever carries them back out, so counting
+  //   those reads a village whose last loaves are promised to a spearman
+  //   as one that can feed its miners;
+  // - and what is on the road TO such a pantry (inbound), which is the
+  //   other side of the first term: the loaf a hauler took off the oven's
+  //   shelf for a mine is subtracted there and added back here, while the
+  //   one he took for the barracks or a Monument's bill is subtracted and
+  //   stays subtracted.
   //
-  // Loaves in a hauler's arms are not counted either: they are between
-  // shelves for a few ticks, and a census that walked the units to find
-  // them would cost more than the one batch of hindsight it saves.
+  // Loaves in a hauler's arms for nobody in particular are not counted:
+  // they are between shelves for a few ticks, and a census that walked the
+  // units to find them would cost more than the one batch of hindsight it
+  // saves.
   let larder = 0;
   for (const ob of world.buildings.values()) {
     if (ob.dead || ob.owner !== owner) continue;
@@ -375,8 +387,10 @@ export function autoForgeIndex(
     const stock = ob.stock;
     const reservedOut = ob.reservedOut;
     larder +=
-      (stock[GoodId.food] ?? 0) +
-      (RATION_OF[ob.type] === GoodId.food ? (ob.inputs[GoodId.food] ?? 0) : 0);
+      Math.max(0, (stock[GoodId.food] ?? 0) - (reservedOut[GoodId.food] ?? 0)) +
+      (RATION_OF[ob.type] === GoodId.food
+        ? (ob.inputs[GoodId.food] ?? 0) + (ob.inbound[GoodId.food] ?? 0)
+        : 0);
     for (let i = 0; i < TOOL_COUNT; i++) {
       // Tools on a shelf (minus those already promised to a hauler) can
       // still reach any open post, wherever they sit.
