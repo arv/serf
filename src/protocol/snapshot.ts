@@ -315,7 +315,17 @@ function shortageOf(
     ) {
       kinds |= DemandKind.ration;
     }
-    if (b.prodTicksLeft === undefined) kinds |= DemandKind.input;
+    // And a fire nobody is standing at is not waiting on ingredients:
+    // productionSystem stops at the worker check before convertStep is
+    // ever reached, so an empty oven wants its cauldron, not its flour.
+    // A roof that needs no one (the well) is never stopped that way and
+    // reports its inputs whoever is or is not about.
+    if (
+      b.prodTicksLeft === undefined &&
+      (def.workerKind === undefined || manned)
+    ) {
+      kinds |= DemandKind.input;
+    }
   }
   if (kinds === 0) return {};
 

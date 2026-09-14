@@ -190,8 +190,10 @@ const HAUL_STARVED_TIP =
 function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
   const def = BUILDING_DEFS[b.type];
   const named = goods.map(goodName).join(' and ');
-  // The peg first: a post reports its tool short only while nobody stands
-  // in it, so this branch is the empty rack and nothing else.
+  // The peg first, and it can be the whole story: a post reports its tool
+  // short only while nobody stands in it, and an unmanned post reports no
+  // ingredients at all (snapshot.ts) — nobody is at that fire to want
+  // them. So this branch is the empty rack, never a rack and a recipe.
   if (goods.some(good => good === TOOL_OF[b.type])) {
     return `Nobody will take this post until a ${named} hangs on its peg — a tool is what a serf is handed on his way in, and the Smith is the only place one comes from. Queue one at the forge, and the post fills itself the moment it arrives.`;
   }

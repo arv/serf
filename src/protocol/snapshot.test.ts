@@ -331,6 +331,19 @@ describe('snapBuilding: shortOf', () => {
     expect(snapBuilding(world, mine).shortOf).toBeUndefined();
   });
 
+  it('wants a hand at an empty oven before it wants flour', () => {
+    // walkDemands keeps a converter's input marks open whether or not
+    // anyone stands in it, but productionSystem stops at the worker check
+    // before the ingredient gate — so the card names the peg alone, and
+    // the tooltip that speaks for a peg is never handed a recipe's goods.
+    const world = shortWorld();
+    const bakery = placeBuiltBuilding(world, BuildingTypeId.bakery, 0, 30, 30);
+    settle(world);
+    expect(bakery.demandSince[GoodId.water]).toBeDefined(); // asked for...
+
+    expect(snapBuilding(world, bakery).shortOf).toEqual([GoodId.cauldron]);
+  });
+
   it('says nothing while there is a ration in the pantry', () => {
     const world = shortWorld();
     const mine = mineIn(world);
