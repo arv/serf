@@ -20,6 +20,49 @@
  * directly.
  */
 /**
+ * 68: a bare larder outranks the widest gap at the forge.
+ *
+ * A Smith on auto picks its next batch from a census of the village's open
+ * pegs — posts standing tool-less, minus tools already free to reach them
+ * — and the widest gap won, ties broken on GOODS order (autoForgeIndex,
+ * systems/production.ts). It now ranks on (feeds the village, gap): with
+ * no bread the village can eat, a peg an open post on the bread chain is
+ * asking for comes first — the field's scythe, the oven's cauldron, the
+ * shore's rod. Which roofs those are is closed over the defs rather than
+ * listed, so a new one between the field and the oven joins by existing;
+ * and it is the asking POST that earns the lift, not the peg, because the
+ * oven and the brewery hang the same cauldron and only one of them feeds
+ * anybody. The lift also wants a batch this fire can start now: auto may
+ * still name one it cannot (that is how a Smith asks for what it lacks),
+ * but a hungry village must not spend that on a rod it has no wood for
+ * while a ready axe stands untouched. With bread on any shelf it is the
+ * same widest-gap rule it always was.
+ *
+ * "Bread the village can eat" is every output shelf plus the pantry of a
+ * post that eats at the face, and deliberately not every input buffer: a
+ * barracks holds its recruit's rations in that same field and nothing ever
+ * carries them back out, so counting them would read a village whose last
+ * loaves are promised to a spearman as one that can feed its miners.
+ *
+ * Sim behavior, so the logs break: a Smith left on auto is a Smith whose
+ * next batch the tick decides, and this changes which batch that is. One
+ * different batch moves every haul, bind and hire after it.
+ *
+ * Why it was worth breaking them: the chains are not symmetric, and the
+ * old tie-break did not know it. Every mine eats (MINE_RATION_PER), so the
+ * ore that pays for the next axe cannot be cut until the oven runs — while
+ * an axe buys timber a village with a full granary can wait for. Where
+ * that bites is a bare rack: a commission whose whole puzzle is the empty
+ * pegs (Hammer and Haft) spends its opening iron one batch at a time, and
+ * a tie broken toward the woods can leave the field, the oven and the
+ * shaft all shut with nothing in the valley to eat. That is the circle the
+ * pickaxe's recipe is written to avoid one chain over ("lose your picks
+ * and no ore ever flows again", defs/buildings.ts) — reached the long way
+ * round, through bread.
+ *
+ * 67's note follows.
+ */
+/**
  * 67: the clearing keeps a silver seam, and the crown sends the kit for it.
  *
  * Mission 1's ground changed — six tiles of silver about twenty-five out
@@ -1135,4 +1178,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 67;
+export const REPLAY_VERSION = 68;

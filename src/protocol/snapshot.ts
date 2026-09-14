@@ -14,22 +14,25 @@ import {exactDist} from '../shared/math.ts';
 import {distToFootprint} from '../sim/arrival.ts';
 import {batchTicks} from '../sim/batchTicks.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
-import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
+import {HIRE_SERF_TICKS, TICKS_PER_SECOND} from '../sim/defs/balance.ts';
 import {
+  OUTPUT_CAP,
   TOOL_OF,
   buildingDef,
   convertRecipeOf,
   gatherOrigin,
   gatherRecipeOf,
+  rationOf,
   type BuildingDef,
 } from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import {GOODS, type GoodAmounts} from '../sim/defs/goods.ts';
+import {GOODS, goodEntries, type GoodAmounts} from '../sim/defs/goods.ts';
 import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
 import {TECH_DEFS} from '../sim/defs/techs.ts';
 import {UNIT_DEFS, carryingCode} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as DemandKind from '../sim/demandKindEnum.ts';
 import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
@@ -126,6 +129,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,
     ...reachStock(world, b),
     outWaitingSince: outWaitingSinceOf(world, b),
+    ...shortageOf(world, b, def),
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
@@ -244,6 +248,188 @@ function outWaitingSinceOf(world: World, b: Building): number | undefined {
     if (oldest === undefined || j.createdTick < oldest) oldest = j.createdTick;
   }
   return oldest;
+}
+
+/**
+ * What this post is standing still FOR: the goods it has a standing ask
+ * out for, holds none of, and cannot work without — with the tick the
+ * oldest of those asks opened.
+ *
+ * The card could already name two of the three ways a building goes
+ * quiet: ground worked out (resourceLeft) and a shelf nobody comes for
+ * (outWaitingSince). The third is the one that draws as nothing at all —
+ * an empty input buffer prints as "none", so a mine idling for want of
+ * bread looks exactly like a mine that wants for nothing, and the player
+ * is left to know the ration rule or wonder.
+ *
+ * Read off the demand marks rather than the buffer alone, because a good
+ * in `demandSince` says only that SOMETHING is calling for it: a damaged
+ * Smith's repair bill ages its stone on the same clock its recipe ages
+ * its iron on, and a card that read the clocks alone would report a cold
+ * forge short of stone it does not forge with. `demandHeld` is the
+ * discriminator the sim already keeps — a bit per kind of demand
+ * (DemandKind) — so this asks for exactly three of them, each under the
+ * gate the sim itself stops on:
+ *
+ * - the TOOL, while nobody holds the post: staffing calls no one to a
+ *   post whose peg is empty (systems/staffing.ts), which is why the
+ *   card's "needs a worker!" could never say why nobody came;
+ * - the RATION, while a worker holds it and has no meal in hand: the
+ *   gate gatherStep idles a miner on, and only ever reached by a manned
+ *   post — an empty mine is short of a pick, not of bread;
+ * - the INPUTS, while nothing is on the fire: logistics resolves these
+ *   against what the post will actually forge next (walkDemands, and
+ *   forgeDemandRecipe at a Smith), so a forge queued onto bows reports
+ *   the wood it waits for rather than every ingredient on its menu.
+ *
+ * Ahead of all three, the shelf: a full output buffer stalls a post
+ * before its ingredients are ever looked at, so a hut stopped by its own
+ * shelf is not also reported short of what it would have eaten next.
+ *
+ * A stable tick rather than an age, for outWaitingSince's reason — the
+ * roster ships only when its body changes.
+ */
+function shortageOf(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+): {shortOf?: GoodId[]; shortSince?: number} {
+  if (b.state !== BuildingState.built || b.paused) return {};
+  const worker =
+    b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+  const manned = worker !== undefined && !worker.dead;
+
+  let kinds = 0;
+  if (!manned) kinds |= DemandKind.tool;
+  if (!outputFull(b, def)) {
+    // At the shaft head, empty-handed: the ration is charged when a load
+    // is won, so a miner who ate the last loaf on this trip is still
+    // walking his ore home with an empty pantry behind him. gatherStep
+    // asks the ration question in one state only — idle, carrying
+    // nothing — because a man idling with ore in his arms is stopped by
+    // the walk home he could not finish, not by the bread he has not
+    // got, and that is the wait worth naming.
+    if (
+      manned &&
+      rationOf(def) &&
+      !b.rationLeft &&
+      worker.task.t === UnitTaskKind.idle &&
+      worker.carrying === undefined
+    ) {
+      kinds |= DemandKind.ration;
+    }
+    // And a fire nobody is standing at is not waiting on ingredients:
+    // productionSystem stops at the worker check before convertStep is
+    // ever reached, so an empty oven wants its cauldron, not its flour.
+    // A roof that needs no one (the well) is never stopped that way and
+    // reports its inputs whoever is or is not about.
+    if (
+      b.prodTicksLeft === undefined &&
+      (def.workerKind === undefined || manned)
+    ) {
+      kinds |= DemandKind.input;
+    }
+  }
+  if (kinds === 0) return {};
+
+  // In GOODS order, so the same shortage always serializes the same way.
+  let since: number | undefined;
+  const shortOf = GOODS.filter(good => {
+    if ((((b.demandHeld?.[good] ?? 0) as number) & kinds) === 0) return false;
+    if ((b.inputs[good] ?? 0) >= 1) return false;
+    const asked = b.demandSince[good];
+    if (asked === undefined) return false;
+    if (since === undefined || asked < since) since = asked;
+    return true;
+  });
+  // Patience lives here rather than on the card, and not for tidiness: a
+  // roster section ships only when its serialized body CHANGES
+  // (simWorker's postStructural), so a village where nothing else is
+  // happening — which is exactly a village with a stalled post — sends no
+  // frames, the HUD's clock stops with it, and a threshold measured up
+  // there would never come round. Crossing it down here is itself the
+  // change that posts the frame.
+  if (shortOf.length === 0 || since === undefined) return {};
+  if (world.tick - since < SHORT_AFTER) return {};
+  return {shortOf, shortSince: since};
+}
+
+/**
+ * How long a call goes unanswered before the card says so. A building
+ * asks for what it needs and a hauler walks it over; asking and waiting a
+ * few seconds is the ordinary beat of every village, and a card that
+ * cried over that would teach the player to ignore it. Ten seconds is the
+ * hauler line's patience (HAUL_STARVED_AFTER, ui/SelectionPanel.tsx), and
+ * the two alarms sit one above the other.
+ */
+const SHORT_AFTER = 10 * TICKS_PER_SECOND;
+
+/**
+ * Is this post's own shelf what stopped it? The first gate in both
+ * production steps: a gatherer at OUTPUT_CAP idles its worker, and a
+ * converter whose next batch would overflow the shelf never reaches the
+ * ingredient check. A Smith on auto answers no — what it would forge next
+ * is not knowable from the def alone (convertRecipeOf), and a forge whose
+ * shelf is full of tools is the haulers' story anyway.
+ */
+function outputFull(b: Building, def: BuildingDef): boolean {
+  const gather = gatherRecipeOf(def);
+  if (gather) return (b.stock[gather.output] ?? 0) >= OUTPUT_CAP;
+  // A menu with nothing stocked never reaches the shelf at all: convertStep
+  // asks "could ANY option burn" first (anyOptionReady) and returns there,
+  // so a Smith with a full spear shelf AND an empty buffer is stopped by
+  // both and has to be reported by the emptier one — saying nothing,
+  // because a shelf it was never going to reach is full, is the silence
+  // this whole readout exists to end.
+  if (def.recipeOptions && !anyStocked(b, def)) return false;
+  const convert = nextBatch(b, def);
+  if (!convert) return false;
+  for (const [good, n] of goodEntries(convert.outputs))
+    if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return true;
+  return false;
+}
+
+/** Could any option on this menu burn right now? convertStep's first gate,
+ *  and the cheap one it is: ingredients only, no tech and no choosing. */
+function anyStocked(b: Building, def: BuildingDef): boolean {
+  return (def.recipeOptions ?? []).some(o =>
+    goodEntries(o.recipe.inputs).every(
+      ([good, n]) => (b.inputs[good] ?? 0) >= n,
+    ),
+  );
+}
+
+/**
+ * What this converter would put on the fire next, in production's own
+ * order of service (pickForgeBatch): the first queued order that is both
+ * unstarted and stocked — an unready one is passed over rather than
+ * holding the board — and, with no queue, the standing order.
+ *
+ * A Smith on auto answers undefined, which reads here as "shelf not the
+ * blocker". That is the honest answer and, as it happens, a harmless one:
+ * resolving auto means a census of the whole village (autoForgeIndex),
+ * which is not a bill four snapshots a second should pay — and an auto
+ * Smith whose shelf is full of a tool has that tool counted as free in
+ * its own census, so the gap it would forge against closes, no input
+ * demand is raised, and there is no shortage here to suppress either way.
+ */
+function nextBatch(
+  b: Building,
+  def: BuildingDef,
+): ReturnType<typeof convertRecipeOf> {
+  if (b.forgeQueue && def.recipeOptions) {
+    for (const order of b.forgeQueue) {
+      if (order.started) continue;
+      const recipe = def.recipeOptions[order.recipeIndex]?.recipe;
+      if (!recipe) continue;
+      const ready = goodEntries(recipe.inputs).every(
+        ([good, n]) => (b.inputs[good] ?? 0) >= n,
+      );
+      if (ready) return recipe;
+    }
+    return undefined;
+  }
+  return convertRecipeOf(def, b);
 }
 
 /**

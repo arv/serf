@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
+import {TICKS_PER_SECOND} from '../sim/defs/balance.ts';
+import {BUILDING_DEFS, OUTPUT_CAP} from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as TechId from '../sim/defs/techIdEnum.ts';
@@ -232,6 +234,261 @@ describe('snapBuilding: outWaitingSince', () => {
       serfId: 99,
     });
     expect(snapBuilding(world, hut).outWaitingSince).toBeUndefined();
+  });
+});
+
+/**
+ * The empty-buffer readout: what a post is standing still FOR. The card
+ * prints a zero as "none", so this is the difference between a mine that
+ * wants nothing and a mine whose miner has no bread — and the sim knew it
+ * all along (Building.demandSince and the marks beside it), it simply
+ * never reached the wire.
+ *
+ * The fixtures tick rather than write the clocks by hand: which demands a
+ * post actually raises is the whole question here (an unmanned mine calls
+ * for bread it has nobody to feed), so the answer has to come from
+ * walkDemands rather than from the test's idea of it.
+ */
+describe('snapBuilding: shortOf', () => {
+  /** A castle holding nothing anyone is short of, so a demand raised in
+   *  these fixtures stays one instead of being answered mid-test. */
+  function shortWorld(): World {
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {
+      [GoodId.axe]: 0,
+      [GoodId.pickaxe]: 0,
+      [GoodId.scythe]: 0,
+      [GoodId.hammer]: 0,
+      [GoodId.cauldron]: 0,
+      [GoodId.rod]: 0,
+    });
+    return world;
+  }
+  /**
+   * Long enough for a matcher pass to walk the demands, and then for the
+   * wait to outlast the roster's patience — a shortage reaches the wire
+   * only once it has stood (see SHORT_AFTER in snapshot.ts), so a fixture
+   * that ticked a dozen times would prove nothing either way.
+   */
+  const settle = (world: World, ticks = 12 * TICKS_PER_SECOND) => {
+    for (let i = 0; i < ticks; i++) tickWorld(world, []);
+  };
+  const mineIn = (world: World) =>
+    placeBuiltBuilding(world, BuildingTypeId.ironMine, 0, 30, 30);
+  function smithIn(world: World) {
+    world.players[0]!.techs.researched.push(TechId.ironworking);
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      36,
+      36,
+    );
+    staffBuilding(world, smith);
+    // A standing order, so what it forges next is a fact rather than a
+    // census: spears, which want iron and wood.
+    smith.recipeIndex = 0;
+    smith.inputs[GoodId.wood] = 5;
+    return smith;
+  }
+
+  it('names the ration a mine is idling on, and when it started asking', () => {
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1; // peg filled
+    staffBuilding(world, mine);
+    settle(world);
+
+    const snap = snapBuilding(world, mine);
+    expect(snap.shortOf).toEqual([GoodId.food]);
+    expect(snap.shortSince).toBe(mine.demandSince[GoodId.food]);
+  });
+
+  it('leaves the bread out of an empty mine: no miner, no meal', () => {
+    // Logistics keeps a mine's pantry demand open whether or not anyone
+    // stands in it, so both clocks run — but the post is stopped at the
+    // peg, one gate earlier, and the card says the thing to act on.
+    const world = shortWorld();
+    const mine = mineIn(world);
+    settle(world);
+    expect(mine.demandSince[GoodId.food]).toBeDefined(); // the clock runs...
+
+    expect(snapBuilding(world, mine).shortOf).toEqual([GoodId.pickaxe]); // ...unsaid
+  });
+
+  it('waits for the miner to be back at the shaft head', () => {
+    // The ration is charged when a load is won, so a miner can be walking
+    // ore home with an empty pantry behind him. Nothing is stopped yet,
+    // and gatherStep does not ask the question until he is idle again.
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    const miner = staffBuilding(world, mine);
+    settle(world);
+    expect(snapBuilding(world, mine).shortOf).toEqual([GoodId.food]);
+
+    miner.task = {t: UnitTaskKind.gatherHome};
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('wants a hand at an empty oven before it wants flour', () => {
+    // walkDemands keeps a converter's input marks open whether or not
+    // anyone stands in it, but productionSystem stops at the worker check
+    // before the ingredient gate — so the card names the peg alone, and
+    // the tooltip that speaks for a peg is never handed a recipe's goods.
+    const world = shortWorld();
+    const bakery = placeBuiltBuilding(world, BuildingTypeId.bakery, 0, 30, 30);
+    settle(world);
+    expect(bakery.demandSince[GoodId.water]).toBeDefined(); // asked for...
+
+    expect(snapBuilding(world, bakery).shortOf).toEqual([GoodId.cauldron]);
+  });
+
+  it('says nothing while there is a ration in the pantry', () => {
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    staffBuilding(world, mine);
+    mine.inputs[GoodId.food] = 1;
+    settle(world);
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+
+    // ...nor while the ration already bought covers the next loads.
+    mine.inputs[GoodId.food] = 0;
+    mine.rationLeft = 2;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('blames the shelf before the pantry when the shelf is full', () => {
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    staffBuilding(world, mine);
+    settle(world);
+    // A gatherer at OUTPUT_CAP downs tools before its ration is ever
+    // looked at (gatherStep), and the card says that with its own line.
+    mine.stock[GoodId.iron] = OUTPUT_CAP;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('names the ingredient a cold fire is asking for', () => {
+    const world = shortWorld();
+    const smith = smithIn(world);
+    settle(world);
+    expect(snapBuilding(world, smith).shortOf).toEqual([GoodId.iron]);
+
+    // A batch on the fire is not a stall, whatever the buffer looks like.
+    smith.prodTicksLeft = 40;
+    expect(snapBuilding(world, smith).shortOf).toBeUndefined();
+  });
+
+  it('measures the shelf against the batch that is actually next', () => {
+    // A queued order holds the fire ahead of the standing one
+    // (pickForgeBatch), so a full spear shelf is not what stops a Smith
+    // whose next batch is a pickaxe waiting on stone.
+    const world = shortWorld();
+    const smith = smithIn(world);
+    smith.stock[GoodId.spear] = OUTPUT_CAP; // the standing order's shelf
+    const PICKAXE = BUILDING_DEFS[
+      BuildingTypeId.weaponsmith
+    ].recipeOptions!.findIndex(
+      o => (o.recipe.outputs[GoodId.pickaxe] ?? 0) > 0,
+    );
+    smith.forgeQueue = [{recipeIndex: PICKAXE, started: false}];
+    settle(world);
+
+    expect(snapBuilding(world, smith).shortOf).toEqual([GoodId.stone]);
+  });
+
+  it('is silent on a miner idling with ore in his arms', () => {
+    // gatherStep's idle branch tries the walk home first and leaves him
+    // idle-and-carrying when it fails, one gate before the ration is
+    // looked at. What stops that post is the road, not the bread.
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    const miner = staffBuilding(world, mine);
+    settle(world);
+    expect(snapBuilding(world, mine).shortOf).toEqual([GoodId.food]);
+
+    miner.carrying = GoodId.iron;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('passes over a queued order the fire would pass over', () => {
+    // pickForgeBatch takes the first queued order that is BOTH unstarted
+    // and stocked, so an unready one is stepped over rather than holding
+    // the board. The shelf that matters is the one the spear would fill.
+    const world = shortWorld();
+    const smith = smithIn(world);
+    smith.inputs[GoodId.iron] = 2; // the spear is ready...
+    smith.stock[GoodId.spear] = OUTPUT_CAP; // ...and its shelf is full
+    const opts = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!;
+    const PICKAXE = opts.findIndex(
+      o => (o.recipe.outputs[GoodId.pickaxe] ?? 0) > 0,
+    );
+    const SPEAR = opts.findIndex(
+      o => (o.recipe.outputs[GoodId.spear] ?? 0) > 0,
+    );
+    smith.forgeQueue = [
+      {recipeIndex: PICKAXE, started: false}, // wants stone it has not got
+      {recipeIndex: SPEAR, started: false},
+    ];
+    settle(world);
+
+    expect(snapBuilding(world, smith).shortOf).toBeUndefined();
+  });
+
+  it('names the empty buffer even when the shelf is full too', () => {
+    // Stopped twice over: the spear shelf is full AND there is nothing to
+    // forge with. convertStep never reaches the shelf — anyOptionReady
+    // turns it back first — so the emptier blocker is the one to name.
+    // Saying nothing here would be the exact silence this readout ends.
+    const world = shortWorld();
+    const smith = smithIn(world);
+    smith.inputs[GoodId.wood] = 0; // no option on the menu is stocked
+    smith.stock[GoodId.spear] = OUTPUT_CAP;
+    settle(world);
+
+    expect(snapBuilding(world, smith).shortOf).toEqual([
+      GoodId.wood,
+      GoodId.iron,
+    ]);
+  });
+
+  it('does not mistake a repair bill for an ingredient', () => {
+    // demandSince is one clock per good and the masons share it: a
+    // damaged Smith ages its repair stone on the same key its recipe
+    // would age a pickaxe's stone on. Only the production marks count.
+    const world = shortWorld();
+    const smith = smithIn(world);
+    smith.hp = 40;
+    smith.repairNeeds = {[GoodId.stone]: 3};
+    settle(world);
+    expect(smith.demandSince[GoodId.stone]).toBeDefined(); // the masons ask...
+
+    expect(snapBuilding(world, smith).shortOf).toEqual([GoodId.iron]); // ...unsaid
+  });
+
+  it('is silent on a post the player stood down', () => {
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    staffBuilding(world, mine);
+    settle(world);
+    mine.paused = true;
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('holds still while the wait stands, so the roster body does too', () => {
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    staffBuilding(world, mine);
+    settle(world);
+    const before = JSON.stringify(snapBuilding(world, mine));
+    world.tick = 9000; // the wait ages; nothing about the shortage moved
+    expect(JSON.stringify(snapBuilding(world, mine))).toBe(before);
   });
 });
 
