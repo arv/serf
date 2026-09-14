@@ -204,10 +204,14 @@ function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
   if (ration) {
     return `A mine feeds its miner: one ${named} buys a few loads out of the seam, and with the pantry empty he waits at the shaft head rather than going down. The bread chain is well, field, mill and oven — or a fishery, which wants no field and no iron at all. Until something in the valley makes food, no ore comes out of this hill.`;
   }
-  // Neutral words: this branch is every converter, and most of them have
-  // no fire — a field waits on water and a mill on wheat, and telling
-  // their owner the forge has gone cold teaches him the wrong village.
-  return `Nothing is being made here for want of ${named}: this post has a standing call out for it and none in hand. Check that something in the valley still makes it, that the post that does has its own tool and worker, and that there are hands free to carry it here.`;
+  // Neutral words twice over: this branch is every converter, and most of
+  // them have no fire — a field waits on water and a mill on wheat, and
+  // telling their owner the forge has gone cold teaches him the wrong
+  // village. Nor does it send him looking for a peg and a hand at
+  // whatever makes the missing good: the well and the mill, which are
+  // what a field and an oven wait on, hang no tool and hold no worker at
+  // all. "Running" covers every shape of producer there is.
+  return `Nothing is being made here for want of ${named}: this post has a standing call out for it and none in hand. Check that something in the valley makes it, that whatever does is running rather than stopped itself, and that there are hands free to carry it here.`;
 }
 
 export function SelectionPanel(props: {
