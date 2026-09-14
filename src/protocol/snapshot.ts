@@ -375,11 +375,28 @@ const SHORT_AFTER = 10 * TICKS_PER_SECOND;
 function outputFull(b: Building, def: BuildingDef): boolean {
   const gather = gatherRecipeOf(def);
   if (gather) return (b.stock[gather.output] ?? 0) >= OUTPUT_CAP;
+  // A menu with nothing stocked never reaches the shelf at all: convertStep
+  // asks "could ANY option burn" first (anyOptionReady) and returns there,
+  // so a Smith with a full spear shelf AND an empty buffer is stopped by
+  // both and has to be reported by the emptier one — saying nothing,
+  // because a shelf it was never going to reach is full, is the silence
+  // this whole readout exists to end.
+  if (def.recipeOptions && !anyStocked(b, def)) return false;
   const convert = nextBatch(b, def);
   if (!convert) return false;
   for (const [good, n] of goodEntries(convert.outputs))
     if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return true;
   return false;
+}
+
+/** Could any option on this menu burn right now? convertStep's first gate,
+ *  and the cheap one it is: ingredients only, no tech and no choosing. */
+function anyStocked(b: Building, def: BuildingDef): boolean {
+  return (def.recipeOptions ?? []).some(o =>
+    goodEntries(o.recipe.inputs).every(
+      ([good, n]) => (b.inputs[good] ?? 0) >= n,
+    ),
+  );
 }
 
 /**

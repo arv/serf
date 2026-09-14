@@ -439,6 +439,23 @@ describe('snapBuilding: shortOf', () => {
     expect(snapBuilding(world, smith).shortOf).toBeUndefined();
   });
 
+  it('names the empty buffer even when the shelf is full too', () => {
+    // Stopped twice over: the spear shelf is full AND there is nothing to
+    // forge with. convertStep never reaches the shelf — anyOptionReady
+    // turns it back first — so the emptier blocker is the one to name.
+    // Saying nothing here would be the exact silence this readout ends.
+    const world = shortWorld();
+    const smith = smithIn(world);
+    smith.inputs[GoodId.wood] = 0; // no option on the menu is stocked
+    smith.stock[GoodId.spear] = OUTPUT_CAP;
+    settle(world);
+
+    expect(snapBuilding(world, smith).shortOf).toEqual([
+      GoodId.wood,
+      GoodId.iron,
+    ]);
+  });
+
   it('does not mistake a repair bill for an ingredient', () => {
     // demandSince is one clock per good and the masons share it: a
     // damaged Smith ages its repair stone on the same key its recipe
