@@ -263,6 +263,133 @@ const DECOR_PROP_FILES = [
 ];
 
 /**
+ * Take the pack scythe's nib off, on whichever copy of it you hand in.
+ *
+ * Fantasy Weapons Bits authored a reaper's scythe, and its grip peg lies in
+ * the blade's OWN plane — where a hand goes on a blade swung edge-up. A
+ * mower sweeps the blade flat, and then that plane is horizontal, so the
+ * peg is forced vertical; and of the two ways round, the one that keeps the
+ * blade in front of the man points the peg at the turf. Measured: straight
+ * down, at ankle height, 0.28 world from the free shoulder against an arm
+ * that reaches 0.20. No hold fixes that, because the peg's bearing round
+ * the snath is the model's to say and not the hold's — of 171,720
+ * hold-and-slide combinations, the 41 that both cut properly and brought
+ * the peg within reach all pointed it at the ground and cost the stroke 16
+ * degrees of level. So the peg comes off and the farmer's free hand takes
+ * the snath itself (characters.ts): a grip nobody uses is worse detail than
+ * no grip at all.
+ *
+ * Called once per copy, because there are two and they are loaded
+ * independently: this module's `props`, which dress the carried and piled
+ * scythe good, and the character pack's, which is the one in his fist.
+ *
+ * The mesh is kitbashed out of 104 loose pieces that interpenetrate rather
+ * than weld, so the peg lifts out whole: every piece that fits inside the
+ * box below is the peg, root to tip (272 vertices in the vendored file),
+ * and not one triangle straddles the seam. If a pack update ever moves it,
+ * what comes out will not be peg-shaped, and then we leave the model alone
+ * rather than cut into it. Returns whether the nib actually came off.
+ */
+export function cutScytheNib(root: THREE.Object3D): boolean {
+  let mesh: THREE.Mesh | undefined;
+  root.traverse(o => {
+    if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
+  });
+  const geo = mesh?.geometry;
+  const index = geo?.getIndex();
+  const pos = geo?.getAttribute('position');
+  if (!geo || !index || !pos) return false;
+
+  // Union-find over the triangles: which vertices hang together.
+  const parent = new Int32Array(pos.count);
+  for (let i = 0; i < parent.length; i++) parent[i] = i;
+  const find = (a: number): number => {
+    while (parent[a] !== a) {
+      parent[a] = parent[parent[a]!]!;
+      a = parent[a]!;
+    }
+    return a;
+  };
+  for (let i = 0; i < index.count; i += 3) {
+    const a = find(index.getX(i));
+    const b = find(index.getX(i + 1));
+    // Re-find after the first union: on a face whose first and third
+    // corners already share a root, that union moves the third corner's
+    // root, and linking the stale one points two roots at each other.
+    // find's path halving happens to walk that pair back out again, so
+    // the pieces still come out right, but nothing about union-find
+    // promises that — it is one re-find to not depend on it.
+    if (a !== b) parent[a] = b;
+    const rb = find(b);
+    const rc = find(index.getX(i + 2));
+    if (rb !== rc) parent[rb] = rc;
+  }
+  // A piece is the nib only if ALL of it sits in the peg's own box — the
+  // collar rings around the shaft overlap that band and must stay put.
+  const box = new Map<number, THREE.Box3>();
+  const P = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    const r = find(i);
+    P.fromBufferAttribute(pos, i);
+    const b = box.get(r);
+    if (b) b.expandByPoint(P);
+    else box.set(r, new THREE.Box3(P.clone(), P.clone()));
+  }
+  const NIB = new THREE.Box3(
+    new THREE.Vector3(-0.02, 0.64, -0.02),
+    new THREE.Vector3(0.14, 0.8, 0.47),
+  );
+  const peg = new Set<number>();
+  for (const [r, b] of box) {
+    if (NIB.containsBox(b) && b.max.z > 0.12) peg.add(r);
+  }
+  // Whatever we picked has to BE a peg: a run at least a quarter of a unit
+  // long out from the shaft. A couple of stray collar rings would not be.
+  const picked = new THREE.Box3();
+  for (let i = 0; i < pos.count; i++) {
+    if (peg.has(find(i))) picked.expandByPoint(P.fromBufferAttribute(pos, i));
+  }
+  if (picked.isEmpty() || picked.max.z - picked.min.z < 0.25) return false;
+
+  // Drop the peg's triangles, then repack every attribute down to the
+  // vertices still indexed. Leaving the cut vertices in the buffer would be
+  // simpler and would still draw correctly, but bounds are not drawn:
+  // computeBoundingBox and Box3.setFromObject read the position attribute
+  // and never the index, so an unindexed peg still reaches z = 0.446 and
+  // would go on sizing and centring the carried scythe (glbCarryProp) as if
+  // it were there.
+  const kept: number[] = [];
+  const renumber = new Int32Array(pos.count).fill(-1);
+  const order: number[] = [];
+  for (let i = 0; i < index.count; i += 3) {
+    if (peg.has(find(index.getX(i)))) continue;
+    for (let k = 0; k < 3; k++) {
+      const v = index.getX(i + k);
+      if (renumber[v] === -1) {
+        renumber[v] = order.length;
+        order.push(v);
+      }
+      kept.push(renumber[v]!);
+    }
+  }
+  for (const [name, attr] of Object.entries(geo.attributes)) {
+    const src = attr as THREE.BufferAttribute;
+    const n = src.itemSize;
+    const out = new Float32Array(order.length * n);
+    for (let i = 0; i < order.length; i++) {
+      for (let k = 0; k < n; k++) {
+        out[i * n + k] = src.array[order[i]! * n + k] as number;
+      }
+    }
+    geo.setAttribute(name, new THREE.BufferAttribute(out, n, src.normalized));
+  }
+  geo.setIndex(kept);
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return true;
+}
+
+/**
  * Props that ship as self-contained .glb rather than the .gltf pairs the
  * list above suffixes: the Dungeon Remastered pack (CC0, see
  * dungeon/LICENSE.txt) embeds its texture per file. Registered in `props`
@@ -1113,6 +1240,11 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       const scene = loaded.get(p);
       if (scene) props.set(p.replace(/\.glb$/, ''), scene);
     }
+    // The carried and piled scythe wants its nib off too, and this copy is
+    // loaded apart from the one in the farmer's fist (characters.ts cuts
+    // that one). Same surgery, two geometries.
+    const scythe = props.get('weapons/scythe');
+    if (scythe) cutScytheNib(scythe);
     assets = {
       buildings,
       trees,

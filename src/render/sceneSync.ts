@@ -23,6 +23,7 @@ import {
   TARGET_HEIGHT,
   gaitAnimKey,
   updateBow,
+  updateGrip,
   makeCharacter,
   playAnimation,
   setGaitSpeed,
@@ -32,6 +33,7 @@ import {
 } from './characters';
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
+import {type ArmChain, findArm, ikReach} from './ik';
 import {makeCarryProp} from './models';
 import {goldOre} from './palette';
 import {
@@ -118,12 +120,6 @@ interface UnitVisual {
   pierOffLag?: number;
 }
 
-interface ArmChain {
-  upper: THREE.Object3D;
-  lower: THREE.Object3D;
-  hand: THREE.Object3D;
-}
-
 /** A standing well: where it is, the windlass that turns, and the handle a
  * drawing serf's hand is glued to. Fed from buildingSync.wellCranks(). */
 interface Well {
@@ -170,53 +166,7 @@ const PIER_DROP_HOLD = 1400;
  */
 const PIER_LEAVE_LAG = 1.2;
 
-/** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
-function findArm(group: THREE.Group): ArmChain | null {
-  const bone = (n: string): THREE.Object3D | undefined =>
-    group.getObjectByName(n) ?? group.getObjectByName(n.replace(/[^\w-]/g, ''));
-  const upper = bone('upperarm.r');
-  const lower = bone('lowerarm.r');
-  const hand = bone('hand.r');
-  return upper && lower && hand ? {upper, lower, hand} : null;
-}
-
-const IK_B = new THREE.Vector3();
-const IK_E = new THREE.Vector3();
-const IK_D = new THREE.Vector3();
-const IK_Q = new THREE.Quaternion();
-const IK_PQ = new THREE.Quaternion();
-const IK_PQI = new THREE.Quaternion();
 const IK_TARGET = new THREE.Vector3();
-
-/** One CCD step: swing `bone` so `tip` aims at `target` (world space). */
-function aimBone(
-  bone: THREE.Object3D,
-  tip: THREE.Object3D,
-  target: THREE.Vector3,
-): void {
-  bone.updateWorldMatrix(true, false);
-  tip.updateWorldMatrix(true, false);
-  bone.getWorldPosition(IK_B);
-  tip.getWorldPosition(IK_E);
-  IK_E.sub(IK_B);
-  IK_D.copy(target).sub(IK_B);
-  if (IK_E.lengthSq() < 1e-8 || IK_D.lengthSq() < 1e-8) return;
-  IK_Q.setFromUnitVectors(IK_E.normalize(), IK_D.normalize());
-  bone.parent!.getWorldQuaternion(IK_PQ);
-  IK_PQI.copy(IK_PQ).invert();
-  // local' = parent⁻¹ · Δworld · parent · local
-  bone.quaternion.premultiply(IK_PQ).premultiply(IK_Q).premultiply(IK_PQI);
-}
-
-/** CCD from the elbow out: a few passes settle the hand on the target
- * (or at full stretch toward it when out of reach). */
-function ikReach(arm: ArmChain, target: THREE.Vector3): void {
-  aimBone(arm.lower, arm.hand, target);
-  aimBone(arm.upper, arm.hand, target);
-  aimBone(arm.lower, arm.hand, target);
-  aimBone(arm.upper, arm.hand, target);
-  aimBone(arm.lower, arm.hand, target);
-}
 
 /** WORK.* byte → the tool animation to play. */
 function workAnimKey(workKind: number): AnimKey {
@@ -1511,6 +1461,9 @@ export class SceneSync {
         visual.char.mixer.update(dt);
         // The archer's string and nocked arrow follow the posed hand.
         if (visual.char.bow) updateBow(visual.char);
+        // A tool held one way and swung another changes hands over the
+        // same blend the clips do (the farmer's scythe).
+        if (visual.char.grip) updateGrip(visual.char, dt);
         // The 'loop' event only covers cycles after the first wrap, so a
         // percussive clip (re)started this frame would play its whole
         // first cycle mute — for Pickaxing that is two silent swings and
@@ -1679,7 +1632,7 @@ export class SceneSync {
         // Explicitly undefined: ??= assigns on null too, so a rig without
         // the bones re-ran findArm's six name lookups every single frame,
         // which is the one thing the null in the cache is there to stop.
-        if (visual.arm === undefined) visual.arm = findArm(visual.group);
+        if (visual.arm === undefined) visual.arm = findArm(visual.group, 'r');
         if (visual.arm) {
           crankWell.grip.getWorldPosition(IK_TARGET);
           ikReach(visual.arm, IK_TARGET);

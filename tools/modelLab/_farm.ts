@@ -21,6 +21,7 @@ import {
   makeCharacter,
   playAnimation,
   setWorkTool,
+  updateGrip,
 } from '../../src/render/characters';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
@@ -101,11 +102,19 @@ function farmer(
   scene.add(made.group);
   if (!made.visual) return;
   setWorkTool(made.visual, WORK.mow);
-  tunePose(made.visual.defaultTool);
   playAnimation(made.visual, clip, 0);
+  // The scythe's hold follows the clip and eases into it over the blend;
+  // a still has no frames to ease over, so settle it in one step before
+  // the knobs get their say.
+  updateGrip(made.visual, 1);
+  tunePose(made.visual.defaultTool);
   const action = made.visual.actions.get(clip);
   if (action) action.time = phase * action.getClip().duration;
   made.visual.mixer.update(0);
+  // Again, after the mixer: the hold is settled by now, so this pass only
+  // puts the free hand on the snath — which needs the posed bones, and in
+  // a match runs on every frame for that reason.
+  updateGrip(made.visual, 1);
 }
 
 /** One figure square to the camera at screen-x `x`, scrubbed to `phase` —
@@ -122,27 +131,42 @@ function figure(
   scene.add(made.group);
   if (!made.visual) return;
   setWorkTool(made.visual, WORK.mow);
-  tunePose(made.visual.defaultTool);
   playAnimation(made.visual, clip, 0);
+  // The scythe's hold follows the clip and eases into it over the blend;
+  // a still has no frames to ease over, so settle it in one step before
+  // the knobs get their say.
+  updateGrip(made.visual, 1);
+  tunePose(made.visual.defaultTool);
   const action = made.visual.actions.get(clip);
   if (action) action.time = phase * action.getClip().duration;
   made.visual.mixer.update(0);
+  // Again, after the mixer: the hold is settled by now, so this pass only
+  // puts the free hand on the snath — which needs the posed bones, and in
+  // a match runs on every frame for that reason.
+  updateGrip(made.visual, 1);
 }
 
 /**
- * Live knobs for the scythe's hold: ?sy= slides the grip along the haft
- * (packScytheProp's own number), ?rx=/?rz= re-aim the tool about the fist
- * — the roll gripPose ends up with, its -0.55 and the scythe's pitch
- * together. Overridable per shot so a hold can be tuned from screenshots
- * without touching src between takes.
+ * Live knobs for the scythe's hold — the three angles of a `Hold` in
+ * characters.ts plus the slide: ?rx= tips the head out, ?rz= drops it,
+ * ?ry= rolls the tool about its own haft (which way the blade faces once
+ * the haft is aimed), and ?sy= slides the fist along the snath
+ * (packScytheProp's own number). Overridable per shot so a hold can be
+ * tuned from screenshots without touching src between takes; these are
+ * the knobs SCYTHE_CARRY and SCYTHE_MOW were read off.
+ *
+ * They set whichever hold the tool currently wears, so pass ?strip=mow to
+ * tune the mowing one and ?strip=walk|idle for the carried one.
  */
 function tunePose(tool: THREE.Object3D | undefined): void {
   const inner = tool?.children[0];
   if (!tool || !inner) return;
   const sy = params.get('sy');
+  const ry = params.get('ry');
   const rx = params.get('rx');
   const rz = params.get('rz');
   if (sy !== null) inner.position.y = Number(sy);
+  if (ry !== null) tool.rotation.y = Number(ry);
   if (rx !== null) tool.rotation.x = Number(rx);
   if (rz !== null) tool.rotation.z = Number(rz);
   // Re-derive the grip slide from whatever aim we just set: it runs down

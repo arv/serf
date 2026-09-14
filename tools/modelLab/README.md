@@ -134,7 +134,12 @@ pnpm dev   # then /tools/modelLab/_farm.html
 
 `?t=<0..1>` scrubs the mowing stroke; `?strip=mow|walk|idle` lays one clip
 out left to right instead, scythe in hand, which is how the stroke and the
-carry were tuned. `?marks=1` beads every walk mark to check the circuit
+carry were tuned. The scythe has a hold for each: `?rx=`/`?rz=` aim the haft
+out of the fist, `?ry=` rolls the tool about that haft (which way the blade
+faces), and `?sy=` slides the fist along the snath — the knobs
+`SCYTHE_CARRY` and `SCYTHE_MOW` in `src/render/characters.ts` were read off.
+They override whichever hold the clip on screen wears, so tune the mowing
+one under `?strip=mow` and the carried one under `?strip=walk`. `?marks=1` beads every walk mark to check the circuit
 against the rows; `?rival=1` turns the seat red for the team roof.
 `w`/`h`/`zoom`/`fy` frame the shot as everywhere else.
 
