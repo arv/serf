@@ -1173,22 +1173,30 @@ const GRASP_NODE = 'grasp';
 function packScytheProp(): THREE.Group {
   if (!kkAssets?.props.get('weapons/scythe')) return scytheProp();
   const inner = packToolProp('weapons/scythe', 0.8, scytheProp);
-  // Slide the grip: 0.10 puts the fist on the haft's middle wrapping,
-  // just under halfway up. More reads better still in the swing but the
-  // surplus hangs BELOW the fist everywhere else — at idle the arm
-  // points the head at the ground, and by 0.22 the tool stood buried to
-  // the wrappings with the blade tip surfacing a step away like a shark.
-  inner.position.y = 0.1;
+  // Slide the grip down the snath. A mower's hands go near the butt with
+  // the blade out at the far end of the shaft; 0.10 held it a third of the
+  // way up with the free hand a palm's width under the blade and a third
+  // of the tool trailing uselessly behind the fists. 0.28 puts the right
+  // fist 22% up from the butt and the free hand on the middle wrapping
+  // itself — the grip the pack authored — with the blade out where the
+  // leverage is.
+  //
+  // This was not available while one hold had to serve the carry and the
+  // stroke both (the note this replaces found the tool buried to the
+  // wrappings at 0.22). It is affordable now because the two holds are
+  // separate: SCYTHE_MOW re-aims for the longer lever, and the carry
+  // barely notices — the blade still rests on the grass at idle.
+  inner.position.y = 0.28;
   // Where the free hand goes, in the pack file's own units (the model is a
   // child of `inner` at identity, so this frame is the file's). Its +Y is
   // the run the fist closes around — here the snath itself, the nib being
-  // off (cutScytheNib). The height is not a taste call: it is where the mow
-  // clip's own free hand tracks, the nearest point on the shaft to it
-  // running 0.42 to 0.68 across the stroke and sitting at 0.59 through the
-  // cut.
+  // off (cutScytheNib). The height is not a taste call: the clip holds the
+  // two fists about 0.47 apart down the shaft, so with the right one at
+  // -0.37 (the slide above) the free one tracks -0.05 to 0.21 across the
+  // stroke. 0.105 is the middle of that, and it lands on the wrapping.
   const grasp = new THREE.Object3D();
   grasp.name = GRASP_NODE;
-  grasp.position.set(0, 0.58, 0);
+  grasp.position.set(0, 0.105, 0);
   inner.add(grasp);
   const g = new THREE.Group();
   g.add(inner);
@@ -1217,15 +1225,21 @@ const SCYTHE_CARRY: Hold = {x: 0.35, y: Math.PI, z: -0.1};
  * Read off the clip rather than guessed: at the cut (the fast third of
  * Melee_2H_Attack_Slice, where the blade crosses his front) these angles
  * put the blade's own plane within 5 degrees of level and its edge within
- * 30 of the direction of travel, tip at a hand's height over the turf.
+ * 36 of the direction of travel, tip at a hand's height over the turf.
  * Measured with the model lab's `?rx=/?ry=/?rz=` knobs on `_farm.html`.
+ *
+ * The aim is flatter than it was because the grip moved down the snath
+ * (packScytheProp): the blade swings further out from a fist nearer the
+ * butt, so less drop is needed to lay it on the stalks. That costs the
+ * edge some of its lead — 30 degrees off the travel at the old grip, 36
+ * at this one — which is the price of a mower's leverage and cheap at it.
  *
  * No single hold does both jobs: every hold that lays the blade flat in
  * the stroke buries it, or stands it up past his face, on the walk out.
  * Hence the two, crossfaded by updateGrip on the same 0.16s the clips
  * blend over.
  */
-const SCYTHE_MOW: Hold = {x: -0.45, y: Math.PI - 0.34, z: 0.35};
+const SCYTHE_MOW: Hold = {x: -0.3, y: Math.PI - 0.34, z: 0.03};
 
 /** Work tools wanting a hold of their own; the rest take RELAXED. The
  * scythe's is the mowing one: this path only ever equips it for WORK.mow,
