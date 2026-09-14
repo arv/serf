@@ -5,7 +5,7 @@ import * as GoodId from './defs/goodIdEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {addStorehouse, bareWorld, cmds, staffBuilding} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
-import {placeBuiltBuilding} from './world.ts';
+import {placeBuiltBuilding, type World} from './world.ts';
 
 /**
  * The weaponsmith's forge menu: one building, three weapons, the player
@@ -297,5 +297,70 @@ describe('the forge queue', () => {
     for (let i = 0; i < 400; i++) tickWorld(world, []);
     expect(smith.prodTicksLeft).toBeUndefined();
     expect(smith.inputs[GoodId.iron]).toBe(4);
+  });
+
+  /**
+   * Which peg auto reaches for when two stand equally bare — and the one
+   * thing that outranks the count. A village with nothing to eat forges
+   * what feeds it first, because everything else it might forge is
+   * downstream of the oven: the mines eat (MINE_RATION_PER), so the iron
+   * that pays for the next axe cannot be cut until there is bread.
+   */
+  describe('auto and the bare larder', () => {
+    const castleOf = (world: World) =>
+      [...world.buildings.values()].find(
+        b => b.type === BuildingTypeId.storehouse,
+      )!;
+
+    it('forges the field ahead of the woods when nothing is edible', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      // Two posts standing open, one gap each: the woods want an axe, the
+      // field a scythe. On the count alone the axe wins on GOODS order.
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 40, 40);
+
+      let guard = 0;
+      while ((smith.stock[GoodId.scythe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.scythe]).toBe(1);
+      expect(smith.stock[GoodId.axe] ?? 0).toBe(0);
+    });
+
+    it('leaves the shaft for last, ration or no ration', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      // A mine eats bread, which does not put its pick on the bread chain:
+      // what the chain is closed over is what a post MAKES, and no oven
+      // takes iron. So the oven's cauldron goes first even though the
+      // pick stands earlier in GOODS order.
+      placeBuiltBuilding(world, BuildingTypeId.ironMine, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.bakery, 0, 40, 40);
+
+      let guard = 0;
+      while ((smith.stock[GoodId.cauldron] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.cauldron]).toBe(1);
+      expect(smith.stock[GoodId.pickaxe] ?? 0).toBe(0);
+    });
+
+    it('hands the count back the moment there is bread anywhere', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 40, 40);
+      // One loaf on one shelf is a village that can eat: the rule lifts
+      // off and the widest gap decides again, ties on GOODS order.
+      castleOf(world).stock[GoodId.food] = 1;
+
+      let guard = 0;
+      while ((smith.stock[GoodId.axe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.axe]).toBe(1);
+      expect(smith.stock[GoodId.scythe] ?? 0).toBe(0);
+    });
   });
 });

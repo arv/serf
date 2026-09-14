@@ -16,6 +16,12 @@ import {REPLAY_VERSION} from './replayVersion';
  * behavioral moved.
  */
 
+// 68 for the forge's bare-larder rule (autoForgeIndex, systems/production.ts):
+// a Smith on auto now forges the scythe, the cauldron or the rod ahead of
+// the widest gap when there is no bread on any shelf. Real tick behavior —
+// which batch a Smith starts is decided inside the tick, and one different
+// batch moves every haul and bind after it, so yesterday's logs cannot
+// re-run. replayVersion.ts carries the whole argument.
 /** The pinned surface. When this test fails:
  *  1. Decide whether the change alters sim behavior or the replay format.
  *     Balance numbers, worldgen, tick systems, command semantics, the
@@ -709,8 +715,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // recorded before this build plays back in a different valley. See
 // replayVersion.ts for why the ground moved — the commission was
 // unwinnable on `hard` without it.
-const EXPECTED_VERSION = 67;
-const EXPECTED_HASH = 'c1723a2b4a72bfbec0e31614cb86c605';
+const EXPECTED_VERSION = 68;
+const EXPECTED_HASH = '597e8fbd6a72e2b7832e68defaf2e4cf';
 
 /**
  * Everything a replay's playback depends on, as raw source:
