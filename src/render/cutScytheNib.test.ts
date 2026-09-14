@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
-import {turnScytheNib} from './characters';
+import {cutScytheNib} from './characters';
 
 /**
  * The pack scythe is a reaper's: its grip peg lies in the blade's own
  * plane, which points it at the turf once the blade is swept flat, and out
- * of the farmer's reach. turnScytheNib brings the peg a quarter round the
- * snath, the way a real scythe's nibs are clamped and turned to fit.
+ * of the farmer's reach. cutScytheNib takes the peg off, and the free hand
+ * holds the snath itself.
  *
- * The risk it carries is tearing the model — the peg and the shaft share
- * one mesh, and the collar rings sit in the same band of the snath as the
- * peg does. What keeps it safe is that the fix-up moves whole connected
+ * The risk it carries is cutting into the model — the peg and the shaft
+ * share one mesh, and the collar rings sit in the same band of the snath as
+ * the peg does. What keeps it safe is that the fix-up drops whole connected
  * pieces and only ones that are peg-shaped, and leaves the model entirely
  * alone when it cannot find one. Both halves are pinned here.
  */
@@ -69,29 +69,25 @@ function expectBox(
   }
 }
 
-function cornersOf(m: THREE.Mesh, from: number): THREE.Vector3[] {
+/** What the mesh still draws: the corners its index still reaches. */
+function drawn(m: THREE.Mesh): THREE.Vector3[] {
   const pos = m.geometry.getAttribute('position');
-  const out: THREE.Vector3[] = [];
-  for (let i = from; i < from + 8; i++) {
-    out.push(new THREE.Vector3().fromBufferAttribute(pos, i));
-  }
-  return out;
+  const index = m.geometry.getIndex()!;
+  const seen = new Set<number>();
+  for (let i = 0; i < index.count; i++) seen.add(index.getX(i));
+  return [...seen].map(i => new THREE.Vector3().fromBufferAttribute(pos, i));
 }
 
-describe('turnScytheNib', () => {
-  it('turns the peg a quarter round the snath and leaves the shaft alone', () => {
+describe('cutScytheNib', () => {
+  it('drops the peg and leaves the shaft whole', () => {
     const m = mesh([SHAFT, PEG]);
-    expect(turnScytheNib(m)).toBe(true);
+    const before = m.geometry.getIndex()!.count;
+    expect(cutScytheNib(m)).toBe(true);
 
-    // The shaft is untouched, to the last corner.
-    expectBox(new THREE.Box3().setFromPoints(cornersOf(m, 0)), ...SHAFT);
-
-    // The peg ran out along +Z; it now runs out along +X, same length.
-    const peg = new THREE.Box3().setFromPoints(cornersOf(m, 8));
-    expect(peg.max.x - peg.min.x).toBeCloseTo(0.45, 6);
-    expect(peg.max.z - peg.min.z).toBeCloseTo(0.12, 6);
-    expect(peg.min.y).toBeCloseTo(0.66, 6); // and stays up the snath
-    expect(peg.max.y).toBeCloseTo(0.78, 6);
+    // What is still drawn is exactly the shaft, to the last corner.
+    expectBox(new THREE.Box3().setFromPoints(drawn(m)), ...SHAFT);
+    expect(m.geometry.getIndex()!.count).toBeLessThan(before);
+    expect(m.geometry.getIndex()!.count).toBeGreaterThan(0);
   });
 
   it('leaves the model alone when nothing peg-shaped is there', () => {
@@ -101,14 +97,12 @@ describe('turnScytheNib', () => {
       V(0.12, 0.78, 0.1),
     ];
     const m = mesh([SHAFT, stub]);
-    const before = Array.from(m.geometry.getAttribute('position').array);
-    expect(turnScytheNib(m)).toBe(false);
-    expect(Array.from(m.geometry.getAttribute('position').array)).toEqual(
-      before,
-    );
+    const before = Array.from(m.geometry.getIndex()!.array);
+    expect(cutScytheNib(m)).toBe(false);
+    expect(Array.from(m.geometry.getIndex()!.array)).toEqual(before);
   });
 
-  it('will not move a collar ring that merely shares the peg’s band', () => {
+  it('will not cut a collar ring that merely shares the peg\u2019s band', () => {
     // A ring around the shaft at the peg's height: inside the band, but it
     // wraps the snath rather than standing out from it.
     const ring: [THREE.Vector3, THREE.Vector3] = [
@@ -116,7 +110,12 @@ describe('turnScytheNib', () => {
       V(0.09, 0.76, 0.09),
     ];
     const m = mesh([SHAFT, ring, PEG]);
-    expect(turnScytheNib(m)).toBe(true);
-    expectBox(new THREE.Box3().setFromPoints(cornersOf(m, 8)), ...ring);
+    expect(cutScytheNib(m)).toBe(true);
+    // The ring survives and only the peg goes: what is left reaches the
+    // ring's own corners and nothing beyond them.
+    const left = new THREE.Box3().setFromPoints(drawn(m));
+    expect(left.max.z).toBeCloseTo(0.09, 5);
+    expect(left.max.x).toBeCloseTo(0.09, 5);
+    expect(left.min.x).toBeCloseTo(-0.09, 5);
   });
 });

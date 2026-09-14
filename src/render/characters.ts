@@ -765,40 +765,39 @@ async function loadKayKitCharacters(): Promise<boolean> {
     const arrow = props.get('arrow');
     if (arrow) setPackArrow(arrow);
     const scythe = props.get('weapons/scythe');
-    if (scythe) scytheNibTurned = turnScytheNib(scythe);
+    if (scythe) cutScytheNib(scythe);
     return true;
   }
 }
 
-/** Whether the scythe's nib came out of turnScytheNib where we expect it. */
-let scytheNibTurned = false;
-
 /**
- * Turn the pack scythe's nib a quarter round the snath.
+ * Take the pack scythe's nib off.
  *
- * Fantasy Weapons Bits authored this as a reaper's scythe: the grip peg
- * lies in the blade's OWN plane, which is where a hand goes on a blade
- * swung edge-up. A mower sweeps the blade flat, and then that plane is
- * horizontal — so the peg is forced vertical, and of the two ways round,
- * the one that keeps the blade in front of the man points the peg at the
- * turf. Measured: straight down, at ankle height, 0.28 world from the free
- * shoulder against an arm that reaches 0.20. Unusable, and no hold fixes
- * it, because the peg's bearing round the snath is the model's to say.
+ * Fantasy Weapons Bits authored this as a reaper's scythe, and its grip peg
+ * lies in the blade's OWN plane — where a hand goes on a blade swung
+ * edge-up. A mower sweeps the blade flat, and then that plane is
+ * horizontal, so the peg is forced vertical; and of the two ways round, the
+ * one that keeps the blade in front of the man points the peg at the turf.
+ * Measured: straight down, at ankle height, 0.28 world from the free
+ * shoulder against an arm that reaches 0.20. No hold fixes that, because
+ * the peg's bearing round the snath is the model's to say and not the
+ * hold's — of 171,720 hold-and-slide combinations, the 41 that both cut
+ * properly and brought the peg within reach all pointed it at the ground
+ * and cost the stroke 16 degrees of level.
  *
- * A real scythe's nibs are clamped to the snath and turned to fit the
- * mower, so turn this one: a quarter round brings it up beside the shaft,
- * pointing back at the man, 0.18 from his shoulder — where his hand
- * already passes.
+ * So the peg comes off, and the free hand takes the snath itself. A mower's
+ * hands go where his snath is long enough to take them; this one is, and a
+ * grip nobody uses is worse detail than no grip at all.
  *
  * The mesh is kitbashed out of 104 loose pieces that interpenetrate rather
  * than weld, so the peg lifts out whole: every piece that fits inside the
  * box below is the peg, root to tip (272 vertices in the vendored file),
- * and not one triangle straddles the seam. If a pack update ever moves it,
- * what comes out will not be peg-shaped, and then we leave the model alone
- * rather than tear it — packScytheProp grips the bare shaft as it did
- * before. Returns whether the nib actually turned.
+ * and not one triangle straddles the seam — dropping its triangles from the
+ * index leaves nothing ragged behind. If a pack update ever moves it, what
+ * comes out will not be peg-shaped, and then we leave the model alone
+ * rather than cut into it. Returns whether the nib actually came off.
  */
-export function turnScytheNib(root: THREE.Object3D): boolean {
+export function cutScytheNib(root: THREE.Object3D): boolean {
   let mesh: THREE.Mesh | undefined;
   root.traverse(o => {
     if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
@@ -806,8 +805,7 @@ export function turnScytheNib(root: THREE.Object3D): boolean {
   const geo = mesh?.geometry;
   const index = geo?.getIndex();
   const pos = geo?.getAttribute('position');
-  const nor = geo?.getAttribute('normal');
-  if (!geo || !index || !pos || !nor) return false;
+  if (!geo || !index || !pos) return false;
 
   // Union-find over the triangles: which vertices hang together.
   const parent = new Int32Array(pos.count);
@@ -852,19 +850,15 @@ export function turnScytheNib(root: THREE.Object3D): boolean {
     if (peg.has(find(i))) picked.expandByPoint(P.fromBufferAttribute(pos, i));
   }
   if (picked.isEmpty() || picked.max.z - picked.min.z < 0.25) return false;
-  // A quarter turn about the snath: (x, y, z) -> (z, y, -x), positions and
-  // the normals with them.
-  for (let i = 0; i < pos.count; i++) {
-    if (!peg.has(find(i))) continue;
-    for (const attr of [pos, nor]) {
-      const x = attr.getX(i);
-      const z = attr.getZ(i);
-      attr.setX(i, z);
-      attr.setZ(i, -x);
-    }
+  // Drop the peg's triangles. Its vertices stay in the buffer, unindexed
+  // and undrawn — re-packing them would only save a few hundred floats and
+  // would have to renumber every triangle in the model to do it.
+  const kept: number[] = [];
+  for (let i = 0; i < index.count; i += 3) {
+    if (peg.has(find(index.getX(i)))) continue;
+    kept.push(index.getX(i), index.getX(i + 1), index.getX(i + 2));
   }
-  pos.needsUpdate = true;
-  nor.needsUpdate = true;
+  geo.setIndex(kept);
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   return true;
@@ -1270,21 +1264,14 @@ function packScytheProp(): THREE.Group {
   inner.position.y = 0.1;
   // Where the free hand goes, in the pack file's own units (the model is a
   // child of `inner` at identity, so this frame is the file's). Its +Y is
-  // the run the fist closes around.
+  // the run the fist closes around — here the snath itself, the nib being
+  // off (cutScytheNib). The height is not a taste call: it is where the mow
+  // clip's own free hand tracks, the nearest point on the shaft to it
+  // running 0.42 to 0.68 across the stroke and sitting at 0.59 through the
+  // cut.
   const grasp = new THREE.Object3D();
   grasp.name = GRASP_NODE;
-  if (scytheNibTurned) {
-    // The nib, once turnScytheNib has brought it round the snath: the
-    // middle of the peg, with the peg's own axis (now the model's +X) laid
-    // down the fist's bore.
-    grasp.position.set(0.29, 0.72, -0.06);
-    grasp.rotation.z = -Math.PI / 2;
-  } else {
-    // No nib to hold: the bare snath, at the height the mow clip's free
-    // hand already tracks — the nearest point on the shaft to it runs 0.42
-    // to 0.68 across the stroke and sits at 0.59 through the cut.
-    grasp.position.set(0, 0.58, 0);
-  }
+  grasp.position.set(0, 0.58, 0);
   inner.add(grasp);
   const g = new THREE.Group();
   g.add(inner);
