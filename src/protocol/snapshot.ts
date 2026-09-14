@@ -14,7 +14,7 @@ import {exactDist} from '../shared/math.ts';
 import {distToFootprint} from '../sim/arrival.ts';
 import {batchTicks} from '../sim/batchTicks.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
-import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
+import {HIRE_SERF_TICKS, TICKS_PER_SECOND} from '../sim/defs/balance.ts';
 import {
   OUTPUT_CAP,
   TOOL_OF,
@@ -302,7 +302,19 @@ function shortageOf(
   let kinds = 0;
   if (!manned) kinds |= DemandKind.tool;
   if (!outputFull(b, def)) {
-    if (manned && rationOf(def) && !b.rationLeft) kinds |= DemandKind.ration;
+    // At the shaft head, not on the road: the ration is charged when a
+    // load is won, so a miner who ate the last loaf on this trip is
+    // still walking his ore home with an empty pantry behind him. His
+    // post is not stopped until he is back and idle, which is the only
+    // task state gatherStep asks the question in.
+    if (
+      manned &&
+      rationOf(def) &&
+      !b.rationLeft &&
+      worker.task.t === UnitTaskKind.idle
+    ) {
+      kinds |= DemandKind.ration;
+    }
     if (b.prodTicksLeft === undefined) kinds |= DemandKind.input;
   }
   if (kinds === 0) return {};
@@ -317,8 +329,27 @@ function shortageOf(
     if (since === undefined || asked < since) since = asked;
     return true;
   });
-  return shortOf.length > 0 ? {shortOf, shortSince: since} : {};
+  // Patience lives here rather than on the card, and not for tidiness: a
+  // roster section ships only when its serialized body CHANGES
+  // (simWorker's postStructural), so a village where nothing else is
+  // happening — which is exactly a village with a stalled post — sends no
+  // frames, the HUD's clock stops with it, and a threshold measured up
+  // there would never come round. Crossing it down here is itself the
+  // change that posts the frame.
+  if (shortOf.length === 0 || since === undefined) return {};
+  if (world.tick - since < SHORT_AFTER) return {};
+  return {shortOf, shortSince: since};
 }
+
+/**
+ * How long a call goes unanswered before the card says so. A building
+ * asks for what it needs and a hauler walks it over; asking and waiting a
+ * few seconds is the ordinary beat of every village, and a card that
+ * cried over that would teach the player to ignore it. Ten seconds is the
+ * hauler line's patience (HAUL_STARVED_AFTER, ui/SelectionPanel.tsx), and
+ * the two alarms sit one above the other.
+ */
+const SHORT_AFTER = 10 * TICKS_PER_SECOND;
 
 /**
  * Is this post's own shelf what stopped it? The first gate in both
@@ -331,7 +362,15 @@ function shortageOf(
 function outputFull(b: Building, def: BuildingDef): boolean {
   const gather = gatherRecipeOf(def);
   if (gather) return (b.stock[gather.output] ?? 0) >= OUTPUT_CAP;
-  const convert = convertRecipeOf(def, b);
+  // Production's own order of service: the queue before the standing
+  // order (pickForgeBatch). An unstarted order HOLDS the fire rather than
+  // falling through, so the head of the queue is what the shelf has to be
+  // measured against — reading the standing recipe instead would blame a
+  // full spear shelf for a pickaxe order's missing stone.
+  const queued = b.forgeQueue?.find(o => !o.started);
+  const convert = queued
+    ? def.recipeOptions?.[queued.recipeIndex]?.recipe
+    : convertRecipeOf(def, b);
   if (!convert) return false;
   for (const [good, n] of goodEntries(convert.outputs))
     if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return true;

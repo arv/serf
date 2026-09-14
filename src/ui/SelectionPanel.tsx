@@ -178,14 +178,6 @@ const HAUL_STARVED_TIP =
   'this pile finish.';
 
 /**
- * The same patience for the other empty readout. A building calls for what
- * it needs and a hauler walks it over; asking and waiting a few seconds is
- * the ordinary beat of every village, and a card that cried over it would
- * cry all game. What is worth saying is a call nobody has answered.
- */
-const SHORT_AFTER = 10 * TICKS_PER_SECOND;
-
-/**
  * Why a post with a worker on it and ground under it still makes nothing:
  * the buffer is empty. It is the one stall the card could not draw, since
  * an empty buffer prints as "none" — the same nothing a post that wants
@@ -617,15 +609,16 @@ export function SelectionPanel(props: {
           const gather = () => gatherRecipeOf(def());
           /** What this post has been calling for, unanswered long enough
               to be worth saying — the goods themselves, so the line that
-              draws them is either on the card or not at all. Both halves
-              are needed: goods with no clock on them cannot be aged, and
-              an unaged shortage is the ordinary beat of haulage. */
+              draws them is either on the card or not at all. The patience
+              is spent before this: the roster only carries a shortage
+              that has already stood (snapshot.ts), because a stalled
+              village posts no frames and a clock read up here would stop
+              with it. */
           const short = (): GoodId[] | undefined => {
             const goods = b().shortOf;
-            const since = b().shortSince;
-            if (!goods || goods.length === 0 || since === undefined)
-              return undefined;
-            return simTick() - since >= SHORT_AFTER ? goods : undefined;
+            return goods && goods.length > 0 && b().shortSince !== undefined
+              ? goods
+              : undefined;
           };
           /** Raised by the seat this client plays. What names the card
               when it is not — and, outside a replay, the only seat the

@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
-import {OUTPUT_CAP} from '../sim/defs/buildings.ts';
+import {TICKS_PER_SECOND} from '../sim/defs/balance.ts';
+import {BUILDING_DEFS, OUTPUT_CAP} from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as TechId from '../sim/defs/techIdEnum.ts';
@@ -263,8 +264,13 @@ describe('snapBuilding: shortOf', () => {
     });
     return world;
   }
-  /** Long enough for a matcher pass to walk the demands and age them. */
-  const settle = (world: World, ticks = 12) => {
+  /**
+   * Long enough for a matcher pass to walk the demands, and then for the
+   * wait to outlast the roster's patience — a shortage reaches the wire
+   * only once it has stood (see SHORT_AFTER in snapshot.ts), so a fixture
+   * that ticked a dozen times would prove nothing either way.
+   */
+  const settle = (world: World, ticks = 12 * TICKS_PER_SECOND) => {
     for (let i = 0; i < ticks; i++) tickWorld(world, []);
   };
   const mineIn = (world: World) =>
@@ -310,6 +316,21 @@ describe('snapBuilding: shortOf', () => {
     expect(snapBuilding(world, mine).shortOf).toEqual([GoodId.pickaxe]); // ...unsaid
   });
 
+  it('waits for the miner to be back at the shaft head', () => {
+    // The ration is charged when a load is won, so a miner can be walking
+    // ore home with an empty pantry behind him. Nothing is stopped yet,
+    // and gatherStep does not ask the question until he is idle again.
+    const world = shortWorld();
+    const mine = mineIn(world);
+    mine.inputs[GoodId.pickaxe] = 1;
+    const miner = staffBuilding(world, mine);
+    settle(world);
+    expect(snapBuilding(world, mine).shortOf).toEqual([GoodId.food]);
+
+    miner.task = {t: UnitTaskKind.gatherHome};
+    expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
   it('says nothing while there is a ration in the pantry', () => {
     const world = shortWorld();
     const mine = mineIn(world);
@@ -346,6 +367,24 @@ describe('snapBuilding: shortOf', () => {
     // A batch on the fire is not a stall, whatever the buffer looks like.
     smith.prodTicksLeft = 40;
     expect(snapBuilding(world, smith).shortOf).toBeUndefined();
+  });
+
+  it('measures the shelf against the batch that is actually next', () => {
+    // A queued order holds the fire ahead of the standing one
+    // (pickForgeBatch), so a full spear shelf is not what stops a Smith
+    // whose next batch is a pickaxe waiting on stone.
+    const world = shortWorld();
+    const smith = smithIn(world);
+    smith.stock[GoodId.spear] = OUTPUT_CAP; // the standing order's shelf
+    const PICKAXE = BUILDING_DEFS[
+      BuildingTypeId.weaponsmith
+    ].recipeOptions!.findIndex(
+      o => (o.recipe.outputs[GoodId.pickaxe] ?? 0) > 0,
+    );
+    smith.forgeQueue = [{recipeIndex: PICKAXE, started: false}];
+    settle(world);
+
+    expect(snapBuilding(world, smith).shortOf).toEqual([GoodId.stone]);
   });
 
   it('does not mistake a repair bill for an ingredient', () => {
