@@ -203,6 +203,45 @@ describe('a construction site with multi-material meshes', () => {
     }
   });
 
+  it('raises the plane the drawn meshes clip against, every frame', () => {
+    const {sync, scene} = makeSync();
+    /** The constants of the planes the scene's materials actually clip
+     * against — what the pixels obey, as opposed to what the visual holds
+     * on to. The two were the same object until the wall marking cloned
+     * the materials, and three's Material.copy deep-clones clippingPlanes.
+     */
+    const cut = (): number[] => {
+      const out: number[] = [];
+      scene.traverse(o => {
+        if (!(o instanceof THREE.Mesh)) return;
+        eachMaterial(o, m => {
+          for (const p of m.clippingPlanes ?? []) out.push(p.constant);
+        });
+      });
+      return out;
+    };
+
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0, siteNeeds: {}}),
+    ]);
+    const sliver = cut();
+    expect(sliver.length).toBeGreaterThan(0);
+    for (const c of sliver) expect(c).toBeCloseTo(0.08);
+
+    // The mock model is a unit box about its own middle, so it stands 0.5
+    // over the base the site sits on (ground is flat 0 here).
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0.8, siteNeeds: {}}),
+    ]);
+    const raised = cut();
+    expect(raised).toHaveLength(sliver.length);
+    // Handed a frozen copy of the plane, every one of these stayed at the
+    // opening sliver: the frame filled with hauled goods, the hp climbed,
+    // the pick and the occluder boxes all agreed the keep was rising, and
+    // nothing came up out of the ground.
+    for (const c of raised) expect(c).toBeCloseTo(0.08 + 0.5 * 0.8);
+  });
+
   it('a poisoned frame does not orphan later buildings', () => {
     const {sync, scene} = makeSync();
     sync.update([
@@ -1343,5 +1382,33 @@ describe('occluderBoxes', () => {
     sync.setFog(lifted);
     sync.update([snap({owner: 1})]);
     expect(sync.occluderBoxes()).toHaveLength(1);
+  });
+});
+
+describe('the hp bars over the buildings', () => {
+  it('draws after the decals on the ground, not before them', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({hp: 60})]); // hurt, so the bar is shown
+
+    // The bars are the only thing the sync hangs on the scene that
+    // refuses the depth test — which is also why the queue they draw in
+    // is the whole of what keeps them on top. Three runs the entire
+    // opaque list before the first transparent object and renderOrder
+    // only sorts within a list, so an opaque bar draws before every
+    // ground decal in the game and the decal paints over it: the boot
+    // prints across a health bar that started this.
+    const bars: THREE.Mesh[] = [];
+    scene.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      eachMaterial(o, m => {
+        if (m.depthTest === false) bars.push(o);
+      });
+    });
+    expect(bars).toHaveLength(2); // the trough and the fill
+    for (const bar of bars) {
+      eachMaterial(bar, m => expect(m.transparent).toBe(true));
+      // ...and last within that list, over the prints at the default 0.
+      expect(bar.renderOrder).toBeGreaterThan(0);
+    }
   });
 });
