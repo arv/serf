@@ -14,7 +14,9 @@ import {
   buildingDef,
   convertRecipeOf,
   gatherOrigin,
+  rationOf,
   type BuildingDef,
+  type BuildingTypeId,
   type Recipe,
 } from '../defs/buildings.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
@@ -340,13 +342,20 @@ export function autoForgeIndex(
   want.fill(0);
   free.fill(0);
   const owner = b.owner;
-  // Bread anywhere it sits: a shelf, an oven's own tray, a mine's pantry.
-  // Two dictionary reads per building on the village's hottest census, and
-  // they buy the one question the gap counts cannot answer — whether the
-  // hands this rack is tooling up will have anything to eat. Loaves in a
-  // hauler's arms are not counted: they are between shelves for a few
-  // ticks, and a census that walked the units to find them would cost far
-  // more than the one batch of hindsight it saves.
+  // Bread the village can actually eat: every output shelf, which is what
+  // a hauler can lift and carry to whoever is hungry, plus the pantry of a
+  // post that eats at the face (RATION_OF) — a mine's loaf is bread doing
+  // its job rather than bread gone missing.
+  //
+  // Not every input buffer, which is the same field wearing a different
+  // hat: a barracks holds its recruit's rations there (BUILDING_DEFS
+  // trains.cost) and nothing ever carries them out again, so counting them
+  // reads a village whose last three loaves are promised to a spearman as
+  // a village that can feed its miners.
+  //
+  // Loaves in a hauler's arms are not counted either: they are between
+  // shelves for a few ticks, and a census that walked the units to find
+  // them would cost more than the one batch of hindsight it saves.
   let larder = 0;
   for (const ob of world.buildings.values()) {
     if (ob.dead || ob.owner !== owner) continue;
@@ -364,7 +373,9 @@ export function autoForgeIndex(
     if (ob.state !== BuildingState.built) continue;
     const stock = ob.stock;
     const reservedOut = ob.reservedOut;
-    larder += (stock[GoodId.food] ?? 0) + (ob.inputs[GoodId.food] ?? 0);
+    larder +=
+      (stock[GoodId.food] ?? 0) +
+      (RATION_OF[ob.type] === GoodId.food ? (ob.inputs[GoodId.food] ?? 0) : 0);
     for (let i = 0; i < TOOL_COUNT; i++) {
       // Tools on a shelf (minus those already promised to a hauler) can
       // still reach any open post, wherever they sit.
@@ -412,6 +423,22 @@ const HAMMER_SLOT = TOOL_SLOT[GoodId.hammer]!;
 /** Counts, not sums of measurements: whole tools, so exact as doubles. */
 const want = new Float64Array(TOOL_COUNT);
 const free = new Float64Array(TOOL_COUNT);
+
+/**
+ * What each post feeds its worker at the face, by building type — TOOL_OF's
+ * shape, for the pantry rather than the peg. The census above reads it to
+ * tell a pantry from every other input buffer, which is a distinction the
+ * Building type does not carry: `inputs` is one field holding a mine's
+ * bread, a barracks' recruit rations and an oven's flour alike.
+ *
+ * Derived from the defs once at module load, so a post that starts (or
+ * stops) eating changes this by changing its recipe.
+ */
+const RATION_OF: Partial<Record<BuildingTypeId, GoodId>> = {};
+for (const type of BUILDING_TYPES) {
+  const ration = rationOf(BUILDING_DEFS[type]);
+  if (ration) RATION_OF[type] = ration.good;
+}
 
 /**
  * Which pegs the next meal hangs on, as 1/0 by tool slot — the table

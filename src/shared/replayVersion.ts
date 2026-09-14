@@ -26,10 +26,16 @@
  * pegs — posts standing tool-less, minus tools already free to reach them
  * — and the widest gap won, ties broken on GOODS order (autoForgeIndex,
  * systems/production.ts). It now ranks on (feeds the village, gap): with
- * no bread on any shelf the larder's pegs come first — the scythe, the
- * cauldron and the rod, derived from the defs rather than listed, so a new
- * roof between the field and the oven joins by existing. With bread
- * anywhere it is the same widest-gap rule it always was.
+ * no bread the village can eat, the larder's pegs come first — the scythe,
+ * the cauldron and the rod, derived from the defs rather than listed, so a
+ * new roof between the field and the oven joins by existing. With bread on
+ * any shelf it is the same widest-gap rule it always was.
+ *
+ * "Bread the village can eat" is every output shelf plus the pantry of a
+ * post that eats at the face, and deliberately not every input buffer: a
+ * barracks holds its recruit's rations in that same field and nothing ever
+ * carries them back out, so counting them would read a village whose last
+ * loaves are promised to a spearman as one that can feed its miners.
  *
  * Sim behavior, so the logs break: a Smith left on auto is a Smith whose
  * next batch the tick decides, and this changes which batch that is. One

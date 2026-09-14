@@ -346,6 +346,32 @@ describe('the forge queue', () => {
       expect(smith.stock[GoodId.pickaxe] ?? 0).toBe(0);
     });
 
+    it("does not count a recruit's rations as bread the village has", () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 40, 40);
+      // The only loaves in the valley are already spoken for: a barracks
+      // holds its recruit's rations in the same input buffer a mine keeps
+      // its pantry in, and nothing takes them back out again. A village
+      // that cannot eat them is a village with nothing to eat.
+      const barracks = placeBuiltBuilding(
+        world,
+        BuildingTypeId.barracks,
+        0,
+        44,
+        44,
+      );
+      barracks.inputs[GoodId.food] = 3;
+
+      let guard = 0;
+      while ((smith.stock[GoodId.scythe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.scythe]).toBe(1);
+      expect(smith.stock[GoodId.axe] ?? 0).toBe(0);
+    });
+
     it('hands the count back the moment there is bread anywhere', () => {
       const {world, smith} = forgeWorld();
       smith.inputs[GoodId.iron] = 4;
