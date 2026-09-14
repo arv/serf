@@ -8,6 +8,7 @@ import * as AnimKeyNs from './animKeyEnum.ts';
 import {ARROW_LENGTH, makeArrow, setPackArrow} from './arrowModel';
 import {loadGltfRetry} from './assets';
 import {factionTint} from './factionPalette';
+import {type ArmChain, findArm, ikReach} from './ik';
 import {lathe} from './models';
 import {goodColors} from './palette';
 export type AnimKey = Enum<typeof AnimKeyNs>;
@@ -1009,35 +1010,73 @@ interface GripRig {
   work: Hold;
   /** Where the tool sits between the two right now, 0 = rest, 1 = work. */
   t: number;
+  /** The free arm, and the spot on the tool its hand belongs on while the
+   * work clip plays. Both null on a rig without the bones or a tool with
+   * no second grip — then the free hand is left to the clip. */
+  free: ArmChain | null;
+  grasp: THREE.Object3D | null;
 }
 
+const GRASP_TARGET = new THREE.Vector3();
+const GRASP_HAND = new THREE.Vector3();
+
+/** CCD rounds for the free hand. The clip starts it a hand's width off the
+ * haft (0.08 world at the worst frame of the stroke); 2 rounds leave a
+ * fifth of that still showing, 6 leave under a tenth, and past that the
+ * curve is flat. */
+const GRASP_ROUNDS = 6;
+
 /**
- * Walk a two-hold tool towards the hold its current clip wants.
+ * Per frame, after the mixer: settle a two-hold tool into the hold its
+ * clip wants, and put the free hand on it.
  *
- * Snapping between the holds at the clip change put a visible flick in the
- * scythe at the top of every stroke and again at the end of it — the man
- * re-gripping in one frame, a lane at a time, all over the field. Easing
- * it over the crossfade the clips themselves blend over hides the change
- * inside the change of stroke. Called per frame beside updateBow, and a
- * no-op for every unit but the farmer.
+ * **The hold.** Snapping between the two at the clip change put a visible
+ * flick in the scythe at the top of every stroke and again at the end of
+ * it — the man re-gripping in one frame, a lane at a time, all over the
+ * field. Easing over the crossfade the clips themselves blend across hides
+ * the change inside the change of stroke.
+ *
+ * **The free hand.** Melee_2H_Attack_Slice was authored two-handed around
+ * a sword's hilt, so the left hand travels a hand's width off the snath
+ * for the whole stroke: measured against the haft it misses by 0.03 to
+ * 0.08 world units, which at village zoom is a man swinging a scythe with
+ * one fist closed on nothing. The clip is right about WHERE along the
+ * shaft the hand wants to be (it tracks two thirds of the way up it, the
+ * mower's leading hand) and wrong only about the last finger's width, so
+ * the fix is a nudge, not a new pose: CCD the arm at a fixed spot on the
+ * snath, from the clip's own frame, which moves the hand and leaves the
+ * shoulder and the elbow's bend where the animator put them.
+ *
+ * The reach is weighted by the same `t` the hold eases on, so it fades in
+ * with the stroke and is skipped outright at rest — the walk and the idle
+ * keep the clip's own arm, untouched.
  */
 export function updateGrip(visual: CharacterVisual, dt: number): void {
   const grip = visual.grip;
   if (!grip) return;
   const want = visual.current === grip.clip ? 1 : 0;
-  if (grip.t === want) return;
-  const step = dt / CROSSFADE;
-  grip.t =
-    want > grip.t
-      ? Math.min(want, grip.t + step)
-      : Math.max(want, grip.t - step);
-  const t = grip.t;
-  const mix = (a: number, b: number) => a + (b - a) * t;
-  gripPose(grip.tool, {
-    x: mix(grip.rest.x, grip.work.x),
-    y: mix(grip.rest.y, grip.work.y),
-    z: mix(grip.rest.z, grip.work.z),
-  });
+  if (grip.t !== want) {
+    const step = dt / CROSSFADE;
+    grip.t =
+      want > grip.t
+        ? Math.min(want, grip.t + step)
+        : Math.max(want, grip.t - step);
+    const t = grip.t;
+    const mix = (a: number, b: number) => a + (b - a) * t;
+    gripPose(grip.tool, {
+      x: mix(grip.rest.x, grip.work.x),
+      y: mix(grip.rest.y, grip.work.y),
+      z: mix(grip.rest.z, grip.work.z),
+    });
+  }
+  // The hold has to be settled before the grasp reads the tool: the spot
+  // on the snath rides the very rotation eased above.
+  if (grip.t <= 0 || !grip.free || !grip.grasp) return;
+  grip.grasp.updateWorldMatrix(true, false);
+  grip.free.hand.updateWorldMatrix(true, false);
+  grip.grasp.getWorldPosition(GRASP_TARGET);
+  grip.free.hand.getWorldPosition(GRASP_HAND);
+  ikReach(grip.free, GRASP_TARGET.lerp(GRASP_HAND, 1 - grip.t), GRASP_ROUNDS);
 }
 
 /**
@@ -1063,6 +1102,9 @@ function packToolProp(
   return g;
 }
 
+/** Name of the empty a tool hangs where its second hand goes. */
+const GRASP_NODE = 'grasp';
+
 /**
  * The pack scythe. Its origin sits mid-haft rather than at the butt, so
  * the pose's own slide alone grips it three fifths of the way up —
@@ -1085,6 +1127,15 @@ function packScytheProp(): THREE.Group {
   // points the head at the ground, and by 0.22 the tool stood buried to
   // the wrappings with the blade tip surfacing a step away like a shark.
   inner.position.y = 0.1;
+  // Where the free hand rides, on the snath's own axis in the pack file's
+  // units (the model is a child of `inner` at identity, so this frame is
+  // the file's). 0.58 is not a taste call: it is where the mow clip's left
+  // hand already tracks — the nearest point on the snath to it runs 0.42
+  // to 0.68 across the stroke and sits at 0.59 through the cut.
+  const grasp = new THREE.Object3D();
+  grasp.name = GRASP_NODE;
+  grasp.position.set(0, 0.58, 0);
+  inner.add(grasp);
   const g = new THREE.Group();
   g.add(inner);
   return g;
@@ -1487,6 +1538,11 @@ function makeKayKitCharacter(
           rest,
           work: look.swing.hold,
           t: 0,
+          // The off hand goes on the tool only if the tool says where and
+          // the rig has an arm to put there; either missing is simply a
+          // one-handed swing, which is what every other tool does.
+          free: findArm(root, 'l'),
+          grasp: proceduralTool.getObjectByName(GRASP_NODE) ?? null,
         };
       }
     }

@@ -111,6 +111,10 @@ function farmer(
   const action = made.visual.actions.get(clip);
   if (action) action.time = phase * action.getClip().duration;
   made.visual.mixer.update(0);
+  // Again, after the mixer: the hold is settled by now, so this pass only
+  // puts the free hand on the snath — which needs the posed bones, and in
+  // a match runs on every frame for that reason.
+  updateGrip(made.visual, 1);
 }
 
 /** One figure square to the camera at screen-x `x`, scrubbed to `phase` —
@@ -136,6 +140,10 @@ function figure(
   const action = made.visual.actions.get(clip);
   if (action) action.time = phase * action.getClip().duration;
   made.visual.mixer.update(0);
+  // Again, after the mixer: the hold is settled by now, so this pass only
+  // puts the free hand on the snath — which needs the posed bones, and in
+  // a match runs on every frame for that reason.
+  updateGrip(made.visual, 1);
 }
 
 /**
