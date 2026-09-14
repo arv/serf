@@ -27,16 +27,12 @@ import {
 } from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import {
-  GOODS,
-  goodEntries,
-  goodKeys,
-  type GoodAmounts,
-} from '../sim/defs/goods.ts';
+import {GOODS, goodEntries, type GoodAmounts} from '../sim/defs/goods.ts';
 import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
 import {TECH_DEFS} from '../sim/defs/techs.ts';
 import {UNIT_DEFS, carryingCode} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as DemandKind from '../sim/demandKindEnum.ts';
 import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
@@ -266,20 +262,32 @@ function outWaitingSinceOf(world: World, b: Building): number | undefined {
  * bread looks exactly like a mine that wants for nothing, and the player
  * is left to know the ration rule or wonder.
  *
- * Mirrors the gates production.ts actually returns on, in production's own
- * order: a full output shelf stalls a post before its ingredients are ever
- * looked at, so a hut stopped by its own shelf is not also reported short
- * of what it would have eaten next. The tool peg is asked separately
- * because a different system holds that gate — staffing calls nobody to a
- * post whose tool is missing (systems/staffing.ts), so the post has no
- * worker to stop and no batch to stall, and the card's "needs a worker!"
- * on its own never says why nobody came.
+ * Read off the demand marks rather than the buffer alone, because a good
+ * in `demandSince` says only that SOMETHING is calling for it: a damaged
+ * Smith's repair bill ages its stone on the same clock its recipe ages
+ * its iron on, and a card that read the clocks alone would report a cold
+ * forge short of stone it does not forge with. `demandHeld` is the
+ * discriminator the sim already keeps — a bit per kind of demand
+ * (DemandKind) — so this asks for exactly three of them, each under the
+ * gate the sim itself stops on:
  *
- * Demand-clocked on purpose: the ask itself is what the logistics layer
- * ages (Building.demandSince), so a good with no clock is one this post is
- * not actually calling for, and the age comes from the same place the
- * haulers' own queue reads it. A stable tick rather than an age, for
- * outWaitingSince's reason — the roster ships only when its body changes.
+ * - the TOOL, while nobody holds the post: staffing calls no one to a
+ *   post whose peg is empty (systems/staffing.ts), which is why the
+ *   card's "needs a worker!" could never say why nobody came;
+ * - the RATION, while a worker holds it and has no meal in hand: the
+ *   gate gatherStep idles a miner on, and only ever reached by a manned
+ *   post — an empty mine is short of a pick, not of bread;
+ * - the INPUTS, while nothing is on the fire: logistics resolves these
+ *   against what the post will actually forge next (walkDemands, and
+ *   forgeDemandRecipe at a Smith), so a forge queued onto bows reports
+ *   the wood it waits for rather than every ingredient on its menu.
+ *
+ * Ahead of all three, the shelf: a full output buffer stalls a post
+ * before its ingredients are ever looked at, so a hut stopped by its own
+ * shelf is not also reported short of what it would have eaten next.
+ *
+ * A stable tick rather than an age, for outWaitingSince's reason — the
+ * roster ships only when its body changes.
  */
 function shortageOf(
   world: World,
@@ -287,44 +295,23 @@ function shortageOf(
   def: BuildingDef,
 ): {shortOf?: GoodId[]; shortSince?: number} {
   if (b.state !== BuildingState.built || b.paused) return {};
-  const short: Partial<Record<GoodId, true>> = {};
-
-  const tool = TOOL_OF[b.type];
   const worker =
     b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
   const manned = worker !== undefined && !worker.dead;
-  if (tool !== undefined && !manned && (b.inputs[tool] ?? 0) < 1)
-    short[tool] = true;
 
+  let kinds = 0;
+  if (!manned) kinds |= DemandKind.tool;
   if (!outputFull(b, def)) {
-    const ration = rationOf(def);
-    if (ration && !b.rationLeft && (b.inputs[ration.good] ?? 0) < 1) {
-      // A gatherer's pantry: the one input a mine has, and the gate its
-      // worker idles on twenty ticks at a time (gatherStep).
-      short[ration.good] = true;
-    } else if (b.prodTicksLeft === undefined) {
-      // Nothing on the fire, so an ingredient it has none of is what the
-      // fire is waiting on. Filtered to ingredients this roof actually
-      // cooks with, so a storehouse's shopping list — it asks for
-      // everything — reports nothing.
-      const ingredients = ingredientsOf(def);
-      for (const good of goodKeys(b.demandSince)) {
-        if ((b.inputs[good] ?? 0) < 1 && ingredients.has(good))
-          short[good] = true;
-      }
-    }
+    if (manned && rationOf(def) && !b.rationLeft) kinds |= DemandKind.ration;
+    if (b.prodTicksLeft === undefined) kinds |= DemandKind.input;
   }
+  if (kinds === 0) return {};
 
-  // Only what this post is actually calling for. The clock is the filter
-  // as much as the age: a good the logistics layer has not booked a
-  // standing demand for is one nothing is on its way to fix, or one the
-  // post has no use for yet — an unmanned mine wants its pick, not the
-  // bread the miner it does not have would have eaten. In GOODS order
-  // however they were found, so the same shortage always serializes the
-  // same way.
+  // In GOODS order, so the same shortage always serializes the same way.
   let since: number | undefined;
   const shortOf = GOODS.filter(good => {
-    if (!short[good]) return false;
+    if ((((b.demandHeld?.[good] ?? 0) as number) & kinds) === 0) return false;
+    if ((b.inputs[good] ?? 0) >= 1) return false;
     const asked = b.demandSince[good];
     if (asked === undefined) return false;
     if (since === undefined || asked < since) since = asked;
@@ -349,28 +336,6 @@ function outputFull(b: Building, def: BuildingDef): boolean {
   for (const [good, n] of goodEntries(convert.outputs))
     if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return true;
   return false;
-}
-
-/**
- * Every good this roof cooks with, across its fixed recipe and every
- * option on its menu. Static table data, so it is computed once per def —
- * the same bargain the sim's own recipe caches strike.
- */
-const ingredientCache = new WeakMap<BuildingDef, Set<GoodId>>();
-function ingredientsOf(def: BuildingDef): Set<GoodId> {
-  let goods = ingredientCache.get(def);
-  if (goods) return goods;
-  goods = new Set<GoodId>();
-  const recipes = [
-    ...(def.recipe ? [def.recipe] : []),
-    ...(def.recipeOptions?.map(o => o.recipe) ?? []),
-  ];
-  for (const recipe of recipes) {
-    if (recipe.kind !== RecipeKind.convert) continue;
-    for (const good of goodKeys(recipe.inputs)) goods.add(good);
-  }
-  ingredientCache.set(def, goods);
-  return goods;
 }
 
 /**
