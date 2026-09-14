@@ -169,18 +169,22 @@ describe('updateGrip', () => {
     expect(where().distanceTo(grasp.position)).toBeLessThan(0.008);
   });
 
-  it('turns the fist so the shaft runs through it, without moving the hand', () => {
-    const {visual, hand, slot, grasp, tool, root} = makeGrasping();
-    // Start the bore well across the tool's shaft — 50-odd degrees off,
-    // the same order the mow clip leaves it.
+  it('turns the fist so the grip runs through it, without moving the hand', () => {
+    const {visual, hand, slot, grasp, root} = makeGrasping();
+    // The socket's +Y is the run the fist has to close around — on the
+    // scythe that is the nib's own axis, which lies across the snath, so
+    // give it a direction of its own rather than the tool's.
+    grasp.rotation.x = 0.5;
+    // Start the bore well across it — 50-odd degrees off, the same order
+    // the mow clip leaves it.
     slot.rotation.z = Math.PI / 2;
-    const across = Math.abs(upOf(slot, root).dot(upOf(tool, root)));
+    const across = Math.abs(upOf(slot, root).dot(upOf(grasp, root)));
     expect(across).toBeLessThan(0.9);
 
     visual.current = AnimKey.mow;
     updateGrip(visual, 1);
-    // The bore now lies along the shaft...
-    expect(Math.abs(upOf(slot, root).dot(upOf(tool, root)))).toBeCloseTo(1, 5);
+    // The bore now lies along the grip...
+    expect(Math.abs(upOf(slot, root).dot(upOf(grasp, root)))).toBeCloseTo(1, 5);
     // ...and the hand is still where the reach put it: the turn is about
     // the hand bone's own origin, so it rotates and does not travel.
     root.updateMatrixWorld(true);
