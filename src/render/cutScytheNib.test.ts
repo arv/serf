@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
-import {cutScytheNib} from './characters';
+import {cutScytheNib} from './assets';
 
 /**
  * The pack scythe is a reaper's: its grip peg lies in the blade's own
@@ -88,6 +88,19 @@ describe('cutScytheNib', () => {
     expectBox(new THREE.Box3().setFromPoints(drawn(m)), ...SHAFT);
     expect(m.geometry.getIndex()!.count).toBeLessThan(before);
     expect(m.geometry.getIndex()!.count).toBeGreaterThan(0);
+  });
+
+  it('leaves nothing of the peg in the bounds either', () => {
+    const m = mesh([SHAFT, PEG]);
+    expect(cutScytheNib(m)).toBe(true);
+    // Bounds are not drawn: computeBoundingBox and Box3.setFromObject read
+    // the position attribute and never the index, so a peg merely dropped
+    // from the index would go on sizing and centring the carried scythe.
+    m.geometry.computeBoundingBox();
+    expectBox(m.geometry.boundingBox!, ...SHAFT);
+    expectBox(new THREE.Box3().setFromObject(m), ...SHAFT);
+    // And every vertex left in the buffer is one the index still reaches.
+    expect(m.geometry.getAttribute('position').count).toBe(drawn(m).length);
   });
 
   it('leaves the model alone when nothing peg-shaped is there', () => {

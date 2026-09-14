@@ -6,7 +6,7 @@ import {clamp} from '../shared/math';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as AnimKeyNs from './animKeyEnum.ts';
 import {ARROW_LENGTH, makeArrow, setPackArrow} from './arrowModel';
-import {loadGltfRetry} from './assets';
+import {cutScytheNib, loadGltfRetry} from './assets';
 import {factionTint} from './factionPalette';
 import {type ArmChain, findArm, ikReach} from './ik';
 import {lathe} from './models';
@@ -764,104 +764,12 @@ async function loadKayKitCharacters(): Promise<boolean> {
     kkAssets = {chars, clips, props, gaitSpeeds};
     const arrow = props.get('arrow');
     if (arrow) setPackArrow(arrow);
+    // The scythe in the farmer's fist. The carried and piled one is a
+    // separate load and gets the same cut over in assets.ts.
     const scythe = props.get('weapons/scythe');
     if (scythe) cutScytheNib(scythe);
     return true;
   }
-}
-
-/**
- * Take the pack scythe's nib off.
- *
- * Fantasy Weapons Bits authored this as a reaper's scythe, and its grip peg
- * lies in the blade's OWN plane — where a hand goes on a blade swung
- * edge-up. A mower sweeps the blade flat, and then that plane is
- * horizontal, so the peg is forced vertical; and of the two ways round, the
- * one that keeps the blade in front of the man points the peg at the turf.
- * Measured: straight down, at ankle height, 0.28 world from the free
- * shoulder against an arm that reaches 0.20. No hold fixes that, because
- * the peg's bearing round the snath is the model's to say and not the
- * hold's — of 171,720 hold-and-slide combinations, the 41 that both cut
- * properly and brought the peg within reach all pointed it at the ground
- * and cost the stroke 16 degrees of level.
- *
- * So the peg comes off, and the free hand takes the snath itself. A mower's
- * hands go where his snath is long enough to take them; this one is, and a
- * grip nobody uses is worse detail than no grip at all.
- *
- * The mesh is kitbashed out of 104 loose pieces that interpenetrate rather
- * than weld, so the peg lifts out whole: every piece that fits inside the
- * box below is the peg, root to tip (272 vertices in the vendored file),
- * and not one triangle straddles the seam — dropping its triangles from the
- * index leaves nothing ragged behind. If a pack update ever moves it, what
- * comes out will not be peg-shaped, and then we leave the model alone
- * rather than cut into it. Returns whether the nib actually came off.
- */
-export function cutScytheNib(root: THREE.Object3D): boolean {
-  let mesh: THREE.Mesh | undefined;
-  root.traverse(o => {
-    if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
-  });
-  const geo = mesh?.geometry;
-  const index = geo?.getIndex();
-  const pos = geo?.getAttribute('position');
-  if (!geo || !index || !pos) return false;
-
-  // Union-find over the triangles: which vertices hang together.
-  const parent = new Int32Array(pos.count);
-  for (let i = 0; i < parent.length; i++) parent[i] = i;
-  const find = (a: number): number => {
-    while (parent[a] !== a) {
-      parent[a] = parent[parent[a]!]!;
-      a = parent[a]!;
-    }
-    return a;
-  };
-  for (let i = 0; i < index.count; i += 3) {
-    const a = find(index.getX(i));
-    const b = find(index.getX(i + 1));
-    const c = find(index.getX(i + 2));
-    if (a !== b) parent[a] = b;
-    if (find(b) !== c) parent[find(b)] = c;
-  }
-  // A piece is the nib only if ALL of it sits in the peg's own box — the
-  // collar rings around the shaft overlap that band and must stay put.
-  const box = new Map<number, THREE.Box3>();
-  const P = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    const r = find(i);
-    P.fromBufferAttribute(pos, i);
-    const b = box.get(r);
-    if (b) b.expandByPoint(P);
-    else box.set(r, new THREE.Box3(P.clone(), P.clone()));
-  }
-  const NIB = new THREE.Box3(
-    new THREE.Vector3(-0.02, 0.64, -0.02),
-    new THREE.Vector3(0.14, 0.8, 0.47),
-  );
-  const peg = new Set<number>();
-  for (const [r, b] of box) {
-    if (NIB.containsBox(b) && b.max.z > 0.12) peg.add(r);
-  }
-  // Whatever we picked has to BE a peg: a run at least a quarter of a unit
-  // long out from the shaft. A couple of stray collar rings would not be.
-  const picked = new THREE.Box3();
-  for (let i = 0; i < pos.count; i++) {
-    if (peg.has(find(i))) picked.expandByPoint(P.fromBufferAttribute(pos, i));
-  }
-  if (picked.isEmpty() || picked.max.z - picked.min.z < 0.25) return false;
-  // Drop the peg's triangles. Its vertices stay in the buffer, unindexed
-  // and undrawn — re-packing them would only save a few hundred floats and
-  // would have to renumber every triangle in the model to do it.
-  const kept: number[] = [];
-  for (let i = 0; i < index.count; i += 3) {
-    if (peg.has(find(index.getX(i)))) continue;
-    kept.push(index.getX(i), index.getX(i + 1), index.getX(i + 2));
-  }
-  geo.setIndex(kept);
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
-  return true;
 }
 
 const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
