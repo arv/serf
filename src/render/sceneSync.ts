@@ -23,6 +23,7 @@ import {
   TARGET_HEIGHT,
   gaitAnimKey,
   updateBow,
+  updateGrip,
   makeCharacter,
   playAnimation,
   setGaitSpeed,
@@ -1511,6 +1512,9 @@ export class SceneSync {
         visual.char.mixer.update(dt);
         // The archer's string and nocked arrow follow the posed hand.
         if (visual.char.bow) updateBow(visual.char);
+        // A tool held one way and swung another changes hands over the
+        // same blend the clips do (the farmer's scythe).
+        if (visual.char.grip) updateGrip(visual.char, dt);
         // The 'loop' event only covers cycles after the first wrap, so a
         // percussive clip (re)started this frame would play its whole
         // first cycle mute — for Pickaxing that is two silent swings and
