@@ -1015,10 +1015,22 @@ interface GripRig {
    * no second grip — then the free hand is left to the clip. */
   free: ArmChain | null;
   grasp: THREE.Object3D | null;
+  /** That hand's own prop socket — the bore a tool would be laid down if
+   * this hand were carrying one. Turning it onto the haft is what closes
+   * the fist around the shaft instead of across it. */
+  slot: THREE.Object3D | null;
 }
 
 const GRASP_TARGET = new THREE.Vector3();
 const GRASP_HAND = new THREE.Vector3();
+const GRASP_AXIS = new THREE.Vector3();
+const GRASP_BORE = new THREE.Vector3();
+const GRASP_ROT = new THREE.Matrix4();
+const GRASP_TURN = new THREE.Quaternion();
+const GRASP_WANT = new THREE.Quaternion();
+const GRASP_PQ = new THREE.Quaternion();
+const GRASP_PQI = new THREE.Quaternion();
+const GRASP_STILL = new THREE.Quaternion();
 
 /** CCD rounds for the free hand. The clip starts it a hand's width off the
  * haft (0.08 world at the worst frame of the stroke); 2 rounds leave a
@@ -1077,6 +1089,34 @@ export function updateGrip(visual: CharacterVisual, dt: number): void {
   grip.grasp.getWorldPosition(GRASP_TARGET);
   grip.free.hand.getWorldPosition(GRASP_HAND);
   ikReach(grip.free, GRASP_TARGET.lerp(GRASP_HAND, 1 - grip.t), GRASP_ROUNDS);
+  if (!grip.slot) return;
+  // Then turn the fist so the shaft runs through it. The reach alone put
+  // the hand ON the snath but left the bore crossing it by up to 65
+  // degrees — the haft went through the side of the fist, which at a
+  // close zoom reads as a hand resting against the shaft rather than
+  // holding it. The turn is about the hand bone alone, whose own origin
+  // is what the reach just placed, so the hand rotates and does not move.
+  grip.tool.updateWorldMatrix(true, false);
+  grip.slot.updateWorldMatrix(true, false);
+  GRASP_AXIS.set(0, 1, 0)
+    .applyMatrix4(GRASP_ROT.extractRotation(grip.tool.matrixWorld))
+    .normalize();
+  GRASP_BORE.set(0, 1, 0)
+    .applyMatrix4(GRASP_ROT.extractRotation(grip.slot.matrixWorld))
+    .normalize();
+  // A shaft has no near end and no far one as far as a fist is concerned,
+  // so take whichever way round is the shorter turn — the other is the
+  // same grip with the wrist put through half a revolution.
+  if (GRASP_BORE.dot(GRASP_AXIS) < 0) GRASP_AXIS.negate();
+  GRASP_WANT.setFromUnitVectors(GRASP_BORE, GRASP_AXIS);
+  GRASP_TURN.slerpQuaternions(GRASP_STILL, GRASP_WANT, grip.t);
+  const hand = grip.free.hand;
+  hand.parent!.getWorldQuaternion(GRASP_PQ);
+  GRASP_PQI.copy(GRASP_PQ).invert();
+  hand.quaternion
+    .premultiply(GRASP_PQ)
+    .premultiply(GRASP_TURN)
+    .premultiply(GRASP_PQI);
 }
 
 /**
@@ -1543,6 +1583,7 @@ function makeKayKitCharacter(
           // one-handed swing, which is what every other tool does.
           free: findArm(root, 'l'),
           grasp: proceduralTool.getObjectByName(GRASP_NODE) ?? null,
+          slot: boneOf('handslot.l') ?? null,
         };
       }
     }

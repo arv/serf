@@ -63,6 +63,7 @@ function makeVisual(): {visual: CharacterVisual; tool: THREE.Object3D} {
       t: 0,
       free: null,
       grasp: null,
+      slot: null,
     },
   };
   return {visual, tool};
@@ -72,7 +73,9 @@ function makeVisual(): {visual: CharacterVisual; tool: THREE.Object3D} {
 function makeGrasping(): {
   visual: CharacterVisual;
   hand: THREE.Object3D;
+  slot: THREE.Object3D;
   grasp: THREE.Object3D;
+  tool: THREE.Object3D;
   root: THREE.Object3D;
 } {
   const made = makeVisual();
@@ -81,9 +84,28 @@ function makeGrasping(): {
   const grasp = new THREE.Object3D();
   grasp.position.set(0.28, 0.1, 0);
   root.add(grasp);
+  // The hand's own bore, deliberately across the tool's axis to start.
+  const slot = new THREE.Object3D();
+  arm.hand.add(slot);
   made.visual.grip!.free = arm;
   made.visual.grip!.grasp = grasp;
-  return {visual: made.visual, hand: arm.hand, grasp, root};
+  made.visual.grip!.slot = slot;
+  return {
+    visual: made.visual,
+    hand: arm.hand,
+    slot,
+    grasp,
+    tool: made.tool,
+    root,
+  };
+}
+
+/** World +Y of an object — a hand's bore, or the shaft of the tool. */
+function upOf(o: THREE.Object3D, root: THREE.Object3D): THREE.Vector3 {
+  root.updateMatrixWorld(true);
+  return new THREE.Vector3(0, 1, 0)
+    .applyMatrix4(new THREE.Matrix4().extractRotation(o.matrixWorld))
+    .normalize();
 }
 
 describe('updateGrip', () => {
@@ -145,6 +167,26 @@ describe('updateGrip', () => {
     // Within a fiftieth of the arm's own length: on the real rig that is
     // the couple of hundredths of a world unit the measurements show.
     expect(where().distanceTo(grasp.position)).toBeLessThan(0.008);
+  });
+
+  it('turns the fist so the shaft runs through it, without moving the hand', () => {
+    const {visual, hand, slot, grasp, tool, root} = makeGrasping();
+    // Start the bore well across the tool's shaft — 50-odd degrees off,
+    // the same order the mow clip leaves it.
+    slot.rotation.z = Math.PI / 2;
+    const across = Math.abs(upOf(slot, root).dot(upOf(tool, root)));
+    expect(across).toBeLessThan(0.9);
+
+    visual.current = AnimKey.mow;
+    updateGrip(visual, 1);
+    // The bore now lies along the shaft...
+    expect(Math.abs(upOf(slot, root).dot(upOf(tool, root)))).toBeCloseTo(1, 5);
+    // ...and the hand is still where the reach put it: the turn is about
+    // the hand bone's own origin, so it rotates and does not travel.
+    root.updateMatrixWorld(true);
+    expect(
+      hand.getWorldPosition(new THREE.Vector3()).distanceTo(grasp.position),
+    ).toBeLessThan(0.008);
   });
 
   it('reaches only part way while the hold is still easing in', () => {
