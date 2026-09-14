@@ -193,6 +193,45 @@ describe('updateGrip', () => {
     ).toBeLessThan(0.008);
   });
 
+  it('lets the arm go the moment the tool leaves the hand', () => {
+    const {visual, hand, slot, grasp, root} = makeGrasping();
+    const where = (): THREE.Vector3 => {
+      root.updateMatrixWorld(true);
+      return hand.getWorldPosition(new THREE.Vector3());
+    };
+    visual.current = AnimKey.mow;
+    updateGrip(visual, 1);
+    const onTool = where();
+    expect(onTool.distanceTo(grasp.position)).toBeLessThan(0.008);
+
+    // Hands full: setWorkTool hides the tool in the very frame the clip
+    // changes, and this blend still has 0.16s to run. The arm must not
+    // spend it chasing a scythe nobody can see — so move the socket and
+    // check the hand stays where the clip left it.
+    visual.grip!.tool.visible = false;
+    visual.current = AnimKey.carry;
+    grasp.position.set(0.1, 0.3, 0.1);
+    updateGrip(visual, 0.01); // one frame in, t is still nearly 1
+    expect(visual.grip!.t).toBeGreaterThan(0.9);
+    expect(where().distanceTo(onTool)).toBeCloseTo(0, 6);
+    // The wrist is left alone with it.
+    const bore = upOf(slot, root);
+    updateGrip(visual, 0.01);
+    expect(upOf(slot, root).angleTo(bore)).toBeCloseTo(0, 6);
+  });
+
+  it('eases the hold out of a tool that is hidden while its clip plays on', () => {
+    const {visual} = makeGrasping();
+    visual.current = AnimKey.mow;
+    updateGrip(visual, 1);
+    expect(visual.grip!.t).toBe(1);
+    // Still the mowing clip, but the tool has gone: the hold gives up too,
+    // so it is not sitting in the work pose when the tool comes back.
+    visual.grip!.tool.visible = false;
+    updateGrip(visual, 0.08);
+    expect(visual.grip!.t).toBeCloseTo(0.5, 5);
+  });
+
   it('reaches only part way while the hold is still easing in', () => {
     const {visual, hand, grasp, root} = makeGrasping();
     const start =

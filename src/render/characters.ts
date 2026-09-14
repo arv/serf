@@ -1070,7 +1070,14 @@ const GRASP_ROUNDS = 6;
 export function updateGrip(visual: CharacterVisual, dt: number): void {
   const grip = visual.grip;
   if (!grip) return;
-  const want = visual.current === grip.clip ? 1 : 0;
+  // Nothing is held when the tool is not in the hand: setWorkTool hides it
+  // for a stowed tool (hands full of goods) or one swapped out for another
+  // kind of work, and it does that in the same frame the clip changes —
+  // while this blend still has its 0.16s to run. Reaching the arm at a
+  // scythe nobody can see is a hand closing on thin air, so an empty hand
+  // gives the arm straight back to the clip.
+  const held = grip.tool.visible;
+  const want = held && visual.current === grip.clip ? 1 : 0;
   if (grip.t !== want) {
     const step = dt / CROSSFADE;
     grip.t =
@@ -1086,8 +1093,10 @@ export function updateGrip(visual: CharacterVisual, dt: number): void {
     });
   }
   // The hold has to be settled before the grasp reads the tool: the spot
-  // on the snath rides the very rotation eased above.
-  if (grip.t <= 0 || !grip.free || !grip.grasp) return;
+  // on the snath rides the very rotation eased above. `held` again and not
+  // just `t`, because the hold goes on easing out of a hidden tool (which
+  // costs nothing — it is not drawn) while the arm must let go at once.
+  if (!held || grip.t <= 0 || !grip.free || !grip.grasp) return;
   grip.grasp.updateWorldMatrix(true, false);
   grip.free.hand.updateWorldMatrix(true, false);
   grip.grasp.getWorldPosition(GRASP_TARGET);
