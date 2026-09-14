@@ -62,3 +62,59 @@ describe('nearestEnemyInto', () => {
     expect(sync.nearestEnemyInto(30, 30, 0, 7, out)).toBe(false);
   });
 });
+
+/**
+ * Does `mesh` reach the screen after `other`?
+ *
+ * The queue comes first and renderOrder second, because that is the rule
+ * the renderer follows: it runs the whole opaque list, then the
+ * transmissive one, then the transparent one, and renderOrder only sorts
+ * objects WITHIN their own list. An overlay that draws with no depth test
+ * has nothing else keeping it on top, so the list it lands in is the
+ * whole of its claim to being drawn last.
+ */
+function drawsAfter(mesh: THREE.Mesh, other: THREE.Mesh): boolean {
+  const queue = (o: THREE.Mesh): number =>
+    (o.material as THREE.Material).transparent ? 1 : 0;
+  if (queue(mesh) !== queue(other)) return queue(mesh) > queue(other);
+  return mesh.renderOrder > other.renderOrder;
+}
+
+describe('the hp bars over the men', () => {
+  /** The bars are the one thing the sync hangs on the scene that refuses
+   * the depth test; the festival auras beside them take it. */
+  function bars(scene: THREE.Scene): THREE.Mesh {
+    const found = scene.children.filter(
+      (o): o is THREE.Mesh =>
+        o instanceof THREE.Mesh &&
+        !Array.isArray(o.material) &&
+        o.material.depthTest === false,
+    );
+    expect(found).toHaveLength(1);
+    return found[0]!;
+  }
+
+  it('draws after the prints on the ground, not before them', () => {
+    const scene = new THREE.Scene();
+    const sab = new SharedArrayBuffer(SAB_BYTES);
+    const reader = new SabReader(sab);
+    new SabWriter(sab).publish([unit(1, 30, 30, 0)]);
+    reader.poll(0);
+    new SceneSync(scene, reader, flat);
+
+    // Stand in for the footprint mesh, which needs a canvas to build its
+    // sprite: what matters here is the draw state it carries — a
+    // transparent decal in the ordinary render order, depth-tested
+    // against the world and writing nothing back.
+    const prints = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({transparent: true, depthWrite: false}),
+    );
+
+    // Opaque, the bars drew before every print in the game however high
+    // their renderOrder — and a print that won its own depth test then
+    // painted over a bar that had written no depth to defend itself, which
+    // is a man's boot marks drawn across his own health bar.
+    expect(drawsAfter(bars(scene), prints)).toBe(true);
+  });
+});

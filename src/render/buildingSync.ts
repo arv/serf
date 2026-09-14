@@ -467,6 +467,11 @@ const HP_FG_GEO = new THREE.PlaneGeometry(HP_BAR_W - 0.06, 0.07);
 const HP_BG_MAT = new THREE.MeshBasicMaterial({
   color: 0x140f0a,
   depthTest: false,
+  // Transparent at full opacity, for the queue rather than for the look —
+  // see hpBarMaterial in sceneSync.ts. An opaque bar draws before every
+  // transparent thing on the map whatever its renderOrder, and a ground
+  // decal drawn after it paints over a bar that wrote no depth.
+  transparent: true,
   userData: {noFog: true},
 });
 
@@ -474,6 +479,7 @@ const HP_BG_MAT = new THREE.MeshBasicMaterial({
 const HP_FG_MAT = new THREE.MeshBasicMaterial({
   color: 0xffffff,
   depthTest: false,
+  transparent: true,
   userData: {noFog: true},
 });
 

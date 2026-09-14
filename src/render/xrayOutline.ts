@@ -222,6 +222,14 @@ export function occluderMaterial(src: THREE.Material): THREE.Material {
   const had = wallMaterials.get(src);
   if (had) return had;
   const m = src.clone();
+  // The twin clips exactly where its source does — the SAME planes, not
+  // copies of them. Material.copy deep-clones clippingPlanes, and a
+  // construction site's reveal is one plane object whose constant is
+  // raised every frame (buildingSync, #create/update): handed a copy, the
+  // marked mesh keeps drawing at the sliver height it was marked at and
+  // the building never rises out of the ground, while everything that
+  // reads the live plane — the pick, the occluder boxes — believes it has.
+  m.clippingPlanes = src.clippingPlanes;
   m.stencilWrite = true;
   m.stencilRef = WALL_BIT;
   // Its own bit only, so a building can never disturb the body bit.
