@@ -54,6 +54,38 @@ describe('the build ribbon', () => {
     });
     expect(dupes).toEqual([]);
   });
+
+  /**
+   * The frame is three columns and two rows deep (Hud.tsx), so six cells is
+   * a tab's worth. A seventh hides nothing — the frame takes its height
+   * from the tallest page and grows a row — but it grows for all three at
+   * once, so the two tabs that did not need the row carry it empty. Arms
+   * stood at seven and that is exactly what it cost.
+   *
+   * Nothing else here can catch that: every other assertion in this file
+   * reads the groups back against themselves, so any arrangement of any
+   * size is self-consistent and green.
+   */
+  it('gives no tab more than the frame holds', () => {
+    const over = BUILD_GROUPS.filter(g => g.types.length > 6).map(g => ({
+      tab: g.label,
+      count: g.types.length,
+    }));
+    expect(over).toEqual([]);
+  });
+
+  /**
+   * The one placement in the ribbon that is filed by who comes looking
+   * rather than by what the building makes (the reasoning is in
+   * buildMenu.ts). Sorting the Smith by its output puts it back on Arms
+   * beside the spears, which reads perfectly sensible in a diff and takes
+   * the village's only tool source off the tab a new player opens first.
+   */
+  it('keeps the Smith on the tab a new village opens', () => {
+    expect(buildTab(BuildingTypeId.weaponsmith)).toBe(
+      BUILD_GROUPS.findIndex(g => g.label === 'Village'),
+    );
+  });
 });
 
 /**

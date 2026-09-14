@@ -1366,10 +1366,23 @@ export function Hud(props: {
           display: flex;
           width: calc(3 * var(--build-col) + 12px);
           max-width: 100%;
-          /* A flat height, not a floor: the frame has to be the same
-             frame on every tab, and losing a column is what makes the
-             rows overflow. They scroll inside their own page. */
-          height: calc(2 * var(--build-row) + 6px);
+          /* A floor, not a flat height. The frame still has to be the
+             same frame on every tab, and it is: the pages stand in a
+             row and stretch to the tallest of them, so the card is
+             Arms' height whichever tab is up, and Village carries the
+             empty cells — the same price SHORT already pays for the
+             same guarantee, and for the same reason.
+             Two flat rows could not hold Arms. Seven buildings over
+             three columns is three rows, so that tab overflowed on
+             every desktop, and the scrollbar that answered for the
+             missing row was a classic one on the machines that have
+             them: it took its 15px out of the page, which cost the
+             third column, which made a fourth row, which kept the
+             scrollbar. A frame that grows by a row instead has nothing
+             to scroll and nothing to scroll with — and it grows again
+             on its own when a squeezed card drops to two columns, or
+             when a tab gains a building. */
+          min-height: calc(2 * var(--build-row) + 6px);
           overflow-x: auto;
           overflow-y: hidden;
           /* mandatory, not proximity: there is no resting place between
@@ -2050,11 +2063,11 @@ export function Hud(props: {
             right: calc(var(--hud-margin) + var(--safe-right));
             left: calc(var(--hud-margin) + var(--safe-left));
             z-index: 20;
-            /* As tall as its own tab needs and no taller — four cells in
-               the Village tab is four cells, not the two declared rows
-               the bottom card always reserved whether or not anything
-               stood in the second one. Past the cap the ribbon scrolls,
-               which is what the War tab does on the shortest screens.
+            /* As tall as the ribbon needs and no taller — the cells a tab
+               actually holds, not the rows the bottom card always
+               reserved whether or not anything stood in them. Past the
+               cap the ribbon scrolls, which is what it does on the
+               shortest screens.
                The top edge stays auto for that: pinning both edges would
                stretch the sheet to fill, which is how the old card came
                to be mostly empty. It grows upward from the bottom
