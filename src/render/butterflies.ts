@@ -14,6 +14,54 @@ const TILES_PER_BUTTERFLY = 160;
 
 const dummy = new THREE.Object3D();
 const tint = new THREE.Color();
+/** Filled by {@link wander}; shared so the per-frame path stays allocation-free. */
+const drift = {x: 0, z: 0, yaw: 0};
+
+/**
+ * Where the butterfly anchored at (ax, az) is at time `t`, and the yaw that
+ * puts its head into the direction of travel. Two incommensurate loops per
+ * axis so the path never quite repeats; each velocity line below is the
+ * exact derivative of the position line above it. Neither loop is small
+ * enough to drop: the second is the shorter one but proportionally the
+ * faster, so it still carries about four fifths of the first's share of the
+ * velocity, and a heading that keeps only the first can end up a half turn
+ * from the way the butterfly is actually going.
+ *
+ * `yaw` follows the same convention as the footprint quad's: the sprite's
+ * head points along +Z at yaw 0, which is what the geometry below is
+ * rotated to do. Fills and returns the shared {@link drift}.
+ */
+export function wander(
+  ax: number,
+  az: number,
+  phase: number,
+  t: number,
+): Readonly<typeof drift> {
+  drift.x = ax + 1.7 * Math.sin(t * 0.31) + 0.5 * Math.sin(t * 0.83 + phase);
+  const vx =
+    1.7 * 0.31 * Math.cos(t * 0.31) + 0.5 * 0.83 * Math.cos(t * 0.83 + phase);
+  drift.z = az + 1.7 * Math.cos(t * 0.27 + phase) + 0.5 * Math.cos(t * 0.71);
+  const vz =
+    -1.7 * 0.27 * Math.sin(t * 0.27 + phase) - 0.5 * 0.71 * Math.sin(t * 0.71);
+  drift.yaw = Math.atan2(vx, vz);
+  return drift;
+}
+
+/**
+ * The painted quad, lying flat so the wings read from the game's high
+ * camera. The butterfly's head is drawn at the top of its sprite canvas,
+ * which the texture's flipY puts at v = 1 and flattening alone would aim at
+ * -Z; the half turn brings it round to +Z, so a heading yaw means here what
+ * it means for the footprint quad. Without it every butterfly flies tail
+ * first. The wingspan stays on the quad's x axis either way, which is the
+ * axis {@link Butterflies.update} squeezes to flap.
+ */
+export function butterflyQuad(): THREE.PlaneGeometry {
+  const geometry = new THREE.PlaneGeometry(0.22, 0.17);
+  geometry.rotateX(-Math.PI / 2);
+  geometry.rotateY(Math.PI);
+  return geometry;
+}
 
 /**
  * A handful of butterflies drifting over the lush meadows — the cheapest
@@ -57,8 +105,7 @@ export class Butterflies {
       this.#anchors[k * 3 + 2] = hash2(i, 482) * 100;
     }
 
-    const geometry = new THREE.PlaneGeometry(0.22, 0.17);
-    geometry.rotateX(-Math.PI / 2); // flat: wings read from the game's high camera
+    const geometry = butterflyQuad();
     const material = new THREE.MeshBasicMaterial({
       map: makeButterflySprite(),
       alphaTest: 0.5,
@@ -87,23 +134,11 @@ export class Butterflies {
       const az = this.#anchors[k * 3 + 1]!;
       const phase = this.#anchors[k * 3 + 2]!;
       const t = nowMs / 1000 + phase;
-      // Two incommensurate loops so the path never quite repeats.
-      const x =
-        ax + Math.sin(t * 0.31) * 1.7 + Math.sin(t * 0.83 + phase) * 0.5;
-      const z =
-        az + Math.cos(t * 0.27 + phase) * 1.7 + Math.cos(t * 0.71) * 0.5;
+      const {x, z, yaw} = wander(ax, az, phase, t);
       const y = this.#heights.at(x, z) + 0.55 + Math.sin(t * 1.9) * 0.18;
       dummy.position.set(x, y, z);
-      // Nose along the direction of travel (cheap: the loop's derivative
-      // sign is close enough at this size), wings squeezing to flap.
-      dummy.rotation.set(
-        0,
-        Math.atan2(
-          Math.cos(t * 0.31) * 0.53,
-          -Math.sin(t * 0.27 + phase) * 0.46,
-        ),
-        0,
-      );
+      // Nose into the direction of travel, wings squeezing to flap.
+      dummy.rotation.set(0, yaw, 0);
       dummy.scale.set(0.55 + Math.abs(Math.sin(t * 9 + phase)) * 0.55, 1, 1);
       dummy.updateMatrix();
       this.mesh.setMatrixAt(k, dummy.matrix);
