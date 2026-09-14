@@ -1218,8 +1218,8 @@ const SCYTHE_CARRY: Hold = {x: 0.35, y: Math.PI, z: -0.1};
  * How he holds it to cut, which is not how he carries it. The blade is a
  * flat crescent lying in the snath's own plane, so the hold alone decides
  * whether it sweeps through the stalks or through the air above them —
- * and the carry hold swung it 41 degrees out of the plane of the stroke
- * with the edge 50 degrees off the way the blade was travelling. It read
+ * and the carry hold swung it 39 degrees out of the plane of the stroke
+ * with the edge 44 degrees off the way the blade was travelling. It read
  * as a man dragging a hook through the wheat sideways.
  *
  * Read off the clip rather than guessed: at the cut (the fast third of
