@@ -215,10 +215,24 @@ function hpBucket(pct: number): number {
   return Math.max(0, Math.min(4, Math.floor(pct * 5)));
 }
 
-/** White, so the per-instance colour comes through unmultiplied. */
+/**
+ * White, so the per-instance colour comes through unmultiplied.
+ *
+ * Transparent at full opacity, which looks like a contradiction and is
+ * not: it is what queue the bars draw in. Three renders the whole opaque
+ * list before the first transparent object, and renderOrder only sorts
+ * WITHIN a list — so an opaque bar, however high its order, still draws
+ * before every ground decal in the game, and a decal that wins its own
+ * depth test then paints straight over a bar that wrote no depth to
+ * defend itself. That is how a man's boot prints ended up drawn across
+ * his own health bar. In the transparent list, renderOrder 10 puts the
+ * bars last over everything, which is the overlay contract they were
+ * always meant to keep. Opacity 1 means the blend is a copy.
+ */
 const hpBarMaterial = new THREE.MeshBasicMaterial({
   color: 0xffffff,
   depthTest: false,
+  transparent: true,
   userData: {noFog: true},
 });
 

@@ -1384,3 +1384,31 @@ describe('occluderBoxes', () => {
     expect(sync.occluderBoxes()).toHaveLength(1);
   });
 });
+
+describe('the hp bars over the buildings', () => {
+  it('draws after the decals on the ground, not before them', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({hp: 60})]); // hurt, so the bar is shown
+
+    // The bars are the only thing the sync hangs on the scene that
+    // refuses the depth test — which is also why the queue they draw in
+    // is the whole of what keeps them on top. Three runs the entire
+    // opaque list before the first transparent object and renderOrder
+    // only sorts within a list, so an opaque bar draws before every
+    // ground decal in the game and the decal paints over it: the boot
+    // prints across a health bar that started this.
+    const bars: THREE.Mesh[] = [];
+    scene.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      eachMaterial(o, m => {
+        if (m.depthTest === false) bars.push(o);
+      });
+    });
+    expect(bars).toHaveLength(2); // the trough and the fill
+    for (const bar of bars) {
+      eachMaterial(bar, m => expect(m.transparent).toBe(true));
+      // ...and last within that list, over the prints at the default 0.
+      expect(bar.renderOrder).toBeGreaterThan(0);
+    }
+  });
+});
