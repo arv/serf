@@ -27,10 +27,11 @@ import {vermillion} from './palette';
  *  2. **Hull.** The body once more, back faces only, every vertex pushed
  *     out along its normal by a few screen pixels, drawn where the depth
  *     test is inverted (`GreaterDepth`: pass only where something nearer
- *     has already been drawn) and the stencil test *skips* the bit the
- *     mask wrote. What survives is the ring of pushed-out body that falls
- *     outside the body and behind the wall: the outline, and only around
- *     the part of him the wall has taken.
+ *     has already been drawn) and the stencil says a building's own bit
+ *     is set and the mask's is not — one Equal against both. What
+ *     survives is the ring of pushed-out body that falls outside the body
+ *     and over a wall: the outline, and only around the part of him the
+ *     wall has taken.
  *
  * Both passes share the character's own geometry and skeleton — the twins
  * hang off the meshes they copy, so they inherit the pose, the transform
@@ -48,18 +49,39 @@ import {vermillion} from './palette';
  * it costs is the count: eight men shoulder to shoulder read as a crowd,
  * not as eight.
  *
- * Which units get one is decided on the CPU (`occludedBy`), not by the
- * depth buffer: the depth buffer cannot tell a building from a crag or an
- * oak, and an outline for every man behind every tree is noise. Because
- * the test is a ray against building boxes, and a box contains the model
- * inside it, it errs toward drawing — a wasted pair of draws that the
- * depth test then rejects everywhere, never a missing outline.
+ * Which units get one is decided on the CPU (`occludedBy`) — a ray against
+ * the buildings' boxes. That test is deliberately generous, because a box
+ * contains its model, and it decides only whether the two passes are
+ * *issued*, never where the edge lands.
+ *
+ * WHERE it lands is the wall bit's job, and getting that wrong is the bug
+ * this pass shipped with. The first cut asked only "is something nearer
+ * than me here?" (`GreaterDepth`) and took yes for "a building is standing
+ * in front of me". Under an orthographic rig pitched over the valley those
+ * are not the same question: the ground a man is standing ON is nearer to
+ * the camera than he is, everywhere south of his feet. So the hull's lower
+ * rim passed the depth test against open grass and drew a green arc under
+ * the boots of every man the CPU test had flagged — which, the test being
+ * generous, was every man who happened to stand near a wall. The depth
+ * test does not reject what the box over-reaches; it never did.
+ *
+ * So the buildings say where they are. They stamp a bit of their own
+ * wherever they draw, and the hull asks for that bit as well as for depth:
+ * a wall is in front of this pixel, AND I am behind what is here. Grass
+ * carries no bit and takes no edge.
  */
 
-/** The one stencil bit this pass owns: set by the mask over a body, read
- * by the hull to cut its own middle out. Nothing else in the renderer
- * touches the stencil buffer, so one bit is the whole budget it needs. */
+/** The two stencil bits this pass owns.
+ *
+ * WALL is stamped by the buildings themselves (occluderMaterial, applied
+ * by BuildingSync) wherever their fragments win the depth test — the only
+ * honest answer to "is a building covering this pixel". BODY is stamped by
+ * the mask over the man, so the hull can cut its own middle out.
+ *
+ * The hull wants wall-and-not-body, which is one Equal against both bits.
+ * Nothing else in the renderer touches the stencil buffer. */
 const BODY_BIT = 0x01;
+const WALL_BIT = 0x02;
 
 /** Both passes ride after the opaque world (renderOrder 0) and before the
  * overlays that sit over everything — the hp bars at 10, which draw with
@@ -153,9 +175,66 @@ const maskMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
   stencilWrite: true,
   stencilRef: BODY_BIT,
+  // Only this pass's own bit. Replace writes ref & writeMask, and left at
+  // the default 0xff it would wipe the wall bit out from under the man —
+  // the hull would then find no wall anywhere it looked.
+  stencilWriteMask: BODY_BIT,
   stencilFunc: THREE.AlwaysStencilFunc,
   stencilZPass: THREE.ReplaceStencilOp,
 });
+
+/**
+ * Where a building draws in the opaque queue: after the whole rest of the
+ * world, and still well before the mask and the hull.
+ *
+ * This is not cosmetic, it is what makes the wall bit mean anything. The
+ * bit is stamped on ZPass — where the fragment wins the depth test — and
+ * nothing ever clears it. So if an unmarked thing that writes depth were
+ * drawn *after* a building at the same pixel, it would take the depth and
+ * leave the bit behind, and the hull would read a wall where a tree now
+ * stands. Three sorts the opaque queue by renderOrder before it sorts by
+ * distance, and a Group only sets the group order when it carries one of
+ * its own — so putting the buildings' meshes last inside the same group
+ * order is the whole guarantee: nothing unmarked draws after them, so a
+ * standing bit is always a building that is still the nearest thing here.
+ */
+export const WALL_RENDER_ORDER = 1;
+
+/**
+ * The wall-stamping twin of a building material: the same material, plus
+ * the stencil state that says "a building is covering this pixel".
+ *
+ * A clone rather than a flag flipped in place, and that is load-bearing.
+ * The packs hand the same material *object* to a building's yard decor and
+ * to the goods a serf carries — `assets.props` holds the very scenes the
+ * decor is cloned from, and three's Mesh.copy takes the material by
+ * reference. Marked in place, a mill's static sack would quietly make
+ * every sack carried across open ground into a wall.
+ *
+ * Cached by source, so all the buildings sharing a template share one
+ * marked clone and the draw call count does not move. Weak, because a
+ * construction site's materials are its own private clip-plane clones and
+ * go away with the site.
+ */
+const wallMaterials = new WeakMap<THREE.Material, THREE.Material>();
+
+export function occluderMaterial(src: THREE.Material): THREE.Material {
+  const had = wallMaterials.get(src);
+  if (had) return had;
+  const m = src.clone();
+  m.stencilWrite = true;
+  m.stencilRef = WALL_BIT;
+  // Its own bit only, so a building can never disturb the body bit.
+  m.stencilWriteMask = WALL_BIT;
+  m.stencilFunc = THREE.AlwaysStencilFunc;
+  m.stencilFail = THREE.KeepStencilOp;
+  m.stencilZFail = THREE.KeepStencilOp;
+  // ZPass: mark the pixel only where this fragment actually won the depth
+  // test and is the thing being looked at.
+  m.stencilZPass = THREE.ReplaceStencilOp;
+  wallMaterials.set(src, m);
+  return m;
+}
 
 const hullMaterials = new Map<number, THREE.ShaderMaterial>();
 
@@ -183,11 +262,14 @@ function hullMaterial(color: number): THREE.ShaderMaterial {
     depthWrite: false,
     // stencilWrite is what turns the stencil *test* on at all in three;
     // the write mask below is what keeps this pass from changing anything.
+    // The test itself is the whole correctness of the pass: pass where the
+    // wall bit is set and the body bit is not — a building is covering
+    // this pixel and the man himself is not standing on it.
     stencilWrite: true,
     stencilWriteMask: 0x00,
-    stencilRef: BODY_BIT,
-    stencilFuncMask: BODY_BIT,
-    stencilFunc: THREE.NotEqualStencilFunc,
+    stencilRef: WALL_BIT,
+    stencilFuncMask: WALL_BIT | BODY_BIT,
+    stencilFunc: THREE.EqualStencilFunc,
     fog: false,
   });
   hullMaterials.set(color, m);
@@ -335,6 +417,15 @@ function smoothNormals(geo: THREE.BufferGeometry): void {
 }
 
 /**
+ * How far past its footprint a building's box reaches, for eaves that
+ * overhang. Lives here rather than with the box builder because the
+ * occlusion test has to know it: the ray is cast against the padded box,
+ * and the "is he standing on this building's own ground" exemption below
+ * is measured against the footprint the pad was added to.
+ */
+export const OCCLUDER_PAD = 0.35;
+
+/**
  * One building, as the occlusion test sees it: the world-space box its
  * model stands in. Roofs overhang footprints, so the horizontal extent is
  * padded a little — the test may only ever be too generous.
@@ -373,6 +464,29 @@ export function occludedBy(
   dir: THREE.Vector3,
 ): boolean {
   for (const b of boxes) {
+    // A man standing on a building's own ground is AT it, not behind it:
+    // the farmer mowing his rows inside the fence, anyone on a plot that
+    // can be walked over. Without this he is outlined by his own farm —
+    // the ray starts inside the box, so it "hits" — and the rails of the
+    // fence he is working behind put an edge across his shins. Measured
+    // against the footprint rather than the padded box, so a man pressed
+    // against the far wall of a keep is still hidden by it.
+    //
+    // Its own GROUND, so the ground is part of the test: a man standing
+    // more than his own height below a building's floor is under it, not
+    // on it, and a building he is that far beneath is one that can hide
+    // him. The slack is a body rather than nothing because a footprint
+    // sits on sloping ground and its far corner is not its center's
+    // height.
+    if (
+      baseY > b.baseY - height &&
+      x > b.minX + OCCLUDER_PAD &&
+      x < b.maxX - OCCLUDER_PAD &&
+      z > b.minZ + OCCLUDER_PAD &&
+      z < b.maxZ - OCCLUDER_PAD
+    ) {
+      continue;
+    }
     if (
       hitsBox(
         x,

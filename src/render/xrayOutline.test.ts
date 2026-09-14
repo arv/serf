@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
 import {TALLEST_UNIT, TARGET_HEIGHT} from './characters';
-import {attachXrayOutline, occludedBy, type OccluderBox} from './xrayOutline';
+import {
+  attachXrayOutline,
+  occludedBy,
+  occluderMaterial,
+  type OccluderBox,
+} from './xrayOutline';
 
 /** A hut two tiles square standing on flat ground, four units tall. */
 function hut(cx = 0, cz = 0, top = 4): OccluderBox {
@@ -48,6 +53,57 @@ describe('occludedBy', () => {
     const onACrag: OccluderBox = {...hut(), baseY: 3.5, topY: 4.5};
     expect(occludedBy([onACrag], -1.05, 0, -1.05, MAN, VIEW)).toBe(true);
     expect(occludedBy([onACrag], -1.05, 0, -1.05, 0.05, VIEW)).toBe(false);
+  });
+
+  it('counts a keep standing on the ledge above him', () => {
+    // Six tiles of keep on a shelf three and a half up, and a man on the
+    // ground under it. His feet are inside its footprint, so the "he is
+    // on this building's own ground" exemption would take his edge away —
+    // but he is not on its ground, he is beneath its floor, and it is
+    // squarely between him and the camera.
+    const onALedge: OccluderBox = {
+      minX: -3,
+      maxX: 3,
+      minZ: -3,
+      maxZ: 3,
+      baseY: 3.5,
+      topY: 6,
+    };
+    expect(occludedBy([onALedge], 0, 0, 0, MAN, VIEW)).toBe(true);
+    // Standing on the shelf itself, he is at it and not behind it — and
+    // still is a body's slack lower, because a footprint on sloping
+    // ground does not sit at one height.
+    expect(occludedBy([onALedge], 0, 3.5, 0, MAN, VIEW)).toBe(false);
+    expect(occludedBy([onALedge], 0, 3.0, 0, MAN, VIEW)).toBe(false);
+  });
+
+  it("leaves a man standing on the building's own ground alone", () => {
+    // The farmer mowing his rows is inside his farm's own fence, not
+    // behind it — and the rails he works between would otherwise put an
+    // edge across his shins. Measured on a real 3x3 farmstead: the box
+    // spans 37.65..41.35 / 45.65..49.35 and every mowing mark of the
+    // circuit falls inside the footprint the pad was added to.
+    const farm: OccluderBox = {
+      minX: 37.65,
+      maxX: 41.35,
+      minZ: 45.65,
+      maxZ: 49.35,
+      baseY: 0.05,
+      topY: 1.37,
+    };
+    for (const [x, z] of [
+      [38.39, 48.67],
+      [40.69, 48.67],
+      [40.69, 47.21],
+      [38.39, 47.21],
+    ] as const) {
+      expect(occludedBy([farm], x, 0.05, z, MAN, VIEW)).toBe(false);
+    }
+    // ...but a man just OUTSIDE the fence, on the far side, is hidden by
+    // it as ever. The exemption is the footprint and not the padded box,
+    // which is what keeps a man pressed against the far wall of a keep
+    // from quietly losing his edge.
+    expect(occludedBy([farm], 37.5, 0.05, 45.5, MAN, VIEW)).toBe(true);
   });
 
   it('is false with nothing standing', () => {
@@ -154,6 +210,47 @@ describe('attachXrayOutline', () => {
     expect(orders[1]).toBeLessThan(10);
   });
 
+  it('has each pass write only its own bit, and the hull ask for both', () => {
+    const {root} = character();
+    attachXrayOutline(root, 0);
+    const hung = twins(root);
+    const orders = [...new Set(hung.map(m => m.renderOrder))].sort(
+      (a, b) => a - b,
+    );
+    const mask = hung.find(m => m.renderOrder === orders[0])!
+      .material as THREE.Material;
+    const hull = hung.find(m => m.renderOrder === orders[1])!
+      .material as THREE.Material;
+
+    // The mask marks where the body is on screen, hidden or not, and
+    // marks NOTHING else. Its Replace writes ref & writeMask, so the
+    // default 0xff would wipe the wall bit out from under the man and the
+    // hull would find no wall anywhere it looked — every outline in the
+    // game would vanish with every other test still green. Hence the
+    // literal: what is pinned is the width of the write, not the name of
+    // the constant.
+    expect(mask.stencilWrite).toBe(true);
+    expect(mask.stencilRef).toBe(0x01);
+    expect(mask.stencilWriteMask).toBe(0x01);
+    expect(mask.stencilFunc).toBe(THREE.AlwaysStencilFunc);
+    expect(mask.stencilZPass).toBe(THREE.ReplaceStencilOp);
+    expect(mask.depthTest).toBe(false);
+    expect(mask.side).toBe(THREE.DoubleSide);
+
+    // The hull reads and never writes: a wall bit set and a body bit
+    // clear, which is one Equal against both. Widen its ref or its func
+    // mask and it paints over the man's own face.
+    expect(hull.stencilWrite).toBe(true);
+    expect(hull.stencilWriteMask).toBe(0x00);
+    expect(hull.stencilFunc).toBe(THREE.EqualStencilFunc);
+    expect(hull.stencilRef).toBe(0x02);
+    expect(hull.stencilFuncMask).toBe(0x03);
+    // ...and behind what is drawn there, drawn inside out.
+    expect(hull.depthFunc).toBe(THREE.GreaterDepth);
+    expect(hull.depthWrite).toBe(false);
+    expect(hull.side).toBe(THREE.BackSide);
+  });
+
   it('paints a rival in their own color and a bandit in the alarm red', () => {
     const hullOf = (owner: number): THREE.Color => {
       const {root} = character();
@@ -183,5 +280,30 @@ describe('attachXrayOutline', () => {
     expect(n.length()).toBeCloseTo(1, 5);
     expect(Math.abs(n.x)).toBeCloseTo(Math.abs(n.y), 5);
     expect(Math.abs(n.y)).toBeCloseTo(Math.abs(n.z), 5);
+  });
+});
+
+describe('occluderMaterial', () => {
+  it('leaves the material it was handed alone', () => {
+    // The GLB scenes are shared: a mill's sack is the same material object
+    // as the sack a serf carries (assets.ts hands both out of one loaded
+    // scene, and Mesh.copy takes the material by reference). Stamping it
+    // in place would have every carried sack claim to be a wall.
+    const src = new THREE.MeshStandardMaterial({color: 0x445566});
+    const wall = occluderMaterial(src);
+    expect(wall).not.toBe(src);
+    expect(src.stencilWrite).toBe(false);
+    expect(wall.stencilWrite).toBe(true);
+    expect((wall as THREE.MeshStandardMaterial).color.getHex()).toBe(
+      src.color.getHex(),
+    );
+  });
+
+  it('hands the same wall back for the same source', () => {
+    // Every hut of a type shares one loaded scene, so this runs once per
+    // material in the pack rather than once per building on the map — and
+    // a program per building is what it is avoiding.
+    const src = new THREE.MeshStandardMaterial();
+    expect(occluderMaterial(src)).toBe(occluderMaterial(src));
   });
 });

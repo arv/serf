@@ -528,9 +528,10 @@ export class SceneSync {
 
   #occluders: readonly OccluderBox[] = [];
 
-  /** The buildings tall enough to hide somebody, as boxes. Fed from
-   * buildingSync whenever the roster changes; a unit whose line to the
-   * camera crosses one of them wears an outline for that frame. */
+  /** The buildings tall enough to hide somebody, as boxes. Read off
+   * buildingSync every frame — a building can start collapsing, or come
+   * out of the fog, without the roster saying so — and a unit whose line
+   * to the camera crosses one of them wears an outline for that frame. */
   setOccluders(boxes: readonly OccluderBox[]): void {
     this.#occluders = boxes;
   }
@@ -1633,8 +1634,15 @@ export class SceneSync {
         // tallest body rather than this one's: the sweep is allowed to
         // over-report and never to miss, and a man's own height is only
         // ever shorter.
+        //
+        // A man out on his own pier is not behind anything — he is at his
+        // post, with the deck he is standing on and its rails below him.
+        // The farmer's equivalent falls out of occludedBy itself (he mows
+        // inside his farm's own footprint); a pier reaches out past the
+        // fishery's, so it takes saying here.
         visual.outline.setVisible(
           occluders.length > 0 &&
+            !onDeck &&
             occludedBy(occluders, px, standY, pz, TALLEST_UNIT, toCamera),
         );
         if (barPct >= 0) {

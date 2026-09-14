@@ -11,7 +11,9 @@ import type {GoodAmounts} from '../sim/defs/goods';
 import {WATER_LEVEL} from '../sim/map';
 import type {FogQuery} from './fogOfWar';
 import {HeightField} from './heightField';
+import {eachMaterial} from './materials';
 import {SITE_FRAME_H} from './models';
+import {WALL_RENDER_ORDER} from './xrayOutline';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -1147,6 +1149,135 @@ describe('the seat the fog is drawn through', () => {
     sync.setFog(blindFor(0));
     sync.update([snap({owner: 1})]);
     expect(root.visible).toBe(false);
+  });
+});
+
+describe('the wall bit', () => {
+  /** Every material the visual draws with, in traversal order. */
+  function materialsOf(root: THREE.Object3D): THREE.Material[] {
+    const out: THREE.Material[] = [];
+    root.traverse(o => {
+      if (o instanceof THREE.Mesh) eachMaterial(o, m => out.push(m));
+    });
+    return out;
+  }
+
+  it('has the building stamp it where it draws, and nothing else', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({})]);
+    const root = scene.children[0]!;
+    const mats = materialsOf(root);
+    expect(mats.length).toBeGreaterThan(0);
+    for (const m of mats) {
+      expect(m.stencilWrite).toBe(true);
+      expect(m.stencilFunc).toBe(THREE.AlwaysStencilFunc);
+      expect(m.stencilZPass).toBe(THREE.ReplaceStencilOp);
+      // Only where it wins the depth test: a fragment behind something
+      // else is not a wall in front of this pixel.
+      expect(m.stencilFail).toBe(THREE.KeepStencilOp);
+      expect(m.stencilZFail).toBe(THREE.KeepStencilOp);
+      // The wall bit, and the wall bit only. Spelt out rather than read
+      // off the source: a Replace at the default 0xff writes the same ref
+      // and would clobber the body bit the unit mask puts down, so the
+      // mask is the assertion, not an implementation detail of it.
+      expect(m.stencilRef).toBe(0x02);
+      expect(m.stencilWriteMask).toBe(0x02);
+    }
+    // Drawn after everything unmarked in the opaque queue, because the bit
+    // is never cleared.
+    root.traverse(o => {
+      if (o instanceof THREE.Mesh)
+        expect(o.renderOrder).toBe(WALL_RENDER_ORDER);
+    });
+  });
+
+  it('is left alone by what nothing can hide behind', () => {
+    const {sync, scene} = makeSync();
+    // A road's pile of stone is ankle-high and is not in occluderBoxes;
+    // stamping a wall under it would hand every serf walking a road an
+    // outline drawn over the road itself.
+    sync.update([snap({type: BuildingTypeId.roadSite, w: 1, h: 1})]);
+    const mats = materialsOf(scene.children[0]!);
+    expect(mats.length).toBeGreaterThan(0);
+    for (const m of mats) expect(m.stencilWrite).toBe(false);
+  });
+
+  it('leaves the fishery its deck and its fish, which stand outside the box', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({type: BuildingTypeId.fishery, w: 2, h: 2})]);
+    const root = scene.children[0]!;
+    const hut: THREE.Material[] = [];
+    const beyond: THREE.Material[] = [];
+    root.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      // Anything hanging off the named deck or shoal, however deep.
+      let out = false;
+      for (let a: THREE.Object3D | null = o; a; a = a.parent) {
+        if (a.name === 'fisheryPier' || a.name === 'fisheryShoal') out = true;
+      }
+      eachMaterial(o, m => (out ? beyond : hut).push(m));
+    });
+    expect(hut.length).toBeGreaterThan(0);
+    expect(beyond.length).toBeGreaterThan(0);
+    // The deck runs a couple of tiles out over open water and the shoal
+    // swims off the end of it, while the box is the footprint. A bit out
+    // there is one no box vouches for.
+    expect(hut.every(m => m.stencilWrite)).toBe(true);
+    expect(beyond.every(m => !m.stencilWrite)).toBe(true);
+  });
+
+  it('follows a site up: marked exactly when it is boxed, scaffolding never', () => {
+    const {sync, scene} = makeSync();
+    const site = (progress01: number): BuildingSnap =>
+      snap({state: BuildingState.site, hp: 1, progress01});
+    sync.update([site(0.1)]);
+    const root = scene.children[0]!;
+    // The clip plane tells the building rising out of the ground from the
+    // frame standing round it: only the model carries one.
+    const rising = (): THREE.Material[] =>
+      materialsOf(root).filter(m => (m.clippingPlanes?.length ?? 0) > 0);
+    const scaffold = (): THREE.Material[] =>
+      materialsOf(root).filter(m => (m.clippingPlanes?.length ?? 0) === 0);
+    expect(rising().length).toBeGreaterThan(0);
+    expect(scaffold().length).toBeGreaterThan(0);
+
+    /** Where the meshes of the rising building sit in the opaque queue. */
+    const orders = (): number[] => {
+      const out: number[] = [];
+      root.traverse(o => {
+        if (!(o instanceof THREE.Mesh)) return;
+        let clipped = false;
+        eachMaterial(o, m => {
+          if ((m.clippingPlanes?.length ?? 0) > 0) clipped = true;
+        });
+        if (clipped) out.push(o.renderOrder);
+      });
+      return out;
+    };
+
+    // A sliver of wall inside a frame hides nobody: no box, and so no
+    // bits either. A bit the boxes do not vouch for is an edge drawn over
+    // something that is not hiding the man.
+    expect(sync.occluderBoxes()).toHaveLength(0);
+    expect(rising().every(m => !m.stencilWrite)).toBe(true);
+    // ...and it gives up the buildings' slot at the end of the opaque
+    // queue while it is unmarked. Left there it would be a way to inherit
+    // a bit: drawn after a wall (the queue sorts on material id inside a
+    // render order), winning the depth test, and leaving that wall's bit
+    // standing over a pixel it no longer owns.
+    expect(orders().length).toBeGreaterThan(0);
+    expect(orders().every(o => o === 0)).toBe(true);
+
+    // Topped out: boxed, stamping, and back in the buildings' slot.
+    sync.update([site(1)]);
+    expect(sync.occluderBoxes()).toHaveLength(1);
+    expect(rising().every(m => m.stencilWrite)).toBe(true);
+    expect(orders().every(o => o === WALL_RENDER_ORDER)).toBe(true);
+
+    // The frame stamps at no height at all. Its sill lies along the
+    // ground, and ground that stamps is how a green arc ends up under a
+    // man's boots.
+    expect(scaffold().every(m => !m.stencilWrite)).toBe(true);
   });
 });
 
