@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import * as CommandKind from './commandKindEnum.ts';
+import {OUTPUT_CAP} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
@@ -456,6 +457,45 @@ describe('the forge queue', () => {
         tickWorld(world, []);
       expect(smith.stock[GoodId.axe]).toBe(1);
       expect(smith.stock[GoodId.scythe] ?? 0).toBe(0);
+    });
+
+    it('outranks a wider gap, not merely a tie', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      // Two pegs against one, and the one still wins: this is a rank on
+      // (feeds the village, gap), so the count only speaks after the
+      // larder has. A rule that merely broke ties would forge the axe.
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 40);
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 40, 44);
+
+      let guard = 0;
+      while ((smith.stock[GoodId.scythe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.scythe]).toBe(1);
+      expect(smith.stock[GoodId.axe] ?? 0).toBe(0);
+    });
+
+    it('will not lift a peg whose shelf has no room for it', () => {
+      const {world, smith} = forgeWorld();
+      smith.inputs[GoodId.iron] = 4;
+      smith.inputs[GoodId.wood] = 8;
+      // The field's gap is open — five scythes stand on the Smith's own
+      // shelf, every one of them claimed by a hauler, so none is free to
+      // reach a post — and convertStep would refuse another before it
+      // ever looked at the iron. A lift onto a batch that cannot start is
+      // a cold forge; the axe is what this fire can actually make.
+      smith.stock[GoodId.scythe] = OUTPUT_CAP;
+      smith.reservedOut[GoodId.scythe] = OUTPUT_CAP;
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 36, 36);
+      placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 40, 40);
+
+      let guard = 0;
+      while ((smith.stock[GoodId.axe] ?? 0) === 0 && guard++ < 5000)
+        tickWorld(world, []);
+      expect(smith.stock[GoodId.axe]).toBe(1);
+      expect(smith.stock[GoodId.scythe]).toBe(OUTPUT_CAP); // none added
     });
 
     it('hands the count back the moment there is bread anywhere', () => {

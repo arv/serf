@@ -187,6 +187,25 @@ function optionUnlocked(
   );
 }
 
+/**
+ * Would convertStep actually light this batch right now? Its two gates, in
+ * its order: a shelf with room for what comes out, and the ingredients for
+ * what goes in. Asked where a batch is being CHOSEN rather than started —
+ * naming one that cannot begin costs a beat of the fire, and the choice is
+ * free to name another.
+ */
+function batchWouldStart(
+  b: Building,
+  recipe: Recipe & {kind: RecipeKind.convert},
+): boolean {
+  const outputs = recipeEntries(recipe.outputs);
+  for (let i = 0; i < outputs.length; i++) {
+    const [good, n] = outputs[i]!;
+    if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return false;
+  }
+  return inputsPresent(b, recipe);
+}
+
 function inputsPresent(
   b: Building,
   recipe: Recipe & {kind: RecipeKind.convert},
@@ -422,7 +441,10 @@ export function autoForgeIndex(
     if (gap <= 0) continue;
     const index = byTool[i]!;
     if (index < 0 || !optionUnlocked(world, owner, def, index)) continue;
-    // A peg only jumps the queue if this fire can fill it NOW. Auto is
+    // A peg only jumps the queue if this fire can fill it NOW — both of
+    // convertStep's gates, not just the ingredients: a shelf already
+    // holding five scythes that a hauler has claimed leaves the field's
+    // gap open and the batch unstartable at the same time. Auto is
     // allowed to name a batch it cannot start — that is how the Smith asks
     // for what it lacks (walkDemands reads this answer) — but a hungry
     // village must not spend that on a rod it has no wood for while a
@@ -432,7 +454,7 @@ export function autoForgeIndex(
     const larderTool =
       starving &&
       larderWant[i] === 1 &&
-      inputsPresent(b, def.recipeOptions![index]!.recipe)
+      batchWouldStart(b, def.recipeOptions![index]!.recipe)
         ? 1
         : 0;
     if (larderTool < bestLarder) continue;
