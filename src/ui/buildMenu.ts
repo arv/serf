@@ -48,19 +48,19 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
  * that it is reachable from a standing start. A player three minutes into a
  * match, hunting for the building that lets a fisherman fish, should not
  * have to reason that tools are a kind of weapon; a player raising an army
- * already knows where spears are made. So the iron chain is the one chain
- * that crosses a tab — mine on Arms, forge on Village — and the crossing is
- * charged to the player who has already learned the chain rather than to
- * the one who has not. The chord (B, then S) reaches it from either tab
- * regardless.
+ * already knows where spears are made. So the iron chain crosses a tab —
+ * mine on Arms, forge on Village — and the crossing is charged to the
+ * player who has already learned the chain rather than to the one who has
+ * not. The chord (B, then S) reaches it from either tab regardless.
  *
  * The Brewery is the one building placed by what goes in rather than what
  * comes out, and it earns the exception. Ale is brewed from the Food tab's
  * own wheat and water, and it bids for the very wheat the mill wants: bread
  * or beer is a single decision about a single field, and a player taking it
  * should have both halves under one hand. Sorting it by its sinks instead
- * sends it to the Abbey, and sends the only chain in the ribbon across a
- * tab boundary for the privilege.
+ * sends it to the Abbey, and puts a tab boundary through the middle of the
+ * wheat chain for the privilege — the ale still has to reach the Abbey
+ * either way, so the move buys nothing and costs the field.
  *
  * The tab is named Food and ale is not food — `food` is a good, and the
  * Brewery cannot make it. Read the label as the larder rather than the
@@ -71,9 +71,13 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
  *
  * Each tab is filled in chain order, and the rows are three wide, so a
  * chain reads left to right the way it runs: well, farm, mill along the
- * first row of Food and the bakery under them. Following a chain costs no
- * click anywhere except the one crossing above — the iron the Smith eats is
- * mined a tab away.
+ * first row of Food and the bakery under them. What a tab cannot do is hold
+ * a chain that leaves it, and several do: the iron the Smith eats is mined
+ * on Arms and the swords and bows it forges are spent there, the ale the
+ * Abbey drinks is brewed on Food, the bread a soldier marches on is baked
+ * there too. Every one of those is a good carried to its sink by a serf,
+ * not an order the player builds in, so none of them is worth breaking a
+ * tab apart for.
  */
 /**
  * The tab names, as a union rather than bare strings: the field guide owes

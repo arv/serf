@@ -61,7 +61,7 @@ export const GROUP_DESC: Record<BuildGroupLabel, string> = {
   Village:
     'Homes, the two trades that raise them, and the Smith that tools every other — with the Abbey, and the silver mine that pays for its research and for every hand you hire.',
   Food: 'The bread chain end to end, starting at the well that waters it, and the two that stand apart from it: the shore, which needs no chain at all, and the brewery, which bids against the mill for the same wheat.',
-  Arms: 'Iron out of the hillside, and the two yards that turn what the Smith forges from it into soldiers. The tower and the deep gold seam come after — when there is something worth defending, and something worth gilding.',
+  Arms: 'Iron out of the hillside, and the two yards that make soldiers of what the Smith forges — swords out of that iron for the hall, bows out of plain wood for the range. The tower and the deep gold seam come after — when there is something worth defending, and something worth gilding.',
 };
 
 export const BUILDING_DESC: Record<BuildingTypeId, string> = {
