@@ -299,6 +299,20 @@ describe('occluderMaterial', () => {
     );
   });
 
+  it('clips against the source\u2019s own planes, not copies of them', () => {
+    // A construction site's materials carry one plane whose constant is
+    // raised as the building goes up. Material.copy deep-clones
+    // clippingPlanes, so a twin that took the clone would freeze the
+    // reveal where it was marked and the building would never rise.
+    const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0.08);
+    const src = new THREE.MeshStandardMaterial();
+    src.clippingPlanes = [plane];
+    const wall = occluderMaterial(src);
+    expect(wall.clippingPlanes?.[0]).toBe(plane);
+    plane.constant = 1.4;
+    expect(wall.clippingPlanes?.[0]?.constant).toBe(1.4);
+  });
+
   it('hands the same wall back for the same source', () => {
     // Every hut of a type shares one loaded scene, so this runs once per
     // material in the pack rather than once per building on the map — and
