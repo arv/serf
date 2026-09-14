@@ -313,9 +313,16 @@ export function cutScytheNib(root: THREE.Object3D): boolean {
   for (let i = 0; i < index.count; i += 3) {
     const a = find(index.getX(i));
     const b = find(index.getX(i + 1));
-    const c = find(index.getX(i + 2));
+    // Re-find after the first union: on a face whose first and third
+    // corners already share a root, that union moves the third corner's
+    // root, and linking the stale one points two roots at each other.
+    // find's path halving happens to walk that pair back out again, so
+    // the pieces still come out right, but nothing about union-find
+    // promises that — it is one re-find to not depend on it.
     if (a !== b) parent[a] = b;
-    if (find(b) !== c) parent[find(b)] = c;
+    const rb = find(b);
+    const rc = find(index.getX(i + 2));
+    if (rb !== rc) parent[rb] = rc;
   }
   // A piece is the nib only if ALL of it sits in the peg's own box — the
   // collar rings around the shaft overlap that band and must stay put.

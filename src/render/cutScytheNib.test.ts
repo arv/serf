@@ -115,6 +115,59 @@ describe('cutScytheNib', () => {
     expect(Array.from(m.geometry.getIndex()!.array)).toEqual(before);
   });
 
+  it('ties a piece together across faces that share two corners', () => {
+    // Union-find's awkward case, and the one the peg's own strip hits: a
+    // face whose first and third corners are already in one piece and
+    // whose second is not. Joining the first pair moves the third
+    // corner's root, so a second join against the root read before it
+    // points two roots at each other.
+    //
+    // This is a pin, not a repair: path halving in find() walks that pair
+    // back out, so the pieces came out right before the re-find went in
+    // too. What it pins is the joining itself. The peg's far corner is
+    // only ever a THIRD corner here, so a join that drops it leaves a
+    // stub that does not reach out from the shaft and a loose point that
+    // is not a run — neither is peg-shaped, and nothing is cut at all.
+    const pos = [
+      -0.06,
+      -0.8,
+      -0.06,
+      0.06,
+      -0.8,
+      0.06,
+      0.06,
+      1.2,
+      0.06, // the snath
+      0.0,
+      0.66,
+      0.0,
+      0.12,
+      0.78,
+      0.1,
+      0.0,
+      0.7,
+      0.45,
+      0.12,
+      0.7,
+      0.08,
+    ];
+    // The two peg faces share their first and third corners (3 and 5).
+    const idx = [0, 1, 2, 3, 4, 5, 3, 6, 5];
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    const m = new THREE.Mesh(geo);
+
+    expect(cutScytheNib(m)).toBe(true);
+    // All four peg corners are gone and the snath's three are untouched.
+    expect(drawn(m).length).toBe(3);
+    expectBox(
+      new THREE.Box3().setFromPoints(drawn(m)),
+      V(-0.06, -0.8, -0.06),
+      V(0.06, 1.2, 0.06),
+    );
+  });
+
   it('will not cut a collar ring that merely shares the peg\u2019s band', () => {
     // A ring around the shaft at the peg's height: inside the band, but it
     // wraps the snath rather than standing out from it.
