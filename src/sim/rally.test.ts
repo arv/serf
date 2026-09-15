@@ -256,11 +256,24 @@ describe('the barracks rally flag', () => {
     );
     // The person walks back out a serf, and the flag — a soldiers' muster —
     // is no order of his.
+    //
+    // Measured where the walk ENDS, not by whether he is standing still.
+    // He is an idle serf the moment he is handed back, and an idle serf
+    // belongs to wander, which strolls him a few tiles about a third of
+    // the time — on 12 of 40 seeds here. `path === null` read as "the flag
+    // gave him no order" only on the seeds where the stroll happened not
+    // to fire, so it was a coin toss that any shift in the random stream
+    // could turn over. A two-tile amble round the door is not a muster;
+    // walking to (45, 40) is, and that is what this asks.
     const serf = [...world.units.values()].find(
       u => u.kind === UnitTypeId.serf && !u.dead,
     );
     expect(serf).toBeDefined();
-    expect(serf!.path).toBeNull();
+    const last = serf!.path?.[serf!.path.length - 1];
+    if (last !== undefined) {
+      const size = world.map.size;
+      expect([tileX(last, size), tileY(last, size)]).not.toEqual([45, 40]);
+    }
   });
 
   it('survives clone and save round-trips, and the hash sees it', () => {

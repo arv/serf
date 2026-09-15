@@ -4,6 +4,7 @@ import {Rng} from '../shared/rng.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants, checkLedger, countGoods} from './debug/invariants.ts';
+import {RATION_STOCK} from './defs/balance.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import type {GoodAmounts} from './defs/goods.ts';
@@ -341,6 +342,158 @@ describe('the load home', () => {
     const job = world.jobs.get(free.jobId!);
     expect(job?.good).toBe(GoodId.silver);
     expect(job?.from).toBe(mine.id);
+  });
+
+  /**
+   * The doorstep only counts while he is standing on it.
+   *
+   * The test above places an already-idle serf beside the mine, which is
+   * the one way into this that skips the delivery — and the delivery is
+   * where it broke. `progress` stood a man down with `until: world.tick`,
+   * and wander reads that as expired on the very tick it is written (its
+   * guard is `world.tick < until`) and runs LATER IN THE SAME TICK than
+   * logistics does. So a third of the time the man who had just set the
+   * bread down was strolled a few tiles off before the board next looked
+   * at him: no longer at the mine, no longer holding the claim, and back
+   * in the ordinary lottery, which hands a site's planks four hands in
+   * seven. He walked home empty past the silver he had been standing on.
+   *
+   * Every seed, because the stroll is a coin toss (a 65% loiter) and one
+   * seed proves nothing either way.
+   */
+  it('keeps the doorstep after a delivery, instead of strolling off it', () => {
+    for (let seed = 1; seed <= 24; seed++) {
+      const world = bareWorld(seed);
+      const sh = addStorehouse(world, 20, 30, {
+        [GoodId.food]: 10,
+        [GoodId.wood]: 10,
+      });
+      // Unstaffed, as above: a mine evacuates its shelf whether or not
+      // anyone is down the shaft, and nothing here should turn on how
+      // fast a seam gives up its ore.
+      const mine = placeBuiltBuilding(
+        world,
+        BuildingTypeId.silverMine,
+        0,
+        34,
+        30,
+      );
+      const serf = addSerf(world, 21, 30);
+
+      // He takes the miners' bread out. Nothing else stands in the world
+      // yet, so this is the only errand there is.
+      let guard = 0;
+      const outbound = (): boolean => {
+        const job =
+          serf.jobId !== undefined ? world.jobs.get(serf.jobId) : undefined;
+        return job?.to === mine.id && job.phase === HaulPhase.toDropoff;
+      };
+      while (!outbound() && guard++ < 900) tickWorld(world, []);
+      expect(outbound(), `seed ${seed}: never set out with the bread`).toBe(
+        true,
+      );
+
+      // While he is on the road the shelf fills behind him — the shaft
+      // working, in a fixture that does not have to wait for a shaft —
+      // and the village starts a building. That site is the pull that
+      // used to take him home empty: tier 1, and with one hand free it
+      // takes him outright.
+      mine.stock[GoodId.silver] = 1;
+      addSite(world, 24, 30);
+      const initial = countGoods(world);
+
+      // He sets the bread down, and leaves with the silver rather than
+      // for the planks.
+      guard = 0;
+      while (serf.jobId !== undefined && guard++ < 900) tickWorld(world, []);
+      guard = 0;
+      while (serf.jobId === undefined && guard++ < 900) tickWorld(world, []);
+      const next = world.jobs.get(serf.jobId!);
+      expect(next?.good, `seed ${seed}`).toBe(GoodId.silver);
+      expect(next?.from, `seed ${seed}`).toBe(mine.id);
+
+      // And it gets home.
+      guard = 0;
+      while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 900)
+        tickWorld(world, []);
+      expect(sh.stock[GoodId.silver], `seed ${seed}`).toBe(1);
+      expectClean(world, initial);
+    }
+  });
+
+  /**
+   * And the other half of the same trip: nobody is sent across the map for
+   * a load a man is about to be standing on.
+   *
+   * The board only ever looked at men who were idle THAT TICK, so while
+   * the bread was still on the road the matcher raised the mine's silver
+   * and dispatch handed it to the nearest idle hand — wherever he was.
+   * By the time the bread landed the job was claimed, which put it off
+   * the open board and out of reach of the man standing on the shelf
+   * (takeStandingJobs deals open jobs only). He walked home empty and the
+   * other man walked out. Two crossings, again.
+   *
+   * Prevented rather than undone: the claim is not taken off anybody, the
+   * load is simply left on the board for the man who is nearly there.
+   */
+  it("leaves a mine's silver for the man already walking to it", () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 20, 30, {[GoodId.food]: 10});
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      34,
+      30,
+    );
+    // Manned, and on no seam at all: a mine standing open calls for its
+    // pickaxe, and that errand would take the loafer below off the board
+    // as surely as the bread does — while a seam would have the shaft
+    // filling its own shelf on a timer nothing here wants to depend on.
+    // So the only ore in this test is the load put on the shelf by hand,
+    // at the moment the trip turns on.
+    staffBuilding(world, mine);
+    // One loaf short of its pantry, so the bread is a single errand. At a
+    // full RATION_STOCK's worth the mine wants two, and the second one
+    // would put the loafer on the road as well — leaving nobody idle for
+    // the board to make the old mistake with.
+    mine.inputs[GoodId.food] = RATION_STOCK - 1;
+    // The man who takes the bread out, standing at the storehouse door.
+    const carrier = addSerf(world, 21, 30);
+    // And a hand loafing at the other end of the village — idle, so the
+    // board can see him, and far enough that he is never the quicker way
+    // to the mine than the man already walking there.
+    const far = addSerf(world, 20, 8);
+
+    const jobOf = (id: number | undefined) =>
+      id !== undefined ? world.jobs.get(id) : undefined;
+
+    let guard = 0;
+    while (jobOf(carrier.jobId)?.phase !== HaulPhase.toDropoff && guard++ < 900)
+      tickWorld(world, []);
+    expect(jobOf(carrier.jobId)?.to).toBe(mine.id);
+
+    // The shelf fills while he walks.
+    mine.stock[GoodId.silver] = 1;
+    const initial = countGoods(world);
+
+    // From here until the bread lands, the silver is nobody's but his.
+    guard = 0;
+    while (carrier.jobId !== undefined && guard++ < 900) {
+      tickWorld(world, []);
+      expect(jobOf(far.jobId)?.from).not.toBe(mine.id);
+    }
+    // And he leaves with it.
+    guard = 0;
+    while (carrier.jobId === undefined && guard++ < 900) tickWorld(world, []);
+    expect(jobOf(carrier.jobId)?.from).toBe(mine.id);
+    expect(jobOf(carrier.jobId)?.good).toBe(GoodId.silver);
+
+    guard = 0;
+    while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 900)
+      tickWorld(world, []);
+    expect(sh.stock[GoodId.silver]).toBe(1);
+    expectClean(world, initial);
   });
 
   it('lets the site it just supplied recruit the man who supplied it', () => {

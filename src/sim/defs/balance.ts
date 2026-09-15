@@ -105,6 +105,38 @@ export const RATION_STOCK = 2;
 export const MATCHER_INTERVAL = 5; // ticks between matcher/reconcile passes
 export const JOB_BLOCKED_BACKOFF = 40; // ticks before retrying an unreachable job
 /**
+ * How long a serf who has just set a load down stays put before the
+ * village's idle chatter may move him on.
+ *
+ * The doorstep is worth something. A man standing at a building takes that
+ * building's own waiting load before anything else is dealt
+ * (takeStandingJobs in systems/logistics.ts) — the trip that fixes bread
+ * out to the mine and silver back in one crossing instead of two. But the
+ * claim is measured in distance (atBuilding), so it is only his while he
+ * is actually standing there.
+ *
+ * And he was not: logistics ends a delivery with `idle, until: world.tick`,
+ * and wanderSystem — which runs LATER IN THE SAME TICK (see the order in
+ * tick.ts) — reads that as already expired, because its guard is
+ * `world.tick < until`. So a third of the time the man who had just set
+ * the bread down strolled up to four tiles off before logistics next
+ * looked at him, lost the doorstep, and went back into the ordinary tier
+ * lottery — which deals a site's planks four hands in seven (HAUL_SHARE)
+ * and sent him home empty past the silver he was standing on.
+ *
+ * MATCHER_INTERVAL + 1, because the load he is standing on may not have a
+ * job yet. `match` only runs on `tick % MATCHER_INTERVAL === 0` and
+ * `dispatch` runs immediately after it in the same tick, so a window this
+ * wide is guaranteed to contain one tick where the board is both built and
+ * dealt. Six ticks is 0.3s — no pause a player can see, and a serf who
+ * takes a beat on the doorstep after setting something down reads better
+ * than one who turns and jogs off.
+ *
+ * Only the dropoff sets it. A serf who lost his job some other way
+ * (abortJob) has nothing in particular to be standing on.
+ */
+export const DELIVERY_STAND = MATCHER_INTERVAL + 1;
+/**
  * The haul board's three tiers, and what each one is for: 1 is a site's
  * materials and an ordered repair's, 2 is a post's inputs and its tool (and
  * the barracks' bread and weapons), 3 is a producer's output going home.

@@ -2,6 +2,7 @@ import type {Enum} from '../../shared/enum.ts';
 import {atBuilding, walkToBuilding} from '../arrival.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {
+  DELIVERY_STAND,
   JOB_BLOCKED_BACKOFF,
   MATCHER_INTERVAL,
   ABBEY_ALE_CAP,
@@ -981,7 +982,12 @@ function takeStandingJobs(
       idle.splice(i, 1);
       job.phase = HaulPhase.toPickup;
       job.serfId = serf.id;
-      job.blockedCount = 0; // claimed, so the unreachable tally starts over
+      // Claimed, so the unreachable tally starts over — and the backoff
+      // with it. A man who can walk to this door is the standing answer to
+      // the question the backoff was asking, and leaving the stamp on
+      // would hide the job again if he were ever stood back down.
+      job.blockedCount = 0;
+      job.blockedUntil = undefined;
       serf.jobId = job.id;
       serf.path = path;
       serf.pathIdx = 0;
@@ -992,17 +998,23 @@ function takeStandingJobs(
 }
 
 function dispatch(world: World): void {
-  // Collect open, unblocked jobs in claim order.
+  // Collect the open jobs, in two lists, because the two claiming routes
+  // below do not mean the same thing by "blocked". The backoff records
+  // that no idle serf could WALK to the source (see the failure path at
+  // the foot of this function) — which is a fact about the ground between
+  // here and there, and says nothing whatever about a man already standing
+  // on the shelf. Hiding the load from him for JOB_BLOCKED_BACKOFF ticks
+  // is how a serf ends up standing on goods doing nothing, which is the
+  // one thing this whole file exists to prevent.
   const open: HaulJob[] = [];
+  const standing: HaulJob[] = [];
   for (const job of world.jobs.values()) {
-    if (
-      job.phase === HaulPhase.open &&
-      (job.blockedUntil === undefined || world.tick >= job.blockedUntil)
-    ) {
+    if (job.phase !== HaulPhase.open) continue;
+    standing.push(job);
+    if (job.blockedUntil === undefined || world.tick >= job.blockedUntil)
       open.push(job);
-    }
   }
-  if (open.length === 0) return;
+  if (standing.length === 0) return;
 
   // Idle serfs, bucketed by faction — a job is only ever offered to serfs of
   // its own owner.
@@ -1030,7 +1042,7 @@ function dispatch(world: World): void {
   if (idleByOwner.size === 0) return;
 
   // The load home, before the board is dealt at all (see takeStandingJobs).
-  takeStandingJobs(world, open, idleByOwner);
+  takeStandingJobs(world, standing, idleByOwner);
   // ...which can have taken the last free hand. The check above no longer
   // covers the sort below, so it is asked again: the buckets survive, but
   // every man in them may have just walked off with a load.
@@ -1042,6 +1054,9 @@ function dispatch(world: World): void {
     }
   }
   if (!anyIdle) return;
+  // Everything left is backed off: the standing route has had its look,
+  // and the board has nothing it may deal this tick.
+  if (open.length === 0) return;
 
   // Sort only once we know somebody can actually claim a job — this runs
   // every tick, and most ticks have no idle serfs. Oldest first; the tier is
@@ -1060,11 +1075,52 @@ function dispatch(world: World): void {
   const pull = repairPull(world);
   const queues = new Map<Owner, [HaulJob[], HaulJob[], HaulJob[]]>();
   const busy = new Map<Owner, [number, number, number]>();
+  /**
+   * Per building, the serfs already walking to it on another errand who
+   * will be free the moment that errand ends — a hauler in his dropoff
+   * leg, whose load lands at this very door and who `progress` then stands
+   * down idle right there.
+   *
+   * The board could not see them, and that cost the village its cheapest
+   * trip twice over. A serf carries the miners' bread out; while he is
+   * still on the road the matcher raises the mine's silver, and this loop's
+   * own dispatch — which only ever looks at men who are idle NOW — sends
+   * the nearest idle hand across the map for it. The job is claimed by the
+   * time the bread lands, so it is off the open board and out of reach of
+   * the man standing on the shelf (takeStandingJobs deals open jobs only).
+   * He walks home empty and the other man walks out. Two crossings for a
+   * load a man was about to be standing on.
+   *
+   * So the claim goes to whoever can be AT THE SOURCE soonest, counting
+   * the men already walking there. Preventing, not undoing: nobody is
+   * pulled off a job he has claimed — the load is simply left on the board
+   * for the man who is nearly there, and he takes it by the ordinary
+   * standing-job route on the pass after he lands.
+   *
+   * Deliberately only the dropoff leg. A serf walking to this building to
+   * PICK UP leaves again with his hands full, and one walking here to take
+   * up a post (UnitTaskKind.staff) stops being a hand at all; neither will
+   * be standing here free. A plain move order says nothing about intent,
+   * so it says nothing here either.
+   *
+   * Gathered in the hands-in-flight pass rather than one of its own: this
+   * runs every tick, and that pass already walks exactly the jobs with a
+   * carrier on them, under exactly the owner filter this wants. Map order
+   * is id order, the tie-break the whole sim reads by, so the census comes
+   * out the same every run.
+   */
+  const inbound = new Map<EntityId, Unit[]>();
   for (const job of world.jobs.values()) {
     if (job.serfId === undefined || !idleByOwner.has(job.owner)) continue;
     let b = busy.get(job.owner);
     if (!b) busy.set(job.owner, (b = [0, 0, 0]));
     b[tierOf(job, pull) - 1]!++;
+    if (job.phase !== HaulPhase.toDropoff) continue;
+    const serf = world.units.get(job.serfId);
+    if (!serf || serf.dead) continue;
+    let hands = inbound.get(job.to);
+    if (!hands) inbound.set(job.to, (hands = []));
+    hands.push(serf);
   }
   for (const job of open) {
     // Taken by takeStandingJobs, which ran above — and counted in `busy`
@@ -1146,13 +1202,53 @@ function dispatch(world: World): void {
       // that no idle serf can reach still lands on the backoff, which is
       // what it was written for.
       const c = centerOf(from);
-      let serf: Unit | undefined;
-      let path: number[] | null = null;
-      let bestIdx = -1;
       // Whoever has already failed to reach THIS source during this pass.
       // A building's jobs come up together and it is the same walk every
       // time, so asking twice only spends the pathfinder.
       let refused = unreachableBy.get(job.from);
+
+      // Is somebody already nearly here on another errand? Then the load
+      // is his: leave it open, and he takes it from the doorstep on the
+      // pass after he lands (takeStandingJobs). See the census above for what
+      // this is worth and why it withholds rather than reassigns.
+      //
+      // Soonest-arrival, on the same Manhattan measure the scan below
+      // uses, so the two answers are comparable. A tie goes to the idle
+      // man: he can set off now. Asked BEFORE the pathfinder, so a
+      // withheld load costs nothing at all.
+      //
+      // The nearest idle man is the right thing to weigh it against even
+      // though the scan below may end up stepping past him to somebody
+      // further out — both sides are estimates of a walk, and paying for a
+      // path here to sharpen one of them would spend more than the whole
+      // check saves.
+      const waiting = inbound.get(job.from);
+      if (waiting !== undefined && waiting.length > 0) {
+        let nearestIdle = Infinity;
+        for (const s of idle) {
+          if (refused?.has(s.id)) continue;
+          const d = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
+          if (d < nearestIdle) nearestIdle = d;
+        }
+        let soonestK = -1;
+        let soonestDist = Infinity;
+        for (let k = 0; k < waiting.length; k++) {
+          const s = waiting[k]!;
+          const d = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
+          if (d < soonestDist) {
+            soonestDist = d;
+            soonestK = k;
+          }
+        }
+        if (soonestK >= 0 && soonestDist < nearestIdle) {
+          waiting.splice(soonestK, 1); // one man, one load
+          continue; // left on the board for him
+        }
+      }
+
+      let serf: Unit | undefined;
+      let path: number[] | null = null;
+      let bestIdx = -1;
       for (let tries = 0; tries < PATH_TRIES; tries++) {
         bestIdx = -1;
         let bestDist = Infinity;
@@ -1315,7 +1411,13 @@ function progress(world: World): void {
       deliver(world, to, job.good);
       unit.carrying = undefined;
       unit.jobId = undefined;
-      unit.task = {t: UnitTaskKind.idle, until: world.tick};
+      // Left standing where he set it down, for DELIVERY_STAND ticks: the
+      // doorstep is a claim on this building's own waiting load
+      // (takeStandingJobs), and wander runs later in this very tick and
+      // would otherwise walk him off it. Still idle, so the recruitment
+      // sweep and the board both see him this tick exactly as before —
+      // `until` is read by wanderSystem alone for a serf.
+      unit.task = {t: UnitTaskKind.idle, until: world.tick + DELIVERY_STAND};
       world.jobs.delete(job.id);
     }
   }

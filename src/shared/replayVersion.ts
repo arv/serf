@@ -20,6 +20,40 @@
  * directly.
  */
 /**
+ * 69: the man on the doorstep keeps it, and the load waits for him.
+ *
+ * Two holes in the same trip, the one takeStandingJobs was written for:
+ * bread out to the mine and silver back, in one crossing rather than two.
+ *
+ * A serf set down at the end of a delivery with `until: world.tick`, and
+ * wander — later in that same tick — reads that as already expired. So a
+ * third of the time the man who had just set the bread down was strolled
+ * off the doorstep before the board looked at him again, lost the standing
+ * claim (it is measured in distance) and went back into the tier lottery,
+ * which sent him home empty past the silver. He now holds the spot for
+ * DELIVERY_STAND ticks, wide enough for one whole matcher-and-dispatch
+ * pass, because the load he is standing on may not have a job yet.
+ *
+ * And the board only ever looked at men idle THAT tick, so while the bread
+ * was still on the road the mine's silver was dealt to the nearest idle
+ * hand wherever he stood — which put the job off the open board and out of
+ * reach of the man who then arrived on top of it. The claim now goes to
+ * whoever can be at the source soonest, counting the men already walking
+ * there on another errand: nobody is pulled off a job, the load is simply
+ * left on the board for the man who is nearly there.
+ *
+ * With them, a load backed off as unreachable stays visible to a serf
+ * standing on it. The backoff records that nobody could WALK to a source,
+ * which is a fact about the ground in between and says nothing about a man
+ * already at the door.
+ *
+ * Sim behavior, and on both axes: the hauls differ, and so does the random
+ * stream — wander draws once per eligible serf, and this changes who is
+ * eligible on a given tick. Every roll after the first delivery differs,
+ * so a replay recorded before this build re-runs into another world.
+ *
+ * 68's note follows.
+ *
  * 68: a bare larder outranks the widest gap at the forge.
  *
  * A Smith on auto picks its next batch from a census of the village's open
@@ -1178,4 +1212,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 68;
+export const REPLAY_VERSION = 69;
