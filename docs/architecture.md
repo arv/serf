@@ -100,11 +100,12 @@ over a SharedArrayBuffer and a `SimHost` (`src/app/simHost.ts`) that speaks
 the worker protocol in `src/protocol/messages.ts`. Two workers implement the
 far end of that protocol. (The Worlds the main thread does build, the menu
 backdrop's in `ui/backdropScene.ts` and the editor's play-test in
-`editor/playWorld.ts`, are its own and never the one being played.) `simWorker.ts` owns a World, runs `tickWorld`, and
-hosts the AI brains. `netWorker.ts` owns nothing but a WebSocket: it decodes
-the server's frames into the same SAB slots and the same structural channel.
-The renderer cannot tell them apart, which is why fog is enforced on the
-server rather than drawn by the client.
+`editor/playWorld.ts`, are its own and never the one being played.)
+`simWorker.ts` owns a World, runs `tickWorld`, and hosts the AI brains.
+`netWorker.ts` owns nothing but a WebSocket: it decodes the server's frames
+into the same SAB slots and the same structural channel. The renderer cannot
+tell them apart, which is why fog is enforced on the server rather than
+drawn by the client.
 
 ```mermaid
 flowchart TB
@@ -143,7 +144,7 @@ flowchart TB
     rooms --> sync
     rooms --> persist
   end
-  mp <-- "WebSocket, same origin<br/>↓ CMD_SUBMIT · ↑ STATE_HOT binary 20 Hz · STATE_STRUCT JSON, ≥5 ticks apart<br/>↕ {t:'chat'} string frames<br/>~10.7 KiB/s per seat" --> srv
+  mp <-- "WebSocket, same origin<br/>↓ CMD_SUBMIT · ↑ STATE_HOT binary 20 Hz · STATE_STRUCT JSON, checked every 5 ticks, sooner with map or event news<br/>↕ {t:'chat'} string frames<br/>~10.7 KiB/s per seat" --> srv
 
   style world1 stroke:#b8891a,stroke-width:2px
   style rooms stroke:#b8891a,stroke-width:2px
@@ -158,12 +159,13 @@ server's frames take over, then decays the offset. Both owners run the same
 `sim/` files; AI brains sit beside the World, never in a replica, and there
 is no AI netcode.
 
-Chat is the one thing on the wire that is not world state. A line typed at
-the HUD (Enter opens it, networked matches only) goes down the worker
-protocol as a `chat` message, out of `netWorker.ts` as a `{t:'chat'}` string
-frame, and is relayed by `server/src/index.ts` to every connected seat,
-sender included, so everyone reads the same lines in the same order. It
-never enters a room's `World`: no command, no tick, no hash.
+Chat is the one player-visible payload on the wire that is not world
+state. A line typed at the HUD (Enter opens it, networked matches only)
+goes down the worker protocol as a `chat` message, out of `netWorker.ts` as
+a `{t:'chat'}` string frame, and is relayed by `server/src/index.ts` to
+every connected seat, sender included, so everyone reads the same lines in
+the same order. It never enters a room's `World`: no command, no tick, no
+hash.
 `src/protocol/chat.ts` is the trust boundary, a dependency-free sanitizer
 (one line, control characters collapsed, at most 200 code points) that the
 client runs before sending and the relay runs again regardless. The relay
