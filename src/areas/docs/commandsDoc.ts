@@ -34,7 +34,7 @@ export const ADMIN_ACTION_NAMES = enumNames(AdminAction);
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:
-      'Send selected units to a tile. A mixed squad forms up — knights front, archers rear — and marches at its slowest member’s pace; the first fight dissolves both the formation and the shared pace, and every unit runs at its own speed again. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live.',
+      'Send selected units to a tile. A mixed squad forms up — knights front, archers rear — and marches at its slowest member’s pace; the first fight dissolves both the formation and the shared pace, and every unit runs at its own speed again. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live. The attack flag is also what arms the villagers: a serf under it fights like a very weak melee unit — acquiring, closing and striking — and takes up room on the field while he does, where a serf on a plain walk fights only what strikes him first and is walked through by everybody.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   [CommandKind.placeBuilding]: {
@@ -127,7 +127,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.focusTarget]: {
     summary:
-      'Put a squad on one enemy — focus fire. Every other order leaves targeting to the sim, which sends each soldier at the nearest enemy it counters; this overrides that for the units named, until the target dies or outruns them. Worth having because damage is flat: a soldier at a sliver of health hits as hard as a fresh one, so killing one outright removes its whole output where spreading the same damage over three removes none.',
+      'Put a squad on one enemy — focus fire, sent with the attack-move behind an A-click. Every other order leaves targeting to the sim, which sends each soldier at the nearest enemy it counters; this overrides that for the units named, until the target dies or outruns them. Worth having because damage is flat: a soldier at a sliver of health hits as hard as a fresh one, so killing one outright removes its whole output where spreading the same damage over three removes none.',
     payload:
       'unitIds, targetId (a living enemy unit, or a standing enemy building with building: true)',
   },

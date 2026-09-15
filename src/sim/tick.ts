@@ -69,6 +69,7 @@ import {
   researchAbbey,
 } from './techHelpers.ts';
 import {
+  canTakeUpArms,
   clearMarchSpeed,
   clearOrders,
   type Unit,
@@ -253,7 +254,13 @@ export function applyCommand(
       // The one order that names a target. Everything is re-checked here,
       // because a command arrives off a socket as readily as off a click:
       // the target must be a living unit belonging to somebody else, and
-      // each unit named must be this player's, alive, and able to fight.
+      // each unit named must be this player's, alive, and able to fight —
+      // which the civilians now are (units.ts canTakeUpArms). Naming a
+      // target does not by itself arm a serf: he fights only under an
+      // attack order (systems/combat.ts fightOf), and off one the target
+      // sits there until the last-resort pass drops it for being out of
+      // his reach. That is why the A-click sends the attack-move first and
+      // this second — the pair is the order.
       // A soldier already walking under a plain move order is left alone —
       // combatSystem disengages those before it looks at a target, so
       // writing one would be an order the next tick throws away.
@@ -264,7 +271,7 @@ export function applyCommand(
       for (const id of cmd.unitIds) {
         const u = world.units.get(id);
         if (!u || u.dead || u.owner !== playerId) continue;
-        if (!UNIT_DEFS[u.kind].combat) continue;
+        if (!UNIT_DEFS[u.kind].combat && !canTakeUpArms(u)) continue;
         if (u.task.t === UnitTaskKind.move) continue;
         // Naming a target is an order to go and fight it, so it releases a
         // hold: a man holding ground strikes only what reaches him, and a
@@ -1124,7 +1131,13 @@ function orderMove(
     for (const id of cmd.unitIds) {
       const unit = world.units.get(id);
       if (!unit || unit.dead || unit.owner !== playerId) continue;
-      if (!UNIT_DEFS[unit.kind].combat) continue; // civilians don't storm camps
+      // Civilians storm a camp only when they were told to in as many
+      // words — A over the building. A right-click on it is the assault
+      // order it has always been for soldiers and the plain walk it has
+      // always been for serfs, so nobody sends the village to its death
+      // by aiming a move badly.
+      if (!UNIT_DEFS[unit.kind].combat && !(cmd.attack && canTakeUpArms(unit)))
+        continue;
       unit.task = {t: UnitTaskKind.raid, buildingId: target.id};
       unit.targetId = target.id;
       unit.targetIsBuilding = true;
@@ -1181,13 +1194,15 @@ function orderMove(
     // unmarked, so a fresh order always resets a stale cap either way.
     if (pace < effectiveSpeed(unit.kind, serfMod)) unit.marchSpeed = pace;
     else clearMarchSpeed(unit);
-    // An attack-move keeps the combat system live on the way; civilians have
-    // no combat to keep live, so for them every order is the same walk. The
+    // An attack-move keeps the combat system live on the way — for a serf
+    // too, since A is what puts the knife in his hand (systems/combat.ts
+    // fightOf); without the flag his order is the same plain walk it has
+    // always been, and he fights only what comes at him. The
     // 'half' order quiets the front leg of the route — far enough to carry a
     // fleeing squad clear of its fight before the order starts answering back.
     const engageIdx = Math.ceil(path.length / 2);
     unit.task =
-      cmd.attack && UNIT_DEFS[unit.kind].combat
+      cmd.attack && (UNIT_DEFS[unit.kind].combat || canTakeUpArms(unit))
         ? cmd.attack === 'half' && engageIdx > 0
           ? {t: UnitTaskKind.attackMove, destX: goalX, destY: goalY, engageIdx}
           : {t: UnitTaskKind.attackMove, destX: goalX, destY: goalY}

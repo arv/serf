@@ -9,7 +9,7 @@ import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import {
   COUNTER_TABLE,
   UNIT_DEFS,
-  type CombatStats,
+  type FightStats,
   type UnitClass,
   type UnitTypeId,
 } from '../defs/units.ts';
@@ -128,6 +128,47 @@ function strikeCooldown(
 }
 
 /**
+ * What a unit fights with this tick, or undefined for one that does not
+ * fight at all.
+ *
+ * A soldier's is his weapon and never changes. A civilian's depends on
+ * what he was told to do, and that is the whole shape of the feature:
+ *
+ * - Under an attack order — A over the ground (UnitTaskKind.attackMove) or
+ *   over an enemy building (raid) — he fights like the melee unit he is
+ *   imitating. He acquires, closes, chases and strikes, at MILITIA's very
+ *   low output. This is the only way a villager ever goes looking for a
+ *   fight, and it takes a deliberate order every time: a plain move never
+ *   arms him, so the ordinary business of the valley is unchanged.
+ * - Under anything else — an errand, a stroll, a plain move, standing
+ *   idle — he has no fight at all and falls to lastResortStrike, which
+ *   only ever answers the man already striking him.
+ *
+ * The stats themselves are the same knife in both modes. What the order
+ * buys is the initiative.
+ */
+function fightOf(unit: Unit): FightStats | undefined {
+  const def = UNIT_DEFS[unit.kind];
+  if (def.combat) return def.combat;
+  if (!def.militia) return undefined;
+  return unit.task.t === UnitTaskKind.attackMove ||
+    unit.task.t === UnitTaskKind.raid
+    ? def.militia
+    : undefined;
+}
+
+/**
+ * What a class-less blow does to a building: the lowest figure in
+ * BUILDING_DAMAGE_MULT (defs/balance.ts), which is the archer's. A militia
+ * serf hacking at a wall with a knife should be the worst siege engine on
+ * the map, and at MILITIA.damage he is — a camp takes him the better part
+ * of half an hour. He is allowed to try because forbidding it would mean
+ * an A-click on a building that silently does nothing; letting him swing
+ * costs the balance nothing and the interface a great deal less.
+ */
+const MILITIA_BUILDING_MULT = 0.5;
+
+/**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
  * The economy learns about combat solely through deaths flowing into
  * removeDead + logistics reconcile. The whole RPS system is COUNTER_TABLE
@@ -170,7 +211,7 @@ export function combatSystem(world: World): void {
 
   for (const unit of world.units.values()) {
     if (unit.dead) continue;
-    const combat = UNIT_DEFS[unit.kind].combat;
+    const combat = fightOf(unit);
     if (!combat) {
       lastResortStrike(world, unit);
       continue;
@@ -267,7 +308,12 @@ export function combatSystem(world: World): void {
     }
 
     if (unit.targetId === undefined) {
-      targetUnit = acquireUnit(liveUnits, unit, combat.acquireRadius);
+      targetUnit = acquireUnit(
+        liveUnits,
+        unit,
+        combat.acquireRadius,
+        combat.class,
+      );
       if (targetUnit) {
         unit.targetId = targetUnit.id;
         unit.targetIsBuilding = false;
@@ -336,7 +382,7 @@ export function combatSystem(world: World): void {
       if (isRanged && dist < KITE_TRIGGER) {
         const cycle = strikeCooldown(world, unit.owner, combat.cooldownTicks);
         if (dist <= combat.range && unit.cooldownLeft <= 0) {
-          strikeUnit(world, unit, targetUnit);
+          strikeUnit(world, unit, targetUnit, combat);
           unit.cooldownLeft = cycle;
         }
         // He breaks away only once he has recovered from the shot; until
@@ -350,7 +396,7 @@ export function combatSystem(world: World): void {
       } else if (dist <= combat.range) {
         unit.path = null; // stand and fight
         if (unit.cooldownLeft <= 0) {
-          strikeUnit(world, unit, targetUnit);
+          strikeUnit(world, unit, targetUnit, combat);
           unit.cooldownLeft = strikeCooldown(
             world,
             unit.owner,
@@ -359,7 +405,7 @@ export function combatSystem(world: World): void {
         }
       } else if (dist > combat.acquireRadius * 1.6) {
         disengage(unit); // it got away
-      } else if (!fightTheWall(world, liveUnits, unit, combat.range)) {
+      } else if (!fightTheWall(world, liveUnits, unit, combat)) {
         chaseUnit(world, unit, targetUnit);
       }
     } else if (targetBuilding) {
@@ -368,7 +414,7 @@ export function combatSystem(world: World): void {
         unit.path = null;
         if (unit.cooldownLeft <= 0)
           strikeBuilding(world, unit, targetBuilding, combat);
-      } else if (fightTheWall(world, liveUnits, unit, combat.range)) {
+      } else if (fightTheWall(world, liveUnits, unit, combat)) {
         // Held off the building by the men in front of it: they first.
       } else if (unit.path === null) {
         unit.path = findPathToAdjacent(
@@ -398,7 +444,7 @@ export function combatSystem(world: World): void {
  * the tile they stand on. Measured to the footprint (distToBuilding), so
  * a wide wall is hit from its face, not its middle.
  */
-function wallReach(combat: CombatStats): number {
+function wallReach(combat: FightStats): number {
   return Math.max(combat.range, 1.4);
 }
 
@@ -412,9 +458,13 @@ function strikeBuilding(
   world: World,
   unit: Unit,
   b: Building,
-  combat: CombatStats,
+  combat: FightStats,
 ): void {
-  b.hp -= combat.damage * BUILDING_DAMAGE_MULT[combat.class];
+  b.hp -=
+    combat.damage *
+    (combat.class === undefined
+      ? MILITIA_BUILDING_MULT
+      : BUILDING_DAMAGE_MULT[combat.class]);
   if (isPlayerOwner(b.owner)) {
     const c = centerOf(b);
     world.pendingEvents.push({
@@ -462,7 +512,7 @@ function holdGround(
   units: readonly Unit[],
   buildings: readonly Building[],
   unit: Unit,
-  combat: CombatStats,
+  combat: FightStats,
 ): void {
   let targetUnit: Unit | undefined;
   let targetBuilding: Building | undefined;
@@ -479,7 +529,7 @@ function holdGround(
     if (!targetUnit && !targetBuilding) disengage(unit);
   }
   if (unit.targetId === undefined) {
-    targetUnit = acquireUnit(units, unit, combat.range);
+    targetUnit = acquireUnit(units, unit, combat.range, combat.class);
     if (targetUnit) {
       unit.targetId = targetUnit.id;
       unit.targetIsBuilding = false;
@@ -494,7 +544,7 @@ function holdGround(
   }
   if (unit.cooldownLeft > 0) return;
   if (targetUnit) {
-    strikeUnit(world, unit, targetUnit);
+    strikeUnit(world, unit, targetUnit, combat);
     unit.cooldownLeft = strikeCooldown(world, unit.owner, combat.cooldownTicks);
   } else if (targetBuilding) {
     strikeBuilding(world, unit, targetBuilding, combat);
@@ -768,8 +818,8 @@ function acquireUnit(
   units: readonly Unit[],
   unit: Unit,
   radius: number,
+  myClass: UnitClass | undefined,
 ): Unit | undefined {
-  const myClass = UNIT_DEFS[unit.kind].combat!.class;
   // Conservative squared-distance reject: anything strictly beyond
   // radius + 1 cannot pass `dist <= radius` below even after sqrt rounding,
   // so skipping it early is behavior-identical.
@@ -777,7 +827,10 @@ function acquireUnit(
   // Hoisted out of the loop: this is the innermost scan in the sim — every
   // untargeted soldier against every live unit, every tick — and the row
   // and the position never change while it runs.
-  const counters = COUNTER_TABLE[myClass];
+  // Undefined for a militia serf: no counters to prefer, so he takes the
+  // nearest enemy, full stop — which is the whole of what a man defending
+  // his own street would do.
+  const counters = myClass !== undefined ? COUNTER_TABLE[myClass] : undefined;
   const ux = unit.x;
   const uy = unit.y;
   const owner = unit.owner;
@@ -803,7 +856,11 @@ function acquireUnit(
         if (dist > radius) continue;
         const otherClass = UNIT_DEFS[other.kind].combat?.class;
         // Favor targets we counter; civilians are class-less easy prey for raiders.
-        const advantage = otherClass ? counters[otherClass] : 1.2;
+        const advantage = counters
+          ? otherClass
+            ? counters[otherClass]
+            : 1.2
+          : 1;
         const score = dist / advantage;
         if (score < bestScore || (score === bestScore && i < bestIdx)) {
           bestScore = score;
@@ -816,10 +873,20 @@ function acquireUnit(
   return best;
 }
 
-function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
-  const a = UNIT_DEFS[attacker.kind].combat!;
+function strikeUnit(
+  world: World,
+  attacker: Unit,
+  defender: Unit,
+  a: FightStats,
+): void {
   const defClass = UNIT_DEFS[defender.kind].combat?.class;
-  const mult = defClass ? COUNTER_TABLE[a.class][defClass] : 1;
+  // The triangle prices a blow only when both men are in it. A militia
+  // serf has no class, so his knife lands flat on everybody — and he is
+  // class-less as a DEFENDER too (the read above is `combat`, which he
+  // does not have), so nobody counters him either. He is simply outside
+  // the system, which is what a man with a kitchen knife should be.
+  const mult =
+    a.class !== undefined && defClass ? COUNTER_TABLE[a.class][defClass] : 1;
   landBlow(world, attacker, defender, a.damage * mult);
 }
 
@@ -860,23 +927,27 @@ function landBlow(
   // is not idle — it was told to walk away, and the systems above will
   // neither chase nor swing on its behalf, so handing it a target would only
   // make it look like it is fighting back.
-  // A civilian answers here too, and this is the ONLY way he ever gets a
-  // target: he acquires nobody, so the man who struck him is the whole of
-  // his war (see lastResortStrike). The disengage rule is a soldier's
-  // alone: it exists because a man told to walk away must not STOP and
-  // fight, and a civilian never stops — he keeps his errand, his route and
+  // A civilian answers here too, and unless he was ordered to attack this
+  // is the ONLY way he ever gets a target: off an attack order he acquires
+  // nobody, so the man who struck him is the whole of his war (see
+  // lastResortStrike). The disengage rule is not applied to him: it exists
+  // because a man told to walk away must not STOP and fight, and an
+  // unordered civilian never stops — he keeps his errand, his route and
   // his pace whatever is happening to him, so the walking serf and the
   // standing one answer the same way. Without that exemption the stance
   // would be decided by the wander system: two thirds of an idle village
   // is strolling somewhere at any moment (systems/wander.ts sets a plain
   // move for it), and every one of those men would have taken the blow
-  // with his hands down.
-  const defLastResort = UNIT_DEFS[defender.kind].lastResort !== undefined;
+  // with his hands down. A militia serf under a plain move IS a man told
+  // to walk away, but he reads as a civilian here and answers anyway —
+  // which is the same bargain: the order moved him, and it never stops
+  // moving him.
+  const defMilitia = UNIT_DEFS[defender.kind].militia !== undefined;
   if (
     !defender.dead &&
-    (UNIT_DEFS[defender.kind].combat || defLastResort) &&
+    (UNIT_DEFS[defender.kind].combat || defMilitia) &&
     (defender.targetId === undefined || defender.targetIsBuilding) &&
-    (defLastResort || !isDisengaging(defender))
+    (defMilitia || !isDisengaging(defender))
   ) {
     defender.targetId = attacker.id;
     defender.targetIsBuilding = false;
@@ -888,37 +959,39 @@ function landBlow(
 }
 
 /**
- * A civilian's turn in the combat system: the whole of what a man with no
- * weapon does in a war.
+ * An UNORDERED civilian's turn in the combat system: what a man who was
+ * told to haul, not to fight, does when the war comes to him anyway.
  *
- * He never acquires. Not once, at no radius — the acquisition scan is for
- * men who were sent to fight, and a serf carrying planks past a raider is
- * not one of them. The only target he ever holds is the one retaliation
- * hangs on him in landBlow, which is to say the man who is already cutting
- * him down, and he keeps it only while that man stays inside his own short
- * reach. That is the last resort in full: he does not pick the fight, he
- * does not follow it, he only refuses to die with his hands at his sides.
+ * He never acquires. Not once, at no radius — the acquisition scan above
+ * is for men who were SENT to fight (fightOf), and a serf carrying planks
+ * past a raider is not one of them. The only target he ever holds is the
+ * one retaliation hangs on him in landBlow, which is to say the man who is
+ * already cutting him down, and he keeps it only while that man stays
+ * inside his own short reach. That is the last resort in full: he does not
+ * pick the fight, he does not follow it, he only refuses to die with his
+ * hands at his sides.
  *
  * And he fights without breaking stride. Nothing here touches his path,
  * his task or his march pace — the errand goes on, the load stays on his
  * shoulders, and the knife comes out only on the ticks his cooldown is
  * up. A hauler who dropped his job the moment a bandit swung at him would
- * be a far bigger change to the game than a point of damage.
+ * be a far bigger change to the game than a point of damage. (A serf under
+ * an attack order is a different man, and takes the branch above: he
+ * chases, and the job was already dropped by the order itself.)
  *
  * A soldier's own last resort is his weapon, so units with a `combat`
  * block never reach this.
  */
 function lastResortStrike(world: World, unit: Unit): void {
-  const stats = UNIT_DEFS[unit.kind].lastResort;
+  const stats = UNIT_DEFS[unit.kind].militia;
   if (!stats) return;
   // On the same clock as every other fighter: down at the top of the tick,
   // and the blow still lands at <= 0.
   if (unit.cooldownLeft > 0) unit.cooldownLeft--;
   if (unit.targetId === undefined) return;
-  // Buildings are a siege, which is the one thing a knife cannot do.
-  // Reachable because a civilian can be handed one: an idle serf standing
-  // in a squad that was right-clicked onto a camp gets no raid task, but
-  // nothing stops a stale id from an earlier life either.
+  // A wall is a siege, and a siege is something a man walks to. This mode
+  // never walks anywhere, so it never keeps a building — the one a militia
+  // serf was chewing on is dropped the tick his attack order ends.
   if (unit.targetIsBuilding) {
     disengage(unit);
     return;
@@ -934,7 +1007,7 @@ function lastResortStrike(world: World, unit: Unit): void {
     return;
   }
   if (unit.cooldownLeft > 0) return;
-  // Flat: no class, so no counter table (defs/units.ts LastResortStats).
+  // Flat: no class, so no counter table (defs/units.ts MILITIA).
   landBlow(world, unit, target, stats.damage);
   unit.cooldownLeft = strikeCooldown(world, unit.owner, stats.cooldownTicks);
 }
@@ -965,12 +1038,13 @@ function fightTheWall(
   world: World,
   units: readonly Unit[],
   unit: Unit,
-  range: number,
+  combat: FightStats,
 ): boolean {
   const holderId = heldByEnemy(unit.id);
   if (holderId === undefined) return false;
   let blocker = world.units.get(holderId);
-  if (!blocker || blocker.dead) blocker = acquireUnit(units, unit, range);
+  if (!blocker || blocker.dead)
+    blocker = acquireUnit(units, unit, combat.range, combat.class);
   if (!blocker) return false;
   unit.targetId = blocker.id;
   unit.targetIsBuilding = false;

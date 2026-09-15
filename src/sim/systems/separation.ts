@@ -1,12 +1,11 @@
 import {inBounds, tileIdx, tileX, tileY} from '../../shared/grid.ts';
 import {hash2} from '../../shared/math.ts';
-import {UNIT_DEFS} from '../defs/units.ts';
 import {findPath} from '../path.ts';
-import type {Unit} from '../units.ts';
+import {takesUpRoom, type Unit} from '../units.ts';
 import type {World} from '../world.ts';
 
 /**
- * Soldiers take up room; serfs do not.
+ * Soldiers take up room; serfs do not, until they fight.
  *
  * The Warcraft rule: an army cannot stand on one tile. Every soldier on the
  * map — yours, a rival's, a bandit's — holds every other soldier off at arm's
@@ -15,6 +14,18 @@ import type {World} from '../world.ts';
  * are exempt both ways: a hauler walks through a parade and a parade walks
  * through a hauler, because the economy's errands must never jam behind a
  * crowd, and a serf standing in a doorway must never hold up an army.
+ *
+ * The exemption is for the errand, not for the man, and it lapses the
+ * moment he has a fight on (units.ts takesUpRoom): a serf sent in under an
+ * A order, or one answering the raider at his throat, is a body like any
+ * other for as long as he holds a target — he fans out into the ring, he
+ * is held off by the enemy's line, and the enemy's line is held off by
+ * him. A mob of villagers is a wall made of villagers, which is the only
+ * thing that makes such a mob worth ordering at all. He goes back to being
+ * walked through the tick he loses the target, which is what keeps this
+ * from being a way to jam your own doorway with haulers: a man with no
+ * fight on has no business in this pass, and a fight only ever lasts as
+ * long as an enemy stands within his reach.
  *
  * It is a soft push rather than a hard block. Tiles are not claimed: two
  * soldiers closer than SEPARATION are moved the shortfall apart, and that
@@ -49,27 +60,31 @@ import type {World} from '../world.ts';
  * regression tests both count on.
  */
 export function separationSystem(world: World): void {
-  const soldiers: Unit[] = [];
+  // Everyone who takes up room this tick: every soldier, plus the
+  // civilians with a fight on. Named for what puts a man in it rather
+  // than for what he is, because from here down the two are treated
+  // exactly alike — that is the whole point of the roster.
+  const bodies: Unit[] = [];
   for (const u of world.units.values()) {
-    if (u.dead || !UNIT_DEFS[u.kind].combat) continue;
-    soldiers.push(u);
+    if (u.dead || !takesUpRoom(u)) continue;
+    bodies.push(u);
   }
-  const n = soldiers.length;
+  const n = bodies.length;
   // Last tick's holds are over whatever happens below: combat reads
   // heldIds after this, and a stale entry would have a man fight a wall
   // that is no longer there. The one soldier left on a map has nobody to
   // be held by, so his count ends too.
   heldBy.clear();
   if (n < 2) {
-    if (n === 1 && soldiers[0]!.heldTicks !== undefined)
-      soldiers[0]!.heldTicks = undefined;
+    if (n === 1 && bodies[0]!.heldTicks !== undefined)
+      bodies[0]!.heldTicks = undefined;
     return;
   }
   // Sort-and-sweep along x: a pair further apart in x alone than
   // SEPARATION cannot be within it, so the inner loop stops at the first
   // such neighbor. Ties broken by id so the order is a function of the
   // world, never of Map insertion history.
-  soldiers.sort((a, b) => a.x - b.x || a.id - b.id);
+  bodies.sort((a, b) => a.x - b.x || a.id - b.id);
   if (pushX.length < n) {
     pushX = new Float64Array(n * 2);
     pushY = new Float64Array(n * 2);
@@ -83,7 +98,7 @@ export function separationSystem(world: World): void {
   const size = world.map.size;
   gridSize = size;
   for (let i = 0; i < n; i++) {
-    const u = soldiers[i]!;
+    const u = bodies[i]!;
     headX[i] = 0;
     headY[i] = 0;
     moving[i] = 0;
@@ -100,9 +115,9 @@ export function separationSystem(world: World): void {
   }
 
   for (let i = 0; i < n; i++) {
-    const a = soldiers[i]!;
+    const a = bodies[i]!;
     for (let j = i + 1; j < n; j++) {
-      const b = soldiers[j]!;
+      const b = bodies[j]!;
       const dx = b.x - a.x;
       if (dx >= SEPARATION) break;
       const dy = b.y - a.y;
@@ -164,8 +179,8 @@ export function separationSystem(world: World): void {
       px *= s;
       py *= s;
     }
-    const u = soldiers[i]!;
-    if (moving[i]!) holdOff(soldiers, i, px, py);
+    const u = bodies[i]!;
+    if (moving[i]!) holdOff(bodies, i, px, py);
     else {
       holdX = px;
       holdY = py;
@@ -173,7 +188,7 @@ export function separationSystem(world: World): void {
     if (heldBy.has(u.id)) {
       u.heldTicks = (u.heldTicks ?? 0) + 1;
       if (u.heldTicks >= DETOUR_AFTER) {
-        detour(world, u, soldiers);
+        detour(world, u, bodies);
         u.heldTicks = undefined; // the count starts over on the new route
       }
     } else if (u.heldTicks !== undefined) u.heldTicks = undefined;
@@ -199,7 +214,7 @@ export function separationSystem(world: World): void {
  * unmarked after, rather than teaching the pathfinder an occupancy layer:
  * this runs once per pinned walker per half second, not per step.
  */
-function detour(world: World, u: Unit, soldiers: readonly Unit[]): void {
+function detour(world: World, u: Unit, bodies: readonly Unit[]): void {
   const path = u.path;
   if (path === null || u.pathIdx >= path.length) return;
   const goal = path[path.length - 1]!;
@@ -207,8 +222,8 @@ function detour(world: World, u: Unit, soldiers: readonly Unit[]): void {
   const size = map.size;
   const blocked = map.blocked;
   const marked: number[] = [];
-  for (let j = 0; j < soldiers.length; j++) {
-    const s = soldiers[j]!;
+  for (let j = 0; j < bodies.length; j++) {
+    const s = bodies[j]!;
     if (moving[j]! || s.owner === u.owner) continue;
     const tx = Math.floor(s.x);
     const ty = Math.floor(s.y);
@@ -290,15 +305,15 @@ function detour(world: World, u: Unit, soldiers: readonly Unit[]): void {
  * per tick is an allocation).
  */
 function holdOff(
-  soldiers: readonly Unit[],
+  bodies: readonly Unit[],
   i: number,
   px: number,
   py: number,
 ): void {
-  const a = soldiers[i]!;
+  const a = bodies[i]!;
   projX = a.x + px;
   projY = a.y + py;
-  const n = soldiers.length;
+  const n = bodies.length;
   const reach = SEPARATION * 2;
   let holder = -1;
   for (let pass = 0; pass < HOLD_PASSES; pass++) {
@@ -307,21 +322,21 @@ function holdOff(
     // from his old spot could stop short of a man he has since been pushed
     // up against. The array is sorted by x, so the distance grows
     // monotonically in each direction and the break stays sound.
-    for (let j = i - 1; j >= 0 && projX - soldiers[j]!.x < reach; j--)
-      if (project(soldiers, i, j, pass === 0)) holder = j;
-    for (let j = i + 1; j < n && soldiers[j]!.x - projX < reach; j++)
-      if (project(soldiers, i, j, pass === 0)) holder = j;
+    for (let j = i - 1; j >= 0 && projX - bodies[j]!.x < reach; j--)
+      if (project(bodies, i, j, pass === 0)) holder = j;
+    for (let j = i + 1; j < n && bodies[j]!.x - projX < reach; j++)
+      if (project(bodies, i, j, pass === 0)) holder = j;
   }
   // The man he ends up against: the last one to put him back is the one
   // he is standing at when the passes settle.
-  if (holder >= 0) heldBy.set(a.id, soldiers[holder]!.id);
+  if (holder >= 0) heldBy.set(a.id, bodies[holder]!.id);
   holdX = projX - a.x;
   holdY = projY - a.y;
 }
 
 /**
  * One step of holdOff: if the running position projX/projY is inside
- * SEPARATION of soldier `other` and he is a standing enemy of `self`, move
+ * SEPARATION of man `other` and he is a standing enemy of `self`, move
  * it back out to the circle's edge. True when it was.
  */
 function project(
@@ -405,12 +420,12 @@ const DETOUR_AFTER = 10;
  * of a few multiplies on the handful of men pinned at a wall. */
 const HOLD_PASSES = 8;
 
-/** Soldiers put back outside an enemy's arm's length this tick, and the
- * id of the man each ended up against. */
+/** Men put back outside an enemy's arm's length this tick, and the id of
+ * the man each ended up against. */
 const heldBy = new Map<number, number>();
 
 /**
- * The standing enemy who held this soldier off this tick, or undefined if
+ * The standing enemy who held this man off this tick, or undefined if
  * nobody did. Read by combat, which runs right after separation: a man who
  * cannot get past the wall should fight the wall — and this is the man in
  * it he is pressed against, not whichever enemy in reach the counter table
@@ -421,7 +436,7 @@ export function heldByEnemy(id: number): number | undefined {
 }
 
 /**
- * The direction soldier `i` is pushed, given `ax, ay` — the unit vector
+ * The direction man `i` is pushed, given `ax, ay` — the unit vector
  * away from the man he is too close to. Written to defX/defY rather than
  * returned: this runs per pair, and a pair of numbers is an allocation.
  *
@@ -464,7 +479,7 @@ let defX = 0;
 let defY = 0;
 
 /**
- * Move a soldier by a push, but never onto ground he could not walk to. A
+ * Move a man by a push, but never onto ground he could not walk to. A
  * push that would land in a wall, a building or the water is tried along
  * each axis alone — sliding along the obstacle rather than into it — and
  * dropped when neither is open. Pathing already keeps every unit off
@@ -497,7 +512,8 @@ function open(
 }
 
 /**
- * How close two soldiers may stand, center to center, in tiles. A body is
+ * How close two men in this pass may stand, center to center, in tiles. A
+ * body is
  * about a third of a tile wide (the renderer's TARGET_HEIGHT scaled to a
  * shoulder), so this is a body and a gap: soldiers stand shoulder to
  * shoulder rather than inside one another, and a melee ring of a dozen
@@ -509,7 +525,7 @@ export const SEPARATION = 0.6;
 const SEPARATION_SQ = SEPARATION * SEPARATION;
 
 /**
- * The most a soldier is shoved per tick, in tiles. Slower than the slowest
+ * The most a man is shoved per tick, in tiles. Slower than the slowest
  * walk (1.4 tiles/sec is 0.07 a tick), so being pushed never outpaces
  * marching and two men on one spot take a few ticks to part rather than
  * springing away from each other.
@@ -542,7 +558,7 @@ const STACK_DIRS: readonly number[] = [
   -Math.SQRT1_2,
 ];
 
-/** Per-tick scratch, in sweep order: the push each soldier has coming,
+/** Per-tick scratch, in sweep order: the push each body has coming,
  * whether he is walking, and which way. Grown on demand, never shrunk; the
  * sim ticks one world at a time (the same contract path.ts states for its
  * A* scratch). */

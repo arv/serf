@@ -109,7 +109,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
 
 export const UNIT_DESC: Record<UnitTypeId, string> = {
   [UnitTypeId.serf]:
-    'The village’s hands: hauls every good, raises every building, and becomes whatever the village needs next. No weapon worth the name — he picks no fights and follows none, but a serf being cut down answers with his knife, for about a tenth of what a raider swings.',
+    'The village’s hands: hauls every good, raises every building, and becomes whatever the village needs next. No weapon worth the name — on his errands he answers only the man already cutting him down, and everyone walks straight through him. Order him to attack (A) and he fights like a melee unit at about a tenth of a raider’s output, and becomes a body in the way for as long as the fight lasts. A dozen of them will kill one raider. It is the worst trade in the valley, and some days it is the only one left.',
   [UnitTypeId.worker]:
     'A serf who took a post. Workers live at their building and work its trade; lose the building and the trade stops.',
   [UnitTypeId.knight]:

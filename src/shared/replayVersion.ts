@@ -20,30 +20,38 @@
  * directly.
  */
 /**
- * 71: even the serfs fight back.
+ * 71: even the serfs fight, and a fighting serf is in the way.
  *
- * Every civilian now carries a last resort (defs/units.ts
- * LastResortStats): one point of damage on a thirty-tick cooldown, at a
- * melee arm's reach, landing flat — no class, so the counter table never
- * prices it. It is deliberately not a `combat` block, because that field
- * is the engine's word for "soldier" everywhere else (army counts,
- * formation rank, the orders a civilian may not take, the AI's reading of
- * a rival's strength) and none of that moves: a serf is still a serf.
+ * Every civilian now carries a knife (defs/units.ts MILITIA): one point of
+ * damage on a thirty-tick cooldown, at a melee arm's reach, landing flat —
+ * no class, so the counter table prices it on neither side. It is
+ * deliberately not a `combat` block, because that field is the engine's
+ * word for "soldier" everywhere else (army counts, formation rank, the
+ * select-army key, the AI's reading of a rival's strength) and none of
+ * that moves: a serf is still a serf.
  *
- * What moves is who dies and when. He never acquires a target, never
- * chases one and never drops his errand for one — the only target he ever
- * holds is the man already striking him (retaliation in combat.ts
- * landBlow), and he lets that man go the moment he steps out of reach. So
- * a raider who spends four seconds cutting down a hauler walks away three
- * hit points lighter than he used to, a wave that carves through a dozen
- * villagers arrives at the barracks wounded, and both of those re-time
- * every fight after them.
+ * He fights in two modes. Unordered — on an errand, a stroll, a plain
+ * move, standing idle — he acquires nobody and only ever answers the man
+ * already striking him, without dropping his load or breaking stride. Under
+ * an attack order (A over the ground, or over an enemy building) he fights
+ * like the weak melee unit he is imitating: he acquires inside four tiles,
+ * closes, chases and strikes, and hacks at a wall at the worst rate on the
+ * map. A plain move disarms him again. The AI never issues it, so in a
+ * match against the seats this mode is the player's alone.
  *
- * The random stream itself is untouched: a civilian's task, path and pace
- * are exactly what they were while he swings, so wanderSystem draws for
- * the same men on the same ticks. Sim behavior all the same, and the kind
- * that compounds — a body that falls a tick later is a body standing in a
- * doorway a tick longer.
+ * And the separation pass takes him while he holds a target (units.ts
+ * takesUpRoom): a serf with a fight on is a body that soldiers cannot
+ * walk through, his own side's included, where a hauler has always been
+ * walked straight through and always will be. That is the half of this
+ * that moves a replay hardest — positions, not just hit points. A raid
+ * through a village now shoves the haulers it is killing and is shoved
+ * by them.
+ *
+ * The random stream is not moved directly: a civilian's task is what
+ * decides whether wanderSystem draws for him, and neither mode changes it
+ * (the attack order changes it, but an order is already in the log). What
+ * moves is where men stand and when they die, which is enough — everything
+ * downstream of a body in a doorway moves with it.
  *
  * 70's note follows.
  *

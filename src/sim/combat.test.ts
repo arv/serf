@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {ACTION, type UnitSnapshot} from '../protocol/sabLayout.ts';
 import {unitSnapshots} from '../protocol/snapshot.ts';
 import type {Enum} from '../shared/enum.ts';
+import {exactDist} from '../shared/math.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
@@ -21,10 +22,11 @@ import {BANDIT, centerOf, type Building} from './entities.ts';
 import * as GameEventKind from './gameEventKindEnum.ts';
 import * as MatchState from './matchStateEnum.ts';
 import {populationOf} from './population.ts';
+import {separationSystem} from './systems/separation.ts';
 import * as Terrain from './terrainEnum.ts';
 import {cmds, addSerf, addStorehouse, bareWorld} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
-import type {Unit} from './units.ts';
+import {takesUpRoom, type Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   destroyBuilding,
@@ -865,8 +867,11 @@ describe('the three move orders', () => {
     expect(knight.task.t).toBe(UnitTaskKind.idle);
   });
 
-  it('civilians in an attack-move selection just walk — there is nothing to fight with', () => {
+  it('arms the civilians in an attack-move selection — A is the one order that does', () => {
     const world = bareWorld();
+    // A live seat: an eliminated one's orders are dropped on the floor,
+    // and three orders in a row is exactly where that shows.
+    addStorehouse(world, 40, 40, {});
     const serf = addSerf(world, 30, 31);
     tickWorld(
       world,
@@ -878,15 +883,27 @@ describe('the three move orders', () => {
         attack: true,
       }),
     );
-    expect(serf.task.t).toBe(UnitTaskKind.move);
+    expect(serf.task.t).toBe(UnitTaskKind.attackMove);
+    // The half order is the same order with a quiet front leg.
     tickWorld(
       world,
       cmds({
         kind: CommandKind.moveUnits,
         unitIds: [serf.id],
-        x: 30,
+        x: 26,
         y: 31,
         attack: 'half',
+      }),
+    );
+    expect(serf.task.t).toBe(UnitTaskKind.attackMove);
+    // ...and a plain move disarms him again.
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: 34,
+        y: 31,
       }),
     );
     expect(serf.task.t).toBe(UnitTaskKind.move);
@@ -1674,7 +1691,7 @@ describe('the guard tower', () => {
   });
 });
 
-describe('the serf’s last resort', () => {
+describe('the serf’s knife, unordered (the last resort)', () => {
   it('answers the man cutting him down', () => {
     const world = bareWorld();
     const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
@@ -1755,5 +1772,171 @@ describe('the serf’s last resort', () => {
     run(world, 1);
     expect(serf.targetId).toBeUndefined();
     expect(camp.hp).toBe(BUILDING_DEFS[BuildingTypeId.banditCamp].hp);
+  });
+});
+
+describe('the serf’s knife, under an A order', () => {
+  /** A seat that stays alive, and a serf ordered to attack-move at a tile. */
+  function charge(x: number, y: number): {world: World; serf: Unit} {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const serf = addSerf(world, 30, 30);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x,
+        y,
+        attack: true,
+      }),
+    );
+    return {world, serf};
+  }
+
+  it('goes looking for the fight: acquires, closes and strikes', () => {
+    const {world, serf} = charge(38, 30);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 35.5, 30.5);
+    run(world, 20 * 3);
+    expect(serf.targetId).toBe(bandit.id);
+    expect(bandit.hp).toBeLessThan(UNIT_DEFS[UnitTypeId.bandit].hp);
+  });
+
+  it('loses the duel badly — one villager is not a soldier', () => {
+    const {world, serf} = charge(38, 30);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 35.5, 30.5);
+    run(world, 20 * 20);
+    expect(serf.dead).toBe(true);
+    expect(bandit.dead).toBe(false);
+  });
+
+  it('but a mob of them brings a raider down', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const mob = Array.from({length: 14}, (_, i) =>
+      addSerf(world, 28 + (i % 4), 28 + Math.floor(i / 4)),
+    );
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 35.5, 30.5);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: mob.map(u => u.id),
+        x: 36,
+        y: 30,
+        attack: true,
+      }),
+    );
+    run(world, 20 * 60);
+    expect(bandit.dead).toBe(true);
+  });
+
+  it('is disarmed again by a plain move, mid-charge', () => {
+    const {world, serf} = charge(38, 30);
+    spawnUnit(world, UnitTypeId.bandit, BANDIT, 35.5, 30.5);
+    run(world, 20 * 3);
+    expect(serf.targetId).toBeDefined();
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: 24,
+        y: 30,
+      }),
+    );
+    expect(serf.task.t).toBe(UnitTaskKind.move);
+    expect(serf.targetId).toBeUndefined();
+    run(world, 20);
+    // Walking away, not fighting: he may answer a blow that lands on him,
+    // but he holds nobody he is not in reach of.
+    expect(serf.task.t).toBe(UnitTaskKind.move);
+  });
+
+  it('chews a wall at the worst rate on the map, when A names one', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const serf = addSerf(world, 30, 30);
+    const camp = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      33,
+      30,
+    );
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: 33,
+        y: 30,
+        attack: true,
+      }),
+    );
+    expect(serf.task.t).toBe(UnitTaskKind.raid);
+    const full = BUILDING_DEFS[BuildingTypeId.banditCamp].hp;
+    run(world, 20 * 30);
+    expect(camp.hp).toBeLessThan(full);
+    expect(camp.hp).toBeGreaterThan(full * 0.95);
+  });
+
+  it('a right-click on that same camp is still just a walk', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const serf = addSerf(world, 30, 30);
+    const camp = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      33,
+      30,
+    );
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: 33,
+        y: 30,
+      }),
+    );
+    expect(serf.task.t).not.toBe(UnitTaskKind.raid);
+    run(world, 20 * 10);
+    expect(camp.hp).toBe(BUILDING_DEFS[BuildingTypeId.banditCamp].hp);
+  });
+});
+
+describe('a fighting serf takes up room', () => {
+  it('is walked through while he hauls, and not once he fights', () => {
+    const world = bareWorld();
+    const serf = addSerf(world, 30, 30);
+    expect(takesUpRoom(serf)).toBe(false);
+    serf.targetId = 99 as never;
+    expect(takesUpRoom(serf)).toBe(true);
+    serf.targetId = undefined;
+    expect(takesUpRoom(serf)).toBe(false);
+    // A soldier is a body whatever he is doing.
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 31.5, 30.5);
+    expect(takesUpRoom(knight)).toBe(true);
+  });
+
+  it('parts from a soldier standing on him, and only while fighting', () => {
+    // Straight at the separation pass, which is where the rule lives: a
+    // serf and a soldier of his own side on exactly the same spot. While
+    // he has no fight on he is not in the pass at all, so the pair stays
+    // stacked — a hauler and a knight walk through each other. Give him a
+    // target and the same tick parts them.
+    const world = bareWorld();
+    const serf = addSerf(world, 30, 30);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    separationSystem(world);
+    expect(serf.x).toBe(30.5);
+    expect(knight.x).toBe(30.5);
+    expect(knight.y).toBe(30.5);
+
+    serf.targetId = knight.id; // any fight will do; this pass never reads it
+    separationSystem(world);
+    expect(exactDist(knight.x - serf.x, knight.y - serf.y)).toBeGreaterThan(0);
   });
 });

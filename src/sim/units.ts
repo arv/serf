@@ -1,6 +1,6 @@
 import type {Enum} from '../shared/enum.ts';
 import type {GoodId} from './defs/goods.ts';
-import type {UnitTypeId} from './defs/units.ts';
+import {UNIT_DEFS, type UnitTypeId} from './defs/units.ts';
 import type {EntityId, Owner} from './entities.ts';
 import * as UnitTaskKindNs from './unitTaskKindEnum.ts';
 
@@ -130,11 +130,14 @@ export interface Unit {
    * separation.ts holdOff). A walker wedged against an enemy's rank for
    * DETOUR_AFTER of them re-plans his route round it, and the count starts
    * over for the new route — so it is absent both when nobody holds him
-   * and on the tick he detoured. Soldiers only, and never 0: absent (undefined,
-   * lazily — see clearMarchSpeed for why) is the only "no count" state.
+   * and on the tick he detoured. Only ever set on someone that pass takes
+   * (takesUpRoom: every soldier, and a civilian mid-fight), and never 0:
+   * absent (undefined, lazily — see clearMarchSpeed for why) is the only
+   * "no count" state.
    */
   heldTicks?: number;
-  // Combat runtime (units with a combat def):
+  // Combat runtime. Not a soldier's alone: a civilian swinging his knife
+  // (defs/units.ts MILITIA) keeps his clock and his target here too.
   cooldownLeft: number;
   targetId?: EntityId;
   targetIsBuilding?: boolean;
@@ -193,4 +196,37 @@ export function makeUnit(
     cooldownLeft: 0,
     dead: false,
   };
+}
+
+/**
+ * Can this man be handed an attack order at all?
+ *
+ * True for the civilians, who carry a knife (defs/units.ts MILITIA) and
+ * fight with it only while an A order is on them. Soldiers are never asked
+ * — they have a `combat` block, which outranks this everywhere it is read.
+ *
+ * The one gate between "a serf may defend himself" and "a serf may be sent
+ * at the enemy", so every order that arms somebody goes through it:
+ * tick.ts's attack-move, its assault on a building, and its focus order.
+ */
+export function canTakeUpArms(unit: Unit): boolean {
+  return UNIT_DEFS[unit.kind].militia !== undefined;
+}
+
+/**
+ * Does this man take up room — the separation pass's roster (systems/
+ * separation.ts), which is to say: can other men walk through him?
+ *
+ * Every soldier, always. A civilian only while he is in a fight, which is
+ * exactly the rule the player is given: an errand walks through a parade
+ * and a parade walks through an errand, because the economy must never jam
+ * behind a crowd — but a man swinging a knife is a body in the way, his
+ * own side's included. He turns solid on the tick he takes a target and
+ * goes back to a ghost the tick he loses one, whether the knife came out
+ * under an A order or because somebody swung at him first.
+ */
+export function takesUpRoom(unit: Unit): boolean {
+  return (
+    UNIT_DEFS[unit.kind].combat !== undefined || unit.targetId !== undefined
+  );
 }

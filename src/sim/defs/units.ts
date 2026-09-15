@@ -16,34 +16,27 @@ const U = UnitTypeIdNs;
  * path (unitTypeIdEnum.ts) — keep the numbers stable.
  */
 
-export interface CombatStats {
-  class: UnitClass;
+/**
+ * The stat block a unit actually fights by — what target acquisition, the
+ * chase, the strike and the siege all read.
+ *
+ * `class` is where the man stands in the counter triangle, and it is
+ * optional because one fighter stands outside it: a villager with a knife
+ * (see MILITIA). His blows land flat and he scores his targets by plain
+ * distance, because the triangle prices trained arms against each other
+ * and a pitchfork is not one.
+ */
+export interface FightStats {
+  class: UnitClass | undefined;
   damage: number;
   cooldownTicks: number;
   range: number; // tiles
   acquireRadius: number; // tiles
 }
 
-/**
- * What a man with no weapon swings when it is that or nothing.
- *
- * Deliberately NOT a `CombatStats`, and deliberately a field of its own:
- * `UnitDef.combat` is the whole engine's word for "this one is a soldier"
- * — the army count, the formation rank, the select-army key, the orders a
- * civilian may not take, the AI's reading of a rival's strength — and a
- * serf with a knife is none of those things. Giving him a `combat` block
- * would have enlisted every hauler in the valley in all of it at once.
- *
- * So it carries only what a blow needs, and no `class`: the triangle
- * prices trained arms against each other, and a pitchfork has no place in
- * it. A last-resort blow lands flat, on anyone.
- */
-export interface LastResortStats {
-  damage: number;
-  cooldownTicks: number;
-  /** Reach, tiles. His attacker's reach, because he never takes a step to
-   * fight: what he cannot answer where he stands, he does not answer. */
-  range: number;
+/** A soldier's: the same block with his place in the triangle fixed. */
+export interface CombatStats extends FightStats {
+  class: UnitClass;
 }
 
 export interface UnitDef {
@@ -54,28 +47,47 @@ export interface UnitDef {
    * visibility filter and the renderer's fog, so the two cannot drift. */
   sight: number;
   combat?: CombatStats;
-  /** Present on the civilians: see LastResortStats. A unit has one or the
-   * other, never both — a soldier's last resort is his weapon. */
-  lastResort?: LastResortStats;
+  /**
+   * The civilians'. A unit has this or `combat`, never both — a soldier's
+   * last resort is his weapon. See MILITIA for what it costs him, and
+   * systems/combat.ts for the two modes it is read in.
+   */
+  militia?: FightStats;
 }
 
 /**
- * The civilian's answer to a man already at his throat.
+ * The villager's knife.
  *
- * A tenth of a bandit's output and slower than any weapon on the field:
- * a serf who is being cut down lands about three of these before he
- * falls, so it takes a dozen dead villagers to bring one raider down
- * with them. That is the whole intent — not a militia, just the refusal
- * to die with his hands at his sides.
+ * Deliberately NOT spelled as `UnitDef.combat`: that field is the whole
+ * engine's word for "this one is a soldier" — the army count, the
+ * formation rank, the select-army key, the AI's reading of a rival's
+ * strength, the tower's counter-scored pick, who takes up room on the
+ * field — and a serf holding a knife is still a serf in every one of
+ * them. What he gains is a way to strike, not a place in the order of
+ * battle.
  *
- * Reach is every melee arm's reach (1.3). Shorter and it would be no
- * reach at all: he never closes, so anything he cannot hit from where he
- * is standing he will never hit.
+ * A tenth of a bandit's output and slower than any weapon on the field.
+ * A serf being cut down lands about three of these before he falls, so it
+ * takes a dozen dead villagers to bring one raider down with them; a mob
+ * told to charge trades about as badly, which is the whole intent. It is
+ * an answer, not an army.
+ *
+ * No class, so no counter table on either side of the blow: he neither
+ * counters nor is countered, and against a wall he is the worst siege
+ * engine on the map (MILITIA_BUILDING_MULT in systems/combat.ts).
+ *
+ * Reach is every melee arm's (1.3) — he fights like the melee unit he is
+ * imitating, and shorter would be no reach at all in the mode where he
+ * never takes a step. The acquire radius is his own: four tiles against a
+ * soldier's six or eight, because a man with a knife notices what is on
+ * top of him, not what is across the field.
  */
-const LAST_RESORT: LastResortStats = {
+export const MILITIA: FightStats = {
+  class: undefined,
   damage: 1,
   cooldownTicks: 30,
   range: 1.3,
+  acquireRadius: 4,
 };
 
 /**
@@ -88,7 +100,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     speed: 1.5,
     hp: 25,
     sight: 6.5,
-    lastResort: LAST_RESORT,
+    militia: MILITIA,
   },
   // A worker is a serf who took a post, so he keeps the serf's knife: the
   // same man does not disarm himself by going to work at the mill.
@@ -97,7 +109,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     speed: 1.4,
     hp: 25,
     sight: 6.5,
-    lastResort: LAST_RESORT,
+    militia: MILITIA,
   },
   [U.knight]: {
     id: U.knight,
