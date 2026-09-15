@@ -25,8 +25,9 @@ are talking to.
 The source tree is a stack with one hard boundary. `src/sim` imports nothing
 but its own `defs/` and `src/shared`, `src/shared` imports nothing, and no
 directory below the shell imports the shell. That is what lets Node load the
-sim straight from source for the server and the labs, with no build step:
-those files spell out `.ts` on their imports and carry no browser types.
+sim straight from source for the server and the Node-side labs, with no
+build step: those files spell out `.ts` on their imports and carry no
+browser types.
 Above that boundary the picture is looser by design: `render` reaches into
 `input` for edge scroll, pointer capture and typing detection, `audio` leans
 on one `render` value, and `ui`, `input` and `app` cross-reference each
@@ -93,7 +94,7 @@ Directory-level import edges, non-test files, from the code as it stands:
 mutually referencing cluster; many of those edges are `import type`, not
 all.
 
-## Two owners of the World, one socket on the main thread
+## Two owners of the World, one seam on the main thread
 
 The main thread never holds the match's `World`. It holds a `SabReader`
 over a SharedArrayBuffer and a `SimHost` (`src/app/simHost.ts`) that speaks
@@ -114,7 +115,7 @@ flowchart TB
     render["render<br/>interpolates the 2 latest slots"]
     uistore["ui · store.ts<br/>snaps → signals + WorldMirror"]
     controls["input · controls<br/>click → SimCommand"]
-    host["SimHost + SabReader<br/>the one socket"]
+    host["SimHost + SabReader<br/>the one seam either worker plugs into"]
   end
   wire["Worker protocol, the same whichever worker is behind it<br/>↑ SAB: unit rows, 20 Hz, 4 rotating slots under a seqlock<br/>↑ postMessage: buildings, players, jobs, map deltas, chat<br/>↓ postMessage: SimCommand[], chat"]
   main <--> wire
@@ -255,16 +256,22 @@ they actually stepped; victory is judged before the dead are removed.
   `serializeWorld` round trip, because deploys restore live matches through
   it.
 - **Content is data.** Buildings, goods, techs, units, difficulty, missions
-  and AI playbooks live in `sim/defs/`. Systems read defs; they never test
-  for a particular id. Goods order, unit kind codes and tile resource values
-  are frozen because they are the wire format and part of the hash.
+  and AI playbooks live in `sim/defs/`. Systems read defs and take their
+  numbers from there; the ids a system does name are the ones that carry a
+  rule of their own (the abbey as the study, houses as beds, the storehouse
+  and salvage piles as depots, the bandit camp and its raiders, the serf as
+  the one unit that hauls), never a per-building special case. Goods order,
+  unit kind codes and tile resource values are frozen because they are the
+  wire format and part of the hash.
 - **Visibility is a sim question; fog is a render answer.**
   `sim/visibility.ts` decides whether a tile is observed so the server can
   decide what to send. `render/fogOfWar.ts` only decides how the frontier
   looks.
 - **The AI is a player, not a system.** One brain per seat, called beside
   whichever host owns the World, emitting the same commands a human does. No
-  replica worlds, no AI netcode, and thinking never blocks a tick.
+  replica worlds and no AI netcode: `AiSeats.decide` runs in line just
+  before `tickWorld`, so a slow brain costs the owner tick time, never a
+  desync.
 - **The main thread never ticks the match.** It reads a SharedArrayBuffer
   under a seqlock and reacts to structural messages; the Worlds it builds
   for the menu backdrop and the editor's play-test are its own. Cross-origin
@@ -276,9 +283,12 @@ they actually stepped; victory is judged before the dead are removed.
   the sanitizer is the one that counts; the other non-command messages
   (hidden, debug, ping, replay requests) are structured and have handlers of
   their own.
-- **Node runs the sim from source.** Files the server and labs load spell
-  `.ts` on their imports; Node ≥ 23 strips the types. `pnpm smoke` guards the
-  arrangement; `pnpm typecheck` compiles the root, the server and each lab.
+- **Node runs the sim from source.** The server and the Node-side labs
+  (`aiLab`, `perf`, `mapAuthor`) load `sim`, `protocol` and `shared` with
+  `.ts` spelled on the imports; Node ≥ 23 strips the types. `modelLab` is
+  the exception: a browser page served by Vite that imports the render stack
+  the ordinary way. `pnpm smoke` guards the arrangement; `pnpm typecheck`
+  compiles the root, the server and each lab.
 
 ## Satellites around the sim
 
