@@ -755,6 +755,7 @@ describe('the fingerprints', () => {
     stanceSwitches: 0,
     wipes: 0,
     flanked: 0,
+    lastStands: 0,
     ...over,
   });
 

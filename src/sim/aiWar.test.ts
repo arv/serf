@@ -7,10 +7,25 @@ import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {BANDIT} from './entities.ts';
 import {findPathToAdjacent, tileStepCost} from './path.ts';
-import {AI_INTEL, AI_WAR, AiBrain, cheapestRoad} from './systems/ai.ts';
-import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
+import {
+  AI_INTEL,
+  AI_WAR,
+  ALL_WAR_BEHAVIORS,
+  AiBrain,
+  cheapestRoad,
+} from './systems/ai.ts';
+import {
+  addBuiltHut,
+  addSerf,
+  addStorehouse,
+  bareWorld,
+  cmds,
+} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
 import type {Unit} from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import * as WarBehaviorId from './warBehaviorIdEnum.ts';
 import type {World} from './world.ts';
 import {placeBuiltBuilding, spawnUnit} from './world.ts';
@@ -593,5 +608,98 @@ describe('the scout that runs', () => {
     expect(flight).toBeDefined();
     expect(flight!.attack).toBeUndefined();
     expect(brain.warReport().scoutFled).toBe(1);
+  });
+});
+
+describe('the last stand', () => {
+  /**
+   * A seat at the end of its rope: a storehouse, a village of serfs, no
+   * soldier standing, no roof that could train one, and a raider in the
+   * yard. Every gate the verb reads, held at once.
+   */
+  function doomed(serfs = 8): {world: World; brain: AiBrain; raider: Unit} {
+    const world = village();
+    for (let i = 0; i < serfs; i++)
+      addSerf(world, BASE + 2 + (i % 4), BASE + 2);
+    const raider = spawnUnit(world, UnitTypeId.bandit, BANDIT, BASE - 1, BASE);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 8000;
+    return {world, brain, raider};
+  }
+
+  /** The order the stand gives: an attack-move naming villagers. */
+  const standOf = (commands: SimCommand[], world: World): Move | undefined =>
+    moves(commands).find(
+      m =>
+        m.attack === true &&
+        m.unitIds.length > 0 &&
+        m.unitIds.every(id => world.units.get(id)?.kind === UnitTypeId.serf),
+    );
+
+  it('sends the village at the raider when there is nothing else left', () => {
+    const {world, brain, raider} = doomed();
+    const stand = standOf(brain.decide(world), world);
+    expect(stand).toBeDefined();
+    expect(stand!.unitIds).toHaveLength(8);
+    expect(stand!.x).toBe(Math.floor(raider.x));
+    expect(stand!.y).toBe(Math.floor(raider.y));
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
+  it('counts one stand, however many beats it is re-aimed over', () => {
+    const {world, brain} = doomed();
+    const first = standOf(brain.decide(world), world);
+    expect(first).toBeDefined();
+    // Apply it, so the mob is genuinely charging on the next beat.
+    tickWorld(world, cmds(first!));
+    expect(
+      first!.unitIds.every(
+        id => world.units.get(id)!.task.t === UnitTaskKind.attackMove,
+      ),
+    ).toBe(true);
+    world.tick += 200;
+    // Nobody new to send: the men already charging are left to their fight.
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
+  it('holds its hand while one soldier still stands', () => {
+    const {world, brain} = doomed();
+    knights(world, 1, 0, BASE + 3);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand while a barracks could bring the army back', () => {
+    const {world, brain} = doomed();
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, BASE + 6, BASE + 6);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand with nobody at the gates', () => {
+    const {world, brain, raider} = doomed();
+    raider.dead = true;
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand when the village is too small to be a mob', () => {
+    const {world, brain} = doomed(AI_WAR.standMin - 1);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('is silent for a seat the behavior is ablated on', () => {
+    const {world, brain} = doomed();
+    brain.setWarBehaviors(
+      ALL_WAR_BEHAVIORS.filter(id => id !== WarBehaviorId.lastStand),
+    );
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
   });
 });

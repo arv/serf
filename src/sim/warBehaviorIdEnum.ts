@@ -28,3 +28,5 @@ export const wipedMarch = 9 as const;
 export type wipedMarch = typeof wipedMarch;
 export const flankMarch = 10 as const;
 export type flankMarch = typeof flankMarch;
+export const lastStand = 11 as const;
+export type lastStand = typeof lastStand;

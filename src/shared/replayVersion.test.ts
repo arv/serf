@@ -742,8 +742,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // that moves positions rather than hit points — takes up room in the
 // separation pass for as long as that order stands (defs/units.ts MILITIA,
 // units.ts fightOf and takesUpRoom).
+// Still 71 after the AI's last stand (warBehaviorIdEnum `lastStand`,
+// systems/ai.ts #lastStand): a seat with no soldier standing, no roof that
+// could train one and an enemy at its storehouse sends the village in with
+// its knives. All brain, and playback never runs a brain — a replay stores
+// the seats' commands rather than re-deriving them (app/replay.ts), so a
+// seat that would send its serfs today replays as it decided then. The
+// same reasoning every "Still 32/33 after..." entry above records. The
+// hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 71;
-const EXPECTED_HASH = '368f95005b815439a55bfc72df1278bc';
+const EXPECTED_HASH = '5f69937d2b493590ad4db5c68fc82ae2';
 
 /**
  * Everything a replay's playback depends on, as raw source:
