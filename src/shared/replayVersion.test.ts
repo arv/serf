@@ -737,12 +737,27 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to digest as identical and diverge on the following tick. The same
 // reasoning the "Still 33 after the enums moved" entries keep — the hash
 // is over raw bytes, so it moved anyway.
-// 71 for the civilians' knives: a serf answers the man cutting him down,
+// 71 for the two arms' clocks: the archer's course at the range, the
+// knight's at the barracks, and the bowstave, the spear and the sword at
+// the Smith. Five durations in defs/buildings.ts and nothing else — no
+// stat, no cost, no rule — but a course and a forge that finish on
+// different ticks re-time every haul, hire and march behind them, which is
+// behavior in the first minute of any log.
+// Still 71 after the spearman's course went back to its printed ten: it
+// was the sixth of those durations for one commit, and 71 is that same
+// commit's own bump, never released, so there is no older log stamped
+// with it to break. The hash is over raw bytes and moved regardless.
+// Still 71 again after two comments in defs/buildings.ts were corrected
+// to that revert (one still called the archer's course nine seconds, one
+// still handed the range's second to both steel arms rather than the
+// knight alone). Prose only — no constant, table or statement moved — and
+// the hash is over raw bytes, which is the whole reason it moved.
+// 72 for the civilians' knives: a serf answers the man cutting him down,
 // fights like a weak melee unit while an A order is on him, and — the part
 // that moves positions rather than hit points — takes up room in the
 // separation pass for as long as that order stands (defs/units.ts MILITIA,
 // units.ts fightOf and takesUpRoom).
-// Still 71 after the AI's last stand (warBehaviorIdEnum `lastStand`,
+// Still 72 after the AI's last stand (warBehaviorIdEnum `lastStand`,
 // systems/ai.ts #lastStand): a seat with no soldier standing, no roof that
 // could train one and an enemy at its storehouse sends the village in with
 // its knives. All brain, and playback never runs a brain — a replay stores
@@ -750,8 +765,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // seat that would send its serfs today replays as it decided then. The
 // same reasoning every "Still 32/33 after..." entry above records. The
 // hash is over raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 71;
-const EXPECTED_HASH = '5f69937d2b493590ad4db5c68fc82ae2';
+const EXPECTED_VERSION = 72;
+const EXPECTED_HASH = '55021149ee77c180fec9021794b085c3';
 
 /**
  * Everything a replay's playback depends on, as raw source:

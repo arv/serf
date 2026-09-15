@@ -4,6 +4,7 @@ import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
 import {
   ABBEY_ALE_CAP,
+  ALE_TRAIN_SPEEDUP,
   BARRACKS_ALE_CAP,
   FESTIVAL_DURATION,
   FESTIVAL_SPEEDUP,
@@ -1186,10 +1187,18 @@ describe('research', () => {
       tickWorld(world, []);
     const head = barracks.trainQueue?.[0];
     expect(head?.started).toBe(true);
-    // The 200-tick course was set to 200 / 1.25 = 160 at enlistment (the
-    // range absorbs the decrements of the tick that flipped `started`).
-    expect(head!.ticksLeft).toBeGreaterThan(150);
-    expect(head!.ticksLeft).toBeLessThanOrEqual(160);
+    // The course was shortened by the drink at enlistment. Read off the
+    // def rather than written out: the printed length is a balance number
+    // (defs/buildings.ts) and what this test is about is the divisor. The
+    // window's lower end absorbs the decrements of the tick that flipped
+    // `started`.
+    const course = buildingDef(BuildingTypeId.barracks).trains!.find(
+      t => t.unit === UnitTypeId.spearman,
+    )!.durationTicks;
+    const drunk = Math.round(course / ALE_TRAIN_SPEEDUP);
+    expect(drunk).toBeLessThan(course);
+    expect(head!.ticksLeft).toBeGreaterThan(drunk - 10);
+    expect(head!.ticksLeft).toBeLessThanOrEqual(drunk);
     expect(barracks.inputs[GoodId.ale] ?? 0).toBe(0); // the drink was drunk
   });
 });

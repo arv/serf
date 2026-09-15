@@ -171,32 +171,40 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * one this test makes, and 8 leaves the control undecided past 30_000.
  * 4, 9 and 12 tied the way 1 did.)
  *
- * ...and to 3 when the serfs got their knives (replay 71): a civilian
- * being cut down answers his attacker for a point a blow, so every fight
- * a raider or a rival's line picks in a village now runs a little
- * differently, and twenty thousand ticks is long enough for that to be a
- * different war. The random stream is untouched — a serf's task never
- * changes when he swings, so wander draws for exactly the men it drew for
- * before — but on 5 the advised war INVERTED, ending 3_544 ticks later
- * than the control. Fourteen seeds were re-measured; 3 is picked on the
- * same two counts as ever, seat 1 winning both ways at 18_853 unadvised
- * and 14_390 marching at four, which is 4_463 ticks of gap and 3_147
- * under the bound. (6 and 13 had the wider gaps and both want a deeper
- * bound than this fixture is worth — their controls run 27_437 and
- * 23_863. 9's gap was 158 ticks, which is no gap at all; 8, 11 and 12
- * hand the valley to the other seat when the advice lands, which is a
- * different claim from the one this test makes; 1, 2, 4 and 7 tied.)
+ * ...and back to 1 when the two arms' clocks were re-cut (replay 71): the
+ * archer's course at the range, the knight's at the barracks, and the
+ * bowstave, the spear and the sword at the Smith. Five durations, which
+ * re-time every forge and every course and so every march behind them. On
+ * 5 the advised war INVERTED — the advice ending the same war thousands of
+ * ticks LATER, and handing the valley to the other seat besides — which is
+ * the one reading this fixture cannot carry. Twelve seeds were
+ * re-measured; 1 is picked on the same two counts as ever, seat 1 winning
+ * both ways at 13_030 unadvised and 10_060 marching at four, which is
+ * 2_970 ticks of gap and 8_970 under the bound. (9 is the only other seed
+ * where seat 1 wins both ways, and its gap is 452 ticks — the thin margin
+ * that keeps bringing us back here. 11 hands the valley to the other seat
+ * when the advice lands, which is what 3 was rejected for last time; 4's
+ * control runs past the bound; 3, 7 and 8 inverted the way 5 did, and 2,
+ * 6, 10 and 12 tied.)
  *
- * Still 3 after the same build's other half — A arming a serf to fight
- * like a melee unit, and an A-ordered serf taking up room in the
- * separation pass. Both hang off an order no seat ever issues (ai.ts
- * marches soldiers), so no AI match contains an armed villager and this
- * fixture measures out tick for tick as it did above. Re-measured rather
- * than assumed: 18_853 and 14_390 again, to the tick.
+ * Still 1 when the serfs got their knives (replay 72): a civilian answers
+ * the man cutting him down, fights like a weak melee unit under an A
+ * order, and takes up room in the separation pass while that order stands
+ * — and a seat with nothing left to fight with sends the village in
+ * (systems/ai.ts #lastStand). None of it reaches this fixture. The A order
+ * is the player's alone (ai.ts marches soldiers), and the stand wants an
+ * enemy at the storehouse of a seat with no soldier and no barracks, which
+ * is not a shape two stewards on quiet ground ever reach — this fixture
+ * runs without bandits. Re-measured on the merged sim rather than assumed,
+ * since the clocks above moved in the same build: 13_030 and 10_060 again,
+ * to the tick. (13 is the only other seed where seat 1 wins both ways,
+ * at 15_345 and 12_608; 5 and 9 invert, 7's control never decides, and 2,
+ * 4, 6, 10 and 12 tie.)
+ *
  *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 3;
+const FULL_MATCH_SEED = 1;
 const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {

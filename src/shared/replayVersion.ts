@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 71: even the serfs fight, and a fighting serf is in the way.
+ * 72: even the serfs fight, and a fighting serf is in the way.
  *
  * Every civilian now carries a knife (defs/units.ts MILITIA): one point of
  * damage on a thirty-tick cooldown, at a melee arm's reach, landing flat —
@@ -53,6 +53,27 @@
  * What moves is when men die, and — under an A order — where they stand,
  * which is enough: everything downstream of a body falling a tick later
  * moves with it.
+ *
+ * 71's note follows.
+ *
+ * 71: the two arms' clocks, re-cut. Five numbers move and no stat does: the
+ * archer's course at the range 9s -> 10s, the knight's 15s -> 14s at the
+ * barracks, and at the Smith the bowstave 8s -> 9s with the spear 10s -> 9s
+ * and the sword 14s -> 13s beside it. The spearman's course stays at ten:
+ * he is the bow's own counter and the cheaper of the two iron arms, so his
+ * second is spent on the forge's spear and nowhere else.
+ *
+ * What it answers is throughput, not the duel. The bow is the one arm whose
+ * bill carries no iron, and it was also the quickest through both doors it
+ * uses — anvil and butt — so a village on the bow line fielded men at a rate
+ * the steel line could not match however the counters went. Nothing about
+ * who beats whom changes (defs/units.ts is untouched); what changes is how
+ * many of each are standing when the two meet.
+ *
+ * Sim behavior, so a log recorded before this build diverges the moment a
+ * forge or a course finishes on a different tick from the one it finished
+ * on then — which is inside the first weapon either seat orders, and every
+ * haul, hire and march behind it.
  *
  * 70's note follows.
  *
@@ -1276,4 +1297,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 71;
+export const REPLAY_VERSION = 72;
