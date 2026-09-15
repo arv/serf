@@ -789,3 +789,63 @@ describe('unitSnapshots: which way a worker faces', () => {
     expect(snap.targetDist).toBe(8); // one tile, in eighth-tiles
   });
 });
+
+describe('unitSnapshots: a villager with a knife', () => {
+  const snapOf = (world: World, id: number): UnitSnapshot => {
+    for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;
+    throw new Error(`unit ${id} is not in the snapshot`);
+  };
+
+  it('publishes the reflex as a fight, facing the man striking him', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 30.5);
+    // What retaliation leaves on him (systems/combat.ts landBlow): an
+    // unordered civilian answering the man already cutting him down.
+    serf.targetId = bandit.id;
+    serf.targetIsBuilding = false;
+    const snap = snapOf(world, serf.id);
+    expect(snap.action).toBe(ACTION.fight);
+    // Due east: a quarter turn in the renderer's convention (yaw 0 is +y).
+    expect(snap.facing).toBe(64);
+    expect(snap.targetDist).toBe(8); // one tile, in eighth-tiles
+  });
+
+  it('publishes an A-ordered villager hacking at a wall', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const camp = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      31,
+      30,
+    );
+    serf.task = {t: UnitTaskKind.raid, buildingId: camp.id};
+    serf.targetId = camp.id;
+    serf.targetIsBuilding = true;
+    const snap = snapOf(world, serf.id);
+    expect(snap.action).toBe(ACTION.fight);
+    expect(snap.targetDist).toBeGreaterThan(0);
+  });
+
+  it('leaves a hauler with no fight on facing whatever he likes', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 30.5);
+    const snap = snapOf(world, serf.id);
+    expect(snap.action).not.toBe(ACTION.fight);
+    expect(snap.targetDist).toBe(0);
+  });
+
+  it('drops the bearing once his target is out of his reach', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 36.5, 30.5);
+    serf.targetId = bandit.id; // a target he cannot reach is not a fight
+    serf.targetIsBuilding = false;
+    const snap = snapOf(world, serf.id);
+    expect(snap.action).not.toBe(ACTION.fight);
+    expect(snap.targetDist).toBe(0);
+  });
+});

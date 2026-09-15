@@ -2537,3 +2537,76 @@ describe('stopping', () => {
     expect(h.commands).toEqual([]);
   });
 });
+
+describe('A over an enemy, with villagers in the band', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+    vi.unstubAllGlobals();
+  });
+
+  /** A serf and a knight of ours, and a raider of theirs to aim at. */
+  function mixedBandAndRaider(): ReturnType<typeof harness> {
+    const h = harness();
+    h.addUnit(1, 0, 0, ME, UnitTypeId.serf);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.knight);
+    h.addUnit(3, 8, 0, THEM, UnitTypeId.bandit);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+    return h;
+  }
+
+  it('A-click on him takes the serf along, move and focus alike', () => {
+    const h = mixedBandAndRaider();
+    controls = h.controls;
+
+    h.type('A');
+    h.click(h.screenOf(3));
+
+    // The pair an attack-click sends: the attack-move first, then the
+    // target it names (see Controls #issueFocus).
+    const move = h.commands.at(-2);
+    const focus = h.commands.at(-1);
+    expect(move).toMatchObject({
+      kind: CommandKind.moveUnits,
+      unitIds: [1, 2],
+      attack: true,
+    });
+    expect(focus).toMatchObject({
+      kind: CommandKind.focusTarget,
+      unitIds: [1, 2],
+      targetId: 3,
+    });
+  });
+
+  it('a right-click on the same man leaves the serf out of it', () => {
+    const h = mixedBandAndRaider();
+    controls = h.controls;
+
+    h.order(h.screenOf(3));
+
+    // No A, no focus for a villager: the gesture is the whole difference,
+    // and an ordinary right-click must never send the village at anybody.
+    const focus = h.commands.filter(c => c.kind === CommandKind.focusTarget);
+    expect(focus).toHaveLength(1);
+    expect((focus[0] as {unitIds: number[]}).unitIds).toEqual([2]);
+  });
+});

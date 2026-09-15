@@ -752,8 +752,49 @@ import {REPLAY_VERSION} from './replayVersion';
 // still handed the range's second to both steel arms rather than the
 // knight alone). Prose only — no constant, table or statement moved — and
 // the hash is over raw bytes, which is the whole reason it moved.
-const EXPECTED_VERSION = 71;
-const EXPECTED_HASH = '38e3996ecf93e146db7bd4d7c0e75f29';
+// 72 for the civilians' knives: a serf answers the man cutting him down,
+// fights like a weak melee unit while an A order is on him, and — the part
+// that moves positions rather than hit points — takes up room in the
+// separation pass for as long as that order stands (defs/units.ts MILITIA,
+// units.ts fightOf and takesUpRoom).
+// Still 72 after the AI's last stand (warBehaviorIdEnum `lastStand`,
+// systems/ai.ts #lastStand): a seat with no soldier standing, no roof that
+// could train one and an enemy at its storehouse sends the village in with
+// its knives. All brain, and playback never runs a brain — a replay stores
+// the seats' commands rather than re-deriving them (app/replay.ts), so a
+// seat that would send its serfs today replays as it decided then. The
+// same reasoning every "Still 32/33 after..." entry above records. The
+// hash is over raw bytes, which is why it moved anyway.
+// Still 72 after the review's coverage round: `releaseFromWork` was moved
+// back above orderMove's own JSDoc (it had been inserted between that
+// contract and the function it documents, quietly re-attaching it to the
+// helper), that contract now mentions the A order that can hand a villager
+// an assault, and tests were added for the gestures and the wire — none of
+// which is a statement the sim executes. Prose and tests; the hash is over
+// raw bytes.
+// Still 72 after a second review round closed three more of this same
+// unreleased bump's edges: the last stand now reads an ARMED enemy rather
+// than an enemy soldier (the rival's serfs carry the same knife this build
+// hands out, and a mob of them at the storehouse is exactly the case the
+// stand is for), a plain click on a hostile building stands a raiding
+// villager down instead of leaving him armed, and a man who leaves the
+// separation roster leaves his consecutive-hold count behind — that roster
+// changes from tick to tick now, and the count is only kept honest for the
+// men inside it. Sim behavior, all three, and all of it 72's own.
+// Still 72 after one comment in tick.ts was corrected to what the code
+// does: a right-click on an enemy building has never walked a serf
+// anywhere — the assault branch skips him and returns before any walk is
+// planned — and the comment beside it claimed a plain walk. Prose only,
+// and the hash is over raw bytes.
+// Still 72 after the review round on #294 tightened three of its own
+// edges: a focus order no longer sticks to a civilian who is not under an
+// attack order (tick.ts, units.ts fightOf), an assault on a building
+// releases a villager's job and post the way the walk beside it does, and
+// the last stand counts the soldiers on a wall as soldiers. All three are
+// this same unreleased bump's own behavior — there is no older log stamped
+// 72 to break — and the hash is over raw bytes, which is why it moved.
+const EXPECTED_VERSION = 72;
+const EXPECTED_HASH = '5b58e5f7b94e9cc6b98369f9a0338fc6';
 
 /**
  * Everything a replay's playback depends on, as raw source:

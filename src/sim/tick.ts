@@ -69,8 +69,10 @@ import {
   researchAbbey,
 } from './techHelpers.ts';
 import {
+  canTakeUpArms,
   clearMarchSpeed,
   clearOrders,
+  fightOf,
   type Unit,
   type Waypoint,
 } from './units.ts';
@@ -253,7 +255,13 @@ export function applyCommand(
       // The one order that names a target. Everything is re-checked here,
       // because a command arrives off a socket as readily as off a click:
       // the target must be a living unit belonging to somebody else, and
-      // each unit named must be this player's, alive, and able to fight.
+      // each unit named must be this player's, alive, and able to fight —
+      // which the civilians now are (units.ts canTakeUpArms). Naming a
+      // target does not by itself arm a serf: he fights only under an
+      // attack order (systems/combat.ts fightOf), and off one the target
+      // sits there until the last-resort pass drops it for being out of
+      // his reach. That is why the A-click sends the attack-move first and
+      // this second — the pair is the order.
       // A soldier already walking under a plain move order is left alone —
       // combatSystem disengages those before it looks at a target, so
       // writing one would be an order the next tick throws away.
@@ -264,7 +272,16 @@ export function applyCommand(
       for (const id of cmd.unitIds) {
         const u = world.units.get(id);
         if (!u || u.dead || u.owner !== playerId) continue;
-        if (!UNIT_DEFS[u.kind].combat) continue;
+        // The same predicate the combat system fights by (units.ts
+        // fightOf): every soldier, and a civilian only while an attack
+        // order is actually on him. `canTakeUpArms` alone was too wide —
+        // it let a bare focusTarget hang an enemy on an idle or hauling
+        // villager, and lastResortStrike swings at whatever target it
+        // finds inside his reach, so a client could arm a serf without
+        // ever ordering him to attack. Reachable from this client too: an
+        // A-click whose move cannot be pathed leaves the man in his
+        // errand, and the focus order behind it used to land anyway.
+        if (fightOf(u) === undefined) continue;
         if (u.task.t === UnitTaskKind.move) continue;
         // Naming a target is an order to go and fight it, so it releases a
         // hold: a man holding ground strikes only what reaches him, and a
@@ -1088,12 +1105,34 @@ function waypointSystem(world: World): void {
 }
 
 /**
+ * Let go of whatever this man was employed doing, so a fighting order can
+ * have him: a hauler drops his job (reservations released, the good stays
+ * in his hands) and a resident worker quits his post, freeing the building
+ * to recruit again.
+ *
+ * Both orders that can take a civilian call it — the walk and the assault
+ * on a building — because the thing that must not survive the order is the
+ * bookkeeping on the other side of it: a job nobody will finish, or a post
+ * production still counts as staffed.
+ */
+function releaseFromWork(world: World, unit: Unit): void {
+  if (unit.jobId !== undefined) {
+    const job = world.jobs.get(unit.jobId);
+    if (job) abortJob(world, job, 'reassigned by a move order', true);
+    unit.jobId = undefined;
+  }
+  if (unit.homeId !== undefined) unbindWorker(world, unit);
+}
+
+/**
  * Group moves fan out over the walkable tiles nearest the target (spiral
  * order) so squads don't stack on one tile; a mixed squad claims those
  * tiles in battle order — knights up front, archers at the back
- * (orderFormation). A right-click on an enemy building is an attack order:
- * military units take the same 'raid' task
- * bandits use, and the combat system does the rest. Ground orders come in
+ * (orderFormation). A click on an enemy building is an attack order:
+ * military units take the same 'raid' task bandits use — and so does a
+ * villager, but only under A (units.ts canTakeUpArms), since arming the
+ * village must be something the player said rather than something he
+ * aimed badly. The combat system does the rest. Ground orders come in
  * three kinds — an attack-move fights whatever it meets on the way, a plain
  * move ignores enemies until it arrives, and the 'half' order walks the
  * front half of the route as a plain move before turning attack-move.
@@ -1104,8 +1143,9 @@ function waypointSystem(world: World): void {
  * that leg was dealt (squadPace), since the man arrives alone.
  *
  * Returns how many of the named units took the order: the ones now
- * walking or assaulting, as against the civilians handed an assault and
- * the men with no way to walk, whom it leaves exactly as they were.
+ * walking or assaulting, as against the men with no way to walk and the
+ * civilians a plain click at a building leaves standing (it stands an
+ * armed one down all the same — see the branch itself).
  */
 function orderMove(
   world: World,
@@ -1124,7 +1164,45 @@ function orderMove(
     for (const id of cmd.unitIds) {
       const unit = world.units.get(id);
       if (!unit || unit.dead || unit.owner !== playerId) continue;
-      if (!UNIT_DEFS[unit.kind].combat) continue; // civilians don't storm camps
+      // Civilians storm a camp only when they were told to in as many
+      // words — A over the building. A right-click on one is the assault
+      // it has always been for soldiers, and for a serf it has always
+      // walked him nowhere: the `return` below means no walk is ever
+      // planned for him. That dead click is a wart older than this rule
+      // and is left where it is — letting him fall through to the walk
+      // restructures a return that soldiers share, for a gesture that has
+      // nothing to do with arming villagers. What it must not be is a
+      // click that leaves an armed man armed, which is the branch below.
+      if (
+        !UNIT_DEFS[unit.kind].combat &&
+        !(cmd.attack && canTakeUpArms(unit))
+      ) {
+        // He takes no part in the assault — but a plain click is still an
+        // order, and the one thing it always means for a villager is that
+        // he is not attacking any more. A serf raiding one wall who is
+        // then right-clicked at another used to keep the first raid: his
+        // task, his target, his knife and his body in the separation pass,
+        // all of it surviving the gesture that was supposed to stand him
+        // down. He is stood down here instead, which is what the plain
+        // move beside this does for every other tile on the map.
+        if (!cmd.attack && fightOf(unit) !== undefined) {
+          unit.task = {t: UnitTaskKind.idle, until: world.tick};
+          unit.path = null;
+          unit.pathIdx = 0;
+          unit.targetId = undefined;
+          unit.targetIsBuilding = undefined;
+          clearMarchSpeed(unit);
+          clearOrders(unit);
+        }
+        continue;
+      }
+      // An assault outranks whatever he was employed doing, exactly as the
+      // walk below does. Soldiers never had a job or a post to release, so
+      // this branch never needed to say so; a villager sent at a wall does,
+      // and without it production went on counting a besieging worker as
+      // the man in its mill and logistics kept a job he was never going to
+      // finish.
+      releaseFromWork(world, unit);
       unit.task = {t: UnitTaskKind.raid, buildingId: target.id};
       unit.targetId = target.id;
       unit.targetIsBuilding = true;
@@ -1169,25 +1247,22 @@ function orderMove(
     // and a resident worker quits the post, freeing the building to recruit
     // again. Ignoring these orders meant that once the last serf took a
     // job the player had nobody left to command.
-    if (unit.jobId !== undefined) {
-      const job = world.jobs.get(unit.jobId);
-      if (job) abortJob(world, job, 'reassigned by a move order', true);
-      unit.jobId = undefined;
-    }
-    if (unit.homeId !== undefined) unbindWorker(world, unit);
+    releaseFromWork(world, unit);
     unit.path = path;
     unit.pathIdx = 0;
     // Only where it binds: the slowest members ARE the pace and march
     // unmarked, so a fresh order always resets a stale cap either way.
     if (pace < effectiveSpeed(unit.kind, serfMod)) unit.marchSpeed = pace;
     else clearMarchSpeed(unit);
-    // An attack-move keeps the combat system live on the way; civilians have
-    // no combat to keep live, so for them every order is the same walk. The
+    // An attack-move keeps the combat system live on the way — for a serf
+    // too, since A is what puts the knife in his hand (systems/combat.ts
+    // fightOf); without the flag his order is the same plain walk it has
+    // always been, and he fights only what comes at him. The
     // 'half' order quiets the front leg of the route — far enough to carry a
     // fleeing squad clear of its fight before the order starts answering back.
     const engageIdx = Math.ceil(path.length / 2);
     unit.task =
-      cmd.attack && UNIT_DEFS[unit.kind].combat
+      cmd.attack && (UNIT_DEFS[unit.kind].combat || canTakeUpArms(unit))
         ? cmd.attack === 'half' && engageIdx > 0
           ? {t: UnitTaskKind.attackMove, destX: goalX, destY: goalY, engageIdx}
           : {t: UnitTaskKind.attackMove, destX: goalX, destY: goalY}

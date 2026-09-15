@@ -20,6 +20,45 @@
  * directly.
  */
 /**
+ * 72: even the serfs fight, and a fighting serf is in the way.
+ *
+ * Every civilian now carries a knife (defs/units.ts MILITIA): one point of
+ * damage on a thirty-tick cooldown, at a melee arm's reach, landing flat —
+ * no class, so the counter table prices it on neither side. It is
+ * deliberately not a `combat` block, because that field is the engine's
+ * word for "soldier" everywhere else (army counts, formation rank, the
+ * select-army key, the AI's reading of a rival's strength) and none of
+ * that moves: a serf is still a serf.
+ *
+ * He fights in two modes. Unordered — on an errand, a stroll, a plain
+ * move, standing idle — he acquires nobody and only ever answers the man
+ * already striking him, without dropping his load or breaking stride. Under
+ * an attack order (A over the ground, or over an enemy building) he fights
+ * like the weak melee unit he is imitating: he acquires inside four tiles,
+ * closes, chases and strikes, and hacks at a wall at the worst rate on the
+ * map. A plain move disarms him again. A seat issues it in exactly one
+ * situation — the last stand (systems/ai.ts #lastStand), when it has no
+ * soldier left, no roof that could train one and an enemy at the
+ * storehouse it is eliminated by losing — so outside that, in a match
+ * against the seats, this mode is the player's.
+ *
+ * And the separation pass takes him while that order stands (units.ts
+ * takesUpRoom): a serf sent in with A is a body soldiers cannot walk
+ * through, his own side's included, where a hauler is walked straight
+ * through as he always was — even while he is being cut down, because
+ * what makes a man solid is the order, never the fight that found him.
+ * That is the half of this that moves positions rather than hit points,
+ * and it moves them only where a player sent villagers to fight.
+ *
+ * The random stream is not moved directly: a civilian's task is what
+ * decides whether wanderSystem draws for him, and the reflex never touches
+ * his task (the attack order does, but an order is already in the log).
+ * What moves is when men die, and — under an A order — where they stand,
+ * which is enough: everything downstream of a body falling a tick later
+ * moves with it.
+ *
+ * 71's note follows.
+ *
  * 71: the two arms' clocks, re-cut. Five numbers move and no stat does: the
  * archer's course at the range 9s -> 10s, the knight's 15s -> 14s at the
  * barracks, and at the Smith the bowstave 8s -> 9s with the spear 10s -> 9s
@@ -1261,4 +1300,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 71;
+export const REPLAY_VERSION = 72;

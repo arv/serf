@@ -166,6 +166,18 @@ const MILITARY_CODES = new Set<number>(
 );
 
 /**
+ * Kind codes that can be told to attack something without being army: the
+ * civilians, who carry a knife and use it under an A order (defs/units.ts
+ * MILITIA). Deliberately NOT in MILITARY_CODES — ctrl-A selects an army,
+ * and a village is not one.
+ */
+const MILITIA_CODES = new Set<number>(
+  Object.values(UNIT_DEFS)
+    .filter(d => d.militia !== undefined)
+    .map(d => d.id),
+);
+
+/**
  * Left click / drag: select player units; double-click one to take every
  * unit of that kind on screen. Right click: move order for the
  * current selection. Build-menu placement mode overrides both: hover shows a
@@ -1029,7 +1041,7 @@ export class Controls {
         // — and, with P armed, adds the spot to the beat being walked.
         else if (
           order !== OrderMode.attack ||
-          !this.#issueFocus(e.clientX, e.clientY, e.shiftKey)
+          !this.#issueFocus(e.clientX, e.clientY, e.shiftKey, true)
         )
           this.#issueMove(e.clientX, e.clientY, orderOf(order), e.shiftKey);
         this.armOrder(null);
@@ -1326,7 +1338,7 @@ export class Controls {
         // has always been.
         else if (
           order !== OrderMode.attack ||
-          !this.#issueFocus(e.clientX, e.clientY)
+          !this.#issueFocus(e.clientX, e.clientY, false, true)
         )
           this.#issueMove(e.clientX, e.clientY, orderOf(order));
         this.armOrder(null);
@@ -2296,17 +2308,22 @@ export class Controls {
    * does. A queued click on a building still becomes the assault on it:
    * the sim reads the building under the tile when the leg comes due.
    */
-  #issueFocus(px: number, py: number, queue = false): boolean {
+  #issueFocus(px: number, py: number, queue = false, armed = false): boolean {
     // The same guard the move order keeps: a click in a finished match
     // must not pretend to command anybody.
     if (replayMode()) return false;
     if (this.#selection.size === 0) return false;
     const me = myPlayerId();
-    // Only soldiers can be told to attack a thing. A selection of serfs
-    // falls through and keeps the move order it meant.
+    // Only soldiers can be told to attack a thing — unless the player
+    // armed the order himself with A, which is the one gesture that sends
+    // civilians at anybody. A right-click (`armed` false) over an enemy
+    // therefore still falls through for a selection of serfs and keeps the
+    // move order it meant, so nobody sends his haulers to their deaths by
+    // aiming a walk badly.
     const fighters = [...this.#selection].filter(id => {
       const kind = this.#sync.kindOf(id);
-      return kind !== null && MILITARY_CODES.has(kind);
+      if (kind === null) return false;
+      return MILITARY_CODES.has(kind) || (armed && MILITIA_CODES.has(kind));
     });
     if (fighters.length === 0) return false;
 

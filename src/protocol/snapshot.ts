@@ -668,7 +668,13 @@ function drawingAt(w: World, u: Unit): Building | undefined {
  * visibly moving.
  */
 function engagedTarget(w: World, u: Unit): {x: number; y: number} | undefined {
-  const combat = UNIT_DEFS[u.kind].combat;
+  const def = UNIT_DEFS[u.kind];
+  // A civilian with a knife in his hand is fighting, and the same rule
+  // decides it: his target, inside the reach he strikes at (defs/units.ts
+  // MILITIA). Both of his modes land here — the man answering an attacker
+  // and the one sent in under an A order — and so does the wall the second
+  // one may be hacking at.
+  const combat = def.combat ?? def.militia;
   if (!combat || u.targetId === undefined) return undefined;
   if (u.targetIsBuilding) {
     const b = w.buildings.get(u.targetId);

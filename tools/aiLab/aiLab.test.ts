@@ -187,6 +187,25 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * control runs past the bound; 3, 7 and 8 inverted the way 5 did, and 2,
  * 6, 10 and 12 tied.)
  *
+ * Still 1 when the serfs got their knives (replay 72): a civilian answers
+ * the man cutting him down, fights like a weak melee unit under an A
+ * order, and takes up room in the separation pass while that order stands
+ * — and a seat with nothing left to fight with sends the village in
+ * (systems/ai.ts #lastStand). None of it reaches THIS fixture, which is a
+ * narrower claim than "no seat ever arms a villager" — the stand is a seat
+ * issuing exactly that order, and it fires in seven of ten steward-vs-
+ * warlord matches with bandits on. What it wants is an enemy at the
+ * storehouse of a seat with no soldier anywhere and no roof that could
+ * train one, and two stewards on quiet ground never reach that shape:
+ * this fixture runs with `bandits: false`, and the seat that loses here
+ * loses with an army in the field. Every other way a villager is armed is
+ * the player's, and no player plays this fixture. Re-measured on the merged sim rather than assumed,
+ * since the clocks above moved in the same build: 13_030 and 10_060 again,
+ * to the tick. (13 is the only other seed where seat 1 wins both ways,
+ * at 15_345 and 12_608; 5 and 9 invert, 7's control never decides, and 2,
+ * 4, 6, 10 and 12 tie.)
+ *
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
 const FULL_MATCH_SEED = 1;
@@ -748,6 +767,7 @@ describe('the fingerprints', () => {
     stanceSwitches: 0,
     wipes: 0,
     flanked: 0,
+    lastStands: 0,
     ...over,
   });
 

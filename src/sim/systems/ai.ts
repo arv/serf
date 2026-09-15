@@ -75,7 +75,7 @@ import {
 } from '../siting.ts';
 import * as Terrain from '../terrainEnum.ts';
 import * as TileResource from '../tileResourceEnum.ts';
-import type {Unit} from '../units.ts';
+import {canTakeUpArms, fightOf, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {SeatVision} from '../visibility.ts';
 import * as WarBehaviorIdNs from '../warBehaviorIdEnum.ts';
@@ -567,6 +567,7 @@ export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.withdrawWounded]: 'withdrawWounded',
   [WarBehaviorIdNs.wipedMarch]: 'wipedMarch',
   [WarBehaviorIdNs.flankMarch]: 'flankMarch',
+  [WarBehaviorIdNs.lastStand]: 'lastStand',
 };
 
 export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
@@ -580,6 +581,7 @@ export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
   WarBehaviorIdNs.withdrawWounded,
   WarBehaviorIdNs.wipedMarch,
   WarBehaviorIdNs.flankMarch,
+  WarBehaviorIdNs.lastStand,
 ];
 
 const WAR_BEHAVIOR_BY_KEY = new Map<string, WarBehaviorId>(
@@ -689,6 +691,30 @@ export const AI_WAR = {
   flankMargin: 1,
   flankLeg: 8,
   flankArrive: 3,
+  /**
+   * The last stand (`lastStand`): how close to the storehouse an enemy
+   * has to stand before a seat with nothing left to fight him with sends
+   * the village itself.
+   *
+   * The storehouse is the elimination token — lose the last one and the
+   * seat is out (systems/victory.ts) — so this is measured from it and
+   * kept tight. Wider than a soldier's acquire radius so the mob is sent
+   * before the raiders are actually inside the yard, narrower than
+   * homeGuard's widest, because a rival's patrol crossing the valley must
+   * never read as the end of the world.
+   */
+  standRadius: 10,
+  /**
+   * How many villagers make a stand worth calling. Below this the mob is
+   * not a mob, and the last thing a seat down to three haulers should do
+   * is walk them one at a time into a knight: the odds (defs/units.ts
+   * MILITIA) say a dozen villagers kill one raider, so a handful kill
+   * nobody and the seat loses its last hands as well as its last
+   * buildings. It does not save the seat either way — but a village that
+   * merely dies is a village that could still have been rebuilt from, and
+   * this must not fire where there was anything left to rebuild with.
+   */
+  standMin: 6,
 } as const;
 
 /**
@@ -1027,6 +1053,15 @@ export class AiBrain {
   #withdrawn = 0;
   #focused = 0;
   #heralds = 0;
+  /**
+   * The last stand (`lastStand`): whether the village is out there now,
+   * and how many times it has been called. Counted on the beat the stand
+   * STARTS rather than per order, the way a herald is — the mob is
+   * re-aimed every beat it survives, and a count that rose with the
+   * re-aiming would report one defeat as thirty.
+   */
+  #standing = false;
+  #lastStands = 0;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
   #vision: SeatVision;
@@ -1237,6 +1272,7 @@ export class AiBrain {
     focused: number;
     wipes: number;
     flanked: number;
+    lastStands: number;
   } {
     return {
       firstMarchTick: this.#firstMarchTick,
@@ -1252,6 +1288,7 @@ export class AiBrain {
       focused: this.#focused,
       wipes: this.#wipes,
       flanked: this.#flanked,
+      lastStands: this.#lastStands,
     };
   }
 
@@ -2022,6 +2059,10 @@ export class AiBrain {
     }
     this.#followMarch(world, army, commands);
     this.#defendOutposts(world, mine, army, commands, baseX, baseY, spokenFor);
+    // The last of the answers and the only one that spends people who are
+    // not soldiers. After every verb that could still order an army,
+    // because it only speaks when there is no army left to order.
+    this.#lastStand(world, mine, commands, baseX, baseY);
     // Micro, last of the reactive verbs and only where the tier grants it:
     // both read the fight as it stands, so they want every earlier verb's
     // orders already on the board.
@@ -3426,6 +3467,155 @@ export class AiBrain {
       this.#outpostDefenses++;
       return; // one call per beat
     }
+  }
+
+  /**
+   * Every soldier this seat still has, wherever he is standing: the
+   * fighting men on the map, plus the ones inside its own towers, who are
+   * a garrison COUNT rather than units (staffing.ts consumes the man the
+   * way the barracks consumes a recruit) and so appear in no unit scan at
+   * all. The villager levy is not counted — stones are what a tower throws
+   * when it has no soldier, which is the case this number exists to find.
+   *
+   * Not `army`: that pool is what the march may spend, and it leaves out
+   * the men #manTowers claimed for a wall this beat. A soldier walking up
+   * to a tower is still a soldier the seat has, and reading him as gone
+   * would call the war lost with the archers still shooting.
+   */
+  #soldiersLeft(world: World, mine: readonly Building[]): number {
+    let n = this.#armyCount(world);
+    for (const b of mine) {
+      if (b.dead || b.state !== BuildingState.built || !b.garrison) continue;
+      const rule = BUILDING_DEFS[b.type].garrison;
+      if (!rule || b.garrisonKind === rule.levy.unit) continue;
+      n += b.garrison;
+    }
+    return n;
+  }
+
+  /**
+   * The last stand (`lastStand`): when the war is lost, the village fights.
+   *
+   * Everything this seat has to fight with is gone — no soldier standing,
+   * no roof left that could train one — and an enemy is at the storehouse,
+   * which is the building the seat is eliminated by losing. There is no
+   * order left that improves its position: the army it would rally is
+   * dead, the barracks it would muster from is rubble, and the ten minutes
+   * it would take to rebuild either are ten minutes it does not have. So
+   * it spends the only thing it still owns. The villagers go in with their
+   * knives (defs/units.ts MILITIA), which is about a tenth of a raider's
+   * output each and a dozen of them for one dead raider — a bad trade, and
+   * the only one on the table.
+   *
+   * Deliberately narrow, because the cost of a false positive is the whole
+   * economy: every gate below has to hold at once, and the moment one stops
+   * holding the stand is over and the survivors go back to work (staffing
+   * re-posts an idle serf like any other). It is not a defensive verb — the
+   * homeGuard rally is, and it runs long before this can — it is what
+   * happens when the defensive verbs have nobody left to call.
+   *
+   * Not tier-gated. Every other reactive verb that is, is a SKILL a better
+   * seat has (micro, remembering a wipe, flanking a tower); dying badly is
+   * not a skill, and an easy seat's villagers are as entitled to it.
+   *
+   * What it measures, on ten seeds of steward-vs-warlord with bandits:
+   * it fires in seven of them, always on the seat that goes on to lose,
+   * once or twice a match (the gates lapse when the raiders are killed or
+   * wander off, and hold again when the next wave arrives). Ablated
+   * against itself over the same ten, the winner is the same seat in all
+   * ten — what changes is how long the end takes, usually shortening it,
+   * because villagers fed to knights are villagers not hauling. That is
+   * the bargain this verb is: it buys drama with a losing seat's last
+   * minutes and never with a win.
+   *
+   * The mob is re-aimed at the nearest enemy every beat, but only the men
+   * not already charging are re-ordered: a fresh attack-move on a villager
+   * mid-swing would drop the fight he is in and re-path him. Villagers
+   * whose charge ended — they arrived, or what they were sent at died —
+   * are idle again, and the next beat sends them at whoever is nearest
+   * now. Workers included, pulled off their posts by the order itself
+   * (tick.ts orderMove unbinds them): a seat about to be eliminated has no
+   * use for a mill.
+   */
+  #lastStand(
+    world: World,
+    mine: readonly Building[],
+    commands: SimCommand[],
+    baseX: number,
+    baseY: number,
+  ): void {
+    // Who is at the gates, and who the mob is aimed at: one scan, because
+    // they are the same question. The nearest enemy FIGHTER inside the
+    // stand's radius that this seat can see — `fightOf`, not `combat`, so
+    // an enemy village sent in under an A order counts. That is not a
+    // hypothetical now: the same change that gave this seat a knife gave
+    // one to the rival's serfs, and a gate reading soldiers only would
+    // watch a mob of villagers take the storehouse without ever calling
+    // the stand. (The army-strength arithmetic elsewhere is untouched and
+    // still counts soldiers: a villager is not a soldier, he is only,
+    // here, a man who is attacking.)
+    //
+    // Nearest rather than weakest: a villager's reach is one tile and his
+    // acquire radius four, so anything further than the man in front of
+    // him is a distinction he cannot act on.
+    let mark: Unit | undefined;
+    if (this.#warOn(WarBehaviorIdNs.lastStand)) {
+      let best = Infinity;
+      for (const u of world.units.values()) {
+        if (u.dead || u.owner === this.playerId) continue;
+        if (fightOf(u) === undefined) continue;
+        if (!this.#vision.canSee(u.x, u.y)) continue;
+        const d = Math.abs(u.x - baseX) + Math.abs(u.y - baseY);
+        if (d > AI_WAR.standRadius) continue;
+        if (d < best || (d === best && (!mark || u.id < mark.id))) {
+          best = d;
+          mark = u;
+        }
+      }
+    }
+    const lost =
+      mark !== undefined &&
+      // Nobody left to fight with...
+      this.#soldiersLeft(world, mine) === 0 &&
+      // ...and nothing left to make one with. A standing roof that trains
+      // soldiers is a way back, however slow, and a seat with a way back
+      // is not out of options — it is merely losing.
+      !mine.some(
+        b =>
+          b.state === BuildingState.built &&
+          BUILDING_DEFS[b.type].trains?.some(o => MILITARY.has(o.unit)),
+      );
+    if (!lost || !mark) {
+      this.#standing = false;
+      return;
+    }
+    const at = mark;
+    // Who is left. Everyone who can hold a knife — see canTakeUpArms; the
+    // tower levy is a garrison count rather than units, so nobody standing
+    // a wall is in here to be walked off it.
+    const mob = [...world.units.values()].filter(
+      u => !u.dead && u.owner === this.playerId && canTakeUpArms(u),
+    );
+    if (mob.length < AI_WAR.standMin) {
+      this.#standing = false;
+      return;
+    }
+    if (!this.#standing) {
+      this.#standing = true;
+      this.#lastStands++;
+    }
+    const charging = mob.filter(
+      u =>
+        u.task.t !== UnitTaskKind.attackMove && u.task.t !== UnitTaskKind.raid,
+    );
+    if (charging.length === 0) return;
+    commands.push({
+      kind: CommandKind.moveUnits,
+      unitIds: charging.map(u => u.id),
+      attack: true,
+      x: Math.floor(at.x),
+      y: Math.floor(at.y),
+    });
   }
 
   /**
