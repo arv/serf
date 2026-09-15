@@ -765,8 +765,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // seat that would send its serfs today replays as it decided then. The
 // same reasoning every "Still 32/33 after..." entry above records. The
 // hash is over raw bytes, which is why it moved anyway.
+// Still 72 after the review round on #294 tightened three of its own
+// edges: a focus order no longer sticks to a civilian who is not under an
+// attack order (tick.ts, units.ts fightOf), an assault on a building
+// releases a villager's job and post the way the walk beside it does, and
+// the last stand counts the soldiers on a wall as soldiers. All three are
+// this same unreleased bump's own behavior — there is no older log stamped
+// 72 to break — and the hash is over raw bytes, which is why it moved.
 const EXPECTED_VERSION = 72;
-const EXPECTED_HASH = '55021149ee77c180fec9021794b085c3';
+const EXPECTED_HASH = 'cfc6f57a49b7194ee6f42a91ee1a4c0b';
 
 /**
  * Everything a replay's playback depends on, as raw source:

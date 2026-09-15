@@ -191,11 +191,15 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * the man cutting him down, fights like a weak melee unit under an A
  * order, and takes up room in the separation pass while that order stands
  * — and a seat with nothing left to fight with sends the village in
- * (systems/ai.ts #lastStand). None of it reaches this fixture. The A order
- * is the player's alone (ai.ts marches soldiers), and the stand wants an
- * enemy at the storehouse of a seat with no soldier and no barracks, which
- * is not a shape two stewards on quiet ground ever reach — this fixture
- * runs without bandits. Re-measured on the merged sim rather than assumed,
+ * (systems/ai.ts #lastStand). None of it reaches THIS fixture, which is a
+ * narrower claim than "no seat ever arms a villager" — the stand is a seat
+ * issuing exactly that order, and it fires in seven of ten steward-vs-
+ * warlord matches with bandits on. What it wants is an enemy at the
+ * storehouse of a seat with no soldier anywhere and no roof that could
+ * train one, and two stewards on quiet ground never reach that shape:
+ * this fixture runs with `bandits: false`, and the seat that loses here
+ * loses with an army in the field. Every other way a villager is armed is
+ * the player's, and no player plays this fixture. Re-measured on the merged sim rather than assumed,
  * since the clocks above moved in the same build: 13_030 and 10_060 again,
  * to the tick. (13 is the only other seed where seat 1 wins both ways,
  * at 15_345 and 12_608; 5 and 9 invert, 7's control never decides, and 2,

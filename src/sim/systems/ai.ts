@@ -2062,7 +2062,7 @@ export class AiBrain {
     // The last of the answers and the only one that spends people who are
     // not soldiers. After every verb that could still order an army,
     // because it only speaks when there is no army left to order.
-    this.#lastStand(world, mine, army, commands, baseX, baseY);
+    this.#lastStand(world, mine, commands, baseX, baseY);
     // Micro, last of the reactive verbs and only where the tier grants it:
     // both read the fight as it stands, so they want every earlier verb's
     // orders already on the board.
@@ -3470,6 +3470,30 @@ export class AiBrain {
   }
 
   /**
+   * Every soldier this seat still has, wherever he is standing: the
+   * fighting men on the map, plus the ones inside its own towers, who are
+   * a garrison COUNT rather than units (staffing.ts consumes the man the
+   * way the barracks consumes a recruit) and so appear in no unit scan at
+   * all. The villager levy is not counted — stones are what a tower throws
+   * when it has no soldier, which is the case this number exists to find.
+   *
+   * Not `army`: that pool is what the march may spend, and it leaves out
+   * the men #manTowers claimed for a wall this beat. A soldier walking up
+   * to a tower is still a soldier the seat has, and reading him as gone
+   * would call the war lost with the archers still shooting.
+   */
+  #soldiersLeft(world: World, mine: readonly Building[]): number {
+    let n = this.#armyCount(world);
+    for (const b of mine) {
+      if (b.dead || b.state !== BuildingState.built || !b.garrison) continue;
+      const rule = BUILDING_DEFS[b.type].garrison;
+      if (!rule || b.garrisonKind === rule.levy.unit) continue;
+      n += b.garrison;
+    }
+    return n;
+  }
+
+  /**
    * The last stand (`lastStand`): when the war is lost, the village fights.
    *
    * Everything this seat has to fight with is gone — no soldier standing,
@@ -3516,7 +3540,6 @@ export class AiBrain {
   #lastStand(
     world: World,
     mine: readonly Building[],
-    army: readonly Unit[],
     commands: SimCommand[],
     baseX: number,
     baseY: number,
@@ -3524,7 +3547,7 @@ export class AiBrain {
     const lost =
       this.#warOn(WarBehaviorIdNs.lastStand) &&
       // Nobody left to fight with...
-      army.length === 0 &&
+      this.#soldiersLeft(world, mine) === 0 &&
       // ...and nothing left to make one with. A standing roof that trains
       // soldiers is a way back, however slow, and a seat with a way back
       // is not out of options — it is merely losing.

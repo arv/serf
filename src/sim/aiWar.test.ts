@@ -674,6 +674,53 @@ describe('the last stand', () => {
     expect(brain.warReport().lastStands).toBe(0);
   });
 
+  it('holds its hand for a soldier the walls just claimed', () => {
+    // #manTowers takes an idle archer for the wall, and the march pool
+    // leaves him out — but a man walking up to a tower is a man the seat
+    // still has. Reading the pool as "no soldier" called the war lost
+    // with an archer standing in the yard.
+    const {world, brain} = doomed();
+    placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, BASE + 4, BASE + 4);
+    spawnUnit(world, UnitTypeId.archer, 0, BASE + 4.5, BASE + 6.5);
+    // The claim is silent — #manTowers adds him to its set and staffing
+    // walks him up on its own — so what this asserts is the outcome: no
+    // stand while he is alive. Against the march pool alone it fires.
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand for the archers already on the wall', () => {
+    // A garrison is a count rather than units (staffing consumes the man),
+    // so no unit scan can see these two at all.
+    const {world, brain} = doomed();
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      BASE + 4,
+      BASE + 4,
+    );
+    tower.garrison = 2;
+    tower.garrisonKind = UnitTypeId.archer;
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('stands anyway for a tower held by the levy — stones are not soldiers', () => {
+    const {world, brain} = doomed();
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      BASE + 4,
+      BASE + 4,
+    );
+    tower.garrison = 2;
+    tower.garrisonKind = UnitTypeId.serf; // the levy the tower falls back on
+    expect(standOf(brain.decide(world), world)).toBeDefined();
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
   it('holds its hand while a barracks could bring the army back', () => {
     const {world, brain} = doomed();
     placeBuiltBuilding(world, BuildingTypeId.barracks, 0, BASE + 6, BASE + 6);

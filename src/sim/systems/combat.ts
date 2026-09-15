@@ -865,7 +865,7 @@ function strikeUnit(
  * to his owner, his answer to it, and his death.
  *
  * Split out of strikeUnit when the civilians got their knives (see
- * LastResortStats in defs/units.ts). Everything here is about being hit
+ * MILITIA in defs/units.ts). Everything here is about being hit
  * rather than about the weapon that did it, and a serf's knife is not a
  * weapon the counter table prices — so the multiplier stays at the call
  * site and this takes the number that came out of it.

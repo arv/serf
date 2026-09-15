@@ -36,8 +36,11 @@
  * an attack order (A over the ground, or over an enemy building) he fights
  * like the weak melee unit he is imitating: he acquires inside four tiles,
  * closes, chases and strikes, and hacks at a wall at the worst rate on the
- * map. A plain move disarms him again. The AI never issues it, so in a
- * match against the seats this mode is the player's alone.
+ * map. A plain move disarms him again. A seat issues it in exactly one
+ * situation — the last stand (systems/ai.ts #lastStand), when it has no
+ * soldier left, no roof that could train one and an enemy at the
+ * storehouse it is eliminated by losing — so outside that, in a match
+ * against the seats, this mode is the player's.
  *
  * And the separation pass takes him while that order stands (units.ts
  * takesUpRoom): a serf sent in with A is a body soldiers cannot walk

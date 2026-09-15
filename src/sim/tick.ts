@@ -72,6 +72,7 @@ import {
   canTakeUpArms,
   clearMarchSpeed,
   clearOrders,
+  fightOf,
   type Unit,
   type Waypoint,
 } from './units.ts';
@@ -271,7 +272,16 @@ export function applyCommand(
       for (const id of cmd.unitIds) {
         const u = world.units.get(id);
         if (!u || u.dead || u.owner !== playerId) continue;
-        if (!UNIT_DEFS[u.kind].combat && !canTakeUpArms(u)) continue;
+        // The same predicate the combat system fights by (units.ts
+        // fightOf): every soldier, and a civilian only while an attack
+        // order is actually on him. `canTakeUpArms` alone was too wide —
+        // it let a bare focusTarget hang an enemy on an idle or hauling
+        // villager, and lastResortStrike swings at whatever target it
+        // finds inside his reach, so a client could arm a serf without
+        // ever ordering him to attack. Reachable from this client too: an
+        // A-click whose move cannot be pathed leaves the man in his
+        // errand, and the focus order behind it used to land anyway.
+        if (fightOf(u) === undefined) continue;
         if (u.task.t === UnitTaskKind.move) continue;
         // Naming a target is an order to go and fight it, so it releases a
         // hold: a man holding ground strikes only what reaches him, and a
@@ -1114,6 +1124,26 @@ function waypointSystem(world: World): void {
  * walking or assaulting, as against the civilians handed an assault and
  * the men with no way to walk, whom it leaves exactly as they were.
  */
+/**
+ * Let go of whatever this man was employed doing, so a fighting order can
+ * have him: a hauler drops his job (reservations released, the good stays
+ * in his hands) and a resident worker quits his post, freeing the building
+ * to recruit again.
+ *
+ * Both orders that can take a civilian call it — the walk and the assault
+ * on a building — because the thing that must not survive the order is the
+ * bookkeeping on the other side of it: a job nobody will finish, or a post
+ * production still counts as staffed.
+ */
+function releaseFromWork(world: World, unit: Unit): void {
+  if (unit.jobId !== undefined) {
+    const job = world.jobs.get(unit.jobId);
+    if (job) abortJob(world, job, 'reassigned by a move order', true);
+    unit.jobId = undefined;
+  }
+  if (unit.homeId !== undefined) unbindWorker(world, unit);
+}
+
 function orderMove(
   world: World,
   playerId: Owner,
@@ -1138,6 +1168,13 @@ function orderMove(
       // by aiming a move badly.
       if (!UNIT_DEFS[unit.kind].combat && !(cmd.attack && canTakeUpArms(unit)))
         continue;
+      // An assault outranks whatever he was employed doing, exactly as the
+      // walk below does. Soldiers never had a job or a post to release, so
+      // this branch never needed to say so; a villager sent at a wall does,
+      // and without it production went on counting a besieging worker as
+      // the man in its mill and logistics kept a job he was never going to
+      // finish.
+      releaseFromWork(world, unit);
       unit.task = {t: UnitTaskKind.raid, buildingId: target.id};
       unit.targetId = target.id;
       unit.targetIsBuilding = true;
@@ -1182,12 +1219,7 @@ function orderMove(
     // and a resident worker quits the post, freeing the building to recruit
     // again. Ignoring these orders meant that once the last serf took a
     // job the player had nobody left to command.
-    if (unit.jobId !== undefined) {
-      const job = world.jobs.get(unit.jobId);
-      if (job) abortJob(world, job, 'reassigned by a move order', true);
-      unit.jobId = undefined;
-    }
-    if (unit.homeId !== undefined) unbindWorker(world, unit);
+    releaseFromWork(world, unit);
     unit.path = path;
     unit.pathIdx = 0;
     // Only where it binds: the slowest members ARE the pace and march

@@ -25,7 +25,7 @@ import {populationOf} from './population.ts';
 import {separationSystem} from './systems/separation.ts';
 import * as Terrain from './terrainEnum.ts';
 import {cmds, addSerf, addStorehouse, bareWorld} from './testUtils.ts';
-import {tickWorld} from './tick.ts';
+import {applyCommand, tickWorld} from './tick.ts';
 import {takesUpRoom, type Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
@@ -1881,7 +1881,7 @@ describe('the serf’s knife, under an A order', () => {
     expect(camp.hp).toBeGreaterThan(full * 0.95);
   });
 
-  it('a right-click on that same camp is still just a walk', () => {
+  it('a right-click on that same camp does not storm it', () => {
     const world = bareWorld();
     addStorehouse(world, 40, 40, {});
     const serf = addSerf(world, 30, 30);
@@ -1901,9 +1901,81 @@ describe('the serf’s knife, under an A order', () => {
         y: 30,
       }),
     );
+    // No raid task and no harm done: only A sends a villager at a wall.
+    // (What he does instead is stand — orderMove's assault branch returns
+    // before the walk is planned, for soldiers and civilians alike. That
+    // is how a right-click on a hostile building has always behaved for a
+    // serf, and this change leaves it exactly there.)
     expect(serf.task.t).not.toBe(UnitTaskKind.raid);
     run(world, 20 * 10);
     expect(camp.hp).toBe(BUILDING_DEFS[BuildingTypeId.banditCamp].hp);
+  });
+
+  it('lets go of the job and the post when A names a wall', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {[GoodId.wood]: 5});
+    placeSite(world, BuildingTypeId.woodcutter, 0, 34, 34);
+    const serf = addSerf(world, 30, 30);
+    const camp = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      33,
+      30,
+    );
+    run(world, 20 * 5);
+    expect(serf.jobId).toBeDefined(); // logistics has him on an errand
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: camp.x,
+        y: camp.y,
+        attack: true,
+      }),
+    );
+    expect(serf.task.t).toBe(UnitTaskKind.raid);
+    // The assault outranks the errand, and the errand's bookkeeping goes
+    // with it — a job left on a besieger is a job nobody finishes.
+    expect(serf.jobId).toBeUndefined();
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a focus order alone never arms a villager', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const serf = addSerf(world, 30, 30);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 34.5, 30.5);
+    // The command alone, with no systems behind it: a bare focusTarget is
+    // what an A-click sends BEHIND its move order, and what a hand-rolled
+    // command could send on its own. Off an attack order it must not
+    // stick — the reflex strikes whatever target it finds inside its
+    // reach, so a target handed to an idle serf would be a knife drawn by
+    // an order he was never given. (Run through the systems this would
+    // also clear next tick for being out of reach, which is why the test
+    // is at the command itself.)
+    applyCommand(world, 0, {
+      kind: CommandKind.focusTarget,
+      unitIds: [serf.id],
+      targetId: bandit.id,
+    });
+    expect(serf.targetId).toBeUndefined();
+    // ...and the same order lands once he IS under an attack order.
+    applyCommand(world, 0, {
+      kind: CommandKind.moveUnits,
+      unitIds: [serf.id],
+      x: 36,
+      y: 30,
+      attack: true,
+    });
+    expect(serf.task.t).toBe(UnitTaskKind.attackMove);
+    applyCommand(world, 0, {
+      kind: CommandKind.focusTarget,
+      unitIds: [serf.id],
+      targetId: bandit.id,
+    });
+    expect(serf.targetId).toBe(bandit.id);
   });
 });
 
