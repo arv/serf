@@ -20,6 +20,68 @@
  * directly.
  */
 /**
+ * 70: a load waits for the whole of a man's errand, not its last leg.
+ *
+ * 69 left a load on the board for a man already walking to its source,
+ * rather than dealing it to whoever was idle across the valley — but it
+ * counted him only once the bread was on his shoulders. A serf still
+ * walking to the storehouse to COLLECT that bread is as surely bound for
+ * the mine; he just has a shelf to call at first. So the window stayed
+ * open for as long as a pickup takes, which is usually the longer half of
+ * the errand — a serf is dispatched from wherever he happens to be
+ * standing — and the silver went on being dealt while he fetched, leaving
+ * him to arrive at a reserved shelf and an empty board.
+ *
+ * The census now reaches a man in either leg, and his reach is the walk
+ * still in front of him: straight to the door when he is carrying, and the
+ * walk to the shelf plus the walk here with it when he is not. The rule
+ * over it is unchanged and still the only bound — a load is withheld only
+ * while that reach beats the nearest idle man's, at every tier, so waiting
+ * has to be the faster way to move it.
+ *
+ * Sim behavior on both axes again, the same two as 69: which hands take
+ * which loads, and the random stream under them. Withholding is what moves
+ * the stream — a load left on the board is a man left IDLE who would
+ * otherwise have been dealt it, and wanderSystem draws once for every idle
+ * serf it walks. Widening the census widens that, so the draws diverge from
+ * the first load this withholds and every roll after it differs.
+ *
+ * 69's note follows.
+ *
+ * 69: the man on the doorstep keeps it, and the load waits for him.
+ *
+ * Two holes in the same trip, the one takeStandingJobs was written for:
+ * bread out to the mine and silver back, in one crossing rather than two.
+ *
+ * A serf set down at the end of a delivery with `until: world.tick`, and
+ * wander — later in that same tick — reads that as already expired. So a
+ * third of the time the man who had just set the bread down was strolled
+ * off the doorstep before the board looked at him again, lost the standing
+ * claim (it is measured in distance) and went back into the tier lottery,
+ * which sent him home empty past the silver. He now holds the spot for
+ * DELIVERY_STAND ticks, wide enough for one whole matcher-and-dispatch
+ * pass, because the load he is standing on may not have a job yet.
+ *
+ * And the board only ever looked at men idle THAT tick, so while the bread
+ * was still on the road the mine's silver was dealt to the nearest idle
+ * hand wherever he stood — which put the job off the open board and out of
+ * reach of the man who then arrived on top of it. The claim now goes to
+ * whoever can be at the source soonest, counting the men already walking
+ * there on another errand: nobody is pulled off a job, the load is simply
+ * left on the board for the man who is nearly there.
+ *
+ * With them, a load backed off as unreachable stays visible to a serf
+ * standing on it. The backoff records that nobody could WALK to a source,
+ * which is a fact about the ground in between and says nothing about a man
+ * already at the door.
+ *
+ * Sim behavior, and on both axes: the hauls differ, and so does the random
+ * stream — wander draws once per eligible serf, and this changes who is
+ * eligible on a given tick. Every roll after the first delivery differs,
+ * so a replay recorded before this build re-runs into another world.
+ *
+ * 68's note follows.
+ *
  * 68: a bare larder outranks the widest gap at the forge.
  *
  * A Smith on auto picks its next batch from a census of the village's open
@@ -1178,4 +1240,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 68;
+export const REPLAY_VERSION = 70;

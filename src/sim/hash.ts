@@ -103,6 +103,22 @@ export function hashWorld(world: World): number {
       }
     }
     mix(u.task.t); // task tag
+    // The clock on a task that waits. An idle serf's `until` is when wander
+    // may next move him, and a gatherer's is when his swing lands — so two
+    // worlds identical but for one of these consume different randomness on
+    // the very next tick and walk apart from there, which is precisely the
+    // divergence this digest exists to catch. 0 is a safe "nothing waiting"
+    // sentinel: a real one is a tick in the future.
+    //
+    // Reached through a narrowing on the tag rather than `'until' in
+    // u.task`, so a task kind that grows a clock later has to come here to
+    // be counted, instead of joining silently.
+    if (
+      u.task.t === UnitTaskKind.idle ||
+      u.task.t === UnitTaskKind.gatherWork
+    ) {
+      mixU32(u.task.until);
+    }
     if (u.task.t === UnitTaskKind.attackMove) {
       // The stored destination steers behavior for many ticks — a clone or
       // save that garbled it must not hash as "the same world".

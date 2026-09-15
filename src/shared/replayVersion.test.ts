@@ -715,8 +715,30 @@ import {REPLAY_VERSION} from './replayVersion';
 // which batch a Smith starts is decided inside the tick, and one different
 // batch moves every haul and bind after it, so yesterday's logs cannot
 // re-run. replayVersion.ts carries the whole argument.
-const EXPECTED_VERSION = 68;
-const EXPECTED_HASH = 'c3d9976fb21fb75dbada40c375df465d';
+// 69 for the doorstep and the load that waits on it (systems/logistics.ts):
+// a serf keeps the spot where he set a load down for DELIVERY_STAND ticks
+// instead of being strolled off it by wander on the tick he delivers, and
+// a load is left on the board for a man already walking to its source
+// rather than dealt to whoever is idle across the valley. Real tick
+// behavior twice over — different hands take different loads, and the
+// random stream moves with them, since both halves change which serfs are
+// idle for wanderSystem to draw for.
+// 70 for the same withholding reaching the whole of a man's errand rather
+// than its last leg: one still walking to the shelf to COLLECT a load is
+// as surely bound for its destination as one already carrying it. Same two
+// axes as 69, and the same reason the stream moves — a withheld load is a
+// man left idle.
+// Still 70 after the digest learned a waiting task's clock (hash.ts) and
+// two logistics comments were corrected: hashWorld is a TEST tool — no
+// tick calls it (only the suite and tools/perf), so nothing a replay
+// re-runs moved. It hashes more of the world now, not differently: an idle
+// serf's `until` gates when wander next draws for him and a gatherer's
+// gates when his swing lands, so two worlds apart only in one of those
+// used to digest as identical and diverge on the following tick. The same
+// reasoning the "Still 33 after the enums moved" entries keep — the hash
+// is over raw bytes, so it moved anyway.
+const EXPECTED_VERSION = 70;
+const EXPECTED_HASH = '88f7dda9e3192088e4297375c0e07b39';
 
 /**
  * Everything a replay's playback depends on, as raw source:

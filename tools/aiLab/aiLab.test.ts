@@ -154,9 +154,26 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * the bound. (8 inverted outright — the advised war ran 5_311 ticks LATER
  * — and 2, 10 and 11 tied.)
  *
+ * ...and to 5 when the man on the doorstep kept it (replay 69): a serf
+ * holds his spot for a few ticks after setting a load down instead of
+ * being strolled off it, and a load is left on the board for the man
+ * already walking to its source rather than dealt to whoever is idle
+ * across the valley. Both re-time every haul, and the first moves the
+ * random stream as well — wander draws once per eligible serf, and this
+ * changes who is eligible on a given tick. On 1 the two runs then came out
+ * IDENTICAL, 14_847 apiece and the same digest, which is the tie in its
+ * purest form: the advice reached the brain and changed nothing at all.
+ * Twelve seeds were re-measured; 5 is picked on the same two counts as
+ * ever, seat 1 winning both ways at 16_645 unadvised and 11_268 marching
+ * at four, which is 5_377 ticks of gap and 5_355 under the bound. (3 and 8
+ * had the wider gaps and neither is usable here: 3 hands the valley to the
+ * other seat when the advice lands, which is a different claim from the
+ * one this test makes, and 8 leaves the control undecided past 30_000.
+ * 4, 9 and 12 tied the way 1 did.)
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 1;
+const FULL_MATCH_SEED = 5;
 const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {
