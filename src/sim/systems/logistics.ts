@@ -1140,8 +1140,10 @@ function dispatch(world: World): void {
    * He walks home empty and the other man walks out. Two crossings for a
    * load a man was about to be standing on.
    *
-   * So the claim goes to whoever can be AT THE SOURCE soonest, counting
-   * the men already walking there. Preventing, not undoing: nobody is
+   * So the claim goes to whoever has the least walk left to the SOURCE,
+   * counting the men already walking there on another errand (a rank on
+   * Manhattan distance, not a prediction of arrival — see where it is
+   * spent, below). Preventing, not undoing: nobody is
    * pulled off a job he has claimed — the load is simply left on the board
    * for the man who is nearly there, and he takes it by the ordinary
    * standing-job route on the pass after he lands.
@@ -1368,8 +1370,19 @@ function dispatch(world: World): void {
       // bounded by the census being empty for every building nobody is
       // walking to.
       //
-      // Same Manhattan measure on both sides, so the two answers are
-      // comparable. A tie goes to the idle man: he can set off now.
+      // Manhattan on both sides, and deliberately nothing cleverer. It is
+      // a rank, not a prediction: the pathfinder walks eight directions
+      // over trails and roads that each carry their own step cost and
+      // speed (path.ts, systems/movement.ts), so neither number is a time
+      // and a man whose route detours or crosses slow ground can read
+      // nearer than he will arrive. What matters is that BOTH sides are
+      // measured the same way, which is the same discipline the candidate
+      // scan below already keeps — it takes the nearest by this measure
+      // and only then asks the pathfinder whether he can get there at all.
+      // Pricing a real route here would cost a search per candidate per
+      // job, which is the very expense PATH_TRIES exists to bound.
+      //
+      // A tie goes to the idle man: he can set off now.
       //
       // Bounded by nothing but that comparison, deliberately, and at every
       // tier: a load waits only while waiting is genuinely the faster way

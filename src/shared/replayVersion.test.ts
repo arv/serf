@@ -728,8 +728,17 @@ import {REPLAY_VERSION} from './replayVersion';
 // as surely bound for its destination as one already carrying it. Same two
 // axes as 69, and the same reason the stream moves — a withheld load is a
 // man left idle.
+// Still 70 after the digest learned a waiting task's clock (hash.ts) and
+// two logistics comments were corrected: hashWorld is a TEST tool — no
+// tick calls it (only the suite and tools/perf), so nothing a replay
+// re-runs moved. It hashes more of the world now, not differently: an idle
+// serf's `until` gates when wander next draws for him and a gatherer's
+// gates when his swing lands, so two worlds apart only in one of those
+// used to digest as identical and diverge on the following tick. The same
+// reasoning the "Still 33 after the enums moved" entries keep — the hash
+// is over raw bytes, so it moved anyway.
 const EXPECTED_VERSION = 70;
-const EXPECTED_HASH = '6f645c8f3facfedd1530b845c53a7e05';
+const EXPECTED_HASH = '88f7dda9e3192088e4297375c0e07b39';
 
 /**
  * Everything a replay's playback depends on, as raw source:
