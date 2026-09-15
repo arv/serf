@@ -9,7 +9,7 @@
  */
 
 import {createSignal, onCleanup, onMount} from 'solid-js';
-import {SHORT} from './breakpoints';
+import {ROOMY, SHORT} from './breakpoints';
 
 export const GOLD = '#e5c469';
 
@@ -24,6 +24,30 @@ export const MENU_STYLE = `
 #menu { position: fixed; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
   font-family: 'Space Grotesk', system-ui, sans-serif; }
 #menu * { box-sizing: border-box; }
+
+/* ——— One size on every screen ———
+   The same treatment the HUD gets, and for the same reason: the card, the
+   wordmark and the tab bar are pixels chosen against a laptop, and a 4K
+   desktop is two and a half laptops wide. index.html carries the whole
+   argument and sets --ui-scale; Hud.tsx's twin of this block says why
+   viewport units and the system's insets are divided back out of it. */
+#menu {
+  zoom: var(--ui-scale);
+  --screen-w: calc(100vw / var(--ui-scale));
+  --screen-h: calc(100vh / var(--ui-scale));
+  --safe-top: calc(var(--safe-top-raw) / var(--ui-scale));
+  --safe-right: calc(var(--safe-right-raw) / var(--ui-scale));
+  --safe-bottom: calc(var(--safe-bottom-raw) / var(--ui-scale));
+  --safe-left: calc(var(--safe-left-raw) / var(--ui-scale));
+}
+/* The small viewport height where the browser has it — the phone's real
+   window, bars and all. @supports and not a second plain declaration for
+   the reason Hud.tsx's twin spells out: a custom property is not parsed
+   for units where it is declared, so an unknown one fails at every use
+   site instead of falling back here. */
+@supports (height: 1svh) {
+  #menu { --screen-h: calc(100svh / var(--ui-scale)); }
+}
 
 /* ——— Materials ———
    Every control is a face, a rim and a thickness. The thickness — a hard
@@ -79,8 +103,17 @@ export const MENU_STYLE = `
    Two layers, so the far one is blurred by the card's backdrop-filter.
    Two elements per fly — outer drifts, inner circles — since one cannot
    carry two transforms. A waypoint in the drift or an 'alternate' on the
-   circle puts a corner or a reversal in it, and both read as a wiggle. */
-#menu .flies { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+   circle puts a corner or a reversal in it, and both read as a wiggle.
+
+   The one part of the menu that undoes the interface scale rather than
+   taking it. A firefly is a mote of the valley, not a control: it belongs
+   to the live backdrop behind the glass, and the backdrop is a camera,
+   which does not scale either. Left zoomed, the 12px glow would swell to
+   29px on a 4K screen and — worse — the flight path, drawn in vw and vh,
+   would carry it across 2.4 screens' worth of a box clipped to one, so
+   most of the swarm would sit outside the frame. */
+#menu .flies { position: fixed; inset: 0; overflow: hidden; pointer-events: none;
+  zoom: calc(1 / var(--ui-scale)); }
 #menu .fly { position: absolute; top: 0; left: 0; width: 0; height: 0; opacity: 0;
   animation: fly-drift var(--dur) linear infinite; }
 /* The glow is gradient falloff, not a filter: no blur pass per fly. */
@@ -120,6 +153,73 @@ export const MENU_STYLE = `
    own contents. */
 #menu .shell { position: relative; min-height: 100%; display: grid;
   grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto; padding: 0 0 14px; }
+
+/* ——— The composition fits the window ———
+   The campaign card is the tallest thing the menu ever shows — eight
+   commissions, three settings and Begin — and at the size it is drawn it
+   has never fitted 900px of window: the row of secondary buttons under it
+   started 63px below the fold and the page scrolled to reach them. That
+   was survivable only because most windows are taller than the size the
+   menu was drawn against. Now that the menu grows with the screen
+   (--ui-scale, index.html), every window is that size — the interface
+   scale is chosen so the menu always has at least the design's room, and
+   never much more — so the overflow that used to hide on big monitors
+   turned up on all of them.
+
+   The fix is the one the landscape block below already uses, hoisted to
+   every window that is not a phone held upright: bound the shell to the
+   screen, let the card give first, and let the card's rows do the
+   scrolling. The tab bar stays at the top of the card and Begin at the
+   bottom, whatever the window. Three properties earn their place:
+     · max-height on the shell, which min-height alone left free to grow
+       past the screen and take the page's scrollbar with it
+     · minmax(0, 1fr) on the stack's track, because a plain 1fr floors
+       itself at its content and would push straight back out again
+     · min-height: 0 on the card, because a flex item's automatic minimum
+       is its content, and a card that cannot shrink is a card that
+       overflows
+   Nothing here bites on a window with room to spare: the card is capped
+   at a height it does not want, so the cap does nothing and the menu is
+   laid out exactly as before. Phones are left out on purpose, and both
+   ways up. There the whole screen scrolling is the right answer and the
+   NARROW and SHORT rules are written for it — and more than that, a card
+   held to the window is only safe where the part that gives is the part
+   built to scroll. The council's seats are not: held sideways its card is
+   already at the ceiling SHORT sets it, its own contents already spill
+   past that, and page scroll is the only thing making them reachable.
+   Take the scroll away there and Begin draws straight through Back to the
+   menu. So: fit the window where the window is a window, and let a phone
+   scroll. */
+@media ${ROOMY} {
+  #menu .shell { max-height: 100%; grid-template-rows: minmax(0, 1fr) auto; }
+  #menu .card { min-height: 0; }
+  #menu .rows {
+    flex: 1 1 auto; min-height: 0;
+    overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: rgba(229,196,105,0.3) transparent;
+  }
+  /* The council's seats give the same way its rows do. They are the one
+     other block in either screen that is a list rather than a control,
+     and without this the whole shortfall lands on .rows — which on a
+     1024x600 window is 13px shorter than the seats alone need, so Begin
+     drew 13px past the bottom of its own card. Scrolling them also
+     zeroes their automatic minimum, which is what lets the shrink reach
+     them at all. */
+  #menu .seats { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: rgba(229,196,105,0.3) transparent; }
+  /* The give is taken by the pane as a whole rather than by the list
+     inside it, and that is a decision, not an oversight. Letting the
+     commissions shrink first would keep Difficulty and Sound on screen,
+     but a flex item only gives when its minimum lets it: .browser's
+     automatic minimum is its content, which already includes a list
+     sitting at its own ceiling, and min-height: 0 to unlock that lets the
+     pane collapse under its own children — on a landscape phone the head
+     and the hint drew straight through each other. Every floor that fixes
+     it is a measured constant that goes stale the moment a row is added
+     to a pane. One scrollbar on .rows costs a settings row sitting just
+     below the card's fold, and it is right at every size by construction. */
+}
 /* ——— Where the composition sits ———
    Centring on content moved the tab bar by half of every pane height
    difference. Anchored to a reserved band instead; a stale --compose
@@ -129,8 +229,7 @@ export const MENU_STYLE = `
 #menu .stack { min-height: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: flex-start; gap: 18px;
   padding: calc(24px + var(--safe-top)) calc(20px + var(--safe-right)) 4px calc(20px + var(--safe-left)); }
-#menu .stack { padding-top: max(calc(24px + var(--safe-top)), calc((100vh - var(--compose)) / 2)); }
-#menu .stack { padding-top: max(calc(24px + var(--safe-top)), calc((100svh - var(--compose)) / 2)); }
+#menu .stack { padding-top: max(calc(24px + var(--safe-top)), calc((var(--screen-h) - var(--compose)) / 2)); }
 
 #menu .kicker { display: flex; align-items: center; gap: 12px; font-size: 11px; font-weight: 600;
   letter-spacing: 0.34em; text-align: center; color: #cbbd93; text-transform: uppercase; }
@@ -139,9 +238,9 @@ export const MENU_STYLE = `
 /* The only place the second face is used. Tracking is down from the
    grotesk's 0.16em: serif caps carry their own rhythm. */
 #menu h1 { margin: 0; font-family: 'Marcellus', Georgia, serif;
-  font-size: clamp(40px, 11vw, 66px); line-height: 0.98; font-weight: 400; letter-spacing: 0.1em;
+  font-size: clamp(40px, calc(0.11 * var(--screen-w)), 66px); line-height: 0.98; font-weight: 400; letter-spacing: 0.1em;
   color: #f4f1e6; text-shadow: 0 1px 0 rgba(0,0,0,0.45), 0 2px 30px rgba(0,0,0,0.6); }
-#menu .tagline { margin: 2px 0 0; font-size: clamp(12.5px, 3.6vw, 14.5px); color: #a9a698; letter-spacing: 0.01em; text-align: center; text-wrap: pretty; }
+#menu .tagline { margin: 2px 0 0; font-size: clamp(12.5px, calc(0.036 * var(--screen-w)), 14.5px); color: #a9a698; letter-spacing: 0.01em; text-align: center; text-wrap: pretty; }
 #menu .title { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 /* The staging build's tag, the same amber as the band on its icon. */
 #menu .channel { font-size: 11px; font-weight: 600; letter-spacing: 0.3em; text-indent: 0.3em;
@@ -522,10 +621,10 @@ export const MENU_STYLE = `
    Spend the spare height on rooms.
    Only where there is spare height to spend — a 667px phone is already
    full, and taking more there would push the join button off the bottom.
-   Small viewport units, not dynamic ones: the list must not resize under
-   the finger as the URL bar comes and goes. */
+   --screen-h is the small viewport height, not the dynamic one: the list
+   must not resize under the finger as the URL bar comes and goes. */
 @media (max-width: 560px) and (min-height: 720px) {
-  #menu .room-list { max-height: 34vh; max-height: 34svh; }
+  #menu .room-list { max-height: calc(0.34 * var(--screen-h)); }
 }
 /* ——— Held sideways ———
    A phone in landscape is 390-430px tall, and this screen spent 200 of
@@ -543,7 +642,7 @@ export const MENU_STYLE = `
     padding-top: calc(10px + var(--safe-top)); }
   #menu .kicker { display: none; }
   #menu .tagline { display: none; }
-  #menu h1 { font-size: clamp(24px, 4.4vh, 34px); letter-spacing: 0.12em; }
+  #menu h1 { font-size: clamp(24px, calc(0.044 * var(--screen-h)), 34px); letter-spacing: 0.12em; }
   /* Shaving the masthead was not enough on its own: the settings
      themselves are 394px of rows, and the card carried all of them at
      full height with Play on the bottom edge — 500px down a 390px
@@ -552,7 +651,7 @@ export const MENU_STYLE = `
      top and Play at the bottom of what you can see, always. The number
      below is the masthead, the row of secondary buttons under the card,
      and the gaps between the three. */
-  #menu .card { max-height: calc(100vh - 118px); max-height: calc(100svh - 118px); }
+  #menu .card { max-height: calc(var(--screen-h) - 118px); }
   #menu .rows {
     flex: 1 1 auto; min-height: 0; padding-top: 2px;
     overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;

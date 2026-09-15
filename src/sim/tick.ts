@@ -44,7 +44,11 @@ import {
 } from './systems/logistics.ts';
 import {movementSystem} from './systems/movement.ts';
 import {productionSystem, unbindWorker} from './systems/production.ts';
-import {researchSystem} from './systems/research.ts';
+import {
+  abandonResearch,
+  dropStudyHauls,
+  researchSystem,
+} from './systems/research.ts';
 import {separationSystem} from './systems/separation.ts';
 import {staffingSystem} from './systems/staffing.ts';
 import {trailsSystem} from './systems/trails.ts';
@@ -334,6 +338,26 @@ export function applyCommand(
       };
       break;
     }
+    case CommandKind.cancelResearch: {
+      // The way out. Ordering costs nothing and gates on nothing (see
+      // above), which is the right bargain — but it also means a seat can
+      // order a study its village has no way to pay for: Gilded Arms with
+      // no gold on the shelf and no Deep Mining to dig any is a bill that
+      // will never be carried, and one study at a time means the whole
+      // tree waits behind it. Calling it off is what makes ordering on
+      // credit safe rather than a trap.
+      //
+      // The tech is named, and checked, for cancelTraining's stale-click
+      // reason: an order that crosses the tick a study finishes on must
+      // miss rather than strike whatever the seat took up next.
+      //
+      // Whatever was already carried in is spent, and the loads still
+      // walking are called back with the good in hand — abandonResearch
+      // (systems/research.ts) says why, and does both.
+      if (player.techs.active?.tech !== cmd.tech) break;
+      abandonResearch(world, playerId);
+      break;
+    }
     case CommandKind.setBuildingPaused: {
       // Halt the workshop without breaking it up: production, input hauls
       // and construction progress stop, and any finished stock still
@@ -618,6 +642,16 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       // left forever. The bill is torn up rather than paid — nothing was
       // debited when it was written, so nothing is owed — and settling it
       // is what opens the books, here as at the Abbey's door.
+      // The hauls first, and by id rather than by roof — abandonResearch's
+      // rule, and for both of its reasons. This lever is the one path that
+      // settles a bill with loads still walking, and a load reaching a door
+      // with no bill behind it lands on the Abbey's shelf; while a roof
+      // already reaped leaves `active` naming it until researchSystem
+      // runs, and hauls left for the reconciler in THAT window are stood
+      // down without their cargo. Nothing is owed for any of them —
+      // nothing was debited when the bill was written — so they go back in
+      // the serf's hands either way.
+      dropStudyHauls(world, active.abbey);
       const abbey = world.buildings.get(active.abbey);
       if (abbey) settleResearchBill(world, abbey);
       active.started = true;

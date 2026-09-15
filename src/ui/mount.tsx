@@ -163,6 +163,9 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
         onResearch={tech =>
           order('uiClick', [{kind: CommandKind.research, tech}])
         }
+        onCancelResearch={tech =>
+          order('uiClick', [{kind: CommandKind.cancelResearch, tech}])
+        }
         onTrain={(buildingId, unit) =>
           order('uiClick', [{kind: CommandKind.trainUnit, buildingId, unit}])
         }

@@ -14,7 +14,7 @@ import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import type {World} from '../world.ts';
 import {paidBuildTicks} from './construction.ts';
 import {bindWorker, consumePostTool, unbindWorker} from './production.ts';
-import {evictGarrison} from './training.ts';
+import {evictGarrison, releaseSpentTrainingHolds} from './training.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -219,6 +219,9 @@ function handleArrivals(world: World): void {
       }
       head.started = true;
       head.ticksLeft = option.durationTicks;
+      // Its bill is paid and off the queue's demand, so its mark comes off
+      // whatever the queue no longer asks for (releaseSpentTrainingHolds).
+      releaseSpentTrainingHolds(b, head.unit);
       // Ale Rations: the recruit drinks from the cask and trains faster.
       // Checked here and not in cost — no ale never blocks the course, and
       // a cancelled order doesn't refund a drink already drunk.
@@ -388,7 +391,8 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       // keeps running until the builder is actually bound — a recruit who
       // dies en route does not reset the wait.)
       if (wantsBuilder) b.builderWantedSince ??= world.tick;
-      // Guarded for the same reason as clearDemandAge: this `else` is the
+      // Guarded for the same reason as the FIFO clocks in settleAges
+      // (systems/logistics.ts): this `else` is the
       // common case for every site that is not yet builder-ready, and
       // deleting a field off the Building itself would put the whole
       // object into dictionary mode for the rest of the match.

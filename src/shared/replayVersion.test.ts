@@ -657,8 +657,42 @@ import {REPLAY_VERSION} from './replayVersion';
 // that predates the field loads as it always did, the field simply
 // absent (the banditsEnabled precedent in save.ts: an optional field is
 // no format break).
-const EXPECTED_VERSION = 63;
-const EXPECTED_HASH = 'd2c739f319ca0d4ccc5dd39b60d42af0';
+// 64 for a study that can be called off: a nineteenth command kind
+// (cancelResearch), which is format — a log recorded on this build can
+// carry an order an older sanitizeCommand throws away, and a seat that
+// never dropped its unpayable study never takes up the next one. The
+// full story is in replayVersion.ts.
+// Still 64 across the review rounds on that command: abandonResearch moved
+// to systems/research.ts and calls its own hauls back the way cancelRepair
+// does, and the question "is anybody else keeping this good's clock?" —
+// a repair's bill, a study's, the Abbey's standing festival ale — became
+// one predicate in world.ts (stillWants) that the matcher's clearDemandAge
+// asks along with the study's two endings — and the study's hauls are now
+// called off in one place (dropStudyHauls), before those clocks are read
+// and on the debug lever's path as well as the player's, and a delivered
+// load gives up its reservation before it goes through the door rather
+// than after (systems/logistics.ts), since the threshold is where that
+// question is now asked, and a settled repair asks the same predicate
+// before dropping a clock a study is still keeping — and a halted roof
+// keeps its age, a study called off sweeps its hauls by id so a fallen
+// Abbey's loads still come home in the carrier's hands, and a rehomed load
+// is marked for the bill it is actually walking into. 64 is this build's
+// own bump and
+// has never shipped, so there is nothing older to break; the tick really
+// does move, which is why the hash is re-pinned rather than argued away.
+// 65 for ages that lapse with the last demand keeping them: the matcher
+// marks which demands hold each FIFO clock and settles the clocks itself
+// every pass (settleAges, systems/logistics.ts), a finished bill only takes
+// its own mark off, and stillWants is gone. Which errand a serf answers
+// first moves with it; the full story is in replayVersion.ts.
+// Still 65 across #276's first review round: hashWorld now mixes those
+// clocks and their marks, and a training order leaving the queue takes its
+// mark off the goods no other order still wants (releaseSpentTrainingHolds)
+// — the same gap between passes a finished bill already closed. 65 is this
+// build's own bump and has never shipped, so there is nothing older to
+// break.
+const EXPECTED_VERSION = 65;
+const EXPECTED_HASH = '44e5b1cea9d978a9ba413558a3803ee5';
 
 /**
  * Everything a replay's playback depends on, as raw source:

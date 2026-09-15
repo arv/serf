@@ -64,12 +64,14 @@ import * as BuildingState from './buildingStateEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as DemandKind from './demandKindEnum.ts';
 import * as MatchStateNs from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import * as Terrain from './terrainEnum.ts';
 import * as TileResource from './tileResourceEnum.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type DemandKind = Enum<typeof DemandKind>;
 type GoodId = Enum<typeof GoodId>;
 type PlayerKind = Enum<typeof PlayerKind>;
 
@@ -853,6 +855,7 @@ function makeBuildingRecord(
     inbound: {},
     reservedOut: {},
     demandSince: {},
+    demandHeld: {},
     dead: false,
     ...(def.nearWater
       ? {
@@ -1377,15 +1380,44 @@ export function applyRepairMaterial(
 }
 
 /**
- * Drop a repair order and the FIFO clocks it was keeping. The age of an
- * unmet demand lives per (building, good) — leave a finished repair's behind
- * and the next thing that building asks for inherits it, jumping a queue it
- * never stood in.
+ * Drop a repair order, and its mark on the FIFO clocks it was keeping.
+ *
+ * Only the mark. The clocks are the matcher's to forget, on its next pass,
+ * and only those no other demand is holding by then (settleAges in
+ * systems/logistics.ts): an Abbey can owe a repair in stone and a study
+ * billed in stone at once, and a Smith can be mending with the wood it
+ * forges from, so whichever finishes first must leave the other's age
+ * alone — and the one pass that walks every demand a building has is the
+ * one place that knows who else is standing in that queue.
  */
 export function clearRepairOrder(b: Building, bill: GoodId[]): void {
   delete b.repairNeeds;
   delete b.repairHpPerGood;
-  for (const g of bill) delete b.demandSince[g];
+  releaseDemandHold(b, bill, DemandKind.repair);
+}
+
+/**
+ * Take a finished bill's mark off the FIFO clocks it was keeping — a
+ * repair's or a study's, settled or called off (Building.demandHeld).
+ *
+ * The clocks themselves stay for the matcher to lapse (settleAges,
+ * systems/logistics.ts), but the mark cannot wait for it: the matcher sees
+ * a building one tick in MATCHER_INTERVAL, and a new bill of the same kind
+ * written in the ticks between would read, from there, as the old one
+ * never having stopped — and inherit a place in the queue it never stood
+ * in.
+ */
+export function releaseDemandHold(
+  b: Building,
+  bill: GoodId[],
+  kind: DemandKind,
+): void {
+  const held = b.demandHeld;
+  if (!held) return;
+  for (const g of bill) {
+    const was = held[g];
+    if (was !== undefined) held[g] = was & ~kind;
+  }
 }
 
 /**
@@ -1402,15 +1434,17 @@ export function clearRepairOrder(b: Building, bill: GoodId[]): void {
  * draws as a study still being delivered when the last barrel is already
  * inside.
  *
- * Drops the FIFO clocks with the bill for the same reason a finished
+ * Takes the bill's mark off its FIFO clocks for the same reason a finished
  * repair does (see clearRepairOrder): the age of an unmet demand lives per
- * (building, good), and an Abbey that keeps a settled bill's clock would
- * hand the next study's first load a queue place it never stood in.
+ * (building, good), and an Abbey still counting a settled bill among a
+ * clock's keepers would hand the next study's first load a queue place it
+ * never stood in.
  */
 export function settleResearchBill(world: World, b: Building): void {
   if (!b.researchNeeds) return;
-  for (const g of goodKeys(b.researchNeeds)) delete b.demandSince[g];
+  const bill = goodKeys(b.researchNeeds);
   delete b.researchNeeds;
+  releaseDemandHold(b, bill, DemandKind.research);
   // Whoever ordered it, at THIS Abbey: a seat with two of them has its
   // study pinned to the one the bill was written on (techs.active.abbey).
   const techs = world.players[b.owner]?.techs;

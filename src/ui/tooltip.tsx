@@ -314,7 +314,7 @@ export function TooltipLayer() {
              what it always did. */
           box-sizing: border-box; margin: 0;
           width: max-content;
-          max-width: min(304px, calc(100vw - var(--tip-edge-start) - var(--tip-edge-end)));
+          max-width: min(304px, calc(var(--screen-w) - var(--tip-edge-start) - var(--tip-edge-end)));
           padding: 8px 11px 9px;
           pointer-events: none; font-size: 12px; line-height: 1.45;
           transition: opacity 110ms ease;

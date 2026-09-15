@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
+import {MATCHER_INTERVAL} from './defs/balance.ts';
 import {OUTPUT_CAP} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
@@ -17,7 +18,7 @@ import {
   bareWorld,
   staffBuilding,
 } from './testUtils.ts';
-import {tickWorld} from './tick.ts';
+import {applyCommand, tickWorld} from './tick.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {killUnit, placeBuiltBuilding, type World} from './world.ts';
 
@@ -174,6 +175,54 @@ describe('the population economy', () => {
     const peopleAfter = [...world.units.values()].filter(u => !u.dead).length;
     expect(peopleAfter).toBe(peopleBefore);
     expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a training order re-queued between passes starts its own age', () => {
+    // Copilot review, PR #276. A training order is a bill like a repair's
+    // or a study's, only queued — and the matcher sees the barracks one
+    // tick in MATCHER_INTERVAL. The last order for a good called off and a
+    // new one queued in the ticks between would read, from the next pass,
+    // as one order that never stopped, and the new one would inherit a
+    // place in the queue it never stood in.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {}); // nothing to carry: the call stays open
+    world.players[0]!.techs.researched.push(TechId.soldiery);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
+    const order = {
+      kind: CommandKind.trainUnit,
+      buildingId: barracks.id,
+      unit: UnitTypeId.spearman,
+    } as const;
+    const cancelFirst = {
+      kind: CommandKind.cancelTraining,
+      buildingId: barracks.id,
+      index: 0,
+      unit: UnitTypeId.spearman,
+    } as const;
+    tickWorld(world, cmds(order, order));
+    run(world, MATCHER_INTERVAL * 3);
+    const since = barracks.demandSince[GoodId.spear]!;
+    expect(since).toBeDefined();
+
+    // One of two called off: the other is still standing in the queue, and
+    // keeps the place they were both standing in.
+    applyCommand(world, 0, cancelFirst);
+    run(world, MATCHER_INTERVAL);
+    expect(barracks.demandSince[GoodId.spear]).toBe(since);
+
+    // The last one called off and a new one queued before the next pass.
+    applyCommand(world, 0, cancelFirst);
+    applyCommand(world, 0, order);
+    const gap = world.tick;
+    run(world, MATCHER_INTERVAL);
+    expect(barracks.demandSince[GoodId.spear]).toBeGreaterThanOrEqual(gap);
+    expect(barracks.demandSince[GoodId.spear]).toBeGreaterThan(since);
   });
 
   it('a destroyed building frees its en-route recruit', () => {

@@ -486,7 +486,7 @@ const START_STYLE = `
   #menu .commission { scroll-snap-align: start; }
 }
 @media (max-width: 560px) and (min-height: 720px) {
-  #menu .ledger { max-height: 40vh; max-height: 40svh; }
+  #menu .ledger { max-height: calc(0.4 * var(--screen-h)); }
 }
 `;
 

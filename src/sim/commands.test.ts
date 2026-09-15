@@ -64,6 +64,7 @@ describe('command screening', () => {
       {kind: CommandKind.setBuildingPaused, buildingId: 3, paused: true},
       {kind: CommandKind.setBuildingRepair, buildingId: 3, repair: true},
       {kind: CommandKind.research, tech: TechId.irrigation},
+      {kind: CommandKind.cancelResearch, tech: TechId.irrigation},
       {kind: CommandKind.trainUnit, buildingId: 7, unit: UnitTypeId.spearman},
       {
         kind: CommandKind.cancelTraining,
@@ -88,6 +89,9 @@ describe('command screening', () => {
       }),
     ).toBeNull();
     expect(sanitizeCommand({kind: 'research', tech: 'bogus'})).toBeNull();
+    expect(
+      sanitizeCommand({kind: CommandKind.cancelResearch, tech: 'bogus'}),
+    ).toBeNull();
     expect(
       sanitizeCommand({
         kind: CommandKind.trainUnit,

@@ -8,17 +8,18 @@ import {
 } from '../defs/balance.ts';
 import {buildingDef} from '../defs/buildings.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
-import {goodEntries} from '../defs/goods.ts';
+import {goodEntries, goodKeys} from '../defs/goods.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as DemandKind from '../demandKindEnum.ts';
 import type {Building, Owner} from '../entities.ts';
 import {findPath, nearestWalkable} from '../path.ts';
 import {popCapOf, populationOf} from '../population.ts';
 import {getModifier, isUnitUnlocked} from '../techHelpers.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
-import {spawnUnit, type World} from '../world.ts';
+import {releaseDemandHold, spawnUnit, type World} from '../world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 type GoodId = Enum<typeof GoodId>;
@@ -234,6 +235,30 @@ export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
   return need;
 }
 
+/**
+ * An unstarted order has left the queue's demand — called off, or taken up
+ * with its goods eaten: take the training mark off every good of its bill
+ * the queue no longer asks for at all.
+ *
+ * A training order is a bill like a repair's or a study's, only queued, and
+ * it needs the same care (releaseDemandHold, world.ts): the matcher sees the
+ * barracks one tick in MATCHER_INTERVAL, and the last order for a good
+ * ending and a new one written in the ticks between would otherwise read,
+ * from the next pass, as one order that never stopped — and the new one
+ * would inherit a place in the queue it never stood in. A good another
+ * order still wants keeps its mark: that order is still standing there.
+ */
+export function releaseSpentTrainingHolds(b: Building, unit: UnitTypeId): void {
+  const option = buildingDef(b.type).trains?.find(o => o.unit === unit);
+  if (!option) return;
+  const need = trainingDemand(b);
+  releaseDemandHold(
+    b,
+    goodKeys(option.cost).filter(g => (need[g] ?? 0) <= 0),
+    DemandKind.training,
+  );
+}
+
 export function enqueueTraining(
   world: World,
   b: Building,
@@ -270,7 +295,10 @@ export function cancelTraining(
   const item = b.trainQueue?.[index];
   if (!item || item.unit !== unit) return;
   b.trainQueue!.splice(index, 1);
-  if (!item.started) return;
+  if (!item.started) {
+    releaseSpentTrainingHolds(b, item.unit);
+    return;
+  }
   const option = buildingDef(b.type).trains?.find(o => o.unit === item.unit);
   if (option) {
     for (const [good, n] of goodEntries(option.cost)) {

@@ -31,6 +31,22 @@ export const SHORT = '(max-height: 520px)';
 /** Either of the above — a media query list, which is legal in both a
  *  stylesheet's `@media` and matchMedia(). */
 export const COMPACT = `${NARROW}, ${SHORT}`;
+/**
+ * COMPACT's complement: not a phone, whichever way up — a tablet, a laptop,
+ * a desktop. What it buys is the promise that both dimensions are roomy at
+ * once, which is what a layout may assume before it stops letting the page
+ * scroll and starts fitting itself to the window instead.
+ *
+ * Strict comparisons on COMPACT's own two numbers, not `min-` twins of
+ * them. `(min-width: 761px)` looks like the other side of `(max-width:
+ * 760px)` and is not: a browser zoom makes CSS pixels fractional, and a
+ * window 760.5 wide would match neither — no phone layout, and none of
+ * what this promises either. `>` against the same number has no such
+ * crack; every window is exactly one of COMPACT or ROOMY. (The HUD's
+ * isUpright makes the same point for heights, where a 521px twin to SHORT
+ * would strand 520.5.)
+ */
+export const ROOMY = '(width > 760px) and (height > 520px)';
 
 /** Reactive media query (no dependency; one listener per call site). */
 export function useMedia(query: string): () => boolean {

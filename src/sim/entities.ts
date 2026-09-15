@@ -53,6 +53,15 @@ export interface Building {
   /** First tick each good's unmet demand appeared (FIFO anti-starvation). */
   demandSince: GoodAmounts;
   /**
+   * Which demands are keeping each of those clocks, as DemandKind bits: as
+   * the matcher's last pass found them, less any bill that has settled or
+   * been called off since. A clock survives a pass only if a demand holding
+   * it now was holding it then (settleAges in systems/logistics.ts).
+   * Optional for the saves written before it, which read as held by nobody
+   * — their clocks start over on the first pass, and nothing else changes.
+   */
+  demandHeld?: GoodAmounts;
+  /**
    * Per-good tick until which this building's demand is suspended — set when
    * hauls to it keep failing to path (e.g. its doorway got walled in), so
    * reservations stop pinning supply that other demands could use.
