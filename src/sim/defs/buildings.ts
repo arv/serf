@@ -760,13 +760,18 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       // Soldiers march on bread, not on raw grain: the barracks is the far
       // end of mill -> bakery, and wheat is a crop again.
       //
-      // Fourteen and nine, each a second off what they were. The steel arms
-      // are the ones that pay for a mine, a pickaxe and a ration of bread
-      // before their weapon is even on the anvil, and the hall's clock is
-      // where that is answered without touching a single duel: nothing here
-      // changes who beats whom, only how fast the yard can put him in the
-      // field. Read with the range's tenth second and the forge's shorter
-      // spear and sword (recipeOptions above).
+      // Fourteen for the knight, a second off what it was; the spearman's
+      // ten is unchanged. The steel arms are the ones that pay for a mine,
+      // a pickaxe and a ration of bread before their weapon is even on the
+      // anvil, and the hall's clock is where that is answered without
+      // touching a single duel: nothing here changes who beats whom, only
+      // how fast the yard can put him in the field. The knight is the arm
+      // that carries that bill twice over — two iron to the spear's one —
+      // and the one the bow beats outright, so his course is where the
+      // second belongs; the spearman is already the bow's own counter and
+      // needed no help at the door. His shorter spear at the forge
+      // (recipeOptions above) is the whole of what he gets, and it is the
+      // ore half of his bill rather than the yard's.
       {
         unit: UnitTypeId.knight,
         cost: {[GoodId.food]: 3, [GoodId.sword]: 1},
@@ -775,7 +780,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       {
         unit: UnitTypeId.spearman,
         cost: {[GoodId.food]: 2, [GoodId.spear]: 1},
-        durationTicks: 9 * S,
+        durationTicks: 10 * S,
       },
     ],
   },

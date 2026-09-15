@@ -20,10 +20,12 @@
  * directly.
  */
 /**
- * 71: the two arms' clocks, re-cut. Six numbers move and no stat does: the
- * archer's course at the range 9s -> 10s, the knight's 15s -> 14s and the
- * spearman's 10s -> 9s at the barracks, and at the Smith the bowstave 8s ->
- * 9s with the spear 10s -> 9s and the sword 14s -> 13s beside it.
+ * 71: the two arms' clocks, re-cut. Five numbers move and no stat does: the
+ * archer's course at the range 9s -> 10s, the knight's 15s -> 14s at the
+ * barracks, and at the Smith the bowstave 8s -> 9s with the spear 10s -> 9s
+ * and the sword 14s -> 13s beside it. The spearman's course stays at ten:
+ * he is the bow's own counter and the cheaper of the two iron arms, so his
+ * second is spent on the forge's spear and nowhere else.
  *
  * What it answers is throughput, not the duel. The bow is the one arm whose
  * bill carries no iron, and it was also the quickest through both doors it
