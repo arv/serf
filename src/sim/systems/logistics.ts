@@ -1076,10 +1076,10 @@ function dispatch(world: World): void {
   const queues = new Map<Owner, [HaulJob[], HaulJob[], HaulJob[]]>();
   const busy = new Map<Owner, [number, number, number]>();
   /**
-   * Per building, the serfs already walking to it on another errand who
-   * will be free the moment that errand ends — a hauler in his dropoff
-   * leg, whose load lands at this very door and who `progress` then stands
-   * down idle right there.
+   * Per building, how far off each man is who is already walking there on
+   * another errand and will be free standing at it — a hauler whose load
+   * lands at this very door, and whom `progress` then stands down idle
+   * right there.
    *
    * The board could not see them, and that cost the village its cheapest
    * trip twice over. A serf carries the miners' bread out; while he is
@@ -1097,11 +1097,25 @@ function dispatch(world: World): void {
    * for the man who is nearly there, and he takes it by the ordinary
    * standing-job route on the pass after he lands.
    *
-   * Deliberately only the dropoff leg. A serf walking to this building to
-   * PICK UP leaves again with his hands full, and one walking here to take
-   * up a post (UnitTaskKind.staff) stops being a hand at all; neither will
-   * be standing here free. A plain move order says nothing about intent,
-   * so it says nothing here either.
+   * The WHOLE errand counts, not just its last leg. A man still walking to
+   * the storehouse to collect the bread is as surely bound for the mine as
+   * one already carrying it — he just has the shelf to call at first — so
+   * his reach is the walk to that shelf plus the walk here with it.
+   * Counting only the dropoff leg left the window open for exactly as long
+   * as a pickup takes, which is usually the longer half of the errand: the
+   * silver was dealt while he fetched, and he arrived to a reserved shelf
+   * and an empty board.
+   *
+   * What is NOT here is anyone who will not be a free pair of hands at
+   * this door: a man coming to take up a post (UnitTaskKind.staff) stops
+   * being a hand at all, and a plain move order says nothing about intent.
+   * A man whose job DRAWS from this building is no exception to bother
+   * stating — the key is his destination, so he is simply not in it.
+   *
+   * Distances, not the men: the comparison below only ever wanted a
+   * number, and the anchor is the same building either way (this key is
+   * that loop's `job.from`), so `centerOf` agrees and the work is done
+   * once here instead of per job there.
    *
    * Gathered in the hands-in-flight pass rather than one of its own: this
    * runs every tick, and that pass already walks exactly the jobs with a
@@ -1109,18 +1123,38 @@ function dispatch(world: World): void {
    * is id order, the tie-break the whole sim reads by, so the census comes
    * out the same every run.
    */
-  const inbound = new Map<EntityId, Unit[]>();
+  const inbound = new Map<EntityId, number[]>();
   for (const job of world.jobs.values()) {
     if (job.serfId === undefined || !idleByOwner.has(job.owner)) continue;
     let b = busy.get(job.owner);
     if (!b) busy.set(job.owner, (b = [0, 0, 0]));
     b[tierOf(job, pull) - 1]!++;
-    if (job.phase !== HaulPhase.toDropoff) continue;
     const serf = world.units.get(job.serfId);
-    if (!serf || serf.dead) continue;
+    // The link both ways: a serf reconcile has not yet caught up with
+    // could otherwise be counted against a job he no longer holds, and
+    // book a second slot beside the one his real errand books.
+    if (!serf || serf.dead || serf.jobId !== job.id) continue;
+    const dest = world.buildings.get(job.to);
+    if (!dest || dest.dead) continue; // reconcile will kill the job
+    const dc = centerOf(dest);
+    let reach: number;
+    if (job.phase === HaulPhase.toDropoff) {
+      reach = Math.abs(serf.x - dc.x) + Math.abs(serf.y - dc.y);
+    } else {
+      // Still fetching: the walk to the shelf he draws from, and then the
+      // walk here with what he draws.
+      const src = world.buildings.get(job.from);
+      if (!src || src.dead) continue;
+      const sc = centerOf(src);
+      reach =
+        Math.abs(serf.x - sc.x) +
+        Math.abs(serf.y - sc.y) +
+        Math.abs(sc.x - dc.x) +
+        Math.abs(sc.y - dc.y);
+    }
     let hands = inbound.get(job.to);
     if (!hands) inbound.set(job.to, (hands = []));
-    hands.push(serf);
+    hands.push(reach);
   }
   for (const job of open) {
     // Taken by takeStandingJobs, which ran above — and counted in `busy`
@@ -1209,8 +1243,8 @@ function dispatch(world: World): void {
 
       // Is somebody already nearly here on another errand? Then the load
       // is his: leave it open, and he takes it from the doorstep on the
-      // pass after he lands (takeStandingJobs). See the census above for what
-      // this is worth and why it withholds rather than reassigns.
+      // pass after he lands (takeStandingJobs). See the census above for
+      // what this is worth and why it withholds rather than reassigns.
       //
       // Soonest-arrival, on the same Manhattan measure the scan below
       // uses, so the two answers are comparable. A tie goes to the idle
@@ -1222,6 +1256,11 @@ function dispatch(world: World): void {
       // further out — both sides are estimates of a walk, and paying for a
       // path here to sharpen one of them would spend more than the whole
       // check saves.
+      //
+      // Bounded by nothing but that comparison, deliberately, and at every
+      // tier: a load waits only while waiting is genuinely the faster way
+      // to move it, and the moment it is not — the man dies, is recruited
+      // off the road, or simply falls behind — the next pass deals it.
       const waiting = inbound.get(job.from);
       if (waiting !== undefined && waiting.length > 0) {
         let nearestIdle = Infinity;
@@ -1231,16 +1270,15 @@ function dispatch(world: World): void {
           if (d < nearestIdle) nearestIdle = d;
         }
         let soonestK = -1;
-        let soonestDist = Infinity;
+        let soonestReach = Infinity;
         for (let k = 0; k < waiting.length; k++) {
-          const s = waiting[k]!;
-          const d = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
-          if (d < soonestDist) {
-            soonestDist = d;
+          const reach = waiting[k]!;
+          if (reach < soonestReach) {
+            soonestReach = reach;
             soonestK = k;
           }
         }
-        if (soonestK >= 0 && soonestDist < nearestIdle) {
+        if (soonestK >= 0 && soonestReach < nearestIdle) {
           waiting.splice(soonestK, 1); // one man, one load
           continue; // left on the board for him
         }

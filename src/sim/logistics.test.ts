@@ -458,31 +458,46 @@ describe('the load home', () => {
     // would put the loafer on the road as well — leaving nobody idle for
     // the board to make the old mistake with.
     mine.inputs[GoodId.food] = RATION_STOCK - 1;
-    // The man who takes the bread out, standing at the storehouse door.
-    const carrier = addSerf(world, 21, 30);
+    // The man who takes the bread out — started a walk short of the
+    // storehouse, not on its doorstep, so his errand has a real FETCHING
+    // leg as well as a carrying one. That is the half the first cut of
+    // this missed: it counted a man only once the bread was on his
+    // shoulders, and a serf is dispatched from wherever he happens to be
+    // standing, so the walk to the shelf is usually the longer half. The
+    // silver was dealt while he fetched, and he arrived to a reserved
+    // shelf and an empty board — the very trip this is here to prevent,
+    // through the one window it did not cover.
+    const carrier = addSerf(world, 20, 24);
     // And a hand loafing at the other end of the village — idle, so the
     // board can see him, and far enough that he is never the quicker way
-    // to the mine than the man already walking there.
+    // to the mine than the man already walking there, by either leg.
     const far = addSerf(world, 20, 8);
 
     const jobOf = (id: number | undefined) =>
       id !== undefined ? world.jobs.get(id) : undefined;
 
+    // He is given the bread and sets off for the shelf to draw it.
     let guard = 0;
-    while (jobOf(carrier.jobId)?.phase !== HaulPhase.toDropoff && guard++ < 900)
+    while (jobOf(carrier.jobId)?.phase !== HaulPhase.toPickup && guard++ < 900)
       tickWorld(world, []);
     expect(jobOf(carrier.jobId)?.to).toBe(mine.id);
+    expect(carrier.path?.length).toBeGreaterThan(0); // a fetch, not a formality
 
-    // The shelf fills while he walks.
+    // The shelf fills while he is still fetching.
     mine.stock[GoodId.silver] = 1;
     const initial = countGoods(world);
 
-    // From here until the bread lands, the silver is nobody's but his.
+    // From here until the bread lands — both legs — the silver is nobody's
+    // but his.
+    let sawPickupLeg = false;
     guard = 0;
     while (carrier.jobId !== undefined && guard++ < 900) {
+      if (jobOf(carrier.jobId)?.phase === HaulPhase.toPickup)
+        sawPickupLeg = true;
       tickWorld(world, []);
       expect(jobOf(far.jobId)?.from).not.toBe(mine.id);
     }
+    expect(sawPickupLeg).toBe(true);
     // And he leaves with it.
     guard = 0;
     while (carrier.jobId === undefined && guard++ < 900) tickWorld(world, []);
@@ -493,6 +508,75 @@ describe('the load home', () => {
     while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 900)
       tickWorld(world, []);
     expect(sh.stock[GoodId.silver]).toBe(1);
+    expectClean(world, initial);
+  });
+
+  /**
+   * A shelf with two loads on it has two jobs on the board, and one of
+   * them being spoken for does not put the other out of reach.
+   *
+   * It reads as though it might: the reservation is booked the moment a
+   * job is created, so the mine's `reservedOut` covers both silver and
+   * `availableOut` is zero. But evacuation asks for the whole surplus and
+   * `match` cuts it into ONE JOB PER LOAD, so the man walking out for the
+   * first took one job and left the second standing open — and the
+   * standing route gates on raw `stock`, not on what is unreserved, so the
+   * man on the doorstep sees a shelf with silver on it and a load he may
+   * have. Reservations keep two men off ONE load; they were never meant to
+   * keep a second man off a second one.
+   *
+   * Pins behaviour that already worked rather than gating a change: it is
+   * the question the withholding above makes everybody ask, and nothing
+   * else in the suite answers it.
+   */
+  it('takes the second silver off a shelf whose first is spoken for', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 20, 30, {[GoodId.food]: 10});
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      34,
+      30,
+    );
+    staffBuilding(world, mine); // no pickaxe errand, no seam — as above
+    mine.inputs[GoodId.food] = RATION_STOCK - 1;
+    const carrier = addSerf(world, 20, 24);
+    const other = addSerf(world, 20, 8);
+
+    const jobOf = (id: number | undefined) =>
+      id !== undefined ? world.jobs.get(id) : undefined;
+
+    let guard = 0;
+    while (jobOf(carrier.jobId)?.phase !== HaulPhase.toPickup && guard++ < 900)
+      tickWorld(world, []);
+    expect(jobOf(carrier.jobId)?.to).toBe(mine.id);
+
+    // Two on the shelf this time. One is withheld for the man on his way;
+    // the other is the loafer's, and he is welcome to it.
+    mine.stock[GoodId.silver] = 2;
+    const initial = countGoods(world);
+
+    guard = 0;
+    while (jobOf(other.jobId)?.from !== mine.id && guard++ < 900)
+      tickWorld(world, []);
+    expect(jobOf(other.jobId)?.good).toBe(GoodId.silver);
+
+    // And the man who brought the bread still leaves with the second one,
+    // off a shelf whose whole stock is reserved.
+    guard = 0;
+    while (carrier.jobId !== undefined && guard++ < 900) tickWorld(world, []);
+    guard = 0;
+    while (carrier.jobId === undefined && guard++ < 900) tickWorld(world, []);
+    expect(jobOf(carrier.jobId)?.from).toBe(mine.id);
+    expect(jobOf(carrier.jobId)?.good).toBe(GoodId.silver);
+
+    // Both get home, and the pile is cleared rather than half-carried.
+    guard = 0;
+    while ((sh.stock[GoodId.silver] ?? 0) < 2 && guard++ < 1800)
+      tickWorld(world, []);
+    expect(sh.stock[GoodId.silver]).toBe(2);
+    expect(mine.stock[GoodId.silver] ?? 0).toBe(0);
     expectClean(world, initial);
   });
 

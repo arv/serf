@@ -20,6 +20,32 @@
  * directly.
  */
 /**
+ * 70: a load waits for the whole of a man's errand, not its last leg.
+ *
+ * 69 left a load on the board for a man already walking to its source,
+ * rather than dealing it to whoever was idle across the valley — but it
+ * counted him only once the bread was on his shoulders. A serf still
+ * walking to the storehouse to COLLECT that bread is as surely bound for
+ * the mine; he just has a shelf to call at first. So the window stayed
+ * open for as long as a pickup takes, which is usually the longer half of
+ * the errand — a serf is dispatched from wherever he happens to be
+ * standing — and the silver went on being dealt while he fetched, leaving
+ * him to arrive at a reserved shelf and an empty board.
+ *
+ * The census now reaches a man in either leg, and his reach is the walk
+ * still in front of him: straight to the door when he is carrying, and the
+ * walk to the shelf plus the walk here with it when he is not. The rule
+ * over it is unchanged and still the only bound — a load is withheld only
+ * while that reach beats the nearest idle man's, at every tier, so waiting
+ * has to be the faster way to move it.
+ *
+ * Sim behavior: which hands take which loads, and so every haul after. The
+ * random stream does NOT move this time — nothing here changes who is
+ * wander-eligible on a given tick — but the hauls alone are enough that a
+ * replay recorded before this build re-runs into another world.
+ *
+ * 69's note follows.
+ *
  * 69: the man on the doorstep keeps it, and the load waits for him.
  *
  * Two holes in the same trip, the one takeStandingJobs was written for:
@@ -1212,4 +1238,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 69;
+export const REPLAY_VERSION = 70;

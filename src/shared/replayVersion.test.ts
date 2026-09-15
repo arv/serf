@@ -715,8 +715,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // which batch a Smith starts is decided inside the tick, and one different
 // batch moves every haul and bind after it, so yesterday's logs cannot
 // re-run. replayVersion.ts carries the whole argument.
-const EXPECTED_VERSION = 69;
-const EXPECTED_HASH = '1ac5467f9f9857d3fb8f3b9d983e08e5';
+const EXPECTED_VERSION = 70;
+const EXPECTED_HASH = '95ddb880f5d1471a4318a3892c1b6577';
 
 /**
  * Everything a replay's playback depends on, as raw source:
