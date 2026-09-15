@@ -124,13 +124,25 @@ export const JOB_BLOCKED_BACKOFF = 40; // ticks before retrying an unreachable j
  * lottery — which deals a site's planks four hands in seven (HAUL_SHARE)
  * and sent him home empty past the silver he was standing on.
  *
- * MATCHER_INTERVAL + 1, because the load he is standing on may not have a
- * job yet. `match` only runs on `tick % MATCHER_INTERVAL === 0` and
- * `dispatch` runs immediately after it in the same tick, so a window this
- * wide is guaranteed to contain one tick where the board is both built and
- * dealt. Six ticks is 0.3s — no pause a player can see, and a serf who
- * takes a beat on the doorstep after setting something down reads better
- * than one who turns and jogs off.
+ * What it holds off is WANDER, and only wander. The board still sees him
+ * the whole time — `dispatch` and the recruitment sweep both key on
+ * `task.t === idle` and never read this — so a village with work waiting
+ * can still deal him away on the very next tick, and should: an idle hand
+ * with a load to carry somewhere is not a hand being wasted. Standing him
+ * down against the board as well would be a different bet entirely, paying
+ * real idle ticks on every delivery in the hope that THIS door raises a
+ * load in the next six, and there is no measurement here that buys it.
+ * A stroll is noise and worth suppressing; an errand is not.
+ *
+ * So the width only earns anything in the case where nobody wants him yet:
+ * with an empty board `dispatch` returns before it reaches him, and he
+ * stands. MATCHER_INTERVAL + 1 is enough for one tick where the board is
+ * both built and dealt (`match` runs on `tick % MATCHER_INTERVAL === 0`,
+ * with `dispatch` right behind it in the same tick), so a load that has
+ * appeared at his feet but has no job yet still finds him there. Six ticks
+ * is 0.3s — no pause a player can see, and a serf who takes a beat on the
+ * doorstep after setting something down reads better than one who turns
+ * and jogs off.
  *
  * Only the dropoff sets it. A serf who lost his job some other way
  * (abortJob) has nothing in particular to be standing on.

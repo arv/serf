@@ -10,6 +10,7 @@ import {
   EVAC_PRIORITY,
   HAUL_SHARE,
   RATION_STOCK,
+  TICKS_PER_SECOND,
   type HaulPriority,
 } from '../defs/balance.ts';
 import {
@@ -25,6 +26,7 @@ import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {GOODS, goodEntries, goodKeys} from '../defs/goods.ts';
 import * as TechId from '../defs/techIdEnum.ts';
+import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import * as DemandKind from '../demandKindEnum.ts';
 import {
@@ -771,6 +773,19 @@ function deliveryTargetFor(
 const PATH_TRIES = 3;
 
 /**
+ * Tiles a serf covers in a tick — the bridge that lets a WAIT be weighed
+ * against a WALK in the inbound census below, where the only measure is
+ * distance and one of the things in the way is a windlass.
+ *
+ * His own stride, not the tech-boosted one (effectiveSpeed): a booted serf
+ * covers a wait in fewer tiles, so reading the base speed understates the
+ * penalty slightly rather than inventing one. Everything either side of
+ * that comparison is a Manhattan estimate over ground that may be road or
+ * meadow, so this is the right order of precision for it.
+ */
+const TILES_PER_TICK = UNIT_DEFS[UnitTypeId.serf].speed / TICKS_PER_SECOND;
+
+/**
  * One key per (destination, good), as `id * PULL_STRIDE + good`.
  *
  * Derived from the goods themselves rather than written down as a number
@@ -1151,6 +1166,17 @@ function dispatch(world: World): void {
         Math.abs(serf.y - sc.y) +
         Math.abs(sc.x - dc.x) +
         Math.abs(sc.y - dc.y);
+      // And the windlass, where there is one. A well gives its water up
+      // over drawTicks and `progress` holds the hauler at the shaft for
+      // every tick of it before the return leg starts — six seconds, which
+      // is most of ten tiles of walking. Counted as pure movement he read
+      // as the soonest hand to a door he would not reach for another two
+      // minutes, and withheld a load there for the whole draw.
+      const wait =
+        job.drawUntil !== undefined
+          ? Math.max(0, job.drawUntil - world.tick) // on the windlass now
+          : (buildingDef(src.type).drawTicks ?? 0); // not there yet
+      reach += wait * TILES_PER_TICK;
     }
     let hands = inbound.get(job.to);
     if (!hands) inbound.set(job.to, (hands = []));

@@ -39,10 +39,12 @@
  * while that reach beats the nearest idle man's, at every tier, so waiting
  * has to be the faster way to move it.
  *
- * Sim behavior: which hands take which loads, and so every haul after. The
- * random stream does NOT move this time — nothing here changes who is
- * wander-eligible on a given tick — but the hauls alone are enough that a
- * replay recorded before this build re-runs into another world.
+ * Sim behavior on both axes again, the same two as 69: which hands take
+ * which loads, and the random stream under them. Withholding is what moves
+ * the stream — a load left on the board is a man left IDLE who would
+ * otherwise have been dealt it, and wanderSystem draws once for every idle
+ * serf it walks. Widening the census widens that, so the draws diverge from
+ * the first load this withholds and every roll after it differs.
  *
  * 69's note follows.
  *

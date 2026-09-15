@@ -580,6 +580,131 @@ describe('the load home', () => {
     expectClean(world, initial);
   });
 
+  /**
+   * A load nobody could WALK to is still a load somebody can be standing
+   * on.
+   *
+   * The backoff answers one question — could any idle serf path to this
+   * source? — and `dispatch` used to hide the job for JOB_BLOCKED_BACKOFF
+   * ticks on the strength of it, from every route including the standing
+   * one. But that answer is about the ground between here and there, and
+   * a man at the door has no ground to cross. So the standing route sees
+   * backed-off jobs, and claiming one clears the stamp: the tally, and the
+   * `blockedUntil` with it, since a job stood back down later must not
+   * inherit a verdict a live claim just disproved.
+   */
+  it('hands a backed-off load to a man standing on it', () => {
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30, false);
+    hut.stock[GoodId.wood] = 1;
+    addStorehouse(world, 44, 44, {});
+    // The only hand in the village, walled in where he stands: nobody can
+    // reach the hut, so the wood's evacuation backs off.
+    const size = world.map.size;
+    addSerf(world, 36, 36);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        world.map.blocked[tileIdx(36 + dx, 36 + dy, size)] = 1;
+      }
+    }
+
+    let guard = 0;
+    const woodJob = () =>
+      [...world.jobs.values()].find(
+        j => j.good === GoodId.wood && j.from === hut.id,
+      );
+    while ((woodJob()?.blockedUntil ?? 0) <= world.tick && guard++ < 400)
+      tickWorld(world, []);
+    const backedOff = woodJob();
+    expect(backedOff?.blockedUntil).toBeGreaterThan(world.tick);
+    expect(backedOff?.blockedCount).toBeGreaterThan(0);
+
+    // Now a man at the hut's own door, while the stamp is still on.
+    const atDoor = addSerf(world, 30, 33);
+    const initial = countGoods(world);
+    run(world, 2);
+
+    const claimed = world.jobs.get(atDoor.jobId!);
+    expect(claimed?.from).toBe(hut.id);
+    expect(claimed?.good).toBe(GoodId.wood);
+    expect(claimed?.blockedUntil).toBeUndefined();
+    expect(claimed?.blockedCount).toBe(0);
+    expectClean(world, initial);
+  });
+
+  /**
+   * A man on the windlass is not nearly here.
+   *
+   * The reach that decides a withholding is a walk, and the well is the
+   * one source that costs a hauler something other than walking: he stands
+   * at the shaft for drawTicks — six seconds — before the return leg
+   * starts at all. Counted as pure movement he read as the soonest hand to
+   * his destination's door and held a load there for the whole draw, while
+   * a man who could have carried it stood idle. Six seconds is most of ten
+   * tiles at a serf's stride, so this is not a rounding error.
+   */
+  it('does not call a man on the windlass the nearest hand', () => {
+    const world = bareWorld();
+    // One plank on the shelf and no tools on it: the site below wants six
+    // planks, a hammer on loan and an axe for the post it becomes, and a
+    // shelf that can answer all of that puts EIGHT loads on the board. One
+    // man can only be held a single load, so the other seven would go
+    // straight to the idle hand and the test would pass however the reach
+    // was measured. One load is what makes the comparison decide anything.
+    const sh = addStorehouse(world, 20, 30, {
+      [GoodId.wood]: 1,
+      [GoodId.hammer]: 0,
+      [GoodId.axe]: 0,
+    });
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 26, 30);
+    well.stock[GoodId.water] = 1; // one errand, so nobody else is drawn in
+
+    // Nearest the well, so the water is his.
+    const drawer = addSerf(world, 26, 33);
+    // And a hand who is ten tiles off the storehouse: further than the
+    // drawer's WALK back to it, nearer than his walk plus his six seconds
+    // on the windlass. Which of those two the board compares him against
+    // is the whole test.
+    const other = addSerf(world, 20, 22);
+
+    let guard = 0;
+    const jobOf = (id: number | undefined) =>
+      id !== undefined ? world.jobs.get(id) : undefined;
+    while (jobOf(drawer.jobId)?.drawUntil === undefined && guard++ < 900)
+      tickWorld(world, []);
+    expect(jobOf(drawer.jobId)?.from).toBe(well.id);
+    expect(jobOf(drawer.jobId)?.to).toBe(sh.id);
+    expect(jobOf(drawer.jobId)!.drawUntil).toBeGreaterThan(world.tick);
+    // The shaft refills on its own clock, keeper or no (see the Well's
+    // def), and a second bucket would be a second errand for the idle hand
+    // — which is the one thing that could answer this test by accident.
+    // He is to have exactly one load to take or not take.
+    well.paused = true;
+
+    // Now the village starts a building, and its planks come off the
+    // storehouse — the very door the drawer is bound for.
+    const site = addSite(world, 40, 40);
+    const initial = countGoods(world);
+
+    // Tightly bounded on purpose. The drawer's six seconds run down as the
+    // ticks pass, so a wrong reach stops being wrong eventually and the
+    // plank would go out on its own; what this asks is that it never waited
+    // on him at all.
+    const plank = () =>
+      [...world.jobs.values()].find(
+        j => j.good === GoodId.wood && j.from === sh.id,
+      );
+    guard = 0;
+    while (plank()?.serfId === undefined && guard++ < 20) tickWorld(world, []);
+    expect(plank()?.serfId).toBe(other.id);
+    expect(plank()?.to).toBe(site.id);
+    // And the drawer is still on the windlass, which is the point: the
+    // load he was holding was never his to hold.
+    expect(jobOf(drawer.jobId)?.from).toBe(well.id);
+    expectClean(world, initial);
+  });
+
   it('lets the site it just supplied recruit the man who supplied it', () => {
     // The narrow case, and the one the standing job could quietly break: a
     // serf lands the last plank at a site and is standing at the very
