@@ -1942,6 +1942,53 @@ describe('the serf’s knife, under an A order', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it('a plain click on another wall stands a raiding villager down', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const serf = addSerf(world, 30, 30);
+    const camp = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      33,
+      30,
+    );
+    const other = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      26,
+      30,
+    );
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: camp.x,
+        y: camp.y,
+        attack: true,
+      }),
+    );
+    expect(serf.task.t).toBe(UnitTaskKind.raid);
+    expect(takesUpRoom(serf)).toBe(true);
+    // A plain click on the other camp. It walks him nowhere — that dead
+    // click predates all of this — but it must not leave him armed and
+    // raiding the first one.
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [serf.id],
+        x: other.x,
+        y: other.y,
+      }),
+    );
+    expect(serf.task.t).not.toBe(UnitTaskKind.raid);
+    expect(serf.targetId).toBeUndefined();
+    expect(takesUpRoom(serf)).toBe(false);
+  });
+
   it('a focus order alone never arms a villager', () => {
     const world = bareWorld();
     addStorehouse(world, 40, 40, {});
@@ -2015,6 +2062,21 @@ describe('an A-ordered serf takes up room', () => {
     serf.task = {t: UnitTaskKind.attackMove, destX: 34, destY: 30};
     separationSystem(world);
     expect(exactDist(knight.x - serf.x, knight.y - serf.y)).toBeGreaterThan(0);
+  });
+
+  it('does not carry a hold count out of the pass and back in', () => {
+    // The roster changes from tick to tick now, and the consecutive-tick
+    // count DETOUR_AFTER reads is only kept honest for the men inside it.
+    // A villager whose order ended used to carry his old count away and
+    // resume it when he was next armed, re-planning on his first held tick
+    // instead of his tenth.
+    const world = bareWorld();
+    const serf = addSerf(world, 30, 30);
+    serf.task = {t: UnitTaskKind.attackMove, destX: 34, destY: 30};
+    serf.heldTicks = 9; // one tick short of a detour
+    serf.task = {t: UnitTaskKind.haul}; // ...and the order ends
+    separationSystem(world);
+    expect(serf.heldTicks).toBeUndefined();
   });
 
   it('a serf fighting back mid-haul never blocks the army', () => {

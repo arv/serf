@@ -64,7 +64,17 @@ export function separationSystem(world: World): void {
   // exactly alike — that is the whole point of the roster.
   const bodies: Unit[] = [];
   for (const u of world.units.values()) {
-    if (u.dead || !takesUpRoom(u)) continue;
+    if (u.dead || !takesUpRoom(u)) {
+      // Out of the roster, and out of the count with it. The hold count is
+      // consecutive ticks by definition (DETOUR_AFTER), and only the men
+      // IN this pass have theirs kept honest below — so a civilian whose
+      // attack order ended would carry his old count away with him and
+      // resume it the next time he was armed, detouring on his first held
+      // tick instead of his tenth. Harmless while the roster was every
+      // soldier and nobody else; this one changes from tick to tick.
+      if (u.heldTicks !== undefined) u.heldTicks = undefined;
+      continue;
+    }
     bodies.push(u);
   }
   const n = bodies.length;

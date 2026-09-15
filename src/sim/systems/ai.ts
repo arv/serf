@@ -75,7 +75,7 @@ import {
 } from '../siting.ts';
 import * as Terrain from '../terrainEnum.ts';
 import * as TileResource from '../tileResourceEnum.ts';
-import {canTakeUpArms, type Unit} from '../units.ts';
+import {canTakeUpArms, fightOf, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {SeatVision} from '../visibility.ts';
 import * as WarBehaviorIdNs from '../warBehaviorIdEnum.ts';
@@ -3544,8 +3544,37 @@ export class AiBrain {
     baseX: number,
     baseY: number,
   ): void {
+    // Who is at the gates, and who the mob is aimed at: one scan, because
+    // they are the same question. The nearest enemy FIGHTER inside the
+    // stand's radius that this seat can see — `fightOf`, not `combat`, so
+    // an enemy village sent in under an A order counts. That is not a
+    // hypothetical now: the same change that gave this seat a knife gave
+    // one to the rival's serfs, and a gate reading soldiers only would
+    // watch a mob of villagers take the storehouse without ever calling
+    // the stand. (The army-strength arithmetic elsewhere is untouched and
+    // still counts soldiers: a villager is not a soldier, he is only,
+    // here, a man who is attacking.)
+    //
+    // Nearest rather than weakest: a villager's reach is one tile and his
+    // acquire radius four, so anything further than the man in front of
+    // him is a distinction he cannot act on.
+    let mark: Unit | undefined;
+    if (this.#warOn(WarBehaviorIdNs.lastStand)) {
+      let best = Infinity;
+      for (const u of world.units.values()) {
+        if (u.dead || u.owner === this.playerId) continue;
+        if (fightOf(u) === undefined) continue;
+        if (!this.#vision.canSee(u.x, u.y)) continue;
+        const d = Math.abs(u.x - baseX) + Math.abs(u.y - baseY);
+        if (d > AI_WAR.standRadius) continue;
+        if (d < best || (d === best && (!mark || u.id < mark.id))) {
+          best = d;
+          mark = u;
+        }
+      }
+    }
     const lost =
-      this.#warOn(WarBehaviorIdNs.lastStand) &&
+      mark !== undefined &&
       // Nobody left to fight with...
       this.#soldiersLeft(world, mine) === 0 &&
       // ...and nothing left to make one with. A standing roof that trains
@@ -3555,20 +3584,12 @@ export class AiBrain {
         b =>
           b.state === BuildingState.built &&
           BUILDING_DEFS[b.type].trains?.some(o => MILITARY.has(o.unit)),
-      ) &&
-      // ...and the enemy is at the one building that ends the match.
-      hostileNear(
-        world,
-        this.#vision,
-        this.playerId,
-        baseX,
-        baseY,
-        AI_WAR.standRadius,
       );
-    if (!lost) {
+    if (!lost || !mark) {
       this.#standing = false;
       return;
     }
+    const at = mark;
     // Who is left. Everyone who can hold a knife — see canTakeUpArms; the
     // tower levy is a garrison count rather than units, so nobody standing
     // a wall is in here to be walked off it.
@@ -3577,28 +3598,6 @@ export class AiBrain {
     );
     if (mob.length < AI_WAR.standMin) {
       this.#standing = false;
-      return;
-    }
-    // The nearest enemy the seat can actually see, which is what the mob
-    // is aimed at. Nearest rather than weakest: a villager's reach is one
-    // tile and his acquire radius four, so anything further than the man
-    // in front of him is a distinction he cannot act on.
-    let mark: Unit | undefined;
-    let best = Infinity;
-    for (const u of world.units.values()) {
-      if (u.dead || u.owner === this.playerId) continue;
-      if (!UNIT_DEFS[u.kind].combat) continue;
-      if (!this.#vision.canSee(u.x, u.y)) continue;
-      const d = Math.abs(u.x - baseX) + Math.abs(u.y - baseY);
-      if (d > AI_WAR.standRadius) continue;
-      if (d < best || (d === best && (!mark || u.id < mark.id))) {
-        best = d;
-        mark = u;
-      }
-    }
-    if (!mark) {
-      // Seen a moment ago by hostileNear and gone now: nothing to aim at
-      // this beat. The stand is still on — the next beat re-reads it.
       return;
     }
     if (!this.#standing) {
@@ -3614,8 +3613,8 @@ export class AiBrain {
       kind: CommandKind.moveUnits,
       unitIds: charging.map(u => u.id),
       attack: true,
-      x: Math.floor(mark.x),
-      y: Math.floor(mark.y),
+      x: Math.floor(at.x),
+      y: Math.floor(at.y),
     });
   }
 

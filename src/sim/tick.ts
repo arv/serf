@@ -1162,20 +1162,37 @@ function orderMove(
       const unit = world.units.get(id);
       if (!unit || unit.dead || unit.owner !== playerId) continue;
       // Civilians storm a camp only when they were told to in as many
-      // words — A over the building. Nothing else about this branch moves:
-      // a right-click on an enemy building is the assault it has always
-      // been for soldiers, and for a serf it is what it has always been
-      // too, which is NOTHING — the loop skips him and the `return` below
-      // means no walk is ever planned for him. A dead click rather than a
-      // walk, and a wart older than this rule; what matters here is that
-      // no gesture but A can send the village to its death.
-      //
-      // (Letting him fall through to the walk would be a better click and
-      // is deliberately not done here: it restructures a return that
-      // soldiers share, for a gesture that has nothing to do with arming
-      // villagers.)
-      if (!UNIT_DEFS[unit.kind].combat && !(cmd.attack && canTakeUpArms(unit)))
+      // words — A over the building. A right-click on one is the assault
+      // it has always been for soldiers, and for a serf it has always
+      // walked him nowhere: the `return` below means no walk is ever
+      // planned for him. That dead click is a wart older than this rule
+      // and is left where it is — letting him fall through to the walk
+      // restructures a return that soldiers share, for a gesture that has
+      // nothing to do with arming villagers. What it must not be is a
+      // click that leaves an armed man armed, which is the branch below.
+      if (
+        !UNIT_DEFS[unit.kind].combat &&
+        !(cmd.attack && canTakeUpArms(unit))
+      ) {
+        // He takes no part in the assault — but a plain click is still an
+        // order, and the one thing it always means for a villager is that
+        // he is not attacking any more. A serf raiding one wall who is
+        // then right-clicked at another used to keep the first raid: his
+        // task, his target, his knife and his body in the separation pass,
+        // all of it surviving the gesture that was supposed to stand him
+        // down. He is stood down here instead, which is what the plain
+        // move beside this does for every other tile on the map.
+        if (!cmd.attack && fightOf(unit) !== undefined) {
+          unit.task = {t: UnitTaskKind.idle, until: world.tick};
+          unit.path = null;
+          unit.pathIdx = 0;
+          unit.targetId = undefined;
+          unit.targetIsBuilding = undefined;
+          clearMarchSpeed(unit);
+          clearOrders(unit);
+        }
         continue;
+      }
       // An assault outranks whatever he was employed doing, exactly as the
       // walk below does. Soldiers never had a job or a post to release, so
       // this branch never needed to say so; a villager sent at a wall does,

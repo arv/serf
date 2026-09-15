@@ -765,6 +765,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // seat that would send its serfs today replays as it decided then. The
 // same reasoning every "Still 32/33 after..." entry above records. The
 // hash is over raw bytes, which is why it moved anyway.
+// Still 72 after a second review round closed three more of this same
+// unreleased bump's edges: the last stand now reads an ARMED enemy rather
+// than an enemy soldier (the rival's serfs carry the same knife this build
+// hands out, and a mob of them at the storehouse is exactly the case the
+// stand is for), a plain click on a hostile building stands a raiding
+// villager down instead of leaving him armed, and a man who leaves the
+// separation roster leaves his consecutive-hold count behind — that roster
+// changes from tick to tick now, and the count is only kept honest for the
+// men inside it. Sim behavior, all three, and all of it 72's own.
 // Still 72 after one comment in tick.ts was corrected to what the code
 // does: a right-click on an enemy building has never walked a serf
 // anywhere — the assault branch skips him and returns before any walk is
@@ -778,7 +787,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // this same unreleased bump's own behavior — there is no older log stamped
 // 72 to break — and the hash is over raw bytes, which is why it moved.
 const EXPECTED_VERSION = 72;
-const EXPECTED_HASH = 'f04fb4ad420dc788bbe7d202cd6df5ad';
+const EXPECTED_HASH = '1ceead41c9e690db500c09976cb9a32f';
 
 /**
  * Everything a replay's playback depends on, as raw source:

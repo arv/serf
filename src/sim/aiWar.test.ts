@@ -741,6 +741,35 @@ describe('the last stand', () => {
     expect(brain.warReport().lastStands).toBe(0);
   });
 
+  it('answers an enemy VILLAGE at the gates, not just enemy soldiers', () => {
+    // The same change that gave this seat a knife gave one to the rival's
+    // serfs. A gate that looked for soldiers would watch a mob of armed
+    // villagers take the storehouse without ever calling the stand.
+    const {world, brain, raider} = doomed();
+    raider.dead = true; // no soldier anywhere near the base
+    const mob = [];
+    for (let i = 0; i < 3; i++) {
+      const u = spawnUnit(world, UnitTypeId.serf, 1, BASE - 1 + i * 0.2, BASE);
+      u.task = {t: UnitTaskKind.attackMove, destX: BASE, destY: BASE};
+      mob.push(u);
+    }
+    const stand = standOf(brain.decide(world), world);
+    expect(stand).toBeDefined();
+    expect(stand!.x).toBe(Math.floor(mob[0]!.x));
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
+  it('ignores an enemy village that is merely walking past', () => {
+    // Armed is the test, not owned by a rival: a hauler on an errand is
+    // not an attack, whatever else is true of the valley.
+    const {world, brain, raider} = doomed();
+    raider.dead = true;
+    for (let i = 0; i < 3; i++)
+      spawnUnit(world, UnitTypeId.serf, 1, BASE - 1 + i * 0.2, BASE);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
   it('is silent for a seat the behavior is ablated on', () => {
     const {world, brain} = doomed();
     brain.setWarBehaviors(
