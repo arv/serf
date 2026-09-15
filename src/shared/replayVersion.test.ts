@@ -737,8 +737,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to digest as identical and diverge on the following tick. The same
 // reasoning the "Still 33 after the enums moved" entries keep — the hash
 // is over raw bytes, so it moved anyway.
-const EXPECTED_VERSION = 70;
-const EXPECTED_HASH = '88f7dda9e3192088e4297375c0e07b39';
+// 71 for the two arms' clocks: the archer's course at the range, the
+// knight's and the spearman's at the barracks, and the bowstave, the spear
+// and the sword at the Smith. Six durations in defs/buildings.ts and
+// nothing else — no stat, no cost, no rule — but a course and a forge that
+// finish on different ticks re-time every haul, hire and march behind them,
+// which is behavior in the first minute of any log.
+const EXPECTED_VERSION = 71;
+const EXPECTED_HASH = 'e87404d8207ecd85ea4e5e2af49fc1bc';
 
 /**
  * Everything a replay's playback depends on, as raw source:

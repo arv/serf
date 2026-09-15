@@ -633,12 +633,19 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: UnitTypeId.worker,
     recipeOptions: [
+      // Nine and thirteen for the two iron arms, nine for the bowstave: a
+      // second off each weapon that costs ore and a second onto the one
+      // that does not. The forge is the other half of the barracks' clock
+      // below — a knight is a sword AND a course, so the two seconds land
+      // on the same man — and the bow's is the only anvil time the bow line
+      // spends at all, which is why a second there is worth as much as a
+      // second at the butt.
       {
         recipe: {
           kind: RecipeKindNs.convert,
           inputs: {[GoodId.iron]: 1, [GoodId.wood]: 2},
           outputs: {[GoodId.spear]: 1},
-          durationTicks: 10 * S,
+          durationTicks: 9 * S,
         },
         requiresTech: TechId.ironworking,
       },
@@ -647,7 +654,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           kind: RecipeKindNs.convert,
           inputs: {[GoodId.iron]: 2, [GoodId.wood]: 1},
           outputs: {[GoodId.sword]: 1},
-          durationTicks: 14 * S,
+          durationTicks: 13 * S,
         },
         requiresTech: TechId.ironworking,
       },
@@ -656,7 +663,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           kind: RecipeKindNs.convert,
           inputs: {[GoodId.wood]: 3},
           outputs: {[GoodId.bow]: 1},
-          durationTicks: 8 * S,
+          durationTicks: 9 * S,
         },
         requiresTech: TechId.archery,
       },
@@ -752,15 +759,23 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     trains: [
       // Soldiers march on bread, not on raw grain: the barracks is the far
       // end of mill -> bakery, and wheat is a crop again.
+      //
+      // Fourteen and nine, each a second off what they were. The steel arms
+      // are the ones that pay for a mine, a pickaxe and a ration of bread
+      // before their weapon is even on the anvil, and the hall's clock is
+      // where that is answered without touching a single duel: nothing here
+      // changes who beats whom, only how fast the yard can put him in the
+      // field. Read with the range's tenth second and the forge's shorter
+      // spear and sword (recipeOptions above).
       {
         unit: UnitTypeId.knight,
         cost: {[GoodId.food]: 3, [GoodId.sword]: 1},
-        durationTicks: 15 * S,
+        durationTicks: 14 * S,
       },
       {
         unit: UnitTypeId.spearman,
         cost: {[GoodId.food]: 2, [GoodId.spear]: 1},
-        durationTicks: 10 * S,
+        durationTicks: 9 * S,
       },
     ],
   },
@@ -837,15 +852,26 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // two. What it now also costs is a building.
     requiresTech: TechId.archery,
     trains: [
-      // Nine seconds against the barracks' twelve. The dedicated butt is
-      // what the extra roof buys: a plan that commits to the bow trains it
-      // a quarter faster than the mixed hall ever did, so the range is a
-      // trade rather than a tax. The bill itself is unchanged — two bread
-      // and a bow, exactly what the barracks charged.
+      // Ten seconds against the twelve the mixed hall charged for the same
+      // man. The dedicated butt is still what the extra roof buys — a plan
+      // that commits to the bow trains it faster than the barracks ever
+      // did, so the range is a trade rather than a tax — but the edge is a
+      // sixth now rather than a quarter. It was nine, and nine put the
+      // cheapest soldier in the game through the fastest door as well: the
+      // bow is the one arm whose bill carries no iron (3 wood at the
+      // Smith), so its course is the only place the bow line can be priced
+      // without reaching into the ore economy it never touches. The second
+      // taken off here is the same second handed to each steel arm at the
+      // barracks below and to the spear and the sword at the forge — the
+      // gap between the two roots closes from both ends rather than by
+      // making anyone slower on his own.
+      //
+      // The bill itself is unchanged — two bread and a bow, exactly what
+      // the barracks charged.
       {
         unit: UnitTypeId.archer,
         cost: {[GoodId.food]: 2, [GoodId.bow]: 1},
-        durationTicks: 9 * S,
+        durationTicks: 10 * S,
       },
     ],
   },

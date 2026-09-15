@@ -20,6 +20,25 @@
  * directly.
  */
 /**
+ * 71: the two arms' clocks, re-cut. Six numbers move and no stat does: the
+ * archer's course at the range 9s -> 10s, the knight's 15s -> 14s and the
+ * spearman's 10s -> 9s at the barracks, and at the Smith the bowstave 8s ->
+ * 9s with the spear 10s -> 9s and the sword 14s -> 13s beside it.
+ *
+ * What it answers is throughput, not the duel. The bow is the one arm whose
+ * bill carries no iron, and it was also the quickest through both doors it
+ * uses — anvil and butt — so a village on the bow line fielded men at a rate
+ * the steel line could not match however the counters went. Nothing about
+ * who beats whom changes (defs/units.ts is untouched); what changes is how
+ * many of each are standing when the two meet.
+ *
+ * Sim behavior, so a log recorded before this build diverges the moment a
+ * forge or a course finishes on a different tick from the one it finished
+ * on then — which is inside the first weapon either seat orders, and every
+ * haul, hire and march behind it.
+ *
+ * 70's note follows.
+ *
  * 70: a load waits for the whole of a man's errand, not its last leg.
  *
  * 69 left a load on the board for a man already walking to its source,
@@ -1240,4 +1259,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 70;
+export const REPLAY_VERSION = 71;
