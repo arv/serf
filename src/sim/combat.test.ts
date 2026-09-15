@@ -24,7 +24,13 @@ import * as MatchState from './matchStateEnum.ts';
 import {populationOf} from './population.ts';
 import {separationSystem} from './systems/separation.ts';
 import * as Terrain from './terrainEnum.ts';
-import {cmds, addSerf, addStorehouse, bareWorld} from './testUtils.ts';
+import {
+  addBuiltHut,
+  addSerf,
+  addStorehouse,
+  bareWorld,
+  cmds,
+} from './testUtils.ts';
 import {applyCommand, tickWorld} from './tick.ts';
 import {takesUpRoom, type Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
@@ -1987,6 +1993,42 @@ describe('the serf’s knife, under an A order', () => {
     expect(serf.task.t).not.toBe(UnitTaskKind.raid);
     expect(serf.targetId).toBeUndefined();
     expect(takesUpRoom(serf)).toBe(false);
+  });
+
+  it('lets go of the post too, when A names a wall at a worker', () => {
+    // The haul case above exercises abortJob; this one is the other half
+    // of releaseFromWork — a resident worker keeps his building staffed in
+    // production's eyes until he is unbound, and a man at a wall is not at
+    // his mill.
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const hut = addBuiltHut(world, 30, 30);
+    const worker = [...world.units.values()].find(
+      u => u.kind === UnitTypeId.worker,
+    )!;
+    expect(worker.homeId).toBe(hut.id);
+    expect(hut.workerId).toBe(worker.id);
+    const camp = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      34,
+      30,
+    );
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [worker.id],
+        x: camp.x,
+        y: camp.y,
+        attack: true,
+      }),
+    );
+    expect(worker.task.t).toBe(UnitTaskKind.raid);
+    expect(worker.homeId).toBeUndefined();
+    expect(hut.workerId).toBeUndefined();
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('a focus order alone never arms a villager', () => {

@@ -1105,26 +1105,6 @@ function waypointSystem(world: World): void {
 }
 
 /**
- * Group moves fan out over the walkable tiles nearest the target (spiral
- * order) so squads don't stack on one tile; a mixed squad claims those
- * tiles in battle order — knights up front, archers at the back
- * (orderFormation). A right-click on an enemy building is an attack order:
- * military units take the same 'raid' task
- * bandits use, and the combat system does the rest. Ground orders come in
- * three kinds — an attack-move fights whatever it meets on the way, a plain
- * move ignores enemies until it arrives, and the 'half' order walks the
- * front half of the route as a plain move before turning attack-move.
- *
- * Leaves Unit.orders alone: the command entry above decides what a fresh
- * order does to the queue, and the waypoint step comes here for each leg
- * of a route that must survive it — with `pace` set to the squad's pace
- * that leg was dealt (squadPace), since the man arrives alone.
- *
- * Returns how many of the named units took the order: the ones now
- * walking or assaulting, as against the civilians handed an assault and
- * the men with no way to walk, whom it leaves exactly as they were.
- */
-/**
  * Let go of whatever this man was employed doing, so a fighting order can
  * have him: a hauler drops his job (reservations released, the good stays
  * in his hands) and a resident worker quits his post, freeing the building
@@ -1144,6 +1124,29 @@ function releaseFromWork(world: World, unit: Unit): void {
   if (unit.homeId !== undefined) unbindWorker(world, unit);
 }
 
+/**
+ * Group moves fan out over the walkable tiles nearest the target (spiral
+ * order) so squads don't stack on one tile; a mixed squad claims those
+ * tiles in battle order — knights up front, archers at the back
+ * (orderFormation). A click on an enemy building is an attack order:
+ * military units take the same 'raid' task bandits use — and so does a
+ * villager, but only under A (units.ts canTakeUpArms), since arming the
+ * village must be something the player said rather than something he
+ * aimed badly. The combat system does the rest. Ground orders come in
+ * three kinds — an attack-move fights whatever it meets on the way, a plain
+ * move ignores enemies until it arrives, and the 'half' order walks the
+ * front half of the route as a plain move before turning attack-move.
+ *
+ * Leaves Unit.orders alone: the command entry above decides what a fresh
+ * order does to the queue, and the waypoint step comes here for each leg
+ * of a route that must survive it — with `pace` set to the squad's pace
+ * that leg was dealt (squadPace), since the man arrives alone.
+ *
+ * Returns how many of the named units took the order: the ones now
+ * walking or assaulting, as against the men with no way to walk and the
+ * civilians a plain click at a building leaves standing (it stands an
+ * armed one down all the same — see the branch itself).
+ */
 function orderMove(
   world: World,
   playerId: Owner,

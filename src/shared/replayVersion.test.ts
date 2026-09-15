@@ -765,6 +765,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // seat that would send its serfs today replays as it decided then. The
 // same reasoning every "Still 32/33 after..." entry above records. The
 // hash is over raw bytes, which is why it moved anyway.
+// Still 72 after the review's coverage round: `releaseFromWork` was moved
+// back above orderMove's own JSDoc (it had been inserted between that
+// contract and the function it documents, quietly re-attaching it to the
+// helper), that contract now mentions the A order that can hand a villager
+// an assault, and tests were added for the gestures and the wire — none of
+// which is a statement the sim executes. Prose and tests; the hash is over
+// raw bytes.
 // Still 72 after a second review round closed three more of this same
 // unreleased bump's edges: the last stand now reads an ARMED enemy rather
 // than an enemy soldier (the rival's serfs carry the same knife this build
@@ -787,7 +794,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // this same unreleased bump's own behavior — there is no older log stamped
 // 72 to break — and the hash is over raw bytes, which is why it moved.
 const EXPECTED_VERSION = 72;
-const EXPECTED_HASH = '1ceead41c9e690db500c09976cb9a32f';
+const EXPECTED_HASH = '5b58e5f7b94e9cc6b98369f9a0338fc6';
 
 /**
  * Everything a replay's playback depends on, as raw source:
