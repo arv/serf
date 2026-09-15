@@ -729,7 +729,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // axes as 69, and the same reason the stream moves — a withheld load is a
 // man left idle.
 const EXPECTED_VERSION = 70;
-const EXPECTED_HASH = '1f3b7907d8f606302c2170ddba409abc';
+const EXPECTED_HASH = 'f6b831431dad74b290eb2fec7919e941';
 
 /**
  * Everything a replay's playback depends on, as raw source:

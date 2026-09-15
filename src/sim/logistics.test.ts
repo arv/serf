@@ -8,6 +8,7 @@ import {RATION_STOCK} from './defs/balance.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import type {GoodAmounts} from './defs/goods.ts';
+import * as TechId from './defs/techIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import * as HaulPhase from './haulPhaseEnum.ts';
 import {
@@ -703,6 +704,66 @@ describe('the load home', () => {
     // load he was holding was never his to hold.
     expect(jobOf(drawer.jobId)?.from).toBe(well.id);
     expectClean(world, initial);
+  });
+
+  /**
+   * And the windlass is measured at the seat's own stride.
+   *
+   * Boots (ModifierKey.serfSpeed, +15%) speed up the WALKING on both sides
+   * of the comparison and leave the well's six seconds exactly where they
+   * were, so they make a drawer relatively worse, not better: the fixed
+   * wait is a larger share of a shorter journey. A booted village should
+   * therefore withhold a load from him at distances where an unbooted one
+   * would still hold it. Converting his wait at the raw 1.5 gets that
+   * backwards — too few tile-equivalents, too short a reach, and a load
+   * held for a man who is not the quicker way after all, which is the
+   * fault the draw term exists to remove.
+   *
+   * Two runs of one valley, because the window is narrow by construction:
+   * the thresholds are 16.0 tiles unbooted and 17.3 booted (a 7-tile walk
+   * plus 120 ticks at 0.075 or 0.086 tiles a tick), so 17 is one of the
+   * two whole distances that separate them. If a balance pass moves the
+   * draw, the stride, or the boot multiplier, re-derive it from those four
+   * numbers rather than nudging the 48.
+   */
+  it("reads the windlass at the seat's own stride, boots and all", () => {
+    const run2 = (booted: boolean): boolean => {
+      const world = bareWorld();
+      if (booted) world.players[0]!.techs.researched.push(TechId.cobbledBoots);
+      const sh = addStorehouse(world, 20, 30, {
+        [GoodId.wood]: 1,
+        [GoodId.hammer]: 0,
+        [GoodId.axe]: 0,
+      });
+      const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 26, 30);
+      well.stock[GoodId.water] = 1;
+      const drawer = addSerf(world, 26, 33);
+      // Seventeen tiles off the storehouse: past the reach an unbooted
+      // seat computes for the drawer, short of the reach a booted one does.
+      const other = addSerf(world, 21, 48);
+
+      const jobOf = (id: number | undefined) =>
+        id !== undefined ? world.jobs.get(id) : undefined;
+      let guard = 0;
+      while (jobOf(drawer.jobId)?.drawUntil === undefined && guard++ < 900)
+        tickWorld(world, []);
+      well.paused = true;
+      addSite(world, 40, 40);
+
+      const plank = () =>
+        [...world.jobs.values()].find(
+          j => j.good === GoodId.wood && j.from === sh.id,
+        );
+      guard = 0;
+      while (plank()?.serfId === undefined && guard++ < 20)
+        tickWorld(world, []);
+      return plank()?.serfId === other.id;
+    };
+
+    // Unbooted, the drawer is still the quicker way and the plank waits.
+    expect(run2(false)).toBe(false);
+    // Booted, he is not, and it goes out with the man who is standing free.
+    expect(run2(true)).toBe(true);
   });
 
   it('lets the site it just supplied recruit the man who supplied it', () => {

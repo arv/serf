@@ -25,8 +25,9 @@ import {
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {GOODS, goodEntries, goodKeys} from '../defs/goods.ts';
+import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import * as TechId from '../defs/techIdEnum.ts';
-import {UNIT_DEFS} from '../defs/units.ts';
+import {effectiveSpeed} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import * as DemandKind from '../demandKindEnum.ts';
 import {
@@ -38,6 +39,7 @@ import {
 } from '../entities.ts';
 import * as HaulPhase from '../haulPhaseEnum.ts';
 import {findPathToAdjacent} from '../path.ts';
+import {getModifier} from '../techHelpers.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {
@@ -773,19 +775,6 @@ function deliveryTargetFor(
 const PATH_TRIES = 3;
 
 /**
- * Tiles a serf covers in a tick — the bridge that lets a WAIT be weighed
- * against a WALK in the inbound census below, where the only measure is
- * distance and one of the things in the way is a windlass.
- *
- * His own stride, not the tech-boosted one (effectiveSpeed): a booted serf
- * covers a wait in fewer tiles, so reading the base speed understates the
- * penalty slightly rather than inventing one. Everything either side of
- * that comparison is a Manhattan estimate over ground that may be road or
- * meadow, so this is the right order of precision for it.
- */
-const TILES_PER_TICK = UNIT_DEFS[UnitTypeId.serf].speed / TICKS_PER_SECOND;
-
-/**
  * One key per (destination, good), as `id * PULL_STRIDE + good`.
  *
  * Derived from the goods themselves rather than written down as a number
@@ -1139,6 +1128,31 @@ function dispatch(world: World): void {
    * out the same every run.
    */
   const inbound = new Map<EntityId, number[]>();
+  /**
+   * Tiles a serf of this seat covers in a tick — the bridge that puts a
+   * WAIT on the same scale as the WALK either side of it, since the census
+   * measures in tiles and one of the things in a hauler's way is a
+   * windlass.
+   *
+   * The seat's own stride, boots and all (ModifierKey.serfSpeed, +15%),
+   * because reading the raw 1.5 converts a wait into too FEW tiles for a
+   * booted village — and too few tiles is too short a reach, which is the
+   * side that withholds a load it should have dealt. Erring there is the
+   * very fault the draw term exists to fix, in miniature.
+   *
+   * Lazily, per seat, and only ever asked where the source actually makes
+   * a man wait: getModifier walks every researched tech (movementSystem
+   * caches it per tick for that same reason), and the well is the only
+   * building in the game with drawTicks, so a village without one never
+   * pays for this at all.
+   */
+  const strides: number[] = [];
+  const strideOf = (owner: Owner): number =>
+    (strides[owner] ??=
+      effectiveSpeed(
+        UnitTypeId.serf,
+        getModifier(world, owner, ModifierKey.serfSpeed),
+      ) / TICKS_PER_SECOND);
   for (const job of world.jobs.values()) {
     if (job.serfId === undefined || !idleByOwner.has(job.owner)) continue;
     let b = busy.get(job.owner);
@@ -1176,7 +1190,7 @@ function dispatch(world: World): void {
         job.drawUntil !== undefined
           ? Math.max(0, job.drawUntil - world.tick) // on the windlass now
           : (buildingDef(src.type).drawTicks ?? 0); // not there yet
-      reach += wait * TILES_PER_TICK;
+      if (wait > 0) reach += wait * strideOf(job.owner);
     }
     let hands = inbound.get(job.to);
     if (!hands) inbound.set(job.to, (hands = []));
