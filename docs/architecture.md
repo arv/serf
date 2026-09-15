@@ -22,12 +22,14 @@ are talking to.
 
 ## The layers, and what may import what
 
-The source tree is a stack with one hard boundary. `src/sim` imports nothing
-but its own `defs/` and `src/shared`, `src/shared` imports nothing, and no
-directory below the shell imports the shell. That is what lets Node load the
-sim straight from source for the server and the Node-side labs, with no
-build step: those files spell out `.ts` on their imports and carry no
-browser types.
+The source tree is a stack with one hard boundary in its non-test code:
+`src/sim` imports nothing but its own `defs/` and `src/shared`, `src/shared`
+imports nothing, and no directory below the shell imports the shell. (Tests
+cross freely; `sim/combat.test.ts` reaches into `protocol` and
+`defs/difficulty.test.ts` into `ai`.) That is what lets Node load the sim
+straight from source for the server and the Node-side labs, with no build
+step: those files spell out `.ts` on their imports and carry no browser
+types.
 Above that boundary the picture is looser by design: `render` reaches into
 `input` for edge scroll, pointer capture and typing detection, `audio` leans
 on one `render` value, and `ui`, `input` and `app` cross-reference each
@@ -103,10 +105,10 @@ far end of that protocol. (The Worlds the main thread does build, the menu
 backdrop's in `ui/backdropScene.ts` and the editor's play-test in
 `editor/playWorld.ts`, are its own and never the one being played.)
 `simWorker.ts` owns a World, runs `tickWorld`, and hosts the AI brains.
-`netWorker.ts` owns nothing but a WebSocket: it decodes the server's frames
-into the same SAB slots and the same structural channel. The renderer cannot
-tell them apart, which is why fog is enforced on the server rather than
-drawn by the client.
+`netWorker.ts` owns no World: it holds the socket, the SAB writer and the
+movement predictor, and decodes the server's frames into the same SAB slots
+and the same structural channel. The renderer cannot tell them apart, which
+is why fog is enforced on the server rather than drawn by the client.
 
 ```mermaid
 flowchart TB
