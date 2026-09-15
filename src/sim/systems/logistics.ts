@@ -775,6 +775,51 @@ function deliveryTargetFor(
 const PATH_TRIES = 3;
 
 /**
+ * The walk a hauler still has in front of him before he is standing free
+ * at his job's destination — the one measure the inbound census keeps (see
+ * it, in dispatch, for what it is for). Undefined when the job's buildings
+ * are already gone and reconcile has yet to kill it.
+ *
+ * `stride` converts a WAIT into the tiles the seat's own serfs cover in
+ * that time; dispatch memoizes it per owner, because asking costs a walk
+ * over every researched tech.
+ */
+function reachToDest(
+  world: World,
+  serf: Unit,
+  job: HaulJob,
+  stride: (owner: Owner) => number,
+): number | undefined {
+  const dest = world.buildings.get(job.to);
+  if (!dest || dest.dead) return undefined;
+  const dc = centerOf(dest);
+  // Carrying: it is on his shoulders, so he arrives when he does.
+  if (job.phase === HaulPhase.toDropoff)
+    return Math.abs(serf.x - dc.x) + Math.abs(serf.y - dc.y);
+  // Still fetching: the walk to the shelf he draws from, and then the walk
+  // to the door with what he draws.
+  const src = world.buildings.get(job.from);
+  if (!src || src.dead) return undefined;
+  const sc = centerOf(src);
+  const reach =
+    Math.abs(serf.x - sc.x) +
+    Math.abs(serf.y - sc.y) +
+    Math.abs(sc.x - dc.x) +
+    Math.abs(sc.y - dc.y);
+  // And the windlass, where there is one. A well gives its water up over
+  // drawTicks and `progress` holds the hauler at the shaft for every tick
+  // of it before the return leg starts — six seconds, which is most of ten
+  // tiles of walking. Counted as pure movement he read as the soonest hand
+  // to a door he would not reach for another two minutes, and withheld a
+  // load there for the whole draw.
+  const wait =
+    job.drawUntil !== undefined
+      ? Math.max(0, job.drawUntil - world.tick) // on the windlass now
+      : (buildingDef(src.type).drawTicks ?? 0); // not there yet
+  return wait > 0 ? reach + wait * stride(job.owner) : reach;
+}
+
+/**
  * One key per (destination, good), as `id * PULL_STRIDE + good`.
  *
  * Derived from the goods themselves rather than written down as a number
@@ -1159,39 +1204,13 @@ function dispatch(world: World): void {
     if (!b) busy.set(job.owner, (b = [0, 0, 0]));
     b[tierOf(job, pull) - 1]!++;
     const serf = world.units.get(job.serfId);
-    // The link both ways: a serf reconcile has not yet caught up with
-    // could otherwise be counted against a job he no longer holds, and
-    // book a second slot beside the one his real errand books.
+    // Both halves of the link, because reconcile repairs a broken one on
+    // its own pass rather than this one. A serf whose `jobId` has moved on
+    // is no longer walking this errand, and counting him for it would book
+    // a second slot beside the one his real errand already books.
     if (!serf || serf.dead || serf.jobId !== job.id) continue;
-    const dest = world.buildings.get(job.to);
-    if (!dest || dest.dead) continue; // reconcile will kill the job
-    const dc = centerOf(dest);
-    let reach: number;
-    if (job.phase === HaulPhase.toDropoff) {
-      reach = Math.abs(serf.x - dc.x) + Math.abs(serf.y - dc.y);
-    } else {
-      // Still fetching: the walk to the shelf he draws from, and then the
-      // walk here with what he draws.
-      const src = world.buildings.get(job.from);
-      if (!src || src.dead) continue;
-      const sc = centerOf(src);
-      reach =
-        Math.abs(serf.x - sc.x) +
-        Math.abs(serf.y - sc.y) +
-        Math.abs(sc.x - dc.x) +
-        Math.abs(sc.y - dc.y);
-      // And the windlass, where there is one. A well gives its water up
-      // over drawTicks and `progress` holds the hauler at the shaft for
-      // every tick of it before the return leg starts — six seconds, which
-      // is most of ten tiles of walking. Counted as pure movement he read
-      // as the soonest hand to a door he would not reach for another two
-      // minutes, and withheld a load there for the whole draw.
-      const wait =
-        job.drawUntil !== undefined
-          ? Math.max(0, job.drawUntil - world.tick) // on the windlass now
-          : (buildingDef(src.type).drawTicks ?? 0); // not there yet
-      if (wait > 0) reach += wait * strideOf(job.owner);
-    }
+    const reach = reachToDest(world, serf, job, strideOf);
+    if (reach === undefined) continue; // reconcile will kill the job
     let hands = inbound.get(job.to);
     if (!hands) inbound.set(job.to, (hands = []));
     hands.push(reach);
@@ -1281,49 +1300,6 @@ function dispatch(world: World): void {
       // time, so asking twice only spends the pathfinder.
       let refused = unreachableBy.get(job.from);
 
-      // Is somebody already nearly here on another errand? Then the load
-      // is his: leave it open, and he takes it from the doorstep on the
-      // pass after he lands (takeStandingJobs). See the census above for
-      // what this is worth and why it withholds rather than reassigns.
-      //
-      // Soonest-arrival, on the same Manhattan measure the scan below
-      // uses, so the two answers are comparable. A tie goes to the idle
-      // man: he can set off now. Asked BEFORE the pathfinder, so a
-      // withheld load costs nothing at all.
-      //
-      // The nearest idle man is the right thing to weigh it against even
-      // though the scan below may end up stepping past him to somebody
-      // further out — both sides are estimates of a walk, and paying for a
-      // path here to sharpen one of them would spend more than the whole
-      // check saves.
-      //
-      // Bounded by nothing but that comparison, deliberately, and at every
-      // tier: a load waits only while waiting is genuinely the faster way
-      // to move it, and the moment it is not — the man dies, is recruited
-      // off the road, or simply falls behind — the next pass deals it.
-      const waiting = inbound.get(job.from);
-      if (waiting !== undefined && waiting.length > 0) {
-        let nearestIdle = Infinity;
-        for (const s of idle) {
-          if (refused?.has(s.id)) continue;
-          const d = Math.abs(s.x - c.x) + Math.abs(s.y - c.y);
-          if (d < nearestIdle) nearestIdle = d;
-        }
-        let soonestK = -1;
-        let soonestReach = Infinity;
-        for (let k = 0; k < waiting.length; k++) {
-          const reach = waiting[k]!;
-          if (reach < soonestReach) {
-            soonestReach = reach;
-            soonestK = k;
-          }
-        }
-        if (soonestK >= 0 && soonestReach < nearestIdle) {
-          waiting.splice(soonestK, 1); // one man, one load
-          continue; // left on the board for him
-        }
-      }
-
       let serf: Unit | undefined;
       let path: number[] | null = null;
       let bestIdx = -1;
@@ -1373,7 +1349,49 @@ function dispatch(world: World): void {
         }
         continue;
       }
+      // Somebody can walk to this door, whatever an older pass concluded.
       job.blockedCount = 0;
+
+      // Is somebody already nearly here on another errand? Then the load
+      // is his: leave it open, and he takes it from the doorstep on the
+      // pass after he lands (takeStandingJobs). See the census above for
+      // what this is worth and why it withholds rather than reassigns.
+      //
+      // Weighed against the man the scan actually settled on, which is why
+      // it is asked down here rather than before the pathfinder. Up there
+      // the only candidate to hand was the NEAREST idle serf, and he may
+      // be sealed into a pocket at the wall — so a load could lose its
+      // withholding to a man who was never going to carry it, and go out
+      // with somebody further off than the carrier already walking here.
+      // Down here the comparison is against the man who would take it.
+      // The cost is a path for a load that ends up withheld, which is
+      // bounded by the census being empty for every building nobody is
+      // walking to.
+      //
+      // Same Manhattan measure on both sides, so the two answers are
+      // comparable. A tie goes to the idle man: he can set off now.
+      //
+      // Bounded by nothing but that comparison, deliberately, and at every
+      // tier: a load waits only while waiting is genuinely the faster way
+      // to move it, and the moment it is not — the man dies, is recruited
+      // off the road, or simply falls behind — the next pass deals it.
+      const waiting = inbound.get(job.from);
+      if (waiting !== undefined && waiting.length > 0) {
+        const taker = Math.abs(serf.x - c.x) + Math.abs(serf.y - c.y);
+        let soonestK = -1;
+        let soonestReach = Infinity;
+        for (let k = 0; k < waiting.length; k++) {
+          const reach = waiting[k]!;
+          if (reach < soonestReach) {
+            soonestReach = reach;
+            soonestK = k;
+          }
+        }
+        if (soonestK >= 0 && soonestReach < taker) {
+          waiting.splice(soonestK, 1); // one man, one load
+          continue; // left on the board for him
+        }
+      }
 
       idle.splice(bestIdx, 1);
       hands[tier]!++;
@@ -1383,6 +1401,18 @@ function dispatch(world: World): void {
       serf.path = path;
       serf.pathIdx = 0;
       serf.task = {t: UnitTaskKind.haul};
+      // And he is bound for this job's destination now, so a load sourced
+      // there LATER IN THIS SAME PASS can wait for him like any other
+      // inbound hand. The census is built once, before the queue is dealt,
+      // so without this the chain the whole mechanism is for — carry a
+      // load in, take the next one out — was broken for any second load
+      // the same pass happened to reach.
+      const bound = reachToDest(world, serf, job, strideOf);
+      if (bound !== undefined) {
+        let hs = inbound.get(job.to);
+        if (!hs) inbound.set(job.to, (hs = []));
+        hs.push(bound);
+      }
     }
   }
 }

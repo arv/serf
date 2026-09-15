@@ -4,7 +4,7 @@ import {Rng} from '../shared/rng.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants, checkLedger, countGoods} from './debug/invariants.ts';
-import {RATION_STOCK} from './defs/balance.ts';
+import {MATCHER_INTERVAL, RATION_STOCK} from './defs/balance.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import type {GoodAmounts} from './defs/goods.ts';
@@ -764,6 +764,78 @@ describe('the load home', () => {
     expect(run2(false)).toBe(false);
     // Booted, he is not, and it goes out with the man who is standing free.
     expect(run2(true)).toBe(true);
+  });
+
+  /**
+   * The chain holds within a single pass, not just across them.
+   *
+   * The census is built once, before the queue is dealt, so a man given an
+   * A-to-B haul early in a pass was not yet an inbound hand when a B-to-C
+   * load came up later in the SAME pass — and that is the mine's own trip,
+   * one beat earlier than the rest of this describe block catches it. The
+   * bread and the silver are both on the board together; the bread is
+   * dealt first; and the silver would then go out with the only other man
+   * standing, however far off he was, because nobody had noticed that the
+   * bread carrier was on his way to the very shelf it sits on.
+   */
+  it('leaves the silver for a man dealt the bread in the same pass', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 20, 30, {[GoodId.food]: 10});
+    const mine = placeBuiltBuilding(
+      world,
+      BuildingTypeId.silverMine,
+      0,
+      34,
+      30,
+    );
+    staffBuilding(world, mine); // manned: no pickaxe errand. No seam: no ore.
+    mine.inputs[GoodId.food] = RATION_STOCK - 1; // one loaf wanted, one errand
+
+    // No hands yet, so the board fills without being dealt — and the
+    // bread's demand ages first, which is what puts its job ahead of the
+    // silver's in the queue (the matcher sorts a tier by age). Both are
+    // then open together when the men arrive, which is the whole setup.
+    run(world, 3 * MATCHER_INTERVAL);
+    mine.stock[GoodId.silver] = 1;
+    run(world, MATCHER_INTERVAL);
+    const jobs = [...world.jobs.values()];
+    expect(jobs).toHaveLength(2);
+    expect(jobs.every(j => j.serfId === undefined)).toBe(true);
+
+    // Near the storehouse, so the bread is his — but deliberately NOT at
+    // it. A man on the doorstep takes its load by the standing route,
+    // which runs before the census is built and so puts him into it; it is
+    // the ordinary queue, dealing while the census is already fixed, that
+    // could not see him.
+    const carrier = addSerf(world, 25, 34);
+    // Further from the shelf than the carrier, and further from the MINE
+    // than the carrier's whole errand — bread and all.
+    const far = addSerf(world, 20, 20);
+    const initial = countGoods(world);
+
+    const jobOf = (id: number | undefined) =>
+      id !== undefined ? world.jobs.get(id) : undefined;
+    let guard = 0;
+    while (carrier.jobId === undefined && guard++ < 40) tickWorld(world, []);
+    expect(jobOf(carrier.jobId)?.good).toBe(GoodId.food);
+    expect(jobOf(carrier.jobId)?.to).toBe(mine.id);
+
+    // And the silver is not dealt out from under him while he walks.
+    guard = 0;
+    while (carrier.jobId !== undefined && guard++ < 900) {
+      tickWorld(world, []);
+      expect(jobOf(far.jobId)?.from).not.toBe(mine.id);
+    }
+    guard = 0;
+    while (carrier.jobId === undefined && guard++ < 900) tickWorld(world, []);
+    expect(jobOf(carrier.jobId)?.good).toBe(GoodId.silver);
+    expect(jobOf(carrier.jobId)?.from).toBe(mine.id);
+
+    guard = 0;
+    while ((sh.stock[GoodId.silver] ?? 0) < 1 && guard++ < 900)
+      tickWorld(world, []);
+    expect(sh.stock[GoodId.silver]).toBe(1);
+    expectClean(world, initial);
   });
 
   it('lets the site it just supplied recruit the man who supplied it', () => {
