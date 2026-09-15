@@ -765,6 +765,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // seat that would send its serfs today replays as it decided then. The
 // same reasoning every "Still 32/33 after..." entry above records. The
 // hash is over raw bytes, which is why it moved anyway.
+// Still 72 after one comment in tick.ts was corrected to what the code
+// does: a right-click on an enemy building has never walked a serf
+// anywhere — the assault branch skips him and returns before any walk is
+// planned — and the comment beside it claimed a plain walk. Prose only,
+// and the hash is over raw bytes.
 // Still 72 after the review round on #294 tightened three of its own
 // edges: a focus order no longer sticks to a civilian who is not under an
 // attack order (tick.ts, units.ts fightOf), an assault on a building
@@ -773,7 +778,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // this same unreleased bump's own behavior — there is no older log stamped
 // 72 to break — and the hash is over raw bytes, which is why it moved.
 const EXPECTED_VERSION = 72;
-const EXPECTED_HASH = 'cfc6f57a49b7194ee6f42a91ee1a4c0b';
+const EXPECTED_HASH = 'f04fb4ad420dc788bbe7d202cd6df5ad';
 
 /**
  * Everything a replay's playback depends on, as raw source:

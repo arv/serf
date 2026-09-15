@@ -1162,10 +1162,18 @@ function orderMove(
       const unit = world.units.get(id);
       if (!unit || unit.dead || unit.owner !== playerId) continue;
       // Civilians storm a camp only when they were told to in as many
-      // words — A over the building. A right-click on it is the assault
-      // order it has always been for soldiers and the plain walk it has
-      // always been for serfs, so nobody sends the village to its death
-      // by aiming a move badly.
+      // words — A over the building. Nothing else about this branch moves:
+      // a right-click on an enemy building is the assault it has always
+      // been for soldiers, and for a serf it is what it has always been
+      // too, which is NOTHING — the loop skips him and the `return` below
+      // means no walk is ever planned for him. A dead click rather than a
+      // walk, and a wart older than this rule; what matters here is that
+      // no gesture but A can send the village to its death.
+      //
+      // (Letting him fall through to the walk would be a better click and
+      // is deliberately not done here: it restructures a return that
+      // soldiers share, for a gesture that has nothing to do with arming
+      // villagers.)
       if (!UNIT_DEFS[unit.kind].combat && !(cmd.attack && canTakeUpArms(unit)))
         continue;
       // An assault outranks whatever he was employed doing, exactly as the
