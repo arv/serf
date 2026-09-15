@@ -23,7 +23,7 @@ import {
 import * as GameEventKind from '../gameEventKindEnum.ts';
 import {findPath, findPathToAdjacent, nearestWalkable} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
-import {clearMarchSpeed, type Unit} from '../units.ts';
+import {clearMarchSpeed, fightOf, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {destroyBuilding, killUnit, type World} from '../world.ts';
 import {heldByEnemy} from './separation.ts';
@@ -125,36 +125,6 @@ function strikeCooldown(
 ): number {
   const m = getModifier(world, owner, ModifierKey.fightSpeed);
   return m === 1 ? cooldownTicks : Math.max(1, Math.round(cooldownTicks / m));
-}
-
-/**
- * What a unit fights with this tick, or undefined for one that does not
- * fight at all.
- *
- * A soldier's is his weapon and never changes. A civilian's depends on
- * what he was told to do, and that is the whole shape of the feature:
- *
- * - Under an attack order — A over the ground (UnitTaskKind.attackMove) or
- *   over an enemy building (raid) — he fights like the melee unit he is
- *   imitating. He acquires, closes, chases and strikes, at MILITIA's very
- *   low output. This is the only way a villager ever goes looking for a
- *   fight, and it takes a deliberate order every time: a plain move never
- *   arms him, so the ordinary business of the valley is unchanged.
- * - Under anything else — an errand, a stroll, a plain move, standing
- *   idle — he has no fight at all and falls to lastResortStrike, which
- *   only ever answers the man already striking him.
- *
- * The stats themselves are the same knife in both modes. What the order
- * buys is the initiative.
- */
-function fightOf(unit: Unit): FightStats | undefined {
-  const def = UNIT_DEFS[unit.kind];
-  if (def.combat) return def.combat;
-  if (!def.militia) return undefined;
-  return unit.task.t === UnitTaskKind.attackMove ||
-    unit.task.t === UnitTaskKind.raid
-    ? def.militia
-    : undefined;
 }
 
 /**

@@ -740,10 +740,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // 71 for the civilians' knives: a serf answers the man cutting him down,
 // fights like a weak melee unit while an A order is on him, and — the part
 // that moves positions rather than hit points — takes up room in the
-// separation pass for as long as he holds a target (defs/units.ts MILITIA,
-// systems/combat.ts fightOf, units.ts takesUpRoom).
+// separation pass for as long as that order stands (defs/units.ts MILITIA,
+// units.ts fightOf and takesUpRoom).
 const EXPECTED_VERSION = 71;
-const EXPECTED_HASH = 'c417dcfe146cc3c4578fb646db89d8c9';
+const EXPECTED_HASH = '368f95005b815439a55bfc72df1278bc';
 
 /**
  * Everything a replay's playback depends on, as raw source:

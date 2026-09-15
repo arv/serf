@@ -34,7 +34,7 @@ export const ADMIN_ACTION_NAMES = enumNames(AdminAction);
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:
-      'Send selected units to a tile. A mixed squad forms up — knights front, archers rear — and marches at its slowest member’s pace; the first fight dissolves both the formation and the shared pace, and every unit runs at its own speed again. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live. The attack flag is also what arms the villagers: a serf under it fights like a very weak melee unit — acquiring, closing and striking — and takes up room on the field while he does, where a serf on a plain walk fights only what strikes him first and is walked through by everybody.',
+      'Send selected units to a tile. A mixed squad forms up — knights front, archers rear — and marches at its slowest member’s pace; the first fight dissolves both the formation and the shared pace, and every unit runs at its own speed again. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live. The attack flag is also what arms the villagers: a serf under it fights like a very weak melee unit — acquiring, closing and striking — and takes up room on the field for as long as the order stands, where a serf on any other order fights only what strikes him first and is walked through by everybody, his own army included.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   [CommandKind.placeBuilding]: {

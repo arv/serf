@@ -39,19 +39,20 @@
  * map. A plain move disarms him again. The AI never issues it, so in a
  * match against the seats this mode is the player's alone.
  *
- * And the separation pass takes him while he holds a target (units.ts
- * takesUpRoom): a serf with a fight on is a body that soldiers cannot
- * walk through, his own side's included, where a hauler has always been
- * walked straight through and always will be. That is the half of this
- * that moves a replay hardest — positions, not just hit points. A raid
- * through a village now shoves the haulers it is killing and is shoved
- * by them.
+ * And the separation pass takes him while that order stands (units.ts
+ * takesUpRoom): a serf sent in with A is a body soldiers cannot walk
+ * through, his own side's included, where a hauler is walked straight
+ * through as he always was — even while he is being cut down, because
+ * what makes a man solid is the order, never the fight that found him.
+ * That is the half of this that moves positions rather than hit points,
+ * and it moves them only where a player sent villagers to fight.
  *
  * The random stream is not moved directly: a civilian's task is what
- * decides whether wanderSystem draws for him, and neither mode changes it
- * (the attack order changes it, but an order is already in the log). What
- * moves is where men stand and when they die, which is enough — everything
- * downstream of a body in a doorway moves with it.
+ * decides whether wanderSystem draws for him, and the reflex never touches
+ * his task (the attack order does, but an order is already in the log).
+ * What moves is when men die, and — under an A order — where they stand,
+ * which is enough: everything downstream of a body falling a tick later
+ * moves with it.
  *
  * 70's note follows.
  *

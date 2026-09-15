@@ -15,17 +15,15 @@ import type {World} from '../world.ts';
  * through a hauler, because the economy's errands must never jam behind a
  * crowd, and a serf standing in a doorway must never hold up an army.
  *
- * The exemption is for the errand, not for the man, and it lapses the
- * moment he has a fight on (units.ts takesUpRoom): a serf sent in under an
- * A order, or one answering the raider at his throat, is a body like any
- * other for as long as he holds a target — he fans out into the ring, he
+ * The exemption is for the errand, not for the man, and an attack order
+ * ends it (units.ts takesUpRoom): a serf sent in with A is a body like any
+ * other for as long as that order stands — he fans out into the ring, he
  * is held off by the enemy's line, and the enemy's line is held off by
  * him. A mob of villagers is a wall made of villagers, which is the only
- * thing that makes such a mob worth ordering at all. He goes back to being
- * walked through the tick he loses the target, which is what keeps this
- * from being a way to jam your own doorway with haulers: a man with no
- * fight on has no business in this pass, and a fight only ever lasts as
- * long as an enemy stands within his reach.
+ * thing that makes such a mob worth ordering at all. He is walked through
+ * again the moment the order ends, and a hauler who was never given one
+ * stays a ghost even while he is being cut down: what makes a man solid
+ * here is the order the player gave, never the fight that found him.
  *
  * It is a soft push rather than a hard block. Tiles are not claimed: two
  * soldiers closer than SEPARATION are moved the shortfall apart, and that

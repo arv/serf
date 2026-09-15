@@ -1907,26 +1907,31 @@ describe('the serf’s knife, under an A order', () => {
   });
 });
 
-describe('a fighting serf takes up room', () => {
-  it('is walked through while he hauls, and not once he fights', () => {
+describe('an A-ordered serf takes up room', () => {
+  it('is a body under the order, and a ghost on every errand', () => {
     const world = bareWorld();
     const serf = addSerf(world, 30, 30);
     expect(takesUpRoom(serf)).toBe(false);
-    serf.targetId = 99 as never;
+    serf.task = {t: UnitTaskKind.attackMove, destX: 34, destY: 30};
     expect(takesUpRoom(serf)).toBe(true);
-    serf.targetId = undefined;
+    serf.task = {t: UnitTaskKind.raid, buildingId: 1 as never};
+    expect(takesUpRoom(serf)).toBe(true);
+    // The fight that finds him is not an order: a hauler answering a
+    // raider is still walked through.
+    serf.task = {t: UnitTaskKind.haul};
+    serf.targetId = 99 as never;
     expect(takesUpRoom(serf)).toBe(false);
     // A soldier is a body whatever he is doing.
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 31.5, 30.5);
     expect(takesUpRoom(knight)).toBe(true);
   });
 
-  it('parts from a soldier standing on him, and only while fighting', () => {
+  it('parts from a soldier standing on him, and only under the order', () => {
     // Straight at the separation pass, which is where the rule lives: a
-    // serf and a soldier of his own side on exactly the same spot. While
-    // he has no fight on he is not in the pass at all, so the pair stays
-    // stacked — a hauler and a knight walk through each other. Give him a
-    // target and the same tick parts them.
+    // serf and a soldier of his own side on exactly the same spot. Off an
+    // attack order he is not in the pass at all, so the pair stays stacked
+    // — a hauler and a knight walk through each other. Give him the order
+    // and the same tick parts them.
     const world = bareWorld();
     const serf = addSerf(world, 30, 30);
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
@@ -1935,8 +1940,18 @@ describe('a fighting serf takes up room', () => {
     expect(knight.x).toBe(30.5);
     expect(knight.y).toBe(30.5);
 
-    serf.targetId = knight.id; // any fight will do; this pass never reads it
+    serf.task = {t: UnitTaskKind.attackMove, destX: 34, destY: 30};
     separationSystem(world);
     expect(exactDist(knight.x - serf.x, knight.y - serf.y)).toBeGreaterThan(0);
+  });
+
+  it('a serf fighting back mid-haul never blocks the army', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const serf = addSerf(world, 30, 30);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 30.5);
+    run(world, 20 * 2);
+    expect(serf.targetId).toBe(bandit.id); // a real fight, unordered
+    expect(takesUpRoom(serf)).toBe(false);
   });
 });
