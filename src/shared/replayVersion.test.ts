@@ -737,8 +737,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to digest as identical and diverge on the following tick. The same
 // reasoning the "Still 33 after the enums moved" entries keep — the hash
 // is over raw bytes, so it moved anyway.
-const EXPECTED_VERSION = 70;
-const EXPECTED_HASH = '88f7dda9e3192088e4297375c0e07b39';
+// 71 for the civilians' last resort: a serf being cut down answers his
+// attacker for a point a blow (defs/units.ts LastResortStats,
+// systems/combat.ts lastResortStrike). He acquires nobody, chases nobody
+// and keeps his errand throughout, so the random stream is untouched —
+// but bodies fall on different ticks than they used to, and everything
+// downstream of a death moves with them.
+const EXPECTED_VERSION = 71;
+const EXPECTED_HASH = '595e8ec0266b8cd372ee4c8e80bed2cd';
 
 /**
  * Everything a replay's playback depends on, as raw source:

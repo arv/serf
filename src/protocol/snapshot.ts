@@ -668,7 +668,12 @@ function drawingAt(w: World, u: Unit): Building | undefined {
  * visibly moving.
  */
 function engagedTarget(w: World, u: Unit): {x: number; y: number} | undefined {
-  const combat = UNIT_DEFS[u.kind].combat;
+  const def = UNIT_DEFS[u.kind];
+  // A civilian fighting for his life is fighting, and the same rule decides
+  // it: his target, inside the reach his knife strikes at (defs/units.ts
+  // LastResortStats). He never holds a building target and never chases, so
+  // the branches below are a soldier's alone.
+  const combat = def.combat ?? def.lastResort;
   if (!combat || u.targetId === undefined) return undefined;
   if (u.targetIsBuilding) {
     const b = w.buildings.get(u.targetId);

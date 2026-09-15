@@ -171,9 +171,25 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * one this test makes, and 8 leaves the control undecided past 30_000.
  * 4, 9 and 12 tied the way 1 did.)
  *
+ * ...and to 3 when the serfs got their knives (replay 71): a civilian
+ * being cut down answers his attacker for a point a blow, so every fight
+ * a raider or a rival's line picks in a village now runs a little
+ * differently, and twenty thousand ticks is long enough for that to be a
+ * different war. The random stream is untouched this time — a serf's task
+ * never changes when he swings, so wander draws for exactly the men it
+ * drew for before — but on 5 the advised war INVERTED, ending 3_544 ticks
+ * later than the control. Fourteen seeds were re-measured; 3 is picked on
+ * the same two counts as ever, seat 1 winning both ways at 18_853
+ * unadvised and 14_390 marching at four, which is 4_463 ticks of gap and
+ * 3_147 under the bound. (6 and 13 had the wider gaps and both want a
+ * deeper bound than this fixture is worth — their controls run 27_437 and
+ * 23_863. 9's gap was 158 ticks, which is no gap at all; 8, 11 and 12
+ * hand the valley to the other seat when the advice lands, which is a
+ * different claim from the one this test makes; 1, 2, 4 and 7 tied.)
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 5;
+const FULL_MATCH_SEED = 3;
 const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {

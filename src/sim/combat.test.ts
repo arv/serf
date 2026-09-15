@@ -1673,3 +1673,87 @@ describe('the guard tower', () => {
     expect(populationOf(world, 0)).toBe(before);
   });
 });
+
+describe('the serf’s last resort', () => {
+  it('answers the man cutting him down', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 30.5);
+    run(world, 20 * 10);
+    // The serf loses — that is the point of "very low" — but not for free.
+    expect(serf.dead).toBe(true);
+    expect(bandit.hp).toBeLessThan(UNIT_DEFS[UnitTypeId.bandit].hp);
+  });
+
+  it('is very low: the raider walks away with most of his health', () => {
+    const world = bareWorld();
+    spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 30.5);
+    run(world, 20 * 10);
+    const full = UNIT_DEFS[UnitTypeId.bandit].hp;
+    expect(bandit.hp).toBeGreaterThan(full * 0.8);
+  });
+
+  it('never picks the fight: two civilians stand in peace', () => {
+    const world = bareWorld();
+    const mine = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const theirs = spawnUnit(world, UnitTypeId.serf, BANDIT, 31.5, 30.5);
+    run(world, 20 * 10);
+    expect(mine.hp).toBe(mine.maxHp);
+    expect(theirs.hp).toBe(theirs.maxHp);
+    expect(mine.targetId).toBeUndefined();
+    expect(theirs.targetId).toBeUndefined();
+  });
+
+  it('never follows it: a raider who steps back is let go', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 30.5);
+    run(world, 20 * 2);
+    expect(serf.targetId).toBe(bandit.id);
+    // Lift the raider out of reach: the serf drops him rather than walking
+    // after him, and stays where his errand left him.
+    bandit.x = 45.5;
+    bandit.y = 45.5;
+    const {x, y} = serf;
+    run(world, 2);
+    expect(serf.targetId).toBeUndefined();
+    expect(serf.path).toBeNull();
+    expect(serf.x).toBe(x);
+    expect(serf.y).toBe(y);
+  });
+
+  it('fights without breaking stride: the hauler keeps his job', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {[GoodId.wood]: 5});
+    placeSite(world, BuildingTypeId.woodcutter, 0, 34, 34);
+    const serf = addSerf(world, 30, 30);
+    // Let logistics put a load on him, then set a raider on his shoulder.
+    run(world, 20 * 5);
+    expect(serf.jobId).toBeDefined();
+    const job = serf.jobId;
+    const task = serf.task.t;
+    spawnUnit(world, UnitTypeId.bandit, BANDIT, serf.x + 1, serf.y);
+    run(world, 20);
+    expect(serf.targetId).toBeDefined(); // he did answer
+    expect(serf.jobId).toBe(job);
+    expect(serf.task.t).toBe(task);
+  });
+
+  it('keeps no building target: a knife is no siege', () => {
+    const world = bareWorld();
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 30.5);
+    const camp = placeBuiltBuilding(
+      world,
+      BuildingTypeId.banditCamp,
+      BANDIT,
+      31,
+      30,
+    );
+    serf.targetId = camp.id;
+    serf.targetIsBuilding = true;
+    run(world, 1);
+    expect(serf.targetId).toBeUndefined();
+    expect(camp.hp).toBe(BUILDING_DEFS[BuildingTypeId.banditCamp].hp);
+  });
+});

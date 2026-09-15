@@ -20,6 +20,33 @@
  * directly.
  */
 /**
+ * 71: even the serfs fight back.
+ *
+ * Every civilian now carries a last resort (defs/units.ts
+ * LastResortStats): one point of damage on a thirty-tick cooldown, at a
+ * melee arm's reach, landing flat — no class, so the counter table never
+ * prices it. It is deliberately not a `combat` block, because that field
+ * is the engine's word for "soldier" everywhere else (army counts,
+ * formation rank, the orders a civilian may not take, the AI's reading of
+ * a rival's strength) and none of that moves: a serf is still a serf.
+ *
+ * What moves is who dies and when. He never acquires a target, never
+ * chases one and never drops his errand for one — the only target he ever
+ * holds is the man already striking him (retaliation in combat.ts
+ * landBlow), and he lets that man go the moment he steps out of reach. So
+ * a raider who spends four seconds cutting down a hauler walks away three
+ * hit points lighter than he used to, a wave that carves through a dozen
+ * villagers arrives at the barracks wounded, and both of those re-time
+ * every fight after them.
+ *
+ * The random stream itself is untouched: a civilian's task, path and pace
+ * are exactly what they were while he swings, so wanderSystem draws for
+ * the same men on the same ticks. Sim behavior all the same, and the kind
+ * that compounds — a body that falls a tick later is a body standing in a
+ * doorway a tick longer.
+ *
+ * 70's note follows.
+ *
  * 70: a load waits for the whole of a man's errand, not its last leg.
  *
  * 69 left a load on the board for a man already walking to its source,
@@ -1240,4 +1267,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 70;
+export const REPLAY_VERSION = 71;

@@ -171,7 +171,10 @@ export function combatSystem(world: World): void {
   for (const unit of world.units.values()) {
     if (unit.dead) continue;
     const combat = UNIT_DEFS[unit.kind].combat;
-    if (!combat) continue;
+    if (!combat) {
+      lastResortStrike(world, unit);
+      continue;
+    }
 
     if (unit.cooldownLeft > 0) unit.cooldownLeft--;
 
@@ -817,7 +820,26 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
   const a = UNIT_DEFS[attacker.kind].combat!;
   const defClass = UNIT_DEFS[defender.kind].combat?.class;
   const mult = defClass ? COUNTER_TABLE[a.class][defClass] : 1;
-  defender.hp -= a.damage * mult;
+  landBlow(world, attacker, defender, a.damage * mult);
+}
+
+/**
+ * One blow landing on a man, however it was thrown: the damage, the alert
+ * to his owner, his answer to it, and his death.
+ *
+ * Split out of strikeUnit when the civilians got their knives (see
+ * LastResortStats in defs/units.ts). Everything here is about being hit
+ * rather than about the weapon that did it, and a serf's knife is not a
+ * weapon the counter table prices — so the multiplier stays at the call
+ * site and this takes the number that came out of it.
+ */
+function landBlow(
+  world: World,
+  attacker: Unit,
+  defender: Unit,
+  damage: number,
+): void {
+  defender.hp -= damage;
   if (isPlayerOwner(defender.owner)) {
     world.pendingEvents.push({
       kind: GameEventKind.damage,
@@ -838,11 +860,23 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
   // is not idle — it was told to walk away, and the systems above will
   // neither chase nor swing on its behalf, so handing it a target would only
   // make it look like it is fighting back.
+  // A civilian answers here too, and this is the ONLY way he ever gets a
+  // target: he acquires nobody, so the man who struck him is the whole of
+  // his war (see lastResortStrike). The disengage rule is a soldier's
+  // alone: it exists because a man told to walk away must not STOP and
+  // fight, and a civilian never stops — he keeps his errand, his route and
+  // his pace whatever is happening to him, so the walking serf and the
+  // standing one answer the same way. Without that exemption the stance
+  // would be decided by the wander system: two thirds of an idle village
+  // is strolling somewhere at any moment (systems/wander.ts sets a plain
+  // move for it), and every one of those men would have taken the blow
+  // with his hands down.
+  const defLastResort = UNIT_DEFS[defender.kind].lastResort !== undefined;
   if (
     !defender.dead &&
-    UNIT_DEFS[defender.kind].combat &&
+    (UNIT_DEFS[defender.kind].combat || defLastResort) &&
     (defender.targetId === undefined || defender.targetIsBuilding) &&
-    !isDisengaging(defender)
+    (defLastResort || !isDisengaging(defender))
   ) {
     defender.targetId = attacker.id;
     defender.targetIsBuilding = false;
@@ -851,6 +885,58 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
     killUnit(world, defender);
     disengage(attacker);
   }
+}
+
+/**
+ * A civilian's turn in the combat system: the whole of what a man with no
+ * weapon does in a war.
+ *
+ * He never acquires. Not once, at no radius — the acquisition scan is for
+ * men who were sent to fight, and a serf carrying planks past a raider is
+ * not one of them. The only target he ever holds is the one retaliation
+ * hangs on him in landBlow, which is to say the man who is already cutting
+ * him down, and he keeps it only while that man stays inside his own short
+ * reach. That is the last resort in full: he does not pick the fight, he
+ * does not follow it, he only refuses to die with his hands at his sides.
+ *
+ * And he fights without breaking stride. Nothing here touches his path,
+ * his task or his march pace — the errand goes on, the load stays on his
+ * shoulders, and the knife comes out only on the ticks his cooldown is
+ * up. A hauler who dropped his job the moment a bandit swung at him would
+ * be a far bigger change to the game than a point of damage.
+ *
+ * A soldier's own last resort is his weapon, so units with a `combat`
+ * block never reach this.
+ */
+function lastResortStrike(world: World, unit: Unit): void {
+  const stats = UNIT_DEFS[unit.kind].lastResort;
+  if (!stats) return;
+  // On the same clock as every other fighter: down at the top of the tick,
+  // and the blow still lands at <= 0.
+  if (unit.cooldownLeft > 0) unit.cooldownLeft--;
+  if (unit.targetId === undefined) return;
+  // Buildings are a siege, which is the one thing a knife cannot do.
+  // Reachable because a civilian can be handed one: an idle serf standing
+  // in a squad that was right-clicked onto a camp gets no raid task, but
+  // nothing stops a stale id from an earlier life either.
+  if (unit.targetIsBuilding) {
+    disengage(unit);
+    return;
+  }
+  const target = world.units.get(unit.targetId);
+  if (
+    !target ||
+    target.dead ||
+    exactDist(target.x - unit.x, target.y - unit.y) > stats.range
+  ) {
+    // Out of reach is the end of it — he does not take a step after it.
+    disengage(unit);
+    return;
+  }
+  if (unit.cooldownLeft > 0) return;
+  // Flat: no class, so no counter table (defs/units.ts LastResortStats).
+  landBlow(world, unit, target, stats.damage);
+  unit.cooldownLeft = strikeCooldown(world, unit.owner, stats.cooldownTicks);
 }
 
 /**

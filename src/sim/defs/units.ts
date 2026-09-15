@@ -24,6 +24,28 @@ export interface CombatStats {
   acquireRadius: number; // tiles
 }
 
+/**
+ * What a man with no weapon swings when it is that or nothing.
+ *
+ * Deliberately NOT a `CombatStats`, and deliberately a field of its own:
+ * `UnitDef.combat` is the whole engine's word for "this one is a soldier"
+ * — the army count, the formation rank, the select-army key, the orders a
+ * civilian may not take, the AI's reading of a rival's strength — and a
+ * serf with a knife is none of those things. Giving him a `combat` block
+ * would have enlisted every hauler in the valley in all of it at once.
+ *
+ * So it carries only what a blow needs, and no `class`: the triangle
+ * prices trained arms against each other, and a pitchfork has no place in
+ * it. A last-resort blow lands flat, on anyone.
+ */
+export interface LastResortStats {
+  damage: number;
+  cooldownTicks: number;
+  /** Reach, tiles. His attacker's reach, because he never takes a step to
+   * fight: what he cannot answer where he stands, he does not answer. */
+  range: number;
+}
+
 export interface UnitDef {
   id: UnitTypeId;
   speed: number; // tiles/sec
@@ -32,15 +54,51 @@ export interface UnitDef {
    * visibility filter and the renderer's fog, so the two cannot drift. */
   sight: number;
   combat?: CombatStats;
+  /** Present on the civilians: see LastResortStats. A unit has one or the
+   * other, never both — a soldier's last resort is his weapon. */
+  lastResort?: LastResortStats;
 }
+
+/**
+ * The civilian's answer to a man already at his throat.
+ *
+ * A tenth of a bandit's output and slower than any weapon on the field:
+ * a serf who is being cut down lands about three of these before he
+ * falls, so it takes a dozen dead villagers to bring one raider down
+ * with them. That is the whole intent — not a militia, just the refusal
+ * to die with his hands at his sides.
+ *
+ * Reach is every melee arm's reach (1.3). Shorter and it would be no
+ * reach at all: he never closes, so anything he cannot hit from where he
+ * is standing he will never hit.
+ */
+const LAST_RESORT: LastResortStats = {
+  damage: 1,
+  cooldownTicks: 30,
+  range: 1.3,
+};
 
 /**
  * The military triangle: heavy beats light, light catches ranged, ranged
  * kites heavy. Enemy kinds mirror the classes so counters matter both ways.
  */
 export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
-  [U.serf]: {id: U.serf, speed: 1.5, hp: 25, sight: 6.5},
-  [U.worker]: {id: U.worker, speed: 1.4, hp: 25, sight: 6.5},
+  [U.serf]: {
+    id: U.serf,
+    speed: 1.5,
+    hp: 25,
+    sight: 6.5,
+    lastResort: LAST_RESORT,
+  },
+  // A worker is a serf who took a post, so he keeps the serf's knife: the
+  // same man does not disarm himself by going to work at the mill.
+  [U.worker]: {
+    id: U.worker,
+    speed: 1.4,
+    hp: 25,
+    sight: 6.5,
+    lastResort: LAST_RESORT,
+  },
   [U.knight]: {
     id: U.knight,
     speed: 1.6,
