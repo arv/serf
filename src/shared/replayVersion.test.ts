@@ -737,8 +737,23 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to digest as identical and diverge on the following tick. The same
 // reasoning the "Still 33 after the enums moved" entries keep — the hash
 // is over raw bytes, so it moved anyway.
-const EXPECTED_VERSION = 70;
-const EXPECTED_HASH = '88f7dda9e3192088e4297375c0e07b39';
+// 71 for the two arms' clocks: the archer's course at the range, the
+// knight's at the barracks, and the bowstave, the spear and the sword at
+// the Smith. Five durations in defs/buildings.ts and nothing else — no
+// stat, no cost, no rule — but a course and a forge that finish on
+// different ticks re-time every haul, hire and march behind them, which is
+// behavior in the first minute of any log.
+// Still 71 after the spearman's course went back to its printed ten: it
+// was the sixth of those durations for one commit, and 71 is that same
+// commit's own bump, never released, so there is no older log stamped
+// with it to break. The hash is over raw bytes and moved regardless.
+// Still 71 again after two comments in defs/buildings.ts were corrected
+// to that revert (one still called the archer's course nine seconds, one
+// still handed the range's second to both steel arms rather than the
+// knight alone). Prose only — no constant, table or statement moved — and
+// the hash is over raw bytes, which is the whole reason it moved.
+const EXPECTED_VERSION = 71;
+const EXPECTED_HASH = '38e3996ecf93e146db7bd4d7c0e75f29';
 
 /**
  * Everything a replay's playback depends on, as raw source:
