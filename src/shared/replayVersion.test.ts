@@ -747,8 +747,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // was the sixth of those durations for one commit, and 71 is that same
 // commit's own bump, never released, so there is no older log stamped
 // with it to break. The hash is over raw bytes and moved regardless.
+// Still 71 again after two comments in defs/buildings.ts were corrected
+// to that revert (one still called the archer's course nine seconds, one
+// still handed the range's second to both steel arms rather than the
+// knight alone). Prose only — no constant, table or statement moved — and
+// the hash is over raw bytes, which is the whole reason it moved.
 const EXPECTED_VERSION = 71;
-const EXPECTED_HASH = 'f6a9c79b9babbe381006086e00cca4eb';
+const EXPECTED_HASH = '38e3996ecf93e146db7bd4d7c0e75f29';
 
 /**
  * Everything a replay's playback depends on, as raw source:

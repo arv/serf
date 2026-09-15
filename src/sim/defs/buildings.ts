@@ -846,7 +846,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // has stopped being.
     //
     // The speed it was supposed to pay for is still bought, by the build
-    // clock above and the nine-second archer below. Softness was never the
+    // clock above and the ten-second archer below. Softness was never the
     // load-bearing half of that trade: what makes the range a decision is
     // that it is a second roof and a second bill, not that a raider can
     // knock it over in fewer swings than the hall beside it.
@@ -866,10 +866,12 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       // bow is the one arm whose bill carries no iron (3 wood at the
       // Smith), so its course is the only place the bow line can be priced
       // without reaching into the ore economy it never touches. The second
-      // taken off here is the same second handed to each steel arm at the
-      // barracks below and to the spear and the sword at the forge — the
-      // gap between the two roots closes from both ends rather than by
-      // making anyone slower on his own.
+      // added here is the one handed back to the knight at the barracks
+      // below and to the spear and the sword at the forge — the gap between
+      // the two roots closes from both ends rather than by making anyone
+      // slower on his own. The barracks' spearman keeps his printed ten: he
+      // is the bow's own counter, and his second is spent on the forge's
+      // spear alone.
       //
       // The bill itself is unchanged — two bread and a bow, exactly what
       // the barracks charged.
