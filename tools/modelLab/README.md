@@ -184,8 +184,9 @@ is a monument every seat builds identically.
 ## The training cue
 
 `_training.html` is where the barracks, the archery range and the castle were
-taught to say they are busy. It is the only page here that drives a real
-`BuildingSync`: it stands hand-written `BuildingSnap`s in one and lets it run,
+taught to say they are busy. Like `_pier.html` it drives a real
+`BuildingSync` rather than composing models by hand — here to render the cue
+itself: it stands hand-written `BuildingSnap`s in one and lets it run,
 so what is on the screen is the whole chain a match draws — the panes and
 wall spills `assets.ts` finds in each model's own openings, the rig
 `buildingSync` harvests off it, and the level it eases and flickers. Break

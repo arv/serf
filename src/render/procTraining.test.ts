@@ -224,19 +224,28 @@ describe('the lit windows', () => {
   });
 
   it('gives each building its own light to burn', () => {
-    const a = harvestTrainingRig(rigged())!;
-    const b = harvestTrainingRig(rigged())!;
-    // Two rigs off two models already differ; the clone is what matters
-    // when both come off ONE shared template, which is how the renderer
-    // builds them (Object3D.clone shares materials).
+    // Off ONE template, cloned — which is how the renderer builds two
+    // barracks (makeGlbBuilding clones the shared template, and
+    // Object3D.clone shares the materials). Two separately built models
+    // would have separate materials already and this would pass with
+    // ownTrainingMaterials deleted, which is the whole thing it is here to
+    // catch.
+    const template = rigged();
+    const a = harvestTrainingRig(template.clone())!;
+    const b = harvestTrainingRig(template.clone())!;
+    expect(a.panes[0]!.material).toBe(b.panes[0]!.material); // shared, so far
+
     ownTrainingMaterials(a);
     ownTrainingMaterials(b);
+    expect(a.panes[0]!.material).not.toBe(b.panes[0]!.material);
+
+    // And the point of that: one hall lit, its neighbour dark.
     setTrainingLevel(a, 1, 3);
     setTrainingLevel(b, 0, 3);
     expect(
       (a.panes[0]!.material as THREE.MeshBasicMaterial).opacity,
     ).toBeGreaterThan(0.5);
-    expect(a.panes[0]!.material).not.toBe(b.panes[0]!.material);
+    expect(b.panes[0]!.visible).toBe(false);
   });
 
   it('is nothing at all on a building with no openings', () => {

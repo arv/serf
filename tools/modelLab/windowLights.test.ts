@@ -1,5 +1,6 @@
 import {readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
 import {EXTRA_VOIDS} from '../../src/render/assets';
@@ -26,8 +27,12 @@ import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
  * at.
  */
 
+// fileURLToPath, not `.pathname`: on Windows the latter keeps the slash in
+// front of the drive letter and leaves percent-escapes encoded, so the
+// fixture would simply not find the models. The .mjs scripts beside this
+// one do the same.
 const MODELS = join(
-  dirname(new URL(import.meta.url).pathname),
+  dirname(fileURLToPath(import.meta.url)),
   '../../public/models/kaykit',
 );
 

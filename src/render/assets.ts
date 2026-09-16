@@ -412,8 +412,9 @@ const GLB_PROP_FILES = [
 /**
  * Openings a training building backs in something other than the usual dark
  * slate recess — see VoidPaint. Exported for the fixture that runs the
- * finder over the real GLTFs (procTraining.assets.test.ts): the pane counts
- * it pins are only the shipping counts if it reads the shipping table.
+ * finder over the real GLTFs (tools/modelLab/windowLights.test.ts): the pane
+ * counts it pins are only the shipping counts if it reads the shipping
+ * table.
  *
  * The archery range is the only one. Its tower carries two window bands: the
  * lower one is painted like everyone else's, and the upper ring of six is
