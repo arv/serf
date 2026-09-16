@@ -8,6 +8,7 @@ import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import type {GoodAmounts} from '../sim/defs/goods';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {WATER_LEVEL} from '../sim/map';
 import type {FogQuery} from './fogOfWar';
 import {HeightField} from './heightField';
@@ -87,11 +88,30 @@ vi.mock('./assets', () => ({
       flue.position.y = 2;
       group.add(flue);
     }
+    // The three that train wear the training cue: light in the openings
+    // the model's own geometry gives up. The finder and the harvest here
+    // are the shipping code — only the wall they read is the box above.
+    if (
+      type === BuildingTypeId.barracks ||
+      type === BuildingTypeId.archeryRange ||
+      type === BuildingTypeId.storehouse
+    ) {
+      // One opening, painted from the atlas cell the finder reads.
+      const opening = new THREE.PlaneGeometry(0.2, 0.3);
+      const uv = opening.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.44, 0.1);
+      const wall = new THREE.Mesh(opening, new THREE.MeshLambertMaterial());
+      wall.position.set(0, 0.5, 0.6);
+      group.add(wall);
+      const glows = makeWindowGlows(wall);
+      if (glows) group.add(glows);
+    }
     return group;
   },
 }));
 
 const {makeShoal} = await import('./procParts');
+const {makeWindowGlows} = await import('./procTraining');
 
 const {BuildingSync} = await import('./buildingSync');
 
@@ -660,6 +680,164 @@ describe("the bakery's smoke", () => {
     const smoke = scene.getObjectByName('chimneySmoke')!;
     expect(smoke.visible).toBe(true);
     expect(smoke.children.filter(p => p.visible).length).toBeGreaterThan(0);
+  });
+});
+
+describe('the training cue', () => {
+  const hall = (over: Partial<BuildingSnap> = {}): BuildingSnap =>
+    snap({type: BuildingTypeId.barracks, ...over});
+  /** A knight actually on the fire — the state that lights the cue. */
+  const drilling = (): BuildingSnap =>
+    hall({
+      trainQueue: [{unit: UnitTypeId.knight, started: true, progress01: 0.4}],
+    });
+  const pane = (scene: THREE.Scene): THREE.Mesh =>
+    scene.getObjectByName('windowPane') as THREE.Mesh;
+  const lit = (scene: THREE.Scene): number =>
+    pane(scene).visible
+      ? (pane(scene).material as THREE.MeshBasicMaterial).opacity
+      : 0;
+
+  it('lights the windows while a course runs', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    // Nothing until it is drawn: the level eases up from cold.
+    expect(lit(scene)).toBe(0);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBeGreaterThan(0.5);
+    // ...and so does the light landing on the stone around them.
+    const spill = scene.getObjectByName('windowSpill') as THREE.Mesh;
+    expect(spill.visible).toBe(true);
+    expect((spill.material as THREE.MeshBasicMaterial).opacity).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it('stays cold for an order that has not started', () => {
+    const {sync, scene} = makeSync();
+    // Queued behind a sword nobody has forged: the exact state a player
+    // wants told apart from a course actually running.
+    sync.update([
+      hall({trainQueue: [{unit: UnitTypeId.knight, started: false}]}),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBe(0);
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
+  });
+
+  it('lights on a high-refresh display, not just at sixty frames', () => {
+    // The dark fast path snapped any sub-threshold level to zero, including
+    // a RISING one — and a rise is dt-sized, so at 120Hz the first step
+    // (0.018) never cleared the threshold (0.02) and the hall was reset to
+    // dark every frame. The windows simply never lit. Sixty frames a second
+    // cleared it by a hair, which is why nothing caught it.
+    for (const hz of [30, 60, 120, 144, 240]) {
+      const {sync, scene} = makeSync();
+      sync.update([drilling()]);
+      for (let i = 0; i < hz * 3; i++) sync.frame(1 / hz);
+      expect(lit(scene), `${hz}Hz`).toBeGreaterThan(0.5);
+    }
+  });
+
+  it('keeps the glow out of the pick: light is not something you click', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    // buildingSync's pick walk skips a subtree marked this way; unmarked,
+    // every lit pane and spill of a castle joins the ray's list.
+    const glow = scene.getObjectByName('windowGlow')!;
+    expect(glow.userData.noPick).toBe(true);
+  });
+
+  it('goes out when the building is paused', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBeGreaterThan(0.5);
+    sync.update([{...drilling(), paused: true}]);
+    for (let i = 0; i < 60; i++) sync.frame(0.1);
+    expect(lit(scene)).toBe(0);
+  });
+
+  it('banks rather than snapping when the last order finishes', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    sync.update([hall()]);
+    // One frame later it is dimmer but still burning: a full queue starts
+    // its next order a tick after the last one ends, and a cue that
+    // snapped would put the banner down between every two soldiers.
+    sync.frame(0.1);
+    const ember = lit(scene);
+    expect(ember).toBeGreaterThan(0.3);
+    expect(ember).toBeLessThan(1);
+    for (let i = 0; i < 100; i++) sync.frame(0.1);
+    expect(lit(scene)).toBe(0);
+  });
+
+  it('lights the castle for a serf hire, which is the course it runs', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.storehouse,
+        hireQueue: 1,
+        hireProgress01: 0.3,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBeGreaterThan(0.5);
+  });
+
+  it('never lights a site: nobody trains in a building not yet built', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      {...drilling(), state: BuildingState.site, siteNeeds: {[GoodId.wood]: 2}},
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(pane(scene).visible).toBe(false);
+  });
+
+  it('keeps the glow out of the x-ray wall marking', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    // A marked mesh is handed an occluder twin of its material and draws
+    // late; the panes must keep the material the level is set on, and the
+    // yard props must not stamp a wall bit over open grass.
+    const pane_ = scene.getObjectByName('windowPane')!;
+    expect(pane_ instanceof THREE.Mesh).toBe(true);
+    expect((pane_ as THREE.Mesh).renderOrder).not.toBe(WALL_RENDER_ORDER);
+    eachMaterial(pane_ as THREE.Mesh, mat =>
+      expect(mat.stencilWrite).toBe(false),
+    );
+  });
+
+  it("burns its own fire, not the shared template's", () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling(), {...hall(), id: 8, x: 20, y: 20}]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const panes = scene
+      .getObjectsByProperty('name', 'windowPane')
+      .map(o => o as THREE.Mesh);
+    expect(panes.length).toBe(2);
+    const opacities = panes.map(
+      p => (p.material as THREE.MeshBasicMaterial).opacity,
+    );
+    // One drilling, one idle — and the idle one is dark, which it cannot
+    // be if the two share the template's material.
+    expect(Math.max(...opacities)).toBeGreaterThan(0.5);
+    expect(panes.some(p => !p.visible)).toBe(true);
+  });
+
+  it('frees the fire it owned when the building comes down', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const mat = pane(scene).material as THREE.MeshBasicMaterial;
+    const freed = vi.spyOn(mat, 'dispose');
+    sync.update([]);
+    // Teardown sinks the model first; run it out.
+    for (let i = 0; i < 40; i++) sync.frame(0.1);
+    expect(freed).toHaveBeenCalled();
   });
 });
 

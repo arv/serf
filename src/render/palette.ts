@@ -70,8 +70,12 @@ export const woodLight = 0x7d5a35;
 export const vermillion = 0xbf4342;
 /** Cloth. */
 export const indigo = 0x30437a;
-/** Glowing lanterns. */
-export const lantern = 0xffc46b;
+/** Glowing lanterns — a window with a fire behind it, the light on the
+ * stone around it. Deeper and more saturated than the light reads on
+ * screen: the renderer grades ACES filmic at 1.32 exposure, which walks a
+ * bright warm colour toward white, and the paler amber this started at
+ * (0xffc46b) came out of it as cream. */
+export const lantern = 0xffb23c;
 
 // ——— Atmosphere ———
 

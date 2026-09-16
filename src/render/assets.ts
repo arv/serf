@@ -19,6 +19,7 @@ import {
   makeWindlassHouse,
 } from './procMines';
 import {makeFishSign, makeShoal} from './procParts';
+import {makeWindowGlows, type VoidPaint} from './procTraining';
 import * as ScatterPackNs from './scatterPackEnum.ts';
 import {
   DEFAULT_FIGURE,
@@ -408,6 +409,40 @@ const GLB_PROP_FILES = [
 // No goods-shaped decor on producers whose live stock piles up outside:
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
+/**
+ * Openings a training building backs in something other than the usual dark
+ * slate recess — see VoidPaint. Exported for the fixture that runs the
+ * finder over the real GLTFs (tools/modelLab/windowLights.test.ts): the pane
+ * counts it pins are only the shipping counts if it reads the shipping
+ * table.
+ *
+ * The archery range is the only one. Its tower carries two window bands: the
+ * lower one is painted like everyone else's, and the upper ring of six is
+ * painted from cell (1,6) — as are the sides of the straw bales down in its
+ * shooting lane. The bales sit at model y 0.222 and the windows at 1.199, so
+ * a floor between them lights the tower and leaves the straw alone. Without
+ * this the range lit four windows to the castle's twenty-three, and from most
+ * angles exactly one of them was facing you.
+ */
+export const EXTRA_VOIDS: Partial<Record<BuildingTypeId, VoidPaint[]>> = {
+  [BuildingTypeId.archeryRange]: [{cell: [0, 3]}, {cell: [1, 6], minY: 0.8}],
+};
+
+/**
+ * The buildings whose windows light while a course runs (procTraining.ts).
+ * The castle is here for its serf hires, the one course it runs.
+ *
+ * Exported because this table, not the paint, is what decides which
+ * buildings give their production away — a house has the same dark-slate
+ * openings and would light just as readily — so what is in it is a gameplay
+ * decision and windowLights.test.ts pins it.
+ */
+export const TRAINS: Partial<Record<BuildingTypeId, true>> = {
+  [BuildingTypeId.barracks]: true,
+  [BuildingTypeId.archeryRange]: true,
+  [BuildingTypeId.storehouse]: true,
+};
+
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // No bakery entry: it dresses its own yard from procBuildings — hearth
   // apron, arch, loaves — and a sack, a bucket and a log pile round its
@@ -1189,7 +1224,18 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           }
         });
       }
+      // Lit windows for the buildings that train (see procTraining). The
+      // panes are harvested from the model's own openings before normalize
+      // — that is the space their triangles are in — and hung on it AFTER,
+      // so the hair of standoff each one carries cannot widen the bbox the
+      // whole template is fitted by. A building drawn 0.5% smaller because
+      // somebody lit its windows is exactly the kind of drift this pipeline
+      // must not have.
+      const glows = TRAINS[type]
+        ? makeWindowGlows(scene, EXTRA_VOIDS[type])
+        : null;
       const group = normalize(scene);
+      if (glows) scene.add(glows);
       dress(type, group);
       splitTeamColorGroups(group);
       buildings.set(type, group);
