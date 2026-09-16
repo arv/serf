@@ -58,7 +58,14 @@ pnpm dev
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut
-  turns red outside it, so a hut is never built to stand idle.
+  turns red outside it, so a hut is never built to stand idle. Ground runs
+  out later, though, and a hut that has run out draws exactly like one that
+  is working — so when the last of it goes, the hut says so: *worked out*
+  when there is nothing left inside the square, *walled in* when there are
+  loads standing in it that no worker can walk to (rock ringed by its own
+  grove, a seam pinched shut by building). One asks you to sell the hut and
+  move on; the other asks you to fell what is in the way. The notice is
+  clickable, like a raid warning.
 - **Population**: the HUD counts every person you own — idle serfs, the
   workers inside your buildings, and your soldiers, since each one was a serf
   first. The castle sleeps 10 and you start with 8, so growth needs **houses**:
