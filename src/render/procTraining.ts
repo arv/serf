@@ -336,8 +336,15 @@ export function makeWindowGlows(
     const paintOf = (i0: number, i1: number, i2: number): VoidPaint | null => {
       const u = (uv.getX(i0) + uv.getX(i1) + uv.getX(i2)) / 3;
       const v = (uv.getY(i0) + uv.getY(i1) + uv.getY(i2)) / 3;
-      const row = Math.floor(v * 4);
-      const col = Math.floor(u * 8);
+      // Clamped into the grid, as assets.ts' own atlasCell is and for the
+      // reason written there: a UV of exactly 1.0 floors to column 8 or row
+      // 4, one past the 8x4 grid, and the cell then matches nothing — the
+      // opening is dropped in silence. The far edge belongs to the last
+      // cell, not to one that does not exist. (Duplicated rather than
+      // shared because atlasCell lives in assets.ts, which imports this
+      // file; reaching back the other way would close the cycle.)
+      const col = Math.min(7, Math.max(0, Math.floor(u * 8)));
+      const row = Math.min(3, Math.max(0, Math.floor(v * 4)));
       return paints.find(p => p.cell[0] === row && p.cell[1] === col) ?? null;
     };
     for (let i = 0; i < index.count; i += 3) {

@@ -74,6 +74,24 @@ describe('finding a building’s windows', () => {
     expect(size.y).toBeLessThan(0.3);
   });
 
+  it('keeps an opening whose paint runs to the far edge of the atlas', () => {
+    // A UV of exactly 1.0 floors to column 8 / row 4 — one past the 8x4
+    // grid — and an unclamped lookup matches no cell at all, so the opening
+    // vanishes without a word. assets.ts' atlasCell clamps for this reason
+    // and so does the finder. None of today's models reaches 1.0 (they top
+    // out at u 0.857, v 0.971), which is exactly why it wants a test.
+    const model = new THREE.Group();
+    const opening = voidPlate(0.2, 0.3);
+    const uv = opening.geometry.getAttribute('uv');
+    // The last cell of the grid, painted right up to its outer corner.
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, 1, 1);
+    opening.position.set(0, 0.5, 0.6);
+    model.add(opening);
+    const glows = makeWindowGlows(model, [{cell: [3, 7]}]);
+    expect(glows).not.toBeNull();
+    expect(glows!.children.filter(o => o.name === 'windowPane').length).toBe(1);
+  });
+
   it('leaves the masonry alone, and the flat dark the roofs wear', () => {
     const model = new THREE.Group();
     const wall = wallPlate(0.4, 0.4);
