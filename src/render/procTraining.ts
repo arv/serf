@@ -300,8 +300,11 @@ export function makeWindowGlows(
      * the last sliver on the castle turned out to be. Both sides are kept
      * and the spill takes the smaller.
      *
-     * Filled by the second pass; 0 until then, read as "unknown", which
-     * leaves the spill at its authored size. */
+     * Filled by the second pass. All four stay 0 when no wall was found at
+     * all, and the sizing below then lands on SPILL_FLOOR — the smallest
+     * halo, not the authored one. That is deliberate and it is the safe way
+     * round: an opening whose wall we could not measure is exactly the one
+     * whose spill might otherwise hang off the end of it. */
     reach: {left: number; right: number; down: number; up: number};
   }
   const voids: Void[] = [];
@@ -319,18 +322,30 @@ export function makeWindowGlows(
     const uv = geo.getAttribute('uv');
     const nor = geo.getAttribute('normal');
     if (!index || !uv || !nor) return;
-    /** Which paint this vertex wears, or null when it is not an opening's. */
-    const paintOf = (i: number): VoidPaint | null => {
-      const row = Math.floor(uv.getY(i) * 4);
-      const col = Math.floor(uv.getX(i) * 8);
+    /**
+     * Which paint a triangle wears, or null when it is not an opening's.
+     *
+     * By the UV CENTROID, which is how the rest of this pipeline reads the
+     * atlas (assets.ts, cutPackPiece). Flooring each corner separately and
+     * demanding all three agree is the stricter test, and it splits any
+     * triangle whose corners straddle a cell edge — none of the three
+     * models has one today (measured: not one triangle of the eleven
+     * thousand), but a model that did would lose exactly the openings this
+     * is looking for, and silently.
+     */
+    const paintOf = (i0: number, i1: number, i2: number): VoidPaint | null => {
+      const u = (uv.getX(i0) + uv.getX(i1) + uv.getX(i2)) / 3;
+      const v = (uv.getY(i0) + uv.getY(i1) + uv.getY(i2)) / 3;
+      const row = Math.floor(v * 4);
+      const col = Math.floor(u * 8);
       return paints.find(p => p.cell[0] === row && p.cell[1] === col) ?? null;
     };
     for (let i = 0; i < index.count; i += 3) {
       const i0 = index.getX(i);
       const i1 = index.getX(i + 1);
       const i2 = index.getX(i + 2);
-      const paint = paintOf(i0);
-      if (!paint || paintOf(i1) !== paint || paintOf(i2) !== paint) continue;
+      const paint = paintOf(i0, i1, i2);
+      if (!paint) continue;
       a.fromBufferAttribute(pos, i0).applyMatrix4(o.matrixWorld);
       b.fromBufferAttribute(pos, i1).applyMatrix4(o.matrixWorld);
       c.fromBufferAttribute(pos, i2).applyMatrix4(o.matrixWorld);

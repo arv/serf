@@ -411,7 +411,9 @@ const GLB_PROP_FILES = [
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 /**
  * Openings a training building backs in something other than the usual dark
- * slate recess — see VoidPaint.
+ * slate recess — see VoidPaint. Exported for the fixture that runs the
+ * finder over the real GLTFs (procTraining.assets.test.ts): the pane counts
+ * it pins are only the shipping counts if it reads the shipping table.
  *
  * The archery range is the only one. Its tower carries two window bands: the
  * lower one is painted like everyone else's, and the upper ring of six is
@@ -421,7 +423,7 @@ const GLB_PROP_FILES = [
  * this the range lit four windows to the castle's twenty-three, and from most
  * angles exactly one of them was facing you.
  */
-const EXTRA_VOIDS: Partial<Record<BuildingTypeId, VoidPaint[]>> = {
+export const EXTRA_VOIDS: Partial<Record<BuildingTypeId, VoidPaint[]>> = {
   [BuildingTypeId.archeryRange]: [{cell: [0, 3]}, {cell: [1, 6], minY: 0.8}],
 };
 

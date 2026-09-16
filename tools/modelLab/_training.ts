@@ -3,10 +3,10 @@
  *
  * Not a mock at any level — it stands real `BuildingSnap`s in a real
  * `BuildingSync` and lets it run, so what is on the screen is the whole
- * chain the match draws: the decor `assets.ts` dresses each model with, the
- * rig `buildingSync` harvests off it, the level it eases, and the chimney
- * smoke it stands on the brazier's flue. Change the cue and this changes
- * with it; break the wiring and this goes dark.
+ * chain the match draws: the panes and spills `assets.ts` finds in each
+ * model's own openings, the rig `buildingSync` harvests off it, and the
+ * level it eases and flickers. Change the cue and this changes with it;
+ * break the wiring and this goes dark.
  *
  *   pnpm dev   # then /tools/modelLab/_training.html
  *

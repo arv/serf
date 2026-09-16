@@ -2,10 +2,12 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["vite/client"]
+    // Node as well as the browser: the pages here are browser code, but
+    // windowLights.test.ts reads the pack models straight off disk — the
+    // same arrangement tools/aiLab uses for its own node-side tests. The
+    // .mjs scripts beside them are still untyped.
+    "types": ["node", "vite/client"]
   },
-  // The browser half only. The vite config and the node scripts beside it
-  // want @types/node, which this project does not install at the root.
   "include": ["*.ts"],
   "exclude": ["vite.gallery.config.ts"]
 }

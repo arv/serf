@@ -406,9 +406,8 @@ interface BuildingVisual {
    * so a relief — the levy going down as soldiers come up — rebuilds the
    * figures instead of leaving serfs standing in an archer's post. */
   levied: boolean;
-  /** The lit windows, the brazier, the banner and the yard — harvested off
-   * the model of a building that trains, absent on every other one (see
-   * procTraining.ts). */
+  /** The lit panes and their wall spills, harvested off the model of a
+   * building that trains; absent on every other one (procTraining.ts). */
   train?: TrainingRig;
   /** The materials that rig's glow rides on, cloned per building so one
    * barracks' fire is not every barracks' fire. Freed with the visual. */
@@ -417,8 +416,8 @@ interface BuildingVisual {
    * the range, a serf being hired at the castle. */
   training: boolean;
   /** How lit the cue is, 0..1, eased toward that. The same treatment the
-   * chimney smoke gets and for the same reason: a fire is banked and a
-   * banner is hauled down, and neither happens between two frames. */
+   * chimney smoke gets and for the same reason: a fire is lit and banked
+   * rather than switched, and neither end happens between two frames. */
   trainLevel: number;
 }
 
@@ -446,6 +445,10 @@ const MINE_SPOTS: [number, number, number, number][] = [
 ];
 
 const HP_BAR_W = 1.1;
+
+/** Below this the windows are out, and the rig stops being walked at all —
+ * the same threshold setTrainingLevel itself reads for "lit". */
+const TRAIN_DARK = 0.02;
 
 /** Grinding-speed sail rotation, rad/s — brisk enough to read as working
  * at village zoom, slow enough to stay a windmill and not a propeller. */
@@ -1853,23 +1856,34 @@ export class BuildingSync {
   }
 
   /**
-   * The training cue, per frame: lit windows, the brazier's fire, the
-   * banner's run up the pole, the pell's rocking and the arrows down the
-   * range's lane (procTraining.ts holds all of it).
+   * The training cue, per frame: the level that lights this hall's windows
+   * and the light they throw on the stone (procTraining.ts holds both).
    *
    * The level eases rather than snapping, on the chimney smoke's own
-   * reasoning and with its own asymmetry: a course starting is a torch put
-   * to a laid fire and a banner hauled up, which is brisk; a course ending
-   * is a fire left to burn down, which is not. The slow side also bridges
-   * the gap between two orders in a full queue — the sim starts the next
-   * one a tick after the last one ends, and a strictly-read cue would put
-   * the banner down and back up between every two soldiers.
+   * reasoning and with its own asymmetry: a course starting is a lamp put to
+   * a wick, which is brisk; a course ending is a fire left to burn down,
+   * which is not. The slow side also bridges the gap between two orders in a
+   * full queue — the sim starts the next one a tick after the last one ends,
+   * and a strictly-read cue would darken the hall and relight it between
+   * every two soldiers.
+   *
+   * A dark hall costs one compare. The rig is walked only while there is
+   * something to see, plus the single frame that crosses down through the
+   * threshold and puts it out — without that last one an idle castle would
+   * keep its windows lit at whatever level it was left at.
    */
   #trainFrame(v: BuildingVisual, dt: number): void {
     const target = v.training && v.state === BuildingState.built ? 1 : 0;
+    const was = v.trainLevel;
     v.trainLevel +=
       (target - v.trainLevel) *
       Math.min(1, dt * (target > v.trainLevel ? 2.2 : 0.7));
+    if (v.trainLevel < TRAIN_DARK) {
+      // Cold, and it eases asymptotically, so snap the tail to nothing
+      // rather than chasing zero forever.
+      v.trainLevel = 0;
+      if (was < TRAIN_DARK) return;
+    }
     setTrainingLevel(v.train!, v.trainLevel, this.#now);
   }
 

@@ -186,10 +186,10 @@ is a monument every seat builds identically.
 `_training.html` is where the barracks, the archery range and the castle were
 taught to say they are busy. It is the only page here that drives a real
 `BuildingSync`: it stands hand-written `BuildingSnap`s in one and lets it run,
-so what is on the screen is the whole chain a match draws — the decor
-`assets.ts` dresses each model with, the rig `buildingSync` harvests off it,
-the level it eases, and the chimney smoke it stands on the brazier's flue.
-Break the wiring and the page goes dark, which is the point of it.
+so what is on the screen is the whole chain a match draws — the panes and
+wall spills `assets.ts` finds in each model's own openings, the rig
+`buildingSync` harvests off it, and the level it eases and flickers. Break
+the wiring and the page goes dark, which is the point of it.
 
 ```sh
 pnpm dev   # then /tools/modelLab/_training.html
@@ -199,10 +199,13 @@ pnpm dev   # then /tools/modelLab/_training.html
 comparison that matters: the cue has to read as a *difference*, not as
 decoration. `?cold=1` empties the queues instead. `?t=<seconds>` freezes the
 clock at a moment — stepped at the frame rate, so it is repeatable and a
-series of them cuts together into a clip — and `?warm=<seconds>` runs the fire
-up before that freeze, since everything here eases and a cold start caught at
-t=0 shows nothing. `?only=barracks|range|castle` blows one up; `?yaw`, `?zoom`,
-`?fy`, `?w`, `?h` and `?gap` frame the shot as everywhere else.
+series of them cuts together into a clip — and `?warm=<seconds>` runs the
+light up before that freeze, since the level eases and a cold start caught at
+t=0 shows nothing. `?hide=spill|pane` drops one of the glow's two layers,
+which is how an invisible spill was told apart from a misplaced one.
+`?only=barracks|range|castle` blows one up; `?yaw`, `?zoom`, `?fy`, `?w`,
+`?h` and `?gap` frame the shot as everywhere else — and turn the camera
+before judging it, since the windows on the far side are lit too.
 
 ## Publishing the gallery
 
