@@ -1889,8 +1889,10 @@ describe('the serf’s knife, under an A order', () => {
 
     const seven = ring(7, UnitTypeId.knight);
     expect(seven.slain).toBe(true);
-    // And not for free: the win costs four of the seven.
-    expect(seven.standing).toBeLessThan(7);
+    // And not for free: the win costs four of the seven. Pinned to the
+    // figure rather than to "fewer than seven", which a mob that lost six
+    // of them would also satisfy — the cost IS the balance claim here.
+    expect(seven.standing).toBe(3);
   });
 
   it('is disarmed again by a plain move, mid-charge', () => {
@@ -1939,7 +1941,18 @@ describe('the serf’s knife, under an A order', () => {
     expect(serf.task.t).toBe(UnitTaskKind.raid);
     const full = BUILDING_DEFS[BuildingTypeId.banditCamp].hp;
     run(world, 20 * 30);
-    expect(camp.hp).toBeLessThan(full);
+    // The rate, not merely the fact of it. Thirty seconds is twenty swings
+    // on a thirty-tick cooldown, each landing MILITIA.damage halved by
+    // MILITIA_BUILDING_MULT (systems/combat.ts) — twenty points off a
+    // six-hundred point camp, which is the quarter-hour siege the knife is
+    // priced at. The band is a swing either way for the walk in; at one
+    // point of damage it would be ten, so this is what tells the two
+    // prices apart.
+    const lost = full - camp.hp;
+    expect(lost).toBeGreaterThanOrEqual(18);
+    expect(lost).toBeLessThanOrEqual(22);
+    // And still the worst rate on the map: a lone villager is nowhere near
+    // taking the place down inside half a minute.
     expect(camp.hp).toBeGreaterThan(full * 0.95);
   });
 

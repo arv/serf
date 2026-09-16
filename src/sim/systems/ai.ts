@@ -3504,8 +3504,9 @@ export class AiBrain {
    * it would take to rebuild either are ten minutes it does not have. So
    * it spends the only thing it still owns. The villagers go in with their
    * knives (defs/units.ts MILITIA), which is about a fifth of a raider's
-   * output each and some seven of them for one dead raider — a bad trade,
-   * and the only one on the table.
+   * output each: four of them for one dead bandit and seven for one dead
+   * knight, and the stand fires on any armed enemy at the door. A bad
+   * trade at either price, and the only one on the table.
    *
    * Deliberately narrow, because the cost of a false positive is the whole
    * economy: every gate below has to hold at once, and the moment one stops

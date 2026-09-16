@@ -802,8 +802,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // hour, not half of one). 72 is on main, so there are logs stamped with it
 // that a two-point knife would replay wrong: a blow that kills a tick
 // earlier moves every draw behind it.
+// Still 73 after the review round on #295 tightened the bump's own tests
+// and prose: the seven-versus-knight tally now pins the three survivors
+// rather than "fewer than seven", the camp test asserts the twenty points
+// a half-minute of chewing takes off (ten at the old price, so it is what
+// tells the two apart), and three comments that gave one threshold for
+// every foe now give the bandit's and the knight's. Tests and prose — no
+// statement the sim executes moves — and the hash is over raw bytes.
 const EXPECTED_VERSION = 73;
-const EXPECTED_HASH = '3e922d8712814d8dda5959afdbf672af';
+const EXPECTED_HASH = 'e9869af5ae75da5eaea7cdff09e457d2';
 
 /**
  * Everything a replay's playback depends on, as raw source:

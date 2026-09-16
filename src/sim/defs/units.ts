@@ -67,11 +67,13 @@ export interface UnitDef {
  * battle.
  *
  * A fifth of a bandit's output and slower than any weapon on the field.
- * A serf being cut down lands about three of these before he falls, so it
- * takes some seven dead villagers to bring one raider down with them; a
- * mob told to charge trades better than that and still badly, which is
- * the whole intent — seven of them put down one knight and three walk
- * away from it. It is an answer, not an army.
+ *
+ * Two modes, two prices. Cut down one at a time on their errands, a serf
+ * lands about three of these before he falls, so a bandit walks through
+ * some seven of them before the last one's knife finishes him. Sent in
+ * together under an A order they trade better — four take a bandit, seven
+ * take a knight and three of those seven walk away — and still badly
+ * enough that it is never the plan. It is an answer, not an army.
  *
  * No class, so no counter table on either side of the blow: he neither
  * counters nor is countered, and against a wall he is the worst siege
