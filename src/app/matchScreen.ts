@@ -76,6 +76,7 @@ import {DamageAlerts} from './damageAlerts';
 import {fatal, showFatal} from './fatalScreen';
 import {stampName} from './fileStore';
 import type {GameConfig} from './gameConfig';
+import {GatherAlerts} from './gatherAlerts';
 import {openWithRetry} from './glContext';
 import {HiddenSync} from './hiddenSync';
 import {WorldMirror} from './mirror';
@@ -600,6 +601,10 @@ export async function runMatch(
   // Its haze layer is a child of document.body, so nothing else takes it
   // down: not the canvas swap, not the HUD's Solid root.
   teardown.push(() => damageAlerts.dispose());
+  // Ground running out from under a gatherer, watched off the roster the
+  // frame below applies. Nothing to dispose: it holds numbers, not scene
+  // objects or DOM.
+  const gatherAlerts = new GatherAlerts({toast: pushToast});
   // Whether the frame loop keeps feeding the outlines their occluders.
   // Only __xray (DEV, just below) ever turns it off.
   let xrayOutlines = true;
@@ -1026,6 +1031,11 @@ export async function runMatch(
       buildingSync.update(msg.buildings);
       roster = msg.buildings;
       feedWells();
+      // A spectator has no huts to manage — the same rule the horn and the
+      // damage haze go quiet under, and for the same reason: the seat's
+      // quarries stop being anyone's problem when the seat falls.
+      if (spectating) gatherAlerts.clear();
+      else gatherAlerts.update(roster, viewerId());
     }
   }
 
