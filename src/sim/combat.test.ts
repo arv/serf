@@ -1837,6 +1837,62 @@ describe('the serf’s knife, under an A order', () => {
     expect(bandit.dead).toBe(true);
   });
 
+  /**
+   * The mob's price, in men, for one soldier: N villagers ringed around him
+   * so every one of them has a lane in, all sent at once. Returns whether
+   * he died and how many of them were still standing when he did.
+   *
+   * The ring is the mob's best case — nobody queues behind anybody — which
+   * is what makes it the right shape to price the knife by. A mob that
+   * cannot win from here cannot win.
+   */
+  function ring(
+    n: number,
+    kind: UnitTypeId,
+  ): {slain: boolean; standing: number} {
+    const world = bareWorld();
+    addStorehouse(world, 44, 44, {});
+    const foe = spawnUnit(world, kind, BANDIT, 30.5, 30.5);
+    const mob = Array.from({length: n}, (_, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return spawnUnit(
+        world,
+        UnitTypeId.serf,
+        0,
+        30.5 + Math.cos(a) * 3,
+        30.5 + Math.sin(a) * 3,
+      );
+    });
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: mob.map(u => u.id),
+        x: 30,
+        y: 30,
+        attack: true,
+      }),
+    );
+    run(world, 20 * 120);
+    return {slain: foe.dead, standing: mob.filter(u => !u.dead).length};
+  }
+
+  // The tally the knife is priced by (defs/units.ts MILITIA). It is pinned
+  // rather than described because it is the whole point of the number: at
+  // one point of damage the answer was nine, and eight villagers died to
+  // leave the knight standing — a mob that spends every man and loses is
+  // not a weak answer, it is none. Seven is the figure the two points buy.
+  it('seven villagers put a knight down, and six do not', () => {
+    const six = ring(6, UnitTypeId.knight);
+    expect(six.slain).toBe(false);
+    expect(six.standing).toBe(0);
+
+    const seven = ring(7, UnitTypeId.knight);
+    expect(seven.slain).toBe(true);
+    // And not for free: the win costs four of the seven.
+    expect(seven.standing).toBeLessThan(7);
+  });
+
   it('is disarmed again by a plain move, mid-charge', () => {
     const {world, serf} = charge(38, 30);
     spawnUnit(world, UnitTypeId.bandit, BANDIT, 35.5, 30.5);

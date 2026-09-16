@@ -708,9 +708,9 @@ export const AI_WAR = {
    * How many villagers make a stand worth calling. Below this the mob is
    * not a mob, and the last thing a seat down to three haulers should do
    * is walk them one at a time into a knight: the odds (defs/units.ts
-   * MILITIA) say a dozen villagers kill one raider, so a handful kill
-   * nobody and the seat loses its last hands as well as its last
-   * buildings. It does not save the seat either way — but a village that
+   * MILITIA) put four villagers on one bandit and seven on one knight, so
+   * a handful short of that kill nobody and the seat loses its last hands
+   * as well as its last buildings. It does not save the seat either way — but a village that
    * merely dies is a village that could still have been rebuilt from, and
    * this must not fire where there was anything left to rebuild with.
    */
@@ -3503,9 +3503,9 @@ export class AiBrain {
    * dead, the barracks it would muster from is rubble, and the ten minutes
    * it would take to rebuild either are ten minutes it does not have. So
    * it spends the only thing it still owns. The villagers go in with their
-   * knives (defs/units.ts MILITIA), which is about a tenth of a raider's
-   * output each and a dozen of them for one dead raider — a bad trade, and
-   * the only one on the table.
+   * knives (defs/units.ts MILITIA), which is about a fifth of a raider's
+   * output each and some seven of them for one dead raider — a bad trade,
+   * and the only one on the table.
    *
    * Deliberately narrow, because the cost of a false positive is the whole
    * economy: every gate below has to hold at once, and the moment one stops

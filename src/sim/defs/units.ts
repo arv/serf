@@ -66,11 +66,12 @@ export interface UnitDef {
  * them. What he gains is a way to strike, not a place in the order of
  * battle.
  *
- * A tenth of a bandit's output and slower than any weapon on the field.
+ * A fifth of a bandit's output and slower than any weapon on the field.
  * A serf being cut down lands about three of these before he falls, so it
- * takes a dozen dead villagers to bring one raider down with them; a mob
- * told to charge trades about as badly, which is the whole intent. It is
- * an answer, not an army.
+ * takes some seven dead villagers to bring one raider down with them; a
+ * mob told to charge trades better than that and still badly, which is
+ * the whole intent — seven of them put down one knight and three walk
+ * away from it. It is an answer, not an army.
  *
  * No class, so no counter table on either side of the blow: he neither
  * counters nor is countered, and against a wall he is the worst siege
@@ -84,7 +85,7 @@ export interface UnitDef {
  */
 export const MILITIA: FightStats = {
   class: undefined,
-  damage: 1,
+  damage: 2,
   cooldownTicks: 30,
   range: 1.3,
   acquireRadius: 4,
