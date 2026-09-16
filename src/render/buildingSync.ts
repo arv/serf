@@ -1892,6 +1892,13 @@ export class BuildingSync {
     v.root.worldToLocal(SCRATCH_POS);
     const group = new THREE.Group();
     group.name = 'chimneySmoke';
+    // Sized to the building under it. The column is authored in world units
+    // — a tile's worth of rise — which is a bakehouse's oven, and on a hall
+    // three tiles across standing three and a half tall the same column
+    // reads as a wisp caught on the roof rather than as a hearth drawing.
+    // The bakery and the Smith are the two-tile case and keep the column
+    // exactly as it was.
+    group.scale.setScalar(Math.max(1, v.span / 2));
     // Smoke is weather, not masonry — see silhouetteT.
     group.userData[PICK_IGNORE] = true;
     group.position.copy(SCRATCH_POS);

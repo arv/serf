@@ -2,10 +2,6 @@ import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
 import {
   harvestTrainingRig,
-  makeArrowLane,
-  makeBrazier,
-  makeMusterBanner,
-  makePell,
   makeWindowGlows,
   ownTrainingMaterials,
   setTrainingLevel,
@@ -79,88 +75,53 @@ describe('finding a building’s windows', () => {
   });
 });
 
-describe('the training rig', () => {
-  /** One building's worth of cue: windows, a fire, a banner and a pell. */
+describe('the lit windows', () => {
+  /** One building's worth of cue: a wall with an opening in it, lit. */
   function rigged(): THREE.Group {
     const model = new THREE.Group();
-    const window_ = voidPlate(0.2, 0.3);
-    window_.position.set(0, 0.5, 0.6);
-    model.add(window_);
-    const glows = makeWindowGlows(model)!;
-    model.add(glows);
-    model.add(makeBrazier(), makeMusterBanner(), makePell());
-    model.add(
-      makeArrowLane([
-        {from: [0.4, 0.2, 0], to: [-0.4, 0.2, 0]},
-        {from: [0.4, 0.5, 0], to: [-0.4, 0.5, 0]},
-      ]),
-    );
+    const opening = voidPlate(0.2, 0.3);
+    opening.position.set(0, 0.5, 0.6);
+    model.add(opening);
+    model.add(makeWindowGlows(model)!);
     return model;
   }
 
-  it('is dark and struck at level zero', () => {
+  it('is dark at level zero', () => {
     const rig = harvestTrainingRig(rigged())!;
     setTrainingLevel(rig, 0, 3);
     for (const pane of rig.panes) expect(pane.visible).toBe(false);
-    for (const coals of rig.coals) expect(coals.visible).toBe(false);
-    for (const arrow of rig.arrows) expect(arrow.visible).toBe(false);
-    // The pole stays standing — only what flies from it comes down.
-    expect(rig.hoist!.position.y).toBeLessThan(0.1);
-    expect(rig.pell!.rotation.x).toBe(0);
   });
 
-  it('lights up, runs the banner up and rocks the pell at level one', () => {
+  it('lights at level one, and breathes rather than strobing', () => {
     const rig = harvestTrainingRig(rigged())!;
-    const struck = rig.hoist!.position.y;
-    setTrainingLevel(rig, 1, 3);
-    for (const pane of rig.panes) {
+    ownTrainingMaterials(rig);
+    let low = Infinity;
+    let high = -Infinity;
+    for (let i = 0; i < 80; i++) {
+      setTrainingLevel(rig, 1, i * 0.1);
+      const pane = rig.panes[0]!;
       expect(pane.visible).toBe(true);
-      expect(
-        (pane.material as THREE.MeshBasicMaterial).opacity,
-      ).toBeGreaterThan(0.5);
+      const o = (pane.material as THREE.MeshBasicMaterial).opacity;
+      low = Math.min(low, o);
+      high = Math.max(high, o);
     }
-    for (const flames of rig.flames) {
-      expect(flames.visible).toBe(true);
-      for (const tongue of flames.children) expect(tongue.visible).toBe(true);
-    }
-    expect(rig.hoist!.position.y).toBeGreaterThan(struck + 0.2);
-    // The pell is struck on a beat, so SOME moment in the beat must move it.
-    let swung = 0;
-    for (let i = 0; i < 40; i++) {
-      setTrainingLevel(rig, 1, i * 0.05);
-      swung = Math.max(swung, Math.abs(rig.pell!.rotation.x));
-    }
-    expect(swung).toBeGreaterThan(0.01);
+    // A lamp behind a shutter: it moves, and it never comes close to out.
+    expect(low).toBeGreaterThan(0.7);
+    expect(high - low).toBeGreaterThan(0.05);
   });
 
-  it('flies each arrow down its own line and pulls it out again', () => {
+  it('dims with the level rather than snapping off', () => {
     const rig = harvestTrainingRig(rigged())!;
-    const arrow = rig.arrows[0]!;
-    let seenFlying = false;
-    let seenStuck = false;
-    let seenGone = false;
-    let minX = Infinity;
-    let maxX = -Infinity;
-    for (let i = 0; i < 200; i++) {
-      setTrainingLevel(rig, 1, i * 0.05);
-      if (!arrow.visible) {
-        seenGone = true;
-        continue;
-      }
-      minX = Math.min(minX, arrow.position.x);
-      maxX = Math.max(maxX, arrow.position.x);
-      if (arrow.position.x > 0.2) seenFlying = true;
-      if (arrow.position.x < -0.35) seenStuck = true;
-    }
-    expect(seenFlying).toBe(true);
-    expect(seenStuck).toBe(true);
-    expect(seenGone).toBe(true);
-    // It never overshoots the straw, and never starts behind the mark.
-    expect(minX).toBeGreaterThanOrEqual(-0.4001);
-    expect(maxX).toBeLessThanOrEqual(0.4001);
+    ownTrainingMaterials(rig);
+    setTrainingLevel(rig, 1, 3);
+    const full = (rig.panes[0]!.material as THREE.MeshBasicMaterial).opacity;
+    setTrainingLevel(rig, 0.4, 3);
+    const banked = (rig.panes[0]!.material as THREE.MeshBasicMaterial).opacity;
+    expect(banked).toBeLessThan(full);
+    expect(banked).toBeGreaterThan(0);
   });
 
-  it('gives each building its own fire to burn', () => {
+  it('gives each building its own light to burn', () => {
     const a = harvestTrainingRig(rigged())!;
     const b = harvestTrainingRig(rigged())!;
     // Two rigs off two models already differ; the clone is what matters
@@ -176,7 +137,7 @@ describe('the training rig', () => {
     expect(a.panes[0]!.material).not.toBe(b.panes[0]!.material);
   });
 
-  it('is nothing at all on a building that does not train', () => {
+  it('is nothing at all on a building with no openings', () => {
     const plain = new THREE.Group();
     plain.add(wallPlate(1, 1));
     expect(harvestTrainingRig(plain)).toBeNull();

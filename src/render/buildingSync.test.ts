@@ -88,10 +88,10 @@ vi.mock('./assets', () => ({
       flue.position.y = 2;
       group.add(flue);
     }
-    // The three that train wear the training cue, dressed on in assets.ts
-    // (BUILDING_DECOR). The parts themselves are the real ones — only the
-    // wall they hang on is the box above — so the harvest, the level and
-    // the brazier's own flue are all the shipping code.
+    // The three that train wear the training cue: panes found in the
+    // model's own openings, and the hearth mark assets.ts measures onto
+    // each roof (BUILDING_DECOR). The finder and the harvest here are the
+    // shipping code — only the wall they read is the box above.
     if (
       type === BuildingTypeId.barracks ||
       type === BuildingTypeId.archeryRange ||
@@ -106,17 +106,17 @@ vi.mock('./assets', () => ({
       group.add(wall);
       const glows = makeWindowGlows(wall);
       if (glows) group.add(glows);
-      group.add(makeBrazier());
-      if (type !== BuildingTypeId.storehouse) group.add(makeMusterBanner());
-      if (type === BuildingTypeId.barracks) group.add(makePell());
+      const flue = new THREE.Group();
+      flue.name = 'smokeFlue';
+      flue.position.y = 2;
+      group.add(flue);
     }
     return group;
   },
 }));
 
 const {makeShoal} = await import('./procParts');
-const {makeBrazier, makeMusterBanner, makePell, makeWindowGlows} =
-  await import('./procTraining');
+const {makeWindowGlows} = await import('./procTraining');
 
 const {BuildingSync} = await import('./buildingSync');
 
@@ -703,17 +703,14 @@ describe('the training cue', () => {
       ? (pane(scene).material as THREE.MeshBasicMaterial).opacity
       : 0;
 
-  it('lights the windows and the yard while a course runs', () => {
+  it('lights the windows and smokes the hearth while a course runs', () => {
     const {sync, scene} = makeSync();
     sync.update([drilling()]);
     // Nothing until it is drawn: the level eases up from cold.
     expect(lit(scene)).toBe(0);
     for (let i = 0; i < 30; i++) sync.frame(0.1);
     expect(lit(scene)).toBeGreaterThan(0.5);
-    expect(scene.getObjectByName('bannerHoist')!.position.y).toBeGreaterThan(
-      0.2,
-    );
-    // And the brazier in the yard smokes, on the flue mark it carries.
+    // And the hall's hearth smokes, on the mark measured onto its roof.
     const smoke = scene.getObjectByName('chimneySmoke')!;
     expect(smoke.visible).toBe(true);
   });
@@ -784,15 +781,12 @@ describe('the training cue', () => {
     // A marked mesh is handed an occluder twin of its material and draws
     // late; the panes must keep the material the level is set on, and the
     // yard props must not stamp a wall bit over open grass.
-    for (const name of ['windowPane', 'trainBrazier', 'musterBanner']) {
-      const o = scene.getObjectByName(name)!;
-      o.traverse(m => {
-        if (m instanceof THREE.Mesh) {
-          expect(m.renderOrder).not.toBe(WALL_RENDER_ORDER);
-          eachMaterial(m, mat => expect(mat.stencilWrite).toBe(false));
-        }
-      });
-    }
+    const pane_ = scene.getObjectByName('windowPane')!;
+    expect(pane_ instanceof THREE.Mesh).toBe(true);
+    expect((pane_ as THREE.Mesh).renderOrder).not.toBe(WALL_RENDER_ORDER);
+    eachMaterial(pane_ as THREE.Mesh, mat =>
+      expect(mat.stencilWrite).toBe(false),
+    );
   });
 
   it("burns its own fire, not the shared template's", () => {

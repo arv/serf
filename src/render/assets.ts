@@ -19,14 +19,7 @@ import {
   makeWindlassHouse,
 } from './procMines';
 import {makeFishSign, makeShoal} from './procParts';
-import {
-  makeArrowLane,
-  makeBrazier,
-  makeMusterBanner,
-  makePell,
-  makeWindowGlows,
-  type Shot,
-} from './procTraining';
+import {makeWindowGlows} from './procTraining';
 import * as ScatterPackNs from './scatterPackEnum.ts';
 import {
   DEFAULT_FIGURE,
@@ -430,26 +423,20 @@ const TRAINS: Partial<Record<BuildingTypeId, true>> = {
 };
 
 /**
- * The three shots the archery range's yard shows, in template space.
+ * Where each hall's hearth vents, in template space — the mark the smoke
+ * column stands on while a course runs.
  *
- * Measured off the pack model rather than guessed, because its butts are
- * not the tidy row they look like: two boards lean against the straw bales
- * at model (-0.488, 0.185, 0.202) and (-0.488, 0.185, 0.498) with their
- * faces to +x, and the third is mounted high on the shed's gable at (0.374,
- * 0.980, 0.280) facing +z. So there is no one lane, and these are three
- * shots on three lines. `normalize` fits the model's 1.671 x 1.550
- * footprint to the unit square — model units scale by 1/1.671 = 0.598 about
- * a center at model x 0.036, z -0.098 — which is the conversion every
- * number below has been through. Remeasure if the model is ever swapped: an
- * arrow that stops short of the straw is worse than no arrow at all.
+ * The pack models have no chimney to hang it off, so each is measured to
+ * the apex of the building's own main roof and lifted a hair clear of the
+ * ridge: the barracks' front-left turret (model y 1.64 at x -0.44, z 0.44, scaled by
+ * 1/1.566 about a center at model z 0.063) rather than its central ridge,
+ * which the back turrets stand in front of at the rig's own yaw, the range's shed rather than its stone tower (y 1.45, scaled by
+ * 1/1.671 about a center at model x 0.036, z -0.098), and, on the castle, a
+ * second-tier roof (y 3.32 at model x 0.55, scaled by 1/2.256) rather than
+ * the keep's spire — a column off the very top reads as the flagpole
+ * burning. Authored inline in BUILDING_DECOR below; remeasure if a model is
+ * ever swapped.
  */
-const SHOTS: Shot[] = [
-  // The two leaning boards, shot from out in the yard.
-  {from: [0.26, 0.2, 0.18], to: [-0.27, 0.14, 0.18]},
-  {from: [0.26, 0.2, 0.36], to: [-0.27, 0.14, 0.36]},
-  // The gable target, shot from further down the same yard.
-  {from: [0.2, 0.62, 0.66], to: [0.2, 0.59, 0.25]},
-];
 
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // No bakery entry: it dresses its own yard from procBuildings — hearth
@@ -585,35 +572,36 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     {make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3},
     {rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13},
   ],
-  // The muster yard: a banner to the west of the door, a fire to the east,
-  // and the pell out on the east flank where a recruit has room to swing at
-  // it. All three stand outside the footprint's own edge (the walls reach
-  // template 0.50), on the trodden apron the mines' wheelbarrows park on.
+  // The three that train carry one mark apiece and nothing else: the mouth
+  // of the hall's own hearth, where buildingSync stands the same smoke
+  // column the bakery and the Smith get. An empty, not a prop — see the
+  // note on TRAIN_FLUE.
   [BuildingTypeId.barracks]: [
-    {make: () => makeMusterBanner(), at: [-0.52, 0.62], size: 1},
-    {make: () => makeBrazier(), at: [0.3, 0.58], size: 1},
-    {make: () => makePell(), at: [0.58, 0.16], size: 1, rot: -0.4},
-  ],
-  // The range keeps the same fire and banner; what drills here is the pack's
-  // own butts, which need nothing built at all — only something to hit them
-  // (BUTTS above). The lane group is placed at the origin because the shots
-  // are authored where the straw actually stands, not relative to a mark.
-  [BuildingTypeId.archeryRange]: [
-    {make: () => makeMusterBanner(), at: [-0.2, 0.6], size: 1},
-    {make: () => makeBrazier(), at: [0.34, 0.5], size: 1},
     {
-      make: () => makeArrowLane(SHOTS),
-      at: [0, 0],
+      make: () => new THREE.Group(),
+      at: [-0.28, 0.24],
+      y: 1.11,
       size: 1,
+      name: 'smokeFlue',
     },
   ],
-  // Braziers flanking the gate, the way a keep that is expecting people
-  // lights its door. Only the west one carries the smoke mark: buildingSync
-  // stands one column per building, and a pair of columns off one gate
-  // would read as a roof on fire rather than as two fires lit.
+  [BuildingTypeId.archeryRange]: [
+    {
+      make: () => new THREE.Group(),
+      at: [-0.05, 0.03],
+      y: 0.9,
+      size: 1,
+      name: 'smokeFlue',
+    },
+  ],
   [BuildingTypeId.storehouse]: [
-    {make: () => makeBrazier(), at: [-0.22, 0.52], size: 1},
-    {make: () => makeBrazier(false), at: [0.22, 0.52], size: 1},
+    {
+      make: () => new THREE.Group(),
+      at: [-0.24, 0.24],
+      y: 1.06,
+      size: 1,
+      name: 'smokeFlue',
+    },
   ],
 };
 
