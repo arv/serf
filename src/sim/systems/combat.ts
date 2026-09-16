@@ -131,8 +131,8 @@ function strikeCooldown(
  * What a class-less blow does to a building: the lowest figure in
  * BUILDING_DAMAGE_MULT (defs/balance.ts), which is the archer's. A militia
  * serf hacking at a wall with a knife should be the worst siege engine on
- * the map, and at MILITIA.damage he is — a camp takes him the better part
- * of half an hour. He is allowed to try because forbidding it would mean
+ * the map, and at MILITIA.damage he is — a camp takes him a quarter of an
+ * hour. He is allowed to try because forbidding it would mean
  * an A-click on a building that silently does nothing; letting him swing
  * costs the balance nothing and the interface a great deal less.
  */

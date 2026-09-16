@@ -20,6 +20,36 @@
  * directly.
  */
 /**
+ * 73: the knife is re-priced, one point to two.
+ *
+ * 72 gave every civilian a knife and deliberately set it at the bottom of
+ * the scale; a pass over the tally says it landed below the bottom. Nine
+ * serfs under an A order were needed to put down one knight, and eight
+ * died to leave him standing at thirteen hit points — a mob that loses
+ * every man and the fight is not a weak answer, it is no answer, and the
+ * last stand (systems/ai.ts #lastStand) is built on the assumption that
+ * the village going in accomplishes something. At two the charge costs
+ * seven and three walk away from it, four take a bandit, and six take a
+ * marauder.
+ *
+ * One number in defs/units.ts and nothing else: still no class, so the
+ * counter table still prices his blow on neither side, still the longest
+ * cooldown on the field, still not a `combat` block. What he is in the
+ * order of battle does not move — only how hard he swings.
+ *
+ * It is the wall as well as the man. MILITIA_BUILDING_MULT (systems/
+ * combat.ts) multiplies this same figure, so the mob's siege doubles with
+ * it: a lone serf takes a bandit camp down in a quarter of an hour where
+ * he took half of one. He is still the worst siege engine on the map by a
+ * wide margin, and a villager left hacking at a camp for fifteen minutes
+ * is a villager not working either way.
+ *
+ * Sim behavior, and in the plainest way: a blow that lands for two where
+ * it landed for one kills a man on a different tick, and everything
+ * downstream of a body falling early moves with it.
+ *
+ * 72's note follows.
+ *
  * 72: even the serfs fight, and a fighting serf is in the way.
  *
  * Every civilian now carries a knife (defs/units.ts MILITIA): one point of
@@ -1300,4 +1330,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 72;
+export const REPLAY_VERSION = 73;

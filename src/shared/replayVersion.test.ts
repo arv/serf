@@ -793,8 +793,24 @@ import {REPLAY_VERSION} from './replayVersion';
 // the last stand counts the soldiers on a wall as soldiers. All three are
 // this same unreleased bump's own behavior — there is no older log stamped
 // 72 to break — and the hash is over raw bytes, which is why it moved.
-const EXPECTED_VERSION = 72;
-const EXPECTED_HASH = '5b58e5f7b94e9cc6b98369f9a0338fc6';
+// 73 for the knife's price: MILITIA.damage one point to two (defs/units.ts),
+// which is the only statement that moves. 72 set it below the bottom of the
+// scale rather than at it — nine serfs under an A order to put down one
+// knight, and eight dead to leave him standing — so the charge now costs
+// seven with three walking away. MILITIA_BUILDING_MULT reads the same
+// figure, so the mob's siege doubles with it (a camp in a quarter of an
+// hour, not half of one). 72 is on main, so there are logs stamped with it
+// that a two-point knife would replay wrong: a blow that kills a tick
+// earlier moves every draw behind it.
+// Still 73 after the review round on #295 tightened the bump's own tests
+// and prose: the seven-versus-knight tally now pins the three survivors
+// rather than "fewer than seven", the camp test asserts the twenty points
+// a half-minute of chewing takes off (ten at the old price, so it is what
+// tells the two apart), and three comments that gave one threshold for
+// every foe now give the bandit's and the knight's. Tests and prose — no
+// statement the sim executes moves — and the hash is over raw bytes.
+const EXPECTED_VERSION = 73;
+const EXPECTED_HASH = 'e9869af5ae75da5eaea7cdff09e457d2';
 
 /**
  * Everything a replay's playback depends on, as raw source:
