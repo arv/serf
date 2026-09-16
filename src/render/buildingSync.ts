@@ -37,6 +37,13 @@ import {
   SITE_FRAME_H,
 } from './models';
 import {
+  harvestTrainingRig,
+  ownTrainingMaterials,
+  setTrainingLevel,
+  TRAINING_NODES,
+  type TrainingRig,
+} from './procTraining';
+import {
   occluderMaterial,
   OCCLUDER_PAD,
   WALL_RENDER_ORDER,
@@ -399,6 +406,20 @@ interface BuildingVisual {
    * so a relief — the levy going down as soldiers come up — rebuilds the
    * figures instead of leaving serfs standing in an archer's post. */
   levied: boolean;
+  /** The lit windows, the brazier, the banner and the yard — harvested off
+   * the model of a building that trains, absent on every other one (see
+   * procTraining.ts). */
+  train?: TrainingRig;
+  /** The materials that rig's glow rides on, cloned per building so one
+   * barracks' fire is not every barracks' fire. Freed with the visual. */
+  trainMats?: THREE.Material[];
+  /** Is a course actually running here — a started order at the barracks or
+   * the range, a serf being hired at the castle. */
+  training: boolean;
+  /** How lit the cue is, 0..1, eased toward that. The same treatment the
+   * chimney smoke gets and for the same reason: a fire is banked and a
+   * banner is hauled down, and neither happens between two frames. */
+  trainLevel: number;
 }
 
 /** One yard-stock entry: what good, worn as which look, standing where. */
@@ -526,6 +547,26 @@ const PICK_IGNORE = 'noPick';
 const CLAIM_BOX = new THREE.Box3();
 const PILE_BOX = new THREE.Box3();
 
+/**
+ * Is a course actually running in this building — the cue procTraining's
+ * rig answers to.
+ *
+ * A queue is not a course: an order waiting on a sword nobody has forged
+ * yet is exactly the state a player wants told apart from four knights on
+ * the fire, so it is the STARTED order that counts (the same `started` the
+ * card's progress bar reads). The castle's own course is its serf hire,
+ * which has no queue of its own to look into — a hire in flight is what
+ * `hireQueue` means.
+ *
+ * Paused kills it outright: a paused barracks' clock is frozen and its
+ * windows have no business being lit.
+ */
+function isTraining(b: BuildingSnap): boolean {
+  if (b.paused === true) return false;
+  if (b.trainQueue?.some(q => q.started) === true) return true;
+  return (b.hireQueue ?? 0) > 0;
+}
+
 /** Whether `o` hangs somewhere under `of` — itself included. */
 function descends(o: THREE.Object3D, of: THREE.Object3D): boolean {
   for (let n: THREE.Object3D | null = o; n; n = n.parent) {
@@ -606,6 +647,11 @@ export class BuildingSync {
   #drawn = new Map<number, number[]>();
   /** Reused by silhouetteT: a pick runs every frame the pointer moves, and
    * a fresh raycaster and hit list each would be an allocation a frame. */
+  /** Seconds of drawn time, for the cues whose motion is periodic rather
+   * than integrated: a barracks picked up mid-drill joins the beat the
+   * yard is already on instead of starting its own (see
+   * setTrainingLevel). */
+  #now = 0;
   #pickRay = new THREE.Raycaster();
   #pickHits: THREE.Intersection[] = [];
   #pickMeshes: THREE.Object3D[] = [];
@@ -851,6 +897,7 @@ export class BuildingSync {
 
       v.staffed = b.staffing === StaffingState.staffed;
       v.working = b.working === true;
+      v.training = isTraining(b);
       v.firing = b.firing === true;
       v.volleyRange = volleyRangeOf(b);
       const pileKey = v.pileKey;
@@ -1154,7 +1201,7 @@ export class BuildingSync {
       // Walked rather than traversed, so a subtree that reaches past the
       // footprint can be left whole where it stands.
       const mark = (o: THREE.Object3D): void => {
-        if (BEYOND_FOOTPRINT.has(o.name)) return;
+        if (BEYOND_FOOTPRINT.has(o.name) || TRAINING_NODES.has(o.name)) return;
         if (o instanceof THREE.Mesh) {
           mapMaterials(o, occluderMaterial);
           o.renderOrder = WALL_RENDER_ORDER;
@@ -1170,6 +1217,14 @@ export class BuildingSync {
         : topY;
     if (!road)
       this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
+    // The training cue, harvested once off the finished model. After the
+    // wall marking above on purpose — that pass would otherwise hand the
+    // glow meshes an occluder twin, and the clone below would then be
+    // setting the opacity of a material nothing is drawing with.
+    const train =
+      b.state === BuildingState.built ? harvestTrainingRig(model) : null;
+    const trainMats = train ? ownTrainingMaterials(train) : [];
+
     const modelBox = bbox ?? new THREE.Box3().makeEmpty();
     const drawn = road
       ? []
@@ -1219,6 +1274,14 @@ export class BuildingSync {
       volleyRange: 0,
       levied: false,
       salvage: b.type === BuildingTypeId.salvage,
+      // Only on a finished building: a site draws the same model (under a
+      // clip plane, with its own material clones) and a half-raised
+      // barracks with its windows lit would be a barracks nobody built yet
+      // announcing a course it cannot be running.
+      train: train ?? undefined,
+      trainMats: trainMats.length > 0 ? trainMats : undefined,
+      training: false,
+      trainLevel: 0,
     };
   }
 
@@ -1570,10 +1633,13 @@ export class BuildingSync {
       this.#rebuildHpBars();
     }
     if (dt <= 0) return;
+    this.#now += dt;
     for (const v of this.#visuals.values()) {
       // Most of a settlement is huts and warehouses with nothing that
       // moves; this loop used to walk all of them to find that out.
-      if (!v.fan && !v.shoal && !v.flue && v.manned.length === 0) continue;
+      if (!v.fan && !v.shoal && !v.flue && !v.train && v.manned.length === 0) {
+        continue;
+      }
       if (!v.root.visible) continue; // fogged: remembered, not watched
       if (bounds !== undefined) {
         const bx = v.root.position.x;
@@ -1600,6 +1666,7 @@ export class BuildingSync {
         if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
       }
       if (v.flue) this.#smokeFrame(v, dt);
+      if (v.train) this.#trainFrame(v, dt);
       if (v.shoal && v.staffed && v.state === BuildingState.built) {
         // Each fish carries its own circle, direction and depth. Advancing
         // the phase and pointing the nose down the tangent is the whole
@@ -1742,8 +1809,12 @@ export class BuildingSync {
    * between every two loaves.
    */
   #smokeFrame(v: BuildingVisual, dt: number): void {
-    const target =
-      v.working && v.staffed && v.state === BuildingState.built ? 1 : 0;
+    // Two fires, one column. A convert post's is its batch (with a hand at
+    // the post to keep it going); a training building's flue is the brazier
+    // in its yard, which is lit for the course and not for a batch it has
+    // none of.
+    const lit = v.train ? v.training : v.working && v.staffed;
+    const target = lit && v.state === BuildingState.built ? 1 : 0;
     v.smokeLevel +=
       (target - v.smokeLevel) *
       Math.min(1, dt * (target > v.smokeLevel ? 1.6 : 0.55));
@@ -1783,6 +1854,27 @@ export class BuildingSync {
       (p.mesh.material as THREE.MeshBasicMaterial).opacity =
         0.5 * v.smokeLevel * Math.min(1, t * 6) * (1 - t);
     }
+  }
+
+  /**
+   * The training cue, per frame: lit windows, the brazier's fire, the
+   * banner's run up the pole, the pell's rocking and the arrows down the
+   * range's lane (procTraining.ts holds all of it).
+   *
+   * The level eases rather than snapping, on the chimney smoke's own
+   * reasoning and with its own asymmetry: a course starting is a torch put
+   * to a laid fire and a banner hauled up, which is brisk; a course ending
+   * is a fire left to burn down, which is not. The slow side also bridges
+   * the gap between two orders in a full queue — the sim starts the next
+   * one a tick after the last one ends, and a strictly-read cue would put
+   * the banner down and back up between every two soldiers.
+   */
+  #trainFrame(v: BuildingVisual, dt: number): void {
+    const target = v.training && v.state === BuildingState.built ? 1 : 0;
+    v.trainLevel +=
+      (target - v.trainLevel) *
+      Math.min(1, dt * (target > v.trainLevel ? 2.2 : 0.7));
+    setTrainingLevel(v.train!, v.trainLevel, this.#now);
   }
 
   /**
@@ -2226,6 +2318,14 @@ export class BuildingSync {
       for (const p of v.smoke.puffs)
         (p.mesh.material as THREE.Material).dispose();
       v.smoke = undefined;
+    }
+    // The cue's glow materials are this visual's alone — cloned at create
+    // so one barracks' fire is not every barracks' (ownTrainingMaterials).
+    // The geometry under them is the shared template's and stays.
+    if (v.trainMats) {
+      for (const m of v.trainMats) m.dispose();
+      v.trainMats = undefined;
+      v.train = undefined;
     }
     if (v.clip) {
       v.model.traverse(o => {

@@ -19,6 +19,14 @@ import {
   makeWindlassHouse,
 } from './procMines';
 import {makeFishSign, makeShoal} from './procParts';
+import {
+  makeArrowLane,
+  makeBrazier,
+  makeMusterBanner,
+  makePell,
+  makeWindowGlows,
+  type Shot,
+} from './procTraining';
 import * as ScatterPackNs from './scatterPackEnum.ts';
 import {
   DEFAULT_FIGURE,
@@ -408,6 +416,41 @@ const GLB_PROP_FILES = [
 // No goods-shaped decor on producers whose live stock piles up outside:
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
+/**
+ * The buildings that train, and so wear the training cue: lit windows, a
+ * brazier in the yard, a muster banner, and something drilling (see
+ * procTraining.ts). The castle is here for its serf hires — the one course
+ * it runs — which is why it takes the fire and the lights but neither the
+ * banner nor the pell: hiring a hand is not a muster.
+ */
+const TRAINS: Partial<Record<BuildingTypeId, true>> = {
+  [BuildingTypeId.barracks]: true,
+  [BuildingTypeId.archeryRange]: true,
+  [BuildingTypeId.storehouse]: true,
+};
+
+/**
+ * The three shots the archery range's yard shows, in template space.
+ *
+ * Measured off the pack model rather than guessed, because its butts are
+ * not the tidy row they look like: two boards lean against the straw bales
+ * at model (-0.488, 0.185, 0.202) and (-0.488, 0.185, 0.498) with their
+ * faces to +x, and the third is mounted high on the shed's gable at (0.374,
+ * 0.980, 0.280) facing +z. So there is no one lane, and these are three
+ * shots on three lines. `normalize` fits the model's 1.671 x 1.550
+ * footprint to the unit square — model units scale by 1/1.671 = 0.598 about
+ * a center at model x 0.036, z -0.098 — which is the conversion every
+ * number below has been through. Remeasure if the model is ever swapped: an
+ * arrow that stops short of the straw is worse than no arrow at all.
+ */
+const SHOTS: Shot[] = [
+  // The two leaning boards, shot from out in the yard.
+  {from: [0.26, 0.2, 0.18], to: [-0.27, 0.14, 0.18]},
+  {from: [0.26, 0.2, 0.36], to: [-0.27, 0.14, 0.36]},
+  // The gable target, shot from further down the same yard.
+  {from: [0.2, 0.62, 0.66], to: [0.2, 0.59, 0.25]},
+];
+
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // No bakery entry: it dresses its own yard from procBuildings — hearth
   // apron, arch, loaves — and a sack, a bucket and a log pile round its
@@ -541,6 +584,36 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     {make: () => makeHeadframe(), at: [0.34, 0.43], size: 1, rot: -0.55},
     {make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3},
     {rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13},
+  ],
+  // The muster yard: a banner to the west of the door, a fire to the east,
+  // and the pell out on the east flank where a recruit has room to swing at
+  // it. All three stand outside the footprint's own edge (the walls reach
+  // template 0.50), on the trodden apron the mines' wheelbarrows park on.
+  [BuildingTypeId.barracks]: [
+    {make: () => makeMusterBanner(), at: [-0.52, 0.62], size: 1},
+    {make: () => makeBrazier(), at: [0.3, 0.58], size: 1},
+    {make: () => makePell(), at: [0.58, 0.16], size: 1, rot: -0.4},
+  ],
+  // The range keeps the same fire and banner; what drills here is the pack's
+  // own butts, which need nothing built at all — only something to hit them
+  // (BUTTS above). The lane group is placed at the origin because the shots
+  // are authored where the straw actually stands, not relative to a mark.
+  [BuildingTypeId.archeryRange]: [
+    {make: () => makeMusterBanner(), at: [-0.2, 0.6], size: 1},
+    {make: () => makeBrazier(), at: [0.34, 0.5], size: 1},
+    {
+      make: () => makeArrowLane(SHOTS),
+      at: [0, 0],
+      size: 1,
+    },
+  ],
+  // Braziers flanking the gate, the way a keep that is expecting people
+  // lights its door. Only the west one carries the smoke mark: buildingSync
+  // stands one column per building, and a pair of columns off one gate
+  // would read as a roof on fire rather than as two fires lit.
+  [BuildingTypeId.storehouse]: [
+    {make: () => makeBrazier(), at: [-0.22, 0.52], size: 1},
+    {make: () => makeBrazier(false), at: [0.22, 0.52], size: 1},
   ],
 };
 
@@ -1189,7 +1262,16 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           }
         });
       }
+      // Lit windows for the buildings that train (see procTraining). The
+      // panes are harvested from the model's own openings before normalize
+      // — that is the space their triangles are in — and hung on it AFTER,
+      // so the hair of standoff each one carries cannot widen the bbox the
+      // whole template is fitted by. A building drawn 0.5% smaller because
+      // somebody lit its windows is exactly the kind of drift this pipeline
+      // must not have.
+      const glows = TRAINS[type] ? makeWindowGlows(scene) : null;
       const group = normalize(scene);
+      if (glows) scene.add(glows);
       dress(type, group);
       splitTeamColorGroups(group);
       buildings.set(type, group);

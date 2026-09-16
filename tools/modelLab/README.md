@@ -181,6 +181,29 @@ everywhere else. The page also prints the model's height and how many of its
 triangles land in the team-colour slot — a monument nobody's colour reaches
 is a monument every seat builds identically.
 
+## The training cue
+
+`_training.html` is where the barracks, the archery range and the castle were
+taught to say they are busy. It is the only page here that drives a real
+`BuildingSync`: it stands hand-written `BuildingSnap`s in one and lets it run,
+so what is on the screen is the whole chain a match draws — the decor
+`assets.ts` dresses each model with, the rig `buildingSync` harvests off it,
+the level it eases, and the chimney smoke it stands on the brazier's flue.
+Break the wiring and the page goes dark, which is the point of it.
+
+```sh
+pnpm dev   # then /tools/modelLab/_training.html
+```
+
+`?pair=1` stands each building beside a cold copy of itself, which is the only
+comparison that matters: the cue has to read as a *difference*, not as
+decoration. `?cold=1` empties the queues instead. `?t=<seconds>` freezes the
+clock at a moment — stepped at the frame rate, so it is repeatable and a
+series of them cuts together into a clip — and `?warm=<seconds>` runs the fire
+up before that freeze, since everything here eases and a cold start caught at
+t=0 shows nothing. `?only=barracks|range|castle` blows one up; `?yaw`, `?zoom`,
+`?fy`, `?w`, `?h` and `?gap` frame the shot as everywhere else.
+
 ## Publishing the gallery
 
 ```sh
