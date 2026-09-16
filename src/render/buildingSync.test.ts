@@ -88,10 +88,9 @@ vi.mock('./assets', () => ({
       flue.position.y = 2;
       group.add(flue);
     }
-    // The three that train wear the training cue: panes found in the
-    // model's own openings, and the hearth mark assets.ts measures onto
-    // each roof (BUILDING_DECOR). The finder and the harvest here are the
-    // shipping code — only the wall they read is the box above.
+    // The three that train wear the training cue: light in the openings
+    // the model's own geometry gives up. The finder and the harvest here
+    // are the shipping code — only the wall they read is the box above.
     if (
       type === BuildingTypeId.barracks ||
       type === BuildingTypeId.archeryRange ||
@@ -106,10 +105,6 @@ vi.mock('./assets', () => ({
       group.add(wall);
       const glows = makeWindowGlows(wall);
       if (glows) group.add(glows);
-      const flue = new THREE.Group();
-      flue.name = 'smokeFlue';
-      flue.position.y = 2;
-      group.add(flue);
     }
     return group;
   },
@@ -703,16 +698,19 @@ describe('the training cue', () => {
       ? (pane(scene).material as THREE.MeshBasicMaterial).opacity
       : 0;
 
-  it('lights the windows and smokes the hearth while a course runs', () => {
+  it('lights the windows while a course runs', () => {
     const {sync, scene} = makeSync();
     sync.update([drilling()]);
     // Nothing until it is drawn: the level eases up from cold.
     expect(lit(scene)).toBe(0);
     for (let i = 0; i < 30; i++) sync.frame(0.1);
     expect(lit(scene)).toBeGreaterThan(0.5);
-    // And the hall's hearth smokes, on the mark measured onto its roof.
-    const smoke = scene.getObjectByName('chimneySmoke')!;
-    expect(smoke.visible).toBe(true);
+    // ...and so does the light landing on the stone around them.
+    const spill = scene.getObjectByName('windowSpill') as THREE.Mesh;
+    expect(spill.visible).toBe(true);
+    expect((spill.material as THREE.MeshBasicMaterial).opacity).toBeGreaterThan(
+      0,
+    );
   });
 
   it('stays cold for an order that has not started', () => {

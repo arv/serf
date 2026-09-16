@@ -15,10 +15,12 @@
  * stands each building beside a cold copy of itself, which is that
  * comparison in one frame. `?t=<seconds>` freezes the clock at a moment
  * (the whole cue is periodic, so this is repeatable) instead of running it;
- * `?warm=<seconds>` runs the fire up before the freeze, because everything
- * here EASES and a cold start caught at t=0 shows nothing.
- * `?only=barracks|range|castle` blows one up, and `?yaw`/`?zoom`/`?fy`/
- * `?w`/`?h`/`?gap` frame the shot as on every other page here.
+ * `?warm=<seconds>` runs it up before the freeze, because the level EASES
+ * and a cold start caught at t=0 shows nothing. `?hide=spill|pane` drops
+ * one layer of the glow. `?only=barracks|range|castle` blows one up, and
+ * `?yaw`/`?zoom`/`?fy`/`?w`/`?h`/`?gap` frame the shot as on every other
+ * page here — and turn the camera before judging this one, since the
+ * windows on the far side are lit too.
  */
 import * as THREE from 'three';
 import type {BuildingSnap} from '../../src/protocol/messages';
@@ -154,19 +156,44 @@ camera.position.set(
 );
 camera.lookAt(MID, FOCUS_Y, MID);
 
-/** Run the cue up to speed before anything is looked at: every level here
- * eases, and the fire and the smoke column both start from cold. */
+/** Run the cue up to speed before anything is looked at: the level eases,
+ * and it starts dark. */
 const warm = num('warm', 6);
 const STEP = 1 / 60;
 for (let i = 0; i < Math.round(warm / STEP); i++) buildings.frame(STEP);
 
+/**
+ * `?hide=spill|pane` drops one of the cue's two layers.
+ *
+ * It is here because it earned its place: the spills were invisible once
+ * (hung inside the recess, where the depth test ate them) and later were
+ * visible in the wrong place (hung in mid-air beside the castle's towers),
+ * and a shot with one layer removed is what told those apart from a pane
+ * problem in a single look.
+ */
+const hide = params.get('hide');
+if (hide) {
+  const doomed: THREE.Object3D[] = [];
+  const name = hide === 'spill' ? 'windowSpill' : 'windowPane';
+  scene.traverse(o => {
+    if (o.name === name) doomed.push(o);
+  });
+  for (const o of doomed) o.parent?.remove(o);
+}
+// How many openings each model gave up, which is the number to watch when
+// a void paint is added (see VoidPaint): the range went from four to ten.
+let panes = 0;
+scene.traverse(o => {
+  if (o.name === 'windowPane') panes++;
+});
+console.log('lit windows: ' + panes);
+
 const frozen = params.get('t');
 if (frozen !== null) {
-  // Stepped at the frame rate rather than jumped in one dt: the smoke
-  // column's puffs and the eased levels are integrated, so a single
-  // half-second step is not the same picture the sixty steps are. That
-  // makes `?t` repeatable, which is what lets a series of them be shot
-  // frame by frame and cut together.
+  // Stepped at the frame rate rather than jumped in one dt: the level is
+  // integrated, so a single half-second step is not the picture the sixty
+  // steps are. That makes `?t` repeatable, which is what lets a series of
+  // them be shot frame by frame and cut together.
   for (let i = 0; i < Math.round(Number(frozen) / STEP); i++) {
     buildings.frame(STEP);
   }

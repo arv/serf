@@ -7,6 +7,14 @@ import {
   setTrainingLevel,
 } from './procTraining';
 
+/** A slab of masonry facing +z, for an opening to be cut into. Big enough
+ * that the spill around a window has wall to land on. */
+function wall(w: number, h: number, z: number): THREE.Mesh {
+  const m = wallPlate(w, h);
+  m.position.set(0, 0.5, z);
+  return m;
+}
+
 /**
  * A wall plate painted from the atlas cell the packs back their window and
  * door openings with — the paint `makeWindowGlows` finds a building's
@@ -39,14 +47,18 @@ describe('finding a building’s windows', () => {
     model.add(front, side);
 
     const glows = makeWindowGlows(model)!;
-    expect(glows.children.length).toBe(2);
+    // A pane and a spill apiece.
+    const panes = glows.children.filter(
+      o => o.name === 'windowPane',
+    ) as THREE.Mesh[];
+    expect(panes.length).toBe(2);
+    expect(glows.children.filter(o => o.name === 'windowSpill').length).toBe(2);
 
     // Each pane stands a hair PROUD of its own void, along that void's own
     // normal — the whole point of reading the facing rather than assuming
     // one. The east window's standoff is in x, the front one's in z.
-    const [a, b] = glows.children as THREE.Mesh[];
-    const frontPane = [a!, b!].find(p => p.position.z > 0.5)!;
-    const sidePane = [a!, b!].find(p => p.position.x > 0.5)!;
+    const frontPane = panes.find(p => p.position.z > 0.5)!;
+    const sidePane = panes.find(p => p.position.x > 0.5)!;
     expect(frontPane.position.z).toBeGreaterThan(0.6);
     expect(frontPane.position.z).toBeLessThan(0.62);
     expect(sidePane.position.x).toBeGreaterThan(0.6);
@@ -90,24 +102,111 @@ describe('the lit windows', () => {
     const rig = harvestTrainingRig(rigged())!;
     setTrainingLevel(rig, 0, 3);
     for (const pane of rig.panes) expect(pane.visible).toBe(false);
+    for (const spill of rig.spills) expect(spill.visible).toBe(false);
   });
 
-  it('lights at level one, and breathes rather than strobing', () => {
+  it('gutters like a flame, and never anywhere near out', () => {
     const rig = harvestTrainingRig(rigged())!;
     ownTrainingMaterials(rig);
     let low = Infinity;
     let high = -Infinity;
-    for (let i = 0; i < 80; i++) {
-      setTrainingLevel(rig, 1, i * 0.1);
+    let biggestStep = 0;
+    let last = -1;
+    // Twenty seconds at sixty frames, which is long enough for the four
+    // beats the flicker is built from to drift right through each other.
+    for (let i = 0; i < 1200; i++) {
+      setTrainingLevel(rig, 1, i / 60);
       const pane = rig.panes[0]!;
       expect(pane.visible).toBe(true);
       const o = (pane.material as THREE.MeshBasicMaterial).opacity;
       low = Math.min(low, o);
       high = Math.max(high, o);
+      if (last >= 0) biggestStep = Math.max(biggestStep, Math.abs(o - last));
+      last = o;
     }
-    // A lamp behind a shutter: it moves, and it never comes close to out.
-    expect(low).toBeGreaterThan(0.7);
-    expect(high - low).toBeGreaterThan(0.05);
+    // A fire, not a bulb: it moves a long way...
+    expect(high - low).toBeGreaterThan(0.3);
+    // ...but never near out, because a dark window means the course
+    // stopped, which is the one thing this cue is for.
+    expect(low).toBeGreaterThan(0.45);
+    // And it gutters rather than strobing: no frame-to-frame jump big
+    // enough to read as a flash.
+    expect(biggestStep).toBeLessThan(0.1);
+  });
+
+  it('gives every window its own flame, out of step with its neighbours', () => {
+    const model = new THREE.Group();
+    for (const x of [-0.4, 0, 0.4]) {
+      const opening = voidPlate(0.1, 0.2);
+      opening.position.set(x, 0.5, 0.6);
+      model.add(opening);
+    }
+    model.add(wall(1.4, 1, 0.55));
+    model.add(makeWindowGlows(model)!);
+    const rig = harvestTrainingRig(model)!;
+    ownTrainingMaterials(rig);
+    expect(rig.panes.length).toBe(3);
+    setTrainingLevel(rig, 1, 4.2);
+    const lit = rig.panes.map(
+      p => (p.material as THREE.MeshBasicMaterial).opacity,
+    );
+    // Three lamps in one hall, no two of them at the same brightness.
+    expect(new Set(lit.map(o => o.toFixed(3))).size).toBe(3);
+  });
+
+  it('lights the spill under each pane, and keeps it the quieter of the two', () => {
+    const rig = harvestTrainingRig(rigged())!;
+    ownTrainingMaterials(rig);
+    setTrainingLevel(rig, 1, 3);
+    expect(rig.spills.length).toBe(rig.panes.length);
+    const pane = (rig.panes[0]!.material as THREE.MeshBasicMaterial).opacity;
+    const spill = (rig.spills[0]!.material as THREE.MeshBasicMaterial).opacity;
+    expect(rig.spills[0]!.visible).toBe(true);
+    expect(spill).toBeGreaterThan(0);
+    expect(spill).toBeLessThan(pane);
+  });
+
+  it('stands the spill out on the wall, not down inside the recess', () => {
+    // The opening is set back into the masonry; a spill hung off the plate
+    // has its edges inside the stone, where the depth test eats them. It
+    // has to come out to the face.
+    const model = new THREE.Group();
+    const opening = voidPlate(0.1, 0.2);
+    opening.position.set(0, 0.5, 0.6);
+    model.add(opening, wall(1, 1, 0.66));
+    model.add(makeWindowGlows(model)!);
+    const rig = harvestTrainingRig(model)!;
+    expect(rig.spills[0]!.position.z).toBeGreaterThan(0.66);
+    expect(rig.panes[0]!.position.z).toBeLessThan(0.66);
+  });
+
+  it('keeps the spill on the wall it has, not off the end of it', () => {
+    // A window in a narrow face — a castle tower — must not throw a halo
+    // wider than the stone it is cut into, or the overhang hangs in the
+    // air beside the building and is seen as a bright sliver.
+    const narrow = new THREE.Group();
+    const opening = voidPlate(0.1, 0.2);
+    opening.position.set(0, 0.5, 0.6);
+    narrow.add(opening, wall(0.1, 1, 0.66));
+    narrow.add(makeWindowGlows(narrow)!);
+    const tight = harvestTrainingRig(narrow)!.spills[0]!;
+    const tightW = new THREE.Box3()
+      .setFromObject(tight)
+      .getSize(new THREE.Vector3()).x;
+    // The stone is 0.1 across, so the light on it is too.
+    expect(tightW).toBeLessThanOrEqual(0.105);
+
+    // ...while the same window in a broad wall spills as far as authored.
+    const broad = new THREE.Group();
+    const opening2 = voidPlate(0.1, 0.2);
+    opening2.position.set(0, 0.5, 0.6);
+    broad.add(opening2, wall(1.4, 1, 0.66));
+    broad.add(makeWindowGlows(broad)!);
+    const wide = harvestTrainingRig(broad)!.spills[0]!;
+    const wideW = new THREE.Box3()
+      .setFromObject(wide)
+      .getSize(new THREE.Vector3()).x;
+    expect(wideW).toBeGreaterThan(tightW * 1.5);
   });
 
   it('dims with the level rather than snapping off', () => {

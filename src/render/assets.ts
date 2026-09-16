@@ -19,7 +19,7 @@ import {
   makeWindlassHouse,
 } from './procMines';
 import {makeFishSign, makeShoal} from './procParts';
-import {makeWindowGlows} from './procTraining';
+import {makeWindowGlows, type VoidPaint} from './procTraining';
 import * as ScatterPackNs from './scatterPackEnum.ts';
 import {
   DEFAULT_FIGURE,
@@ -410,33 +410,30 @@ const GLB_PROP_FILES = [
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 /**
- * The buildings that train, and so wear the training cue: lit windows, a
- * brazier in the yard, a muster banner, and something drilling (see
- * procTraining.ts). The castle is here for its serf hires — the one course
- * it runs — which is why it takes the fire and the lights but neither the
- * banner nor the pell: hiring a hand is not a muster.
+ * Openings a training building backs in something other than the usual dark
+ * slate recess — see VoidPaint.
+ *
+ * The archery range is the only one. Its tower carries two window bands: the
+ * lower one is painted like everyone else's, and the upper ring of six is
+ * painted from cell (1,6) — as are the sides of the straw bales down in its
+ * shooting lane. The bales sit at model y 0.222 and the windows at 1.199, so
+ * a floor between them lights the tower and leaves the straw alone. Without
+ * this the range lit four windows to the castle's twenty-three, and from most
+ * angles exactly one of them was facing you.
+ */
+const EXTRA_VOIDS: Partial<Record<BuildingTypeId, VoidPaint[]>> = {
+  [BuildingTypeId.archeryRange]: [{cell: [0, 3]}, {cell: [1, 6], minY: 0.8}],
+};
+
+/**
+ * The buildings whose windows light while a course runs (procTraining.ts).
+ * The castle is here for its serf hires, the one course it runs.
  */
 const TRAINS: Partial<Record<BuildingTypeId, true>> = {
   [BuildingTypeId.barracks]: true,
   [BuildingTypeId.archeryRange]: true,
   [BuildingTypeId.storehouse]: true,
 };
-
-/**
- * Where each hall's hearth vents, in template space — the mark the smoke
- * column stands on while a course runs.
- *
- * The pack models have no chimney to hang it off, so each is measured to
- * the apex of the building's own main roof and lifted a hair clear of the
- * ridge: the barracks' front-left turret (model y 1.64 at x -0.44, z 0.44, scaled by
- * 1/1.566 about a center at model z 0.063) rather than its central ridge,
- * which the back turrets stand in front of at the rig's own yaw, the range's shed rather than its stone tower (y 1.45, scaled by
- * 1/1.671 about a center at model x 0.036, z -0.098), and, on the castle, a
- * second-tier roof (y 3.32 at model x 0.55, scaled by 1/2.256) rather than
- * the keep's spire — a column off the very top reads as the flagpole
- * burning. Authored inline in BUILDING_DECOR below; remeasure if a model is
- * ever swapped.
- */
 
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // No bakery entry: it dresses its own yard from procBuildings — hearth
@@ -571,37 +568,6 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     {make: () => makeHeadframe(), at: [0.34, 0.43], size: 1, rot: -0.55},
     {make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3},
     {rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13},
-  ],
-  // The three that train carry one mark apiece and nothing else: the mouth
-  // of the hall's own hearth, where buildingSync stands the same smoke
-  // column the bakery and the Smith get. An empty, not a prop — see the
-  // note on TRAIN_FLUE.
-  [BuildingTypeId.barracks]: [
-    {
-      make: () => new THREE.Group(),
-      at: [-0.28, 0.24],
-      y: 1.11,
-      size: 1,
-      name: 'smokeFlue',
-    },
-  ],
-  [BuildingTypeId.archeryRange]: [
-    {
-      make: () => new THREE.Group(),
-      at: [-0.05, 0.03],
-      y: 0.9,
-      size: 1,
-      name: 'smokeFlue',
-    },
-  ],
-  [BuildingTypeId.storehouse]: [
-    {
-      make: () => new THREE.Group(),
-      at: [-0.24, 0.24],
-      y: 1.06,
-      size: 1,
-      name: 'smokeFlue',
-    },
   ],
 };
 
@@ -1257,7 +1223,9 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       // whole template is fitted by. A building drawn 0.5% smaller because
       // somebody lit its windows is exactly the kind of drift this pipeline
       // must not have.
-      const glows = TRAINS[type] ? makeWindowGlows(scene) : null;
+      const glows = TRAINS[type]
+        ? makeWindowGlows(scene, EXTRA_VOIDS[type])
+        : null;
       const group = normalize(scene);
       if (glows) scene.add(glows);
       dress(type, group);
