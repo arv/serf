@@ -431,8 +431,13 @@ export const EXTRA_VOIDS: Partial<Record<BuildingTypeId, VoidPaint[]>> = {
 /**
  * The buildings whose windows light while a course runs (procTraining.ts).
  * The castle is here for its serf hires, the one course it runs.
+ *
+ * Exported because this table, not the paint, is what decides which
+ * buildings give their production away — a house has the same dark-slate
+ * openings and would light just as readily — so what is in it is a gameplay
+ * decision and windowLights.test.ts pins it.
  */
-const TRAINS: Partial<Record<BuildingTypeId, true>> = {
+export const TRAINS: Partial<Record<BuildingTypeId, true>> = {
   [BuildingTypeId.barracks]: true,
   [BuildingTypeId.archeryRange]: true,
   [BuildingTypeId.storehouse]: true,

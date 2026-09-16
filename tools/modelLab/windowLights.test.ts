@@ -3,7 +3,7 @@ import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
-import {EXTRA_VOIDS} from '../../src/render/assets';
+import {EXTRA_VOIDS, TRAINS} from '../../src/render/assets';
 import {makeWindowGlows} from '../../src/render/procTraining';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 
@@ -177,12 +177,24 @@ describe('the window finder on the real pack models', () => {
     // Worth pinning because it is the opposite of what it looks like: the
     // finder is not what decides which buildings light up. A house backs
     // its windows in the same dark slate and gives up panes just as
-    // readily; it stays dark only because assets.ts never asks (TRAINS).
-    // So lighting a fourth building is one line there, and nothing here.
+    // readily; it stays dark only because assets.ts never asks.
     const house = makeWindowGlows(packModel('building_home_A_green.gltf'));
     expect(house).not.toBeNull();
     expect(
       house!.children.filter(o => o.name === 'windowPane').length,
     ).toBeGreaterThan(0);
+
+    // So the gate itself is the thing worth holding, and it is a gameplay
+    // decision rather than a rendering one: a lit hall tells anyone who can
+    // see it that you are making soldiers. Adding a building to this table
+    // is a choice to give that away, and should not happen by accident.
+    const byId = (x: number, y: number): number => x - y;
+    expect(Object.keys(TRAINS).map(Number).sort(byId)).toEqual(
+      [
+        BuildingTypeId.barracks,
+        BuildingTypeId.archeryRange,
+        BuildingTypeId.storehouse,
+      ].sort(byId),
+    );
   });
 });

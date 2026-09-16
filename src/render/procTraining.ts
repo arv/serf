@@ -481,6 +481,15 @@ export function makeWindowGlows(
 
   const g = new THREE.Group();
   g.name = 'windowGlow';
+  // Light is not something you can click on. buildingSync's pick walk skips
+  // a subtree marked this way (its PICK_IGNORE, which the chimney smoke and
+  // the fishery's shoal carry for the same reason); an unmarked one puts
+  // every lit pane and spill of a castle — 46 transparent quads — into the
+  // ray's list on a building players click constantly. A dark one was
+  // already free, since the walk skips invisible objects. Written as the
+  // literal rather than imported: the constant lives in buildingSync, which
+  // imports this file, so reaching back would close the cycle.
+  g.userData.noPick = true;
   const center = new THREE.Vector3();
   for (let i = 0; i < voids.length; i++) {
     const v = voids[i]!;

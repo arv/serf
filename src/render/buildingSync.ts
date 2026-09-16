@@ -1878,9 +1878,16 @@ export class BuildingSync {
     v.trainLevel +=
       (target - v.trainLevel) *
       Math.min(1, dt * (target > v.trainLevel ? 2.2 : 0.7));
-    if (v.trainLevel < TRAIN_DARK) {
+    if (target === 0 && v.trainLevel < TRAIN_DARK) {
       // Cold, and it eases asymptotically, so snap the tail to nothing
       // rather than chasing zero forever.
+      //
+      // `target === 0` is load-bearing, and its absence was a real bug: a
+      // RISING level starts below this threshold too, and one frame's rise
+      // is dt-sized. At 60Hz the first step clears it (0.037) and the hall
+      // lit; at 120Hz it does not (0.018), so the level was snapped back to
+      // zero every frame and the windows never lit at all on a high-refresh
+      // display. Only the decay is snapped now.
       v.trainLevel = 0;
       if (was < TRAIN_DARK) return;
     }

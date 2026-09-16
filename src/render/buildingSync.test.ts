@@ -725,6 +725,30 @@ describe('the training cue', () => {
     expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
   });
 
+  it('lights on a high-refresh display, not just at sixty frames', () => {
+    // The dark fast path snapped any sub-threshold level to zero, including
+    // a RISING one — and a rise is dt-sized, so at 120Hz the first step
+    // (0.018) never cleared the threshold (0.02) and the hall was reset to
+    // dark every frame. The windows simply never lit. Sixty frames a second
+    // cleared it by a hair, which is why nothing caught it.
+    for (const hz of [30, 60, 120, 144, 240]) {
+      const {sync, scene} = makeSync();
+      sync.update([drilling()]);
+      for (let i = 0; i < hz * 3; i++) sync.frame(1 / hz);
+      expect(lit(scene), `${hz}Hz`).toBeGreaterThan(0.5);
+    }
+  });
+
+  it('keeps the glow out of the pick: light is not something you click', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    // buildingSync's pick walk skips a subtree marked this way; unmarked,
+    // every lit pane and spill of a castle joins the ray's list.
+    const glow = scene.getObjectByName('windowGlow')!;
+    expect(glow.userData.noPick).toBe(true);
+  });
+
   it('goes out when the building is paused', () => {
     const {sync, scene} = makeSync();
     sync.update([drilling()]);
