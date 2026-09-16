@@ -105,7 +105,7 @@ describe('the lit windows', () => {
     for (const spill of rig.spills) expect(spill.visible).toBe(false);
   });
 
-  it('gutters like a flame, and never anywhere near out', () => {
+  it('breathes like a distant flame: alive, slow, never near out', () => {
     const rig = harvestTrainingRig(rigged())!;
     ownTrainingMaterials(rig);
     let low = Infinity;
@@ -124,14 +124,17 @@ describe('the lit windows', () => {
       if (last >= 0) biggestStep = Math.max(biggestStep, Math.abs(o - last));
       last = o;
     }
-    // A fire, not a bulb: it moves a long way...
-    expect(high - low).toBeGreaterThan(0.3);
+    // A fire, not a bulb: it moves...
+    expect(high - low).toBeGreaterThan(0.15);
     // ...but never near out, because a dark window means the course
     // stopped, which is the one thing this cue is for.
-    expect(low).toBeGreaterThan(0.45);
-    // And it gutters rather than strobing: no frame-to-frame jump big
-    // enough to read as a flash.
-    expect(biggestStep).toBeLessThan(0.1);
+    expect(low).toBeGreaterThan(0.65);
+    // And it is SLOW. This is the bound that matters: a dozen windows on
+    // the screen guttering at a flame's real speed read as blinking, which
+    // is what the first cut did. Nothing here moves fast enough to catch
+    // the eye — at sixty frames a second, under a hundredth of its range
+    // per frame.
+    expect(biggestStep).toBeLessThan(0.01);
   });
 
   it('gives every window its own flame, out of step with its neighbours', () => {

@@ -622,22 +622,28 @@ export function setTrainingLevel(
  *
  * Four sines at frequencies with no common multiple, which is the cheapest
  * thing that does not read as a pattern: the beat between them never
- * repeats inside a match, so the light gutters, jumps and settles instead
- * of pulsing. The fast pair is the flame itself; the slow one is the draught
- * moving through the hall, which is what gives a candle its long dim
- * moments. Seeded per window, so no two lamps in a keep gutter together.
+ * repeats inside a match, so the light wanders and settles instead of
+ * pulsing. Seeded per window, so no two lamps in a keep move together.
  *
- * Roughly 0.55..1: deep enough to be alive, never near out. A window that
+ * All four are SLOW, and that is the tuning that matters. The first cut ran
+ * the top pair at 14 and 23 radians a second, which is a flame as you would
+ * see it from across a table; at the zoom a village is played at, with a
+ * dozen windows on the screen doing it at once, it read as blinking. These
+ * are the same fire seen from the far side of a valley — it breathes, about
+ * two thirds of a stop, and nothing in it moves fast enough to catch the
+ * eye and hold it.
+ *
+ * Roughly 0.74..1: enough to be alive, never near out. A window that
  * actually went dark would read as the course stopping, which is the one
  * thing this whole cue is supposed to mean.
  */
 function flicker(t: number, seed: number): number {
   const s = seed * 24.7;
   const f =
-    0.78 +
-    0.1 * Math.sin(t * 8.9 + s) +
-    0.07 * Math.sin(t * 14.3 + s * 1.7) +
-    0.05 * Math.sin(t * 23.1 + s * 2.9) +
-    0.09 * Math.sin(t * 1.7 + s * 0.6);
-  return Math.max(0.5, Math.min(1, f));
+    0.88 +
+    0.045 * Math.sin(t * 2.9 + s) +
+    0.03 * Math.sin(t * 4.7 + s * 1.7) +
+    0.02 * Math.sin(t * 7.3 + s * 2.9) +
+    0.05 * Math.sin(t * 0.9 + s * 0.6);
+  return Math.max(0.55, Math.min(1, f));
 }
