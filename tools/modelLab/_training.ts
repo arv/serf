@@ -70,7 +70,20 @@ const BY_NAME = {
   range: BuildingTypeId.archeryRange,
   castle: BuildingTypeId.storehouse,
 };
-const only = params.get('only') as keyof typeof BY_NAME | null;
+// Checked against the three rather than cast to them: `?only=baracks` is a
+// hand-typed URL's most likely failure, and an unchecked cast turns that
+// typo into `undefined` and a page that dies on `def.w` with nothing on
+// screen to say why. A miss falls back to the row of all three.
+const asked = params.get('only');
+const only =
+  asked !== null && Object.hasOwn(BY_NAME, asked)
+    ? (asked as keyof typeof BY_NAME)
+    : null;
+if (asked !== null && only === null) {
+  console.warn(
+    `?only=${asked} is not one of ${Object.keys(BY_NAME).join('|')}`,
+  );
+}
 const TYPES = only
   ? [BY_NAME[only]]
   : [
