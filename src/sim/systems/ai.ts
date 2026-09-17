@@ -3689,15 +3689,28 @@ export class AiBrain {
   }
 
   /**
-   * Walk the flanking march leg by leg: once the army's middle stands at
-   * the waypoint (AI_WAR.flankArrive), or the whole army has stopped
-   * walking, the next leg is planned from where it stands. An army that
+   * Walk the flanking march leg by leg: once the column's middle stands at
+   * the waypoint (AI_WAR.flankArrive), or the whole column has stopped
+   * walking, the next leg is planned from where it stands. A column that
    * stopped short of its waypoint has found the way shut, and marches
    * straight at the castle rather than being ordered at the same wall
    * every beat.
+   *
+   * The COLUMN, not the roster: `#marchParty` is who walked out, and the
+   * barracks does not stop while they are away. Ordering the whole army
+   * down the next leg swept the yard's fresh recruits out with it — men
+   * the retreat rule and the wipe lesson then read as never having
+   * marched, so a rout turned the survivors home and left the recruits
+   * walking on at the garrison alone. It also read the legs wrong on the
+   * way there: soldiers standing at the storehouse drag the middle back
+   * home, so "the middle stands at the waypoint" stopped being true of
+   * anybody, and the flank collapsed into a straight march at the wall.
    */
   #followMarch(world: World, army: Unit[], commands: SimCommand[]): void {
     if (!this.#attacking || this.#marchLeg < 0 || army.length === 0) return;
+    const onMarch = new Set(this.#marchParty);
+    const column = army.filter(u => onMarch.has(u.id));
+    if (column.length === 0) return;
     const target = world.buildings.get(this.#marchTargetId);
     if (!target || target.dead) {
       this.#marchLeg = -1;
@@ -3708,23 +3721,23 @@ export class AiBrain {
     const ly = tileY(this.#marchLeg, size) + 0.5;
     let cx = 0;
     let cy = 0;
-    for (const u of army) {
+    for (const u of column) {
       cx += u.x;
       cy += u.y;
     }
-    cx /= army.length;
-    cy /= army.length;
+    cx /= column.length;
+    cy /= column.length;
     const near = Math.abs(cx - lx) + Math.abs(cy - ly) <= AI_WAR.flankArrive;
-    const halted = army.every(u => u.task.t === UnitTaskKind.idle);
+    const halted = column.every(u => u.task.t === UnitTaskKind.idle);
     if (!near && !halted) return;
     if (near) {
-      this.#orderMarch(world, army, target, commands);
+      this.#orderMarch(world, column, target, commands);
       return;
     }
     this.#marchLeg = -1;
     commands.push({
       kind: CommandKind.moveUnits,
-      unitIds: army.map(u => u.id),
+      unitIds: column.map(u => u.id),
       x: target.x + 1,
       y: target.y + 1,
     });

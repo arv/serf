@@ -809,8 +809,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // tells the two apart), and three comments that gave one threshold for
 // every foe now give the bandit's and the knight's. Tests and prose — no
 // statement the sim executes moves — and the hash is over raw bytes.
+// Still 74 after the review round on this same bump closed the gap it
+// opened: `#marchParty` told the retreat and the wipe lesson who marched,
+// but the flanking legs (systems/ai.ts #followMarch) still ordered the
+// whole roster, so recruits the barracks finished mid-walk were swept out
+// with the column and then left walking at the garrison when the column
+// turned home. The legs order the column now. 74 is unreleased, so there
+// is no log stamped with it to break — and the hash is over raw bytes.
 const EXPECTED_VERSION = 74;
-const EXPECTED_HASH = '5f955653e9c1d4d30b6aa753fdd966e5';
+const EXPECTED_HASH = '7a6e47517351d3f0056cf9f08bab3bc0';
 
 /**
  * Everything a replay's playback depends on, as raw source:

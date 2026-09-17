@@ -301,8 +301,12 @@ export function survivorsAfter(force: Force, enemy: Force): number {
  * captain must expect to still be standing afterwards before he will march.
  * 0 marches on anything — the gate off, and what every playbook printed
  * until the march decision was shown walking three spearmen at fifteen
- * archers; 15 to 35 is the shipped range and refuses routs only, 60 wants a
- * clear win (and is what `easy` is handed), 80 wants a massacre.
+ * archers. 15 to 35 is the shipped range, and it is a thinner brake than
+ * the numbers look: the square root over a quadratic means 30 asks for
+ * about 5% more bodies than the other side, 15 for about 1%. 60 (what
+ * `easy` is handed) is a quarter again as many; 80 wants a massacre. One
+ * edge case the percentage hides — a DEAD-EVEN fight returns 0, so any
+ * positive bar refuses exact parity.
  *
  * An enemy of nothing is always worth attacking — that is the undefended
  * castle, and refusing it would be absurd.

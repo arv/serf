@@ -32,12 +32,19 @@
  * against 73% for the seven spearmen it could have waited for. The
  * playbooks now print 15 to 35, an appetite per lord, and the gate speaks.
  *
- * Two repairs in systems/ai.ts went with it, both the same mistake: the
- * wipe lesson and the retreat rule counted the seat's whole ROSTER where
- * they meant the party that marched. A barracks does not stop while the
- * column is away, so one recruit finishing at home kept the count off zero
- * — and on that seed the lesson was never filed, which is why the bar
- * never rose and the seat kept going back. Both read `#marchParty` now.
+ * Three repairs in systems/ai.ts went with it, all the same mistake: the
+ * wipe lesson, the retreat rule and the flanking march's legs counted the
+ * seat's whole ROSTER where they meant the party that marched. A barracks
+ * does not stop while the column is away, so one recruit finishing at home
+ * kept the count off zero — and on that seed the lesson was never filed,
+ * which is why the bar never rose and the seat kept going back. All three
+ * read `#marchParty` now. The legs are the subtler one: ordering the whole
+ * army down the next waypoint swept the yard's recruits out with it, men
+ * the other two then read as never having marched, so a rout turned the
+ * survivors home and left the recruits walking at the garrison alone —
+ * and soldiers standing at the storehouse dragged the column's middle back
+ * home, so "the middle has reached the waypoint" stopped being true of
+ * anybody and the flank collapsed into a straight march at the wall.
  *
  * And a fallen rival's village is let alone: a harassment sortie no longer
  * picks a building off an eliminated seat, and one already walking turns

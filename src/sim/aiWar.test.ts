@@ -493,6 +493,29 @@ describe('the flanking march', () => {
     expect(brain.warReport().flanked).toBe(1);
   });
 
+  it('walks the column down the next leg, not the yard', () => {
+    // The barracks keeps working while the column is away, and the next
+    // leg is an order to the men who walked out — not to whoever happens
+    // to be standing in the yard when it is given. Sweeping them in left
+    // recruits the retreat rule and the wipe lesson do not count as
+    // marchers walking on at the garrison after the column turned home,
+    // and dragged the column's middle back towards the storehouse, which
+    // is the thing "has it reached the waypoint" is measured on.
+    const {world, brain, army} = towered(DifficultyId.hard);
+    const first = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(first).toBeDefined();
+    for (const u of army) {
+      u.x = first!.x + 0.5;
+      u.y = first!.y + 0.5;
+      u.task = {t: UnitTaskKind.idle, until: world.tick};
+    }
+    const yard = knights(world, 3); // the shift that finished behind them
+    world.tick += 40;
+    const next = moves(brain.decide(world)).find(m => m.unitIds.length >= 8);
+    expect(next?.unitIds.length).toBe(8);
+    for (const u of yard) expect(next?.unitIds).not.toContain(u.id);
+  });
+
   it("plans in the sim's own metric: with no tower, the sim's road exactly", () => {
     // The planner's "is the shortest road under a tower" is only worth
     // asking of the road the army will actually walk — eight neighbours,

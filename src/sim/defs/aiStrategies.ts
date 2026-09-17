@@ -268,12 +268,26 @@ export interface AiStrategy {
    * It is character as much as competence, so the number is per playbook
    * rather than per tier: a lord who will not take an even fight and one
    * who takes any fight are different opponents, and neither is simply
-   * better. Every value here refuses ROUTS and nothing finer than that —
-   * the measured flaw in this brain has always been marching too late
-   * rather than too eagerly (see the gate's own note in systems/ai.ts), so
-   * a bar that starts refusing even fights is a bar that has gone too far.
-   * `easy` overrides all of them to 60 (defs/difficulty.ts), which is that
-   * mistake made on purpose.
+   * better. Every value here refuses ROUTS and very little else — the
+   * measured flaw in this brain has always been marching too late rather
+   * than too eagerly (see the gate's own note in systems/ai.ts), so a bar
+   * that starts refusing even fights is a bar that has gone too far.
+   *
+   * How little else is worth writing down, because the percentage does not
+   * read as one. `survivingFraction` is a square root over a quadratic, so
+   * a bar of `c` wants the power ratio above `1 / (1 - c²/10⁴)` — and
+   * power goes as the SQUARE of a like-for-like force, so in bodies:
+   *
+   *     15 → +1.1%      20 → +2.1%      30 → +4.8%
+   *     35 → +6.8%      60 → +25%
+   *
+   * So none of these is "wants a clear win": the shipped range asks for a
+   * few percent of edge and takes everything above it. Note also that a
+   * DEAD-EVEN fight reads as 0 and is refused by any positive bar — the
+   * invariant has nothing left over when the two powers match — so "an
+   * even fight is taken" below means the ordinary near-even one, not the
+   * knife edge. `easy` overrides all of them to 60 (defs/difficulty.ts),
+   * a quarter again as many men, and that is the mistake made on purpose.
    */
   marchConfidence: number;
 }
@@ -411,8 +425,9 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     prefersRivals: false,
     homeGuard: 0,
     // The yardstick's appetite, and the middle of the deck: a rout is
-    // refused, an even fight is taken. A steward who would not take an
-    // even fight would never spend the seven men he musters at.
+    // refused and about a twentieth of an edge in bodies is enough. A
+    // steward who wanted more than that would never spend the seven men
+    // he musters at.
     marchConfidence: 30,
   },
 
