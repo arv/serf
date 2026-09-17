@@ -241,10 +241,39 @@ export interface AiStrategy {
    * before he will march, as a percentage (see sim/combatOdds.ts). 30 refuses
    * only routs, 60 wants a clear win, 80 wants a massacre.
    *
-   * 0 is off, and every printed playbook holds it there: the seat marches on
-   * headcount alone exactly as it always has, so an unadvised game is the
-   * game it was before this knob existed. It earns a default by winning a
-   * bake-off, not by being plausible.
+   * 0 is off — the seat marches on headcount alone, never asking who is
+   * standing at the other end of the walk. Every printed playbook held it
+   * there, and what took it off 0 is worth stating plainly, because the
+   * usual reason does not apply: THE BAKE-OFF SAYS THIS BUYS NOTHING. The
+   * gate off against the gate on is 51.3% over 384 trials, CI [46.3%,
+   * 56.3%] — dead on the null at the ±5pp the harness says a real result
+   * needs (tools/aiLab/README.md, which records the same null once before
+   * at 80 seeds). It is on for how it PLAYS, not for how often it wins.
+   *
+   * What it plays instead of is seed 42945388: the lower-left seat walked
+   * three spearmen at a castle fifteen archers were standing on, twice,
+   * having already fed six men to the same ground. The predictor reads that
+   * fight at 0% of the party surviving and reads the seven spearmen it
+   * could have waited for at 73% — so the knowledge was there and nothing
+   * was consulting it. An opponent who throws men away in threes is a bad
+   * opponent to sit across from whether or not the throwing away is what
+   * loses him the match, and on that valley the change halves the men it
+   * commits to fights it is outnumbered two to one in.
+   *
+   * That is also the honest limit of the claim. A win-rate-neutral knob is
+   * a knob that can be turned back off for nothing, and anyone who finds
+   * these numbers costing a tier its character should turn it off rather
+   * than argue with the sweep.
+   *
+   * It is character as much as competence, so the number is per playbook
+   * rather than per tier: a lord who will not take an even fight and one
+   * who takes any fight are different opponents, and neither is simply
+   * better. Every value here refuses ROUTS and nothing finer than that —
+   * the measured flaw in this brain has always been marching too late
+   * rather than too eagerly (see the gate's own note in systems/ai.ts), so
+   * a bar that starts refusing even fights is a bar that has gone too far.
+   * `easy` overrides all of them to 60 (defs/difficulty.ts), which is that
+   * mistake made on purpose.
    */
   marchConfidence: number;
 }
@@ -381,7 +410,10 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 400,
     prefersRivals: false,
     homeGuard: 0,
-    marchConfidence: 0,
+    // The yardstick's appetite, and the middle of the deck: a rout is
+    // refused, an even fight is taken. A steward who would not take an
+    // even fight would never spend the seven men he musters at.
+    marchConfidence: 30,
   },
 
   [AiStrategyIdNs.warlord]: {
@@ -588,7 +620,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 300,
     prefersRivals: true,
     homeGuard: 0,
-    marchConfidence: 0,
+    // The lowest bar on the deck, because this is the seat that does not
+    // retreat either: the warlord's whole character is that he comes, and
+    // a captain who checks the odds carefully is a different lord. All 15
+    // buys is the difference between a fight he is losing and a fight that
+    // kills every man he has — the one reading even he should sleep on.
+    marchConfidence: 15,
   },
 
   [AiStrategyIdNs.abbot]: {
@@ -812,7 +849,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 400,
     prefersRivals: false,
     homeGuard: 14,
-    marchConfidence: 0,
+    // The deck's most deliberate lord wants the clearest read before he
+    // spends the ten men he waited for — and he has the two towers and the
+    // fourteen tiles of guard to be patient behind, which is what makes
+    // the extra caution affordable here and nowhere else.
+    marchConfidence: 35,
   },
 
   [AiStrategyIdNs.fletcher]: {
@@ -1061,7 +1102,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 400,
     prefersRivals: false,
     homeGuard: 10,
-    marchConfidence: 0,
+    // Low, like the warlord's and for the same reason — this seat does not
+    // retreat — but not as low: archers cost more to replace than the
+    // bar's one point of difference suggests, and a fletcher who loses his
+    // bows loses the only thing he builds.
+    marchConfidence: 20,
   },
 
   [AiStrategyIdNs.mason]: {
@@ -1292,6 +1337,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // Everything home, from a long way out: the garrison's whole job is the
     // ground the Monument stands on.
     homeGuard: 20,
+    // Off, and it is the one playbook for which that is not a decision:
+    // `holdsGround` makes the brain discard the odds outright (`heeded` in
+    // systems/ai.ts), because a favourable reading may only ever START a
+    // march, and this seat marches at nothing. A number here would read as
+    // an appetite the Mason does not have.
     marchConfidence: 0,
   },
 };

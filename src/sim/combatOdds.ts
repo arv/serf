@@ -44,8 +44,7 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  * terrain, arrival order, the fact that damage kills discrete soldiers
  * rather than draining one pool, and a festival (ModifierKey.fightSpeed):
  * an army under one strikes a quarter faster than its printed dps, and the
- * own-side `Force` in systems/ai.ts is where that read would go if the
- * `marchConfidence` gate — 0 in every playbook — is ever turned on. It
+ * own-side `Force` in systems/ai.ts is where that read would go. It
  * answers "which side is stronger, and by how much", which is the only
  * question the march decision actually asks.
  */
@@ -300,9 +299,10 @@ export function survivorsAfter(force: Force, enemy: Force): number {
  *
  * `marchConfidence` is the share of his own army, as a percentage, that a
  * captain must expect to still be standing afterwards before he will march.
- * 0 marches on anything and is every playbook's default, so an unadvised seat
- * behaves exactly as it did before this file existed; 30 refuses only routs,
- * 60 wants a clear win, 80 wants a massacre.
+ * 0 marches on anything — the gate off, and what every playbook printed
+ * until the march decision was shown walking three spearmen at fifteen
+ * archers; 15 to 35 is the shipped range and refuses routs only, 60 wants a
+ * clear win (and is what `easy` is handed), 80 wants a massacre.
  *
  * An enemy of nothing is always worth attacking — that is the undefended
  * castle, and refusing it would be absurd.

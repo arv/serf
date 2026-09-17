@@ -1024,6 +1024,26 @@ export class AiBrain {
   #marchedCount = 0;
   #marchTargetId: EntityId = -1;
   /**
+   * WHO left on it — the party, by id, and the thing both the retreat and
+   * the wipe lesson actually have to count.
+   *
+   * Both used to read `army`, the seat's whole standing roster, and a
+   * roster is not a march: the barracks keeps working while the men are
+   * away, so a recruit who finished training in the yard three hundred
+   * ticks after the column left counted as a survivor of a fight he never
+   * walked to. That is not a corner case, it is the ordinary run of a
+   * siege — measured on the seed-42945388 valley, the lower-left seat
+   * marched six men, five of them died, one recruit came off the line at
+   * t=14989, and because the roster never touched zero the wipe was never
+   * recorded. So the bar never rose, and the seat marched three men at the
+   * same castle twice more, into fifteen archers the second time.
+   *
+   * Ids rather than a count, because the question is which men, not how
+   * many: `world.units` answers "is this one still standing" and nothing
+   * else can distinguish the party from the yard.
+   */
+  #marchParty: EntityId[] = [];
+  /**
    * The last march that was wiped out: what it marched at and how many it
    * left with (`wipedMarch`, AI_WAR.wipeLesson). The next march on that
    * castle wants more men than that, whatever the muster bar and its
@@ -2054,7 +2074,7 @@ export class AiBrain {
     // trusted between two pushes.
     const spokenFor = new Set<EntityId>();
     this.#manageSortie(world, commands, baseX, baseY);
-    if (this.#retreatIfRouted(world, army, commands, baseX, baseY)) {
+    if (this.#retreatIfRouted(world, commands, baseX, baseY)) {
       return commands;
     }
     this.#followMarch(world, army, commands);
@@ -2073,7 +2093,7 @@ export class AiBrain {
     const cooled = idleFor > s.attackCooldown;
     if (army.length > this.#lastArmyCount) this.#armyGrewTick = world.tick;
     this.#lastArmyCount = army.length;
-    this.#noteWipe(world, army);
+    this.#noteWipe(world);
     // The bar, with the growth-stall clamp over the impatience ramp: an
     // army that has stopped growing is as big as it is getting, so waiting
     // for the playbook's full size only feeds soldiers to the raids one at
@@ -2244,6 +2264,7 @@ export class AiBrain {
       // and stamps what the retreat rule will later compare against.
       this.#sortie = null;
       this.#marchedCount = army.length;
+      this.#marchParty = army.map(u => u.id);
       this.#marchTargetId = target.id;
       if (this.#firstMarchTick < 0) this.#firstMarchTick = world.tick;
       this.#marchLeg = -1;
@@ -2276,6 +2297,7 @@ export class AiBrain {
       // lingering raider could pin the army at home for the whole game.
       // And ahead of the searches: defense outranks exploration.
       this.#attacking = false;
+      this.#marchParty = []; // the march is over: everyone is coming home
       this.#sortie = null; // the recall takes the harassers home too
       this.#heraldTick = -1; // an announced march the defense preempted
       this.#clearScout();
@@ -2759,11 +2781,12 @@ export class AiBrain {
    * playbook set.
    *
    * Deliberately generous about ignorance. Three cases commit without asking:
-   * the knob is off (every printed playbook, so unadvised seats march exactly
-   * as before), the target is a bandit camp (no sighting machinery watches
-   * BANDIT at all — see #observeRivals — and camps are the early game's whole
-   * agenda), and nothing is known about the defenders. The gate is a brake on
-   * fights we can see going badly, not a general reluctance.
+   * the knob is off (the Mason alone, and `heeded` below discards its
+   * reading anyway), the target is a bandit camp (no sighting machinery
+   * watches BANDIT at all — see #observeRivals — and camps are the early
+   * game's whole agenda), and nothing is known about the defenders. The
+   * gate is a brake on fights we can see going badly, not a general
+   * reluctance.
    *
    * Refusing costs nothing permanent: #lastAttackTick is stamped only by the
    * march itself, so mustersNeeded keeps grinding the bar down — and past
@@ -3115,6 +3138,14 @@ export class AiBrain {
    * a PLAIN move — flee without reengaging, the same promise the launch's
    * attack:'half' made on the way out. A party wiped to the last man
    * simply ends; there is nobody left to order.
+   *
+   * Home too when the target's OWNER has fallen while the party was
+   * walking. `pickHarassTarget` will not choose a dead seat's farm, but a
+   * sortie launched at a living one and overtaken by somebody else's
+   * assault would otherwise go on and burn a shed in a village that is
+   * already out of the game. Counted as a strike: the errand is over
+   * because the thing it was aimed at stopped mattering, which is the
+   * same ending as the target falling and not a party that broke.
    */
   #manageSortie(
     world: World,
@@ -3135,7 +3166,8 @@ export class AiBrain {
     }
     const maxAge = this.#tiered.harass?.maxAge ?? 800;
     const target = world.buildings.get(st.targetId);
-    const struck = !target || target.dead;
+    const struck =
+      !target || target.dead || !world.players[target.owner]?.alive;
     let breaking = false;
     if (!struck) {
       let hpNow = 0;
@@ -3789,12 +3821,19 @@ export class AiBrain {
    * the survivors are the lesson there — and neither is one whose target
    * fell, whatever it cost.
    *
+   * "Every man of it" means the party that walked, which is what
+   * `#marchParty` is for. Read off the whole roster, as this used to be,
+   * the lesson was unlearnable by anything with a working barracks: one
+   * recruit finishing at home kept the count off zero and the march that
+   * had just lost every man in the field filed nothing.
+   *
    * Normal and hard (Difficulty.remembersWipes), and a war behaviour so
    * the lab can ablate it. Easy plays the pre-lesson brain exactly: the
    * clamp lowers the bar to what stands, and what stands marches.
    */
-  #noteWipe(world: World, army: Unit[]): void {
-    if (!this.#attacking || this.#marchedCount === 0 || army.length > 0) return;
+  #noteWipe(world: World): void {
+    if (!this.#attacking || this.#marchedCount === 0) return;
+    if (this.#marchSurvivors(world).length > 0) return;
     const target = world.buildings.get(this.#marchTargetId);
     const stands = target !== undefined && !target.dead;
     if (
@@ -3808,6 +3847,18 @@ export class AiBrain {
     // The march is over either way: nobody is left to be on it.
     this.#attacking = false;
     this.#marchedCount = 0;
+    this.#marchParty = [];
+  }
+
+  /** Who is still standing of the party that marched — the march itself,
+   * with the yard's recruits left out of it. */
+  #marchSurvivors(world: World): Unit[] {
+    const alive: Unit[] = [];
+    for (const id of this.#marchParty) {
+      const u = world.units.get(id);
+      if (u && !u.dead) alive.push(u);
+    }
+    return alive;
   }
 
   /** The muster the wiped march's lesson asks for against this target, or
@@ -3825,31 +3876,40 @@ export class AiBrain {
    * restarts so the survivors regroup instead of instantly re-marching.
    * The warlord and the fletcher never take this branch, and that refusal
    * is as much their character as the retreat is the steward's.
+   *
+   * "Half the strength it left with" is measured on the party that left
+   * (`#marchParty`), for the reason the wipe lesson is: the barracks does
+   * not stop while the column is away, and reading the whole roster let
+   * men standing in the home yard vote on a rout they were nowhere near.
+   * Three of six dead is a broken march whether or not a fresh spearman
+   * happened to finish that minute — and it is the men in the field, not
+   * the ones at home, who are then ordered out of it.
    */
   #retreatIfRouted(
     world: World,
-    army: Unit[],
     commands: SimCommand[],
     baseX: number,
     baseY: number,
   ): boolean {
     if (!this.#warOn(WarBehaviorIdNs.retreatMarch)) return false;
     if (!this.#tiered.retreats || !this.#attacking) return false;
-    if (army.length === 0 || this.#marchedCount === 0) return false;
-    if (army.length * 2 >= this.#marchedCount) return false;
+    const party = this.#marchSurvivors(world);
+    if (party.length === 0 || this.#marchedCount === 0) return false;
+    if (party.length * 2 >= this.#marchedCount) return false;
     const target = world.buildings.get(this.#marchTargetId);
     if (!target || target.dead) return false; // the target fell: that is a win
     const defenders = this.#defendersAt(world, target);
     if (!defenders) return false;
-    if (shouldCommit(this.#forceOf(army), defenders, AI_WAR.retreatBreak))
+    if (shouldCommit(this.#forceOf(party), defenders, AI_WAR.retreatBreak))
       return false;
     commands.push({
       kind: CommandKind.moveUnits,
-      unitIds: army.map(u => u.id),
+      unitIds: party.map(u => u.id),
       x: baseX,
       y: baseY + 4,
     });
     this.#attacking = false;
+    this.#marchParty = [];
     this.#lastAttackTick = world.tick;
     this.#armyGrewTick = world.tick;
     this.#marchRetreats++;
@@ -4529,6 +4589,17 @@ export function pickAttackTarget(
  * distance: the rival whose raid most recently reached our yard is hit
  * first, however much nearer someone else's farm stands. Ties break on
  * the lower building id, so two hosts harass identically.
+ *
+ * A LIVING rival's, and that clause is the whole of what a fallen village
+ * is worth. Losing the storehouse is elimination (systems/victory.ts), and
+ * what it leaves behind is a mill that still grinds for nobody and serfs
+ * hauling to a castle that is gone: the seat is out of the game and its
+ * yard cannot put it back in. Burning a farm there costs a party, the
+ * harass cooldown and the walk, and buys nothing that was not already
+ * won. Every other read of a rival already draws this line — the intel
+ * roster, the counter-plan and the march's own camp/castle preference all
+ * skip the dead — and the sortie was the one errand still walking out to
+ * a village with no one left to feel it.
  */
 export function pickHarassTarget(
   world: World,
@@ -4543,6 +4614,7 @@ export function pickHarassTarget(
   let bestRank = Infinity;
   for (const b of world.buildings.values()) {
     if (b.dead || b.owner === owner || !isPlayerOwner(b.owner)) continue;
+    if (!world.players[b.owner]?.alive) continue;
     if (buildingDef(b.type).storage) continue;
     if (!vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
     const d = Math.abs(b.x + b.w / 2 - bx) + Math.abs(b.y + b.h / 2 - by);

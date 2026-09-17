@@ -185,8 +185,9 @@ function stepNumber(
   const up = rng.int(2) === 0;
   const moved = clamp(value + (up ? size : -size), range);
   // Pinned against the edge it was pushed towards: try the other way rather
-  // than burning the mutation. A knob at a boundary is common — every
-  // printed playbook holds marchConfidence at 0.
+  // than burning the mutation. A knob at a boundary is common — the Mason
+  // holds marchConfidence at 0, and every playbook sits at a bound on
+  // something.
   if (moved === value) return clamp(value + (up ? -size : size), range);
   return moved;
 }

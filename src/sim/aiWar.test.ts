@@ -80,6 +80,54 @@ describe('harassment sorties', () => {
     expect(brain.warReport().sorties).toBe(1);
   });
 
+  it("leaves a fallen rival's village alone", () => {
+    // The village a castle fell out from under. Losing the storehouse is
+    // elimination (systems/victory.ts) and what stands afterwards is a
+    // mill grinding for nobody: burning a shed there spends a party, the
+    // harass cooldown and the walk, and buys back nothing. Every other
+    // read of a rival already skips the dead; the sortie was the errand
+    // still walking out to a village with no one left to feel it.
+    const world = village();
+    addBuiltHut(world, BASE + 8, BASE, false, 1);
+    knights(world, 5);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 1300;
+    world.players[1]!.alive = false;
+    expect(moves(brain.decide(world)).find(m => m.attack === 'half')).toBe(
+      undefined,
+    );
+    expect(brain.warReport().sorties).toBe(0);
+  });
+
+  it("turns a sortie home when its target's lord falls mid-walk", () => {
+    // Launched at a living rival and overtaken by somebody else's assault.
+    // Counted a strike rather than a withdrawal: the errand ended because
+    // what it was aimed at stopped mattering, not because the party broke.
+    const world = village();
+    addBuiltHut(world, BASE + 8, BASE, false, 1);
+    knights(world, 5);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 1300;
+    expect(
+      moves(brain.decide(world)).find(m => m.attack === 'half'),
+    ).toBeDefined();
+    world.players[1]!.alive = false;
+    world.tick += 20;
+    const home = moves(brain.decide(world)).find(
+      m => m.attack === undefined && m.unitIds.length === 4,
+    );
+    expect(home).toBeDefined();
+    expect(brain.warReport().sortieStrikes).toBe(1);
+  });
+
   it('a personality without harass never harasses', () => {
     const world = village();
     addBuiltHut(world, BASE + 8, BASE, false, 1);
@@ -244,6 +292,20 @@ describe('the losing march', () => {
     brain.decide(world);
     expect(brain.warReport().marchRetreats).toBe(0);
   });
+
+  it('men in the home yard do not get a vote on a rout in the field', () => {
+    // "Under half the strength it left with" is about the column, and the
+    // barracks keeps working while the column is away. Read off the whole
+    // roster — as this once was — four survivors plus four fresh recruits
+    // read as eight of twelve and the broken march marched on.
+    const {world, brain} = routedMarch(AiStrategyId.steward);
+    knights(world, 4); // the shift that finished while the assault died
+    const survivors = moves(brain.decide(world)).find(
+      m => m.attack === undefined && m.unitIds.length === 4,
+    );
+    expect(survivors).toBeDefined();
+    expect(brain.warReport().marchRetreats).toBe(1);
+  });
 });
 
 describe('the wiped march', () => {
@@ -312,6 +374,39 @@ describe('the wiped march', () => {
       m => m.x === BASE + 1 && m.y === BASE + 9,
     );
     expect(next?.unitIds.length).toBe(6);
+  });
+
+  it('a recruit standing in the yard is not a survivor of the march', () => {
+    // The bug this file exists to keep out. The lesson used to be filed
+    // off the seat's whole ROSTER — "no soldier of mine is alive" — and a
+    // barracks does not stop while the column is away, so one man finishing
+    // his training at home kept the count off zero and a march that lost
+    // every man in the field recorded nothing. Played out on seed 42945388:
+    // the lower-left seat marched six, five died, a spearman came off the
+    // line, and it went back to the same castle with three men. Twice.
+    const world = village();
+    addStorehouse(world, BASE + 8, BASE, {}, 1);
+    const party = knights(world, 6);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.warlord],
+      world.map.size,
+      DifficultyId.hard,
+    );
+    brain.setWarBehaviors([WarBehaviorId.wipedMarch]);
+    world.tick = 1500;
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(6);
+    // Every man who marched is dead — and the yard has a fresh one, who
+    // was never on the march and cannot speak to how it went.
+    for (const u of party) u.dead = true;
+    knights(world, 1, 0, BASE + 1);
+    world.tick += 40;
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+    expect(brain.warReport().wipes).toBe(1);
+    // ...so six is now a number that has been tried. Six more wait.
+    knights(world, 5);
+    world.tick += 2000;
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
   });
 
   it('on normal the lesson is learned too; on easy it is not', () => {

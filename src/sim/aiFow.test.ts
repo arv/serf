@@ -504,6 +504,12 @@ describe('the AI under fog of war', () => {
       AI_STRATEGIES[AiStrategyId.steward],
       world.map.size,
     );
+    // The scout is the subject, so the march gate is switched off for it.
+    // Four knights against three spearmen is a fight the predictor likes,
+    // and a liked fight STARTS a march under the printed appetite — which
+    // would send the whole army, this errand's scout included, and there
+    // would be no single-man order below to follow.
+    brain.setOverride({marchConfidence: 0});
     const gateLeg = moveOrders(brain.decide(world)).filter(
       c => c.unitIds.length === 1,
     )[0]!;

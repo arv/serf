@@ -1183,13 +1183,14 @@ describe('the mutation space', () => {
   });
 
   it('moves a knob pinned at its boundary instead of wasting the mutation', () => {
-    // Every printed playbook holds marchConfidence at 0, the bottom of its
-    // range. A step "down" from there has to become a step up, or the one
-    // knob the repo most wants searched would never move.
+    // The Mason holds marchConfidence at 0, the bottom of its range — the
+    // gate never speaks for a seat that does not march. A step "down" from
+    // there has to become a step up, or a knob pinned at a bound would
+    // burn every mutation it was dealt.
     const rng = new Rng(2);
     let moved = 0;
     for (let i = 0; i < 60; i++) {
-      const m = mutate(AI_STRATEGIES[AiStrategyId.steward], rng, {
+      const m = mutate(AI_STRATEGIES[AiStrategyId.mason], rng, {
         frozen: MUTABLE_KNOBS.filter(k => k !== 'marchConfidence'),
       });
       expect(m.changes).toHaveLength(1);

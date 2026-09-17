@@ -809,8 +809,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // tells the two apart), and three comments that gave one threshold for
 // every foe now give the bandit's and the knight's. Tests and prose — no
 // statement the sim executes moves — and the hash is over raw bytes.
-const EXPECTED_VERSION = 73;
-const EXPECTED_HASH = 'e9869af5ae75da5eaea7cdff09e457d2';
+const EXPECTED_VERSION = 74;
+const EXPECTED_HASH = '5f955653e9c1d4d30b6aa753fdd966e5';
 
 /**
  * Everything a replay's playback depends on, as raw source:
