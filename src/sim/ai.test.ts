@@ -290,9 +290,17 @@ describe('strategist overrides', () => {
       // An empty override spreads to the same values; clearing goes back to
       // the playbook object itself. Either way: the identical game.
       if (t === 1000) brain.setOverride({});
-      // The march gate at its neutral value has to be as inert as no advice
-      // at all — the whole reason every playbook ships marchConfidence: 0.
-      if (t === 1500) brain.setOverride({marchConfidence: 0});
+      // The march gate told what the playbook already prints has to be as
+      // inert as no advice at all. Read off the playbook rather than
+      // written as a literal: the printed appetites are per-lord now
+      // (15 to 35), so a hard-coded number here would be a real change
+      // wearing a no-op's clothes, and it would stop being one the day
+      // the deal hands this seed a different lord.
+      if (t === 1500)
+        brain.setOverride({
+          marchConfidence: strategyOf(world.players[1]!.strategy)
+            .marchConfidence,
+        });
       if (t === 2000) brain.setOverride(null);
       const commands = brain.shouldDecide(world.tick)
         ? brain.decide(world)
@@ -368,9 +376,47 @@ describe('strategist overrides', () => {
     );
     brain.setStancePolicy(false); // the printed bar of seven is the subject
     brain.setWarBehaviors([]); // and the herald would hold the march
+    brain.setOverride({marchConfidence: 0}); // ...and the gate off, so it is
     expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // headcount says wait
     brain.setOverride({marchConfidence: 60});
     expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
+  it('three spearmen do not walk onto ten archers, and seven do', () => {
+    // The played case, seed 42945388: the lower-left seat marched three
+    // spearmen at a castle a rival's archer stack was standing on, twice,
+    // having already lost six men to the same ground. Spearmen BEAT archers
+    // — the counter table says 1.5 and the foot race says they close — so
+    // the answer was never "don't take this fight", it was "not with three".
+    // The predictor reads the party of three at 0% surviving and the party
+    // of seven at 73%, and at the steward's printed appetite that is the
+    // difference between a hold and a march. No override: what is under
+    // test is the number the playbook actually ships.
+    function spearsAgainstArchers(spears: number): SimCommand[] {
+      const world = bareWorld();
+      addStorehouse(world, 30, 30, {});
+      for (let i = 0; i < spears; i++)
+        spawnUnit(world, UnitTypeId.spearman, 0, 33.5, 27.5 + i * 0.4);
+      addStorehouse(world, 44, 30, {}, 1);
+      for (let i = 0; i < 10; i++)
+        spawnUnit(world, UnitTypeId.archer, 1, 45.5, 28.5 + i * 0.4);
+      spawnUnit(world, UnitTypeId.spearman, 0, 42.5, 30.5); // the scout, lighting the yard
+      world.tick = 1000; // past the steward's attack cooldown
+      const brain = new AiBrain(
+        0,
+        AI_STRATEGIES[AiStrategyId.steward],
+        world.map.size,
+      );
+      // Same pinning as siegeStandoff: the stance engine's siege bar and
+      // the herald's lead both hide the gate behind something else.
+      brain.setStancePolicy(false);
+      brain.setWarBehaviors([]);
+      return brain.decide(world);
+    }
+    expect(marchOrders(spearsAgainstArchers(3), 30, 30)).toEqual([]);
+    expect(marchOrders(spearsAgainstArchers(7), 30, 30).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('marches into that same garrison when the gate is off', () => {

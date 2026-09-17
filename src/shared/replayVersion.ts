@@ -20,6 +20,43 @@
  * directly.
  */
 /**
+ * 74: the captain looks at who is standing there before he marches.
+ *
+ * `marchConfidence` (defs/aiStrategies.ts) has been 0 on every printed
+ * playbook since combatOdds.ts was written, so the predictor that file
+ * builds was never once consulted in a shipped match: a seat marched on a
+ * headcount and nothing else. Seed 42945388 is what that costs. The
+ * lower-left seat lost six men at a rival castle, then walked three
+ * spearmen at the same ground twice more, the second time into fifteen
+ * archers — a fight the predictor reads at 0% of the party surviving,
+ * against 73% for the seven spearmen it could have waited for. The
+ * playbooks now print 15 to 35, an appetite per lord, and the gate speaks.
+ *
+ * Three repairs in systems/ai.ts went with it, all the same mistake: the
+ * wipe lesson, the retreat rule and the flanking march's legs counted the
+ * seat's whole ROSTER where they meant the party that marched. A barracks
+ * does not stop while the column is away, so one recruit finishing at home
+ * kept the count off zero — and on that seed the lesson was never filed,
+ * which is why the bar never rose and the seat kept going back. All three
+ * read `#marchParty` now. The legs are the subtler one: ordering the whole
+ * army down the next waypoint swept the yard's recruits out with it, men
+ * the other two then read as never having marched, so a rout turned the
+ * survivors home and left the recruits walking at the garrison alone —
+ * and soldiers standing at the storehouse dragged the column's middle back
+ * home, so "the middle has reached the waypoint" stopped being true of
+ * anybody and the flank collapsed into a straight march at the wall.
+ *
+ * And a fallen rival's village is let alone: a harassment sortie no longer
+ * picks a building off an eliminated seat, and one already walking turns
+ * home when its target's lord falls. Losing the storehouse is elimination
+ * and what stands afterwards cannot put the seat back in the game, so the
+ * party, the cooldown and the walk bought nothing.
+ *
+ * All of it is AI decision-making, which reaches the tick as commands —
+ * different orders on different ticks, so every recorded match diverges.
+ *
+ * 73's note follows.
+ *
  * 73: the knife is re-priced, one point to two.
  *
  * 72 gave every civilian a knife and deliberately set it at the bottom of
@@ -1330,4 +1367,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 73;
+export const REPLAY_VERSION = 74;
