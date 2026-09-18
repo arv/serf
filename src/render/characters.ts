@@ -938,8 +938,8 @@ function scytheProp(): THREE.Group {
  * from the height field, plus PIER_DECK_Y), so the float rides in the air
  * short of the lake. That is how it has always hung here and it is left
  * alone on purpose, because the honest fix is not a bigger constant: the
- * drop wanted is `deckY - WATER_LEVEL`, which is per-site, and buildingSync
- * is the one that knows it.
+ * drop wanted is `deckY - WATER_LEVEL`, which is per-site, and pierFit is
+ * the one that knows it.
  */
 export const ROD_LINE_STRETCH = 1.4;
 
