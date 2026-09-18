@@ -987,7 +987,7 @@ export const ROD_AIM = new THREE.Vector3(0.5562, 0.8293, 0.0531).normalize();
  * This face rides UP (see `rodOrientation`). The model carries it on the
  * rod's upper side, so hanging it downward turns the whole rod over.
  */
-const ROD_GUIDES = new THREE.Vector3(0, 0.4059, -0.9139).normalize();
+export const ROD_GUIDES = new THREE.Vector3(0, 0.4059, -0.9139).normalize();
 
 /**
  * Straight down, in that same socket frame — where the line has to fall.
@@ -1011,11 +1011,16 @@ const LINE_HANG = new THREE.Vector3(0, -1, 0);
  * turn. `setFromUnitVectors(ROD_SHAFT, ROD_AIM)` gets the shaft right and
  * leaves the roll about it to fall out of the arithmetic, which is how the
  * reel came to hang off the side of the pole. Naming the second axis pins
- * it: the guide face rides up, so the reel hangs under the shaft the way a
- * reel does and the line drops clear of the pole.
+ * it.
+ *
+ * Which way that axis goes is one word, and it is worth being exact about
+ * it because the reel rides on the guide face — the two are 0.8 degrees
+ * apart on this model, so they cannot be split. The guide face rides UP,
+ * and the reel therefore sits ABOVE the shaft. Turning it over is a matter
+ * of targeting `down` here instead, and nothing else.
  *
  * Both triads are orthonormal by construction — ROD_GUIDES is square to
- * ROD_SHAFT as measured, and `down` is taken square to ROD_AIM here — so
+ * ROD_SHAFT as measured, and `up` is taken square to ROD_AIM here — so
  * mapping one basis onto the other is a pure rotation.
  */
 function rodOrientation(): THREE.Quaternion {

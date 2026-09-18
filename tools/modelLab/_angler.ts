@@ -25,6 +25,7 @@ import {
   makeCharacter,
   playAnimation,
   ROD_AIM,
+  ROD_GUIDES,
   ROD_LINE_STRETCH,
   setWorkTool,
 } from '../../src/render/characters';
@@ -211,9 +212,11 @@ function measure(made_: {group: THREE.Group}): Record<string, number | string> {
   };
   const drop = at('fishing_rod_hook').sub(tip);
   const rod = made_.group.getObjectByName('fishing_rod')!;
-  const guides = new THREE.Vector3(0, 0.4059, -0.9139)
-    .normalize()
-    .transformDirection(rod.matrixWorld);
+  // ROD_GUIDES itself, not a copy of its numbers: a second literal here
+  // would let the lab go on reporting the old roll after a recalibration
+  // moved the renderer's, which is precisely the drift this page exists to
+  // catch.
+  const guides = ROD_GUIDES.clone().transformDirection(rod.matrixWorld);
   const deg = (r: number): number =>
     Math.round(((r * 180) / Math.PI) * 10) / 10;
   const round = (n: number): number => Math.round(n * 1000) / 1000;
