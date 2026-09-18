@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import {WORK} from '../../src/protocol/sabLayout';
 import * as AnimKey from '../../src/render/animKeyEnum.ts';
 import {loadGlbAssets} from '../../src/render/assets';
+import type {CharacterVisual} from '../../src/render/characters';
 import {
   loadCharacterAssets,
   makeCharacter,
@@ -147,7 +148,7 @@ function rehangLine(tilt: THREE.Object3D): void {
   line.quaternion.copy(parent.invert());
 }
 
-const made: {group: THREE.Group; visual: unknown}[] = [];
+const made: {group: THREE.Group; visual: CharacterVisual}[] = [];
 
 /** One angler turned `spin` off square, at screen-x `x`. */
 function angler(x: number, spin: number): void {
@@ -184,8 +185,13 @@ for (let i = 0; i < YAWS; i++) {
  * `aim` is the shaft (grip node to line node) against the man's own forward
  * and right; `fistR`/`fistL` are each handslot's perpendicular distance from
  * the shaft's line, which is the number that says whether he is holding the
- * thing; `line` is how far the hanging line is off plumb; `guideFace` says
- * which way the guides and reel point.
+ * thing; `guideFace` says which way the guides and reel point.
+ *
+ * The line is reported twice, and the second one is the one that matters.
+ * Its plumb is baked once by `fishingPoleProp`, so it is exact only at the
+ * pose it was measured at and leans a little as Fishing_Idle sways the
+ * wrist. A single frame would therefore flatter it, so this scans the whole
+ * clip and reports the worst frame alongside the current one.
  */
 function measure(made_: {group: THREE.Group}): Record<string, number | string> {
   made_.group.updateWorldMatrix(true, true);
@@ -221,9 +227,40 @@ function measure(made_: {group: THREE.Group}): Record<string, number | string> {
   };
 }
 
+/** The worst the line leans over the whole clip, in degrees. Scrubs the
+ * mixer and puts it back where it found it, so the frame that gets rendered
+ * is the one the caller asked for. */
+function worstLineLean(made_: {
+  group: THREE.Group;
+  visual: CharacterVisual;
+}): number {
+  const action = made_.visual.actions.get(AnimKey.fish);
+  if (!action) return 0;
+  const {duration} = action.getClip();
+  const held = action.time;
+  const tip = new THREE.Vector3();
+  const hook = new THREE.Vector3();
+  let worst = 0;
+  for (let i = 0; i < 32; i++) {
+    action.time = (i / 32) * duration;
+    made_.visual.mixer.update(0);
+    made_.group.updateWorldMatrix(true, true);
+    made_.group.getObjectByName('fishing_rod_line')!.getWorldPosition(tip);
+    made_.group.getObjectByName('fishing_rod_hook')!.getWorldPosition(hook);
+    const d = hook.clone().sub(tip);
+    worst = Math.max(worst, Math.atan2(Math.hypot(d.x, d.z), -d.y));
+  }
+  action.time = held;
+  made_.visual.mixer.update(0);
+  made_.group.updateWorldMatrix(true, true);
+  return Math.round(((worst * 180) / Math.PI) * 100) / 100;
+}
+
 // The first figure stands square, so its numbers are the ones to read; the
 // rest only differ by the turn the strip gives them.
-const READING = made[0] ? measure(made[0]) : null;
+const READING = made[0]
+  ? {...measure(made[0]), lineOffPlumbWorstDeg: worstLineLean(made[0])}
+  : null;
 (window as unknown as {ANGLER_READING: unknown}).ANGLER_READING = READING;
 
 const HALF_H = Number(params.get('zoom') ?? '1.15');

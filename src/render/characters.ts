@@ -1062,12 +1062,14 @@ function fishingPoleProp(): THREE.Group {
       if (o) o.scale.y /= K;
     }
   }
-  // Swing the shaft onto the fists' axis, and slide the rod down its own
-  // haft so the right fist closes GRIP_SLIDE along it rather than on the
-  // butt cap. gripPose's slide cannot do that job here: it runs down the
-  // HOLDER's +y on the assumption that the haft does too, and this haft is
-  // aimed 40-odd degrees off it — which is the very error gripPose's own
-  // comment describes, a fist closed on air beside the wood.
+  // Swing the shaft onto ROD_AIM — the man's forward, NOT the axis his two
+  // fists make; see ROD_AIM for why those differ and what it costs — and
+  // slide the rod down its own haft so the right fist closes GRIP_SLIDE
+  // along it rather than on the butt cap. gripPose's slide cannot do that
+  // job here: it runs down the HOLDER's +y on the assumption that the haft
+  // does too, and this haft is aimed 40-odd degrees off it — which is the
+  // very error gripPose's own comment describes, a fist closed on air
+  // beside the wood.
   const tilt = new THREE.Group();
   tilt.quaternion.copy(rodOrientation());
   tilt.position.copy(ROD_AIM).multiplyScalar(-GRIP_SLIDE);
@@ -1076,9 +1078,18 @@ function fishingPoleProp(): THREE.Group {
     // Undo the aim for the line alone. `tilt` is the root of what we have
     // built so far and `wrap` below cancels the hold exactly, so resolving
     // matrices from here puts the line's parent in the same socket frame
-    // ROD_PLUMB is measured in — no posed skeleton needed, and nothing to
-    // re-do per frame, because the socket turns with the man and plumb
-    // turns with him too.
+    // ROD_PLUMB is measured in — no posed skeleton needed.
+    //
+    // Baked once, and only EXACT at the pose ROD_PLUMB was measured at.
+    // Turning the man does not disturb it (a yaw leaves world-down alone),
+    // but Fishing_Idle sways the wrist, and the line, being rigid, leans
+    // with it. Measured over the whole clip that is 0 to 2.75 degrees off
+    // plumb, mean 1.21, which carries the float at most 0.038 sideways of
+    // the tip — a third of the float's own width, at a zoom where the
+    // float is a few pixels. Re-deriving this every frame for every
+    // fisherman to buy that back is not a trade worth making; the lab
+    // prints the worst case over the clip so the number stays honest
+    // rather than becoming an unexamined claim of "plumb".
     tilt.updateMatrixWorld(true);
     const parent = new THREE.Quaternion();
     line.parent!.getWorldQuaternion(parent);
