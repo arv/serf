@@ -656,7 +656,13 @@ export async function runMatch(
   if (home) renderer.rig.focusOn(home.x + home.w / 2, home.y + home.h / 2);
 
   const selectionFx = new SelectionFx(renderer.scene, heights);
-  const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
+  const ghost = new GhostPlacement(
+    renderer.scene,
+    heights,
+    mirror.map,
+    () => buildingSync.fisheryPiers(),
+    config.myPlayerId,
+  );
   const selectedReach = new SelectedReach(renderer.scene, heights);
   const rallyFlag = new RallyFlag(renderer.scene, heights);
   const controls = new Controls(
