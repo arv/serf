@@ -292,6 +292,18 @@ function segmentGap(
   );
 }
 
+/**
+ * A number that changes whenever the decks standing change — what lets the
+ * placement ghost notice that its own aim is out of date without re-running
+ * the search on every pointer event. Cheap because a village holds a
+ * handful of fisheries, not a field of them.
+ */
+export function pierStamp(piers: readonly PierInfo[]): number {
+  let n = piers.length;
+  for (const p of piers) n = n * 31 + p.baseX * 3 + p.baseZ * 7 + p.yaw;
+  return n;
+}
+
 /** The parts of a drawn fishery the fit moves: the root standing on the
  * ground at the footprint center, the named deck somewhere under it, the
  * shoal working the water off its end, and the quarter turn the sim gave

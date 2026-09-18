@@ -68,15 +68,12 @@ interface Shore {
 
 function shore(
   water: (tx: number, tz: number) => boolean,
-  standing: readonly PierInfo[] = [],
+  standing: readonly PierInfo[] | (() => readonly PierInfo[]) = [],
 ): Shore {
   const scene = new THREE.Scene();
   const heights = shoreHeights(water);
-  const ghost = new GhostPlacement(
-    scene,
-    heights,
-    shoreMap(water),
-    () => standing,
+  const ghost = new GhostPlacement(scene, heights, shoreMap(water), () =>
+    typeof standing === 'function' ? standing() : standing,
   );
   return {ghost, scene, heights};
 }
@@ -195,6 +192,40 @@ describe("the fishery preview's dock", () => {
         expect(Math.hypot(px - qx, pz - qz)).toBeGreaterThan(0.5);
       }
     }
+  });
+
+  it('re-aims when a neighbour goes up under a still cursor', () => {
+    // The cursor holds on one tile while somebody else's fishery is
+    // finished nearby — an ally's in a match, an AI's in a skirmish. The
+    // aim was fitted against the decks standing at the time, so a preview
+    // that kept it would be promising a placement the yard no longer
+    // makes: the tile and the verdict are unchanged, and only the
+    // neighbours moved.
+    const dir = {x: Math.sin(Math.PI * 1.25), z: Math.cos(Math.PI * 1.25)};
+    const late: PierInfo = {
+      bx: 14,
+      bz: 11,
+      baseX: 13.5,
+      baseZ: 10.2,
+      spotX: 13.5 + dir.x * 3.1,
+      spotZ: 10.2 + dir.z * 3.1,
+      yaw: Math.PI * 1.25,
+      deckY: 0.15,
+    };
+    const standing: PierInfo[] = [];
+    const {ghost, scene} = shore(
+      (_tx, tz) => tz <= 9,
+      () => standing,
+    );
+    ghost.show(BuildingTypeId.fishery);
+    ghost.moveTo(10, 10, true);
+    const before = deckTip(scene).clone();
+
+    standing.push(late);
+    ghost.moveTo(10, 10, true); // same tile, same verdict
+
+    const after = deckTip(scene);
+    expect(after.distanceTo(before)).toBeGreaterThan(0.3);
   });
 
   it('leaves a building with no dock alone', () => {

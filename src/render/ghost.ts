@@ -11,7 +11,7 @@ import type {HeightField} from './heightField';
 import {eachMaterial} from './materials';
 import {makeGhostModel} from './models';
 import {verdictBad, verdictGood} from './palette';
-import {fitPier, seatShoal, type PierInfo} from './pierFit';
+import {fitPier, pierStamp, seatShoal, type PierInfo} from './pierFit';
 import {ReachOutline} from './reachOutline';
 
 const VALID = new THREE.Color(verdictGood);
@@ -57,6 +57,11 @@ export class GhostPlacement {
    * re-lay the reach outline's geometry every update. */
   #x = -1;
   #y = -1;
+  /** The standing decks the current aim was fitted against. A neighbour
+   * going up — an ally's fishery, an AI's — changes the answer under a
+   * cursor that has not moved, and a preview that kept the old deck would
+   * be promising a placement the yard no longer makes. */
+  #stamp = 0;
   #reach: ReachOutline;
 
   constructor(
@@ -110,22 +115,32 @@ export class GhostPlacement {
   /** Position at footprint origin tile (x,y); tint by validity. */
   moveTo(x: number, y: number, valid: boolean): void {
     if (!this.#group || !this.#type) return;
-    // Same tile, same verdict: the ghost is already exactly this.
+    const def = buildingDef(this.#type);
+    // Asked before the guard below, because it is part of what the guard
+    // has to compare: a fishery's aim is fitted against the decks already
+    // standing, and those can change while the cursor holds still.
+    const piers = def.nearWater ? this.#piers() : null;
+    const stamp = piers === null ? 0 : pierStamp(piers);
+    // Same tile, same verdict, same neighbours: the ghost is already
+    // exactly this.
     if (
       x === this.#x &&
       y === this.#y &&
       valid === this.#valid &&
+      stamp === this.#stamp &&
       this.#group.visible
     )
       return;
     this.#x = x;
     this.#y = y;
-    const def = buildingDef(this.#type);
+    this.#stamp = stamp;
     this.#group.visible = true;
     const cx = x + def.w / 2;
     const cz = y + def.h / 2;
     this.#group.position.set(cx, this.#heights.at(cx, cz), cz);
-    if (def.nearWater) this.#aimDeck(x, y, def.w, def.h, def.nearWater.radius);
+    if (def.nearWater) {
+      this.#aimDeck(x, y, def.w, def.h, def.nearWater.radius, piers ?? []);
+    }
     // The worker searches from the footprint's center tile, so the outline
     // is drawn around that tile's center — not the footprint's midpoint,
     // which is half a tile off for even-sized huts.
@@ -164,7 +179,14 @@ export class GhostPlacement {
    * Both moves are applied to the model, and the cursor re-aims on every
    * tile it crosses, so the decor goes back to its authored rest first.
    */
-  #aimDeck(x: number, y: number, w: number, h: number, radius: number): void {
+  #aimDeck(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius: number,
+    piers: readonly PierInfo[],
+  ): void {
     const model = this.#model;
     const root = this.#group;
     if (!this.#pier || !model || !root) return;
@@ -185,7 +207,7 @@ export class GhostPlacement {
         facing,
       },
       this.#heights,
-      this.#piers(),
+      piers,
     );
   }
 
@@ -198,6 +220,7 @@ export class GhostPlacement {
     this.#pier = null;
     this.#shoal = null;
     this.#home.length = 0;
+    this.#stamp = 0;
     this.#reach.hide();
     this.#base.clear();
     this.#valid = null;
