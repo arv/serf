@@ -119,6 +119,22 @@ const AIM_RINGS: readonly number[] = [0.6, 1, 1.6];
 const AIM_STEPS = 24;
 
 /**
+ * How long the summed vote has to be before it names a direction, counted
+ * in votes.
+ *
+ * Water on every side cancels: a hut on a spit or an islet gets wet
+ * readings all the way round, and the unit vectors sum to nothing. Nothing
+ * is the right answer there — no direction is more the water than another,
+ * and the fit should fall through to its own tiebreaks — but the sum is
+ * only nothing to about 1e-15, and atan2 will turn that float dust into a
+ * confident bearing that then outranks the sim's facing. One whole vote is
+ * the floor for calling a resultant an aim; it also catches the near-
+ * symmetric shores (a narrow channel, water to both hands) where the
+ * direction is noise for the same reason.
+ */
+const AIM_MIN = 1;
+
+/**
  * How much clear water the fit keeps between two decks, world units.
  *
  * Placement only ever guards footprints, and a fishery's deck hangs two
@@ -193,8 +209,9 @@ function angleGap(a: number, b: number): number {
  * such. A shore that genuinely runs east to west still answers due north,
  * and its deck still comes out square to the grid.
  *
- * Null where nothing around the building is wet — there is no aim to have,
- * and the fit falls back on its other preferences.
+ * Null where the reading names no direction — nothing around the building
+ * is wet, or the water is so evenly spread that the votes cancel (AIM_MIN).
+ * The fit then falls back on its other preferences.
  */
 function waterAim(
   heights: HeightField,
@@ -215,7 +232,7 @@ function waterAim(
       }
     }
   }
-  return sx === 0 && sz === 0 ? null : Math.atan2(sx, sz);
+  return Math.hypot(sx, sz) < AIM_MIN ? null : Math.atan2(sx, sz);
 }
 
 /**

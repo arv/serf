@@ -436,6 +436,19 @@ describe("the fishery's pier", () => {
     expect(pier.scale.x).toBeCloseTo(1);
   });
 
+  it('falls back on the facing where the water is on every side', () => {
+    // A hut on an islet: every direction reads wet, so the votes cancel
+    // and no direction is more the water than another. The sim's facing is
+    // the tiebreak that is supposed to answer here — and the summed vote
+    // only cancels to about 1e-15, which atan2 will happily turn into a
+    // confident bearing if nothing checks its length.
+    const {sync} = makeSync(
+      shoreHeights((tx, tz) => tx < 10 || tx > 11 || tz < 10 || tz > 11),
+    );
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
+    expect(sync.fisheryPiers()[0]!.yaw).toBeCloseTo(Math.PI);
+  });
+
   it('keeps a second deck clear of the one already standing', () => {
     // Two huts side by side on an open shore — legal, because placement
     // only ever guards footprints, while a deck hangs two tiles past its
