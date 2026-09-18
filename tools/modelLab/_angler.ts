@@ -208,7 +208,8 @@ function measure(made_: {group: THREE.Group}): Record<string, number | string> {
   const guides = new THREE.Vector3(0, 0.4059, -0.9139)
     .normalize()
     .transformDirection(rod.matrixWorld);
-  const deg = (r: number): number => Math.round((r * 180) / Math.PI * 10) / 10;
+  const deg = (r: number): number =>
+    Math.round(((r * 180) / Math.PI) * 10) / 10;
   const round = (n: number): number => Math.round(n * 1000) / 1000;
   return {
     aimOffForwardDeg: deg(Math.atan2(shaft.dot(right), shaft.dot(fwd))),
