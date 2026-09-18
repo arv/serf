@@ -919,6 +919,31 @@ function scytheProp(): THREE.Group {
 }
 
 /**
+ * How far the rod's line node is stretched past its authored length.
+ *
+ * The line stops 1.94 under the tip as authored, which at our scale strands
+ * the hook chest-high over the pier. Exported because the model lab's
+ * `?raw=1` has to be able to put the rod back exactly as the pack ships it,
+ * and a copy of this number there would be a copy that drifts.
+ *
+ * 1.4 and not the 1.8 this wore while the line hung off a slanted rod: that
+ * line spent much of its length on sideways reach rather than depth, and
+ * dropped plumb the same 1.8 would sink the hook half again as far as it
+ * ever did. 1.4 is the drop the 1.8 actually achieved — a shade under 0.3
+ * below the planks — so hanging the line plumb changed which way the tackle
+ * falls and not how far.
+ *
+ * Which is NOT far enough to wet it: a fishery's deck clears the waterline
+ * by about 0.47 on a median shore (0.4 to 0.9 across seeds 1-5 — pad height
+ * from the height field, plus PIER_DECK_Y), so the float rides in the air
+ * short of the lake. That is how it has always hung here and it is left
+ * alone on purpose, because the honest fix is not a bigger constant: the
+ * drop wanted is `deckY - WATER_LEVEL`, which is per-site, and buildingSync
+ * is the one that knows it.
+ */
+export const ROD_LINE_STRETCH = 1.4;
+
+/**
  * The rod's own axis: up +Y with the sweep the model is authored with
  * leaning it toward +z. Measured off the asset — grip node to line node —
  * rather than assumed, because the sweep is what makes the shaft's
@@ -1022,26 +1047,10 @@ function fishingPoleProp(): THREE.Group {
   const rod = kkAssets!.props.get('tools/fishing_rod')!.clone();
   const s = 0.36;
   rod.scale.setScalar(s);
-  // The authored line stops 1.94 under the tip, which at this scale
-  // strands the hook chest-high over the pier. Stretch the line node (its
-  // mesh hangs from the tip) and counter-scale the floater and hook it
-  // carries so they keep their shape while riding down toward the water.
-  //
-  // 1.4 and not the 1.8 this wore while the line hung off a slanted rod:
-  // that line spent much of its length on sideways reach rather than
-  // depth, and dropped plumb the same 1.8 would sink the hook half again
-  // as far as it ever did. 1.4 is the drop the 1.8 actually achieved — a
-  // shade under 0.3 below the planks — so hanging the line plumb changes
-  // which way the tackle falls and not how far.
-  //
-  // Which is NOT far enough to wet it: a fishery's deck clears the
-  // waterline by about 0.47 on a median shore (0.4 to 0.9 across seeds 1-5
-  // — pad height from the height field, plus PIER_DECK_Y), so the float
-  // rides in the air short of the lake. That is how it has always hung
-  // here and it is left alone on purpose, because the honest fix is not a
-  // bigger constant: the drop wanted is `deckY - WATER_LEVEL`, which is
-  // per-site, and buildingSync is the one that knows it.
-  const K = 1.4;
+  // Stretch the line node (its mesh hangs from the tip) and counter-scale
+  // the floater and hook it carries so they keep their shape while riding
+  // down toward the water. See ROD_LINE_STRETCH for how far, and why.
+  const K = ROD_LINE_STRETCH;
   const line = rod.getObjectByName('fishing_rod_line');
   if (line) {
     line.scale.y *= K;

@@ -24,6 +24,7 @@ import {
   makeCharacter,
   playAnimation,
   ROD_AIM,
+  ROD_LINE_STRETCH,
   setWorkTool,
 } from '../../src/render/characters';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
@@ -61,10 +62,13 @@ scene.add(ground);
  * Passing none leaves src exactly as written, which is what makes this page
  * usable as a before shot.
  *
- * `?raw=1` is the other end of the scale: it strips BOTH the holder's hold
- * and the wrap back to identity, which hangs the rod in the hand socket the
- * way the pack authored it — the reading the Fishing_Idle clip was animated
- * around, and the one every fix-up here is measured against.
+ * `?raw=1` is the other end of the scale: it undoes everything
+ * `fishingPoleProp` did — the hold, the wrap that cancels it, the aim and
+ * grip slide on `tilt`, the line's own plumb quaternion and its stretch —
+ * and hangs the rod in the hand socket the way the pack ships it. That is
+ * the reading Fishing_Idle was animated around, and the one every
+ * correction here is measured against, so it has to be the WHOLE way back:
+ * a `raw` that left the aim on would be a before shot of the after.
  */
 function tuneRod(tool: THREE.Object3D | undefined): THREE.Object3D | null {
   const wrap = tool?.children[0];
@@ -73,7 +77,24 @@ function tuneRod(tool: THREE.Object3D | undefined): THREE.Object3D | null {
     tool.rotation.set(0, 0, 0);
     tool.position.set(0, 0, 0);
     wrap.rotation.set(0, 0, 0);
-    return wrap.children[0] ?? null;
+    wrap.position.set(0, 0, 0);
+    const bare = wrap.children[0];
+    if (bare) {
+      bare.quaternion.identity();
+      bare.position.set(0, 0, 0);
+      const line = bare.getObjectByName('fishing_rod_line');
+      if (line) {
+        line.quaternion.identity();
+        line.scale.y /= ROD_LINE_STRETCH;
+        for (const name of ['fishing_rod_floater', 'fishing_rod_hook']) {
+          const o = bare.getObjectByName(name);
+          if (o) o.scale.y *= ROD_LINE_STRETCH;
+        }
+      }
+    }
+    // Nothing to re-hang: a bare rod's line is meant to sit where the pack
+    // put it, slant and all.
+    return null;
   }
   const rx = params.get('rx');
   const ry = params.get('ry');
@@ -151,10 +172,58 @@ for (let i = 0; i < YAWS; i++) {
   angler((i - (YAWS - 1) / 2) * 1.3, SPIN + (i * Math.PI * 2) / YAWS);
 }
 
-// The made figures, for measuring an aim from the console rather than
-// squinting at a screenshot: which way the shaft actually points is a
-// number, and this page exists to get it right.
+// The made figures, for poking at from the console.
 (window as unknown as {ANGLERS: unknown[]}).ANGLERS = made;
+
+/**
+ * What the page is actually for. Squinting at a screenshot settles nothing:
+ * a rod aimed at the camera and a rod aimed down the man's nose draw the
+ * same, and a fist a finger's width off the haft draws like a fist holding
+ * it. So measure the posed world and print it.
+ *
+ * `aim` is the shaft (grip node to line node) against the man's own forward
+ * and right; `fistR`/`fistL` are each handslot's perpendicular distance from
+ * the shaft's line, which is the number that says whether he is holding the
+ * thing; `line` is how far the hanging line is off plumb; `guideFace` says
+ * which way the guides and reel point.
+ */
+function measure(made_: {group: THREE.Group}): Record<string, number | string> {
+  made_.group.updateWorldMatrix(true, true);
+  const at = (name: string): THREE.Vector3 => {
+    const o = made_.group.getObjectByName(name)!;
+    return o.getWorldPosition(new THREE.Vector3());
+  };
+  const grip = at('fishing_rod');
+  const tip = at('fishing_rod_line');
+  const shaft = tip.clone().sub(grip).normalize();
+  const yaw = made_.group.rotation.y;
+  const fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const missBy = (name: string): number => {
+    const v = at(name).sub(grip);
+    return v.addScaledVector(shaft, -v.dot(shaft)).length();
+  };
+  const drop = at('fishing_rod_hook').sub(tip);
+  const rod = made_.group.getObjectByName('fishing_rod')!;
+  const guides = new THREE.Vector3(0, 0.4059, -0.9139)
+    .normalize()
+    .transformDirection(rod.matrixWorld);
+  const deg = (r: number): number => Math.round((r * 180) / Math.PI * 10) / 10;
+  const round = (n: number): number => Math.round(n * 1000) / 1000;
+  return {
+    aimOffForwardDeg: deg(Math.atan2(shaft.dot(right), shaft.dot(fwd))),
+    aimElevationDeg: deg(Math.asin(shaft.y)),
+    fistRmiss: round(missBy('handslotr')),
+    fistLmiss: round(missBy('handslotl')),
+    lineOffPlumbDeg: deg(Math.atan2(Math.hypot(drop.x, drop.z), -drop.y)),
+    guideFace: guides.y > 0 ? 'up' : 'down',
+  };
+}
+
+// The first figure stands square, so its numbers are the ones to read; the
+// rest only differ by the turn the strip gives them.
+const READING = made[0] ? measure(made[0]) : null;
+(window as unknown as {ANGLER_READING: unknown}).ANGLER_READING = READING;
 
 const HALF_H = Number(params.get('zoom') ?? '1.15');
 const HALF_W = (HALF_H * W) / H;
@@ -176,3 +245,4 @@ camera.lookAt(0, FOCUS_Y, 0);
 renderer.render(scene, camera);
 (window as unknown as {ANGLER_READY: boolean}).ANGLER_READY = true;
 console.log('rendered t=' + t + ' yaws=' + YAWS);
+if (READING) console.table(READING);
