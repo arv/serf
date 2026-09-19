@@ -354,6 +354,108 @@ describe("the fishery's pier", () => {
     expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + turn);
   });
 
+  it('aims the site as it will aim the finished hut', () => {
+    // The same west-water shore as above. A fishery going up is drawn on
+    // the same model as the finished one, under a clip plane — and it used
+    // to stand at the sim's bare quarter turn for the whole build, deck on
+    // the grass, then swing 45° and shorten at the last tick. The player
+    // had just been shown the turned deck by the placement preview.
+    const {sync, scene} = makeSync(shoreHeights(tx => tx === 9));
+    const turn = Math.PI / 4;
+    sync.update([
+      snap({
+        type: BuildingTypeId.fishery,
+        facing: 2,
+        state: BuildingState.site,
+        progress01: 0.3,
+        siteNeeds: {},
+      }),
+    ]);
+    const pier = scene.getObjectByName('fisheryPier')!;
+    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + turn);
+    expect(pier.scale.x).toBeCloseTo(0.6);
+    // The line is there for the neighbours (and the preview) to keep clear
+    // of; the fisherman's list is for finished huts only.
+    expect(sync.pierLines().length).toBe(1);
+    expect(sync.pierLines()[0]!.yaw).toBeCloseTo(Math.PI + turn);
+    expect(sync.fisheryPiers().length).toBe(0);
+    // A later roster is not a re-aim.
+    sync.update([
+      snap({
+        type: BuildingTypeId.fishery,
+        facing: 2,
+        state: BuildingState.site,
+        progress01: 0.6,
+        siteNeeds: {},
+      }),
+    ]);
+    expect(
+      scene.getObjectByName('fisheryPier')!.parent!.rotation.y,
+    ).toBeCloseTo(Math.PI + turn);
+  });
+
+  it("keeps the site's deck when the hut finishes, even once what it gave way to is gone", () => {
+    // The round pond from the clearance test below, one hut already fishing
+    // on its south shore. A site goes up beside it and gives way — turned
+    // or trimmed off the middle of the water the neighbour already holds.
+    // Then the neighbour is razed during the build. A fresh search on
+    // completion would now take the middle for itself, and the hut would
+    // swing on its last tick: the exact jump this is about. The swap to
+    // the built model lays the site's own line again instead.
+    const heights = shoreHeights(
+      (tx, tz) => (tx - 11) ** 2 + (tz - 7) ** 2 <= 4,
+    );
+    const {sync, scene} = makeSync(heights);
+    const neighbour = snap({
+      id: 2,
+      type: BuildingTypeId.fishery,
+      facing: 2,
+      x: 12,
+      y: 9,
+    });
+    sync.update([neighbour]);
+    const site = snap({
+      id: 1,
+      type: BuildingTypeId.fishery,
+      facing: 2,
+      x: 9,
+      y: 9,
+      state: BuildingState.site,
+      progress01: 0.5,
+      siteNeeds: {},
+    });
+    sync.update([neighbour, site]);
+    const gaveWay = sync.pierLines().find(p => p.bx === 10)!;
+    const pier = (): THREE.Object3D =>
+      scene.children
+        .find(o => o.position.x === 10)!
+        .getObjectByName('fisheryPier')!;
+    const modelYaw = pier().parent!.rotation.y;
+    const deckScale = pier().scale.x;
+
+    // Alone on the pond it would have aimed elsewhere — so a fresh search
+    // once the neighbour is gone would move the deck.
+    const {sync: alone} = makeSync(heights);
+    alone.update([
+      snap({id: 1, type: BuildingTypeId.fishery, facing: 2, x: 9, y: 9}),
+    ]);
+    const free = alone.fisheryPiers()[0]!;
+    expect(
+      Math.hypot(free.spotX - gaveWay.spotX, free.spotZ - gaveWay.spotZ),
+    ).toBeGreaterThan(0.1);
+
+    // The neighbour comes down while the site is still going up...
+    sync.update([site]);
+    expect(sync.pierLines()).toEqual([gaveWay]);
+    // ...and the site finishes: same line, same model turn, same planks.
+    sync.update([
+      snap({id: 1, type: BuildingTypeId.fishery, facing: 2, x: 9, y: 9}),
+    ]);
+    expect(sync.fisheryPiers()).toEqual([gaveWay]);
+    expect(pier().parent!.rotation.y).toBeCloseTo(modelYaw);
+    expect(pier().scale.x).toBeCloseTo(deckScale);
+  });
+
   it('lays the deck across a bank that runs across the grid', () => {
     // A shore running northwest to southeast — the shape most of a
     // generated map's water has, and the one a quarter turn can only ever
@@ -1270,21 +1372,19 @@ describe('the ground a building is drawn over but does not stand on', () => {
 
   it('follows the jetty when the fit turns the whole building', () => {
     // The one wet column is west of the hut (tx 9) while the facing sends
-    // the deck north, so #measurePier turns hut and jetty together — and
-    // the water it is drawn over turns with them.
+    // the deck north, so the fit turns hut and jetty together the moment
+    // the visual is made — and the water it is drawn over turns with them,
+    // from the first roster: the claim is read off the turned model, not
+    // the authored one.
     const {sync} = makeSync(shoreHeights(tx => tx === 9));
     sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
-    // Authored: straight north, the -z tiles.
-    expect(over(sync, 11, 8)).toEqual([7]);
-    expect(over(sync, 9.5, 9.5)).toEqual([]);
-
-    sync.fisheryPiers();
-    // Turned 30° west, the far planks lie over the wet column — ground
-    // the authored claim never covered. What a turned jetty claims is the
-    // box around it rather than the planks themselves, so the tiles it
-    // swung off stay claimed: a candidate too many costs one trace that
-    // finds nothing, where a candidate too few costs the pick.
+    // Turned 45° west, the far planks lie over the wet column — ground
+    // the authored (straight north) deck never covered.
     expect(over(sync, 9.5, 9.5)).toEqual([7]);
+    // And the tiles the authored deck would have reached, straight north
+    // past where the trimmed, turned one ends, are nobody's: the claim is
+    // the box around the jetty as it stands, not as it was authored.
+    expect(over(sync, 11, 8)).toEqual([]);
     // Past any reach of it, turned or not.
     expect(over(sync, 12.5, 8)).toEqual([]);
   });
