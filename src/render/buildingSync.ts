@@ -1323,11 +1323,7 @@ export class BuildingSync {
    * on whatever tile the path found. Built only: a site has no fisherman,
    * and a man parked beside one belongs to some other hut. */
   fisheryPiers(): PierInfo[] {
-    const out: PierInfo[] = [];
-    for (const v of this.#visuals.values()) {
-      if (v.state === BuildingState.built && v.pierLine) out.push(v.pierLine);
-    }
-    return out;
+    return this.#pierLines(true);
   }
 
   /** Every fishery's deck line, the sites' included — what a new deck
@@ -1336,9 +1332,16 @@ export class BuildingSync {
    * tick, and the finished hut keeps them exactly, so a preview that
    * ignored them would promise a deck through planks already there. */
   pierLines(): PierInfo[] {
+    return this.#pierLines(false);
+  }
+
+  #pierLines(builtOnly: boolean): PierInfo[] {
     const out: PierInfo[] = [];
-    for (const v of this.#visuals.values())
-      if (v.pierLine) out.push(v.pierLine);
+    for (const v of this.#visuals.values()) {
+      if (!v.pierLine) continue;
+      if (builtOnly && v.state !== BuildingState.built) continue;
+      out.push(v.pierLine);
+    }
     return out;
   }
 

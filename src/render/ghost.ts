@@ -172,9 +172,10 @@ export class GhostPlacement {
    * aimed exactly as the built hut will be: the quarter turn the sim would
    * hand it (`waterFacing`, which runs on placement), then the same search
    * for a deck that actually reaches — turning the hut, trimming the planks
-   * — that BuildingSync runs on the finished building (`fitPier`). Without
-   * it the ghost wears the model's authored facing, so the player aims a
-   * dock that swings somewhere else entirely the moment it is built.
+   * — that BuildingSync runs on the site from its first tick and that the
+   * finished hut then keeps (`fitPier`, `layPier`). Without it the ghost
+   * wears the model's authored facing, so the player aims a dock that
+   * swings somewhere else entirely the moment it is placed.
    *
    * Both moves are applied to the model, and the cursor re-aims on every
    * tile it crosses, so the decor goes back to its authored rest first.

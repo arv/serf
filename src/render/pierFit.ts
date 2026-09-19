@@ -434,8 +434,18 @@ export function layPier(
   parts: PierParts,
   lay: Pick<PierInfo, 'turn' | 'scale'>,
 ): PierInfo {
+  return layDeck(parts, authoredDeck(parts), lay);
+}
+
+/** `layPier` with the authored deck already measured — so `fitPier`, which
+ * has read it for its search, does not read it a second time to lay it. */
+function layDeck(
+  parts: PierParts,
+  deck: AuthoredDeck,
+  lay: Pick<PierInfo, 'turn' | 'scale'>,
+): PierInfo {
   const {root, pier, shoal} = parts;
-  const {facingYaw, baseX, baseZ, len} = authoredDeck(parts);
+  const {facingYaw, baseX, baseZ, len} = deck;
   const {turn, scale} = lay;
   const yaw = facingYaw + turn;
   const fitLen = len * scale;
@@ -485,7 +495,8 @@ export function fitPier(
   taken: readonly PierInfo[] = [],
 ): PierInfo {
   const {root} = parts;
-  const {facingYaw, baseX, baseZ, len} = authoredDeck(parts);
+  const deck = authoredDeck(parts);
+  const {facingYaw, baseX, baseZ, len} = deck;
   // Where each standing deck runs, as a segment this one must not cross.
   const others = taken.map(p => {
     const dirX = Math.sin(p.yaw);
@@ -577,7 +588,7 @@ export function fitPier(
     };
     break;
   }
-  return layPier(parts, lay);
+  return layDeck(parts, deck, lay);
 }
 
 /**
