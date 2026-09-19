@@ -6,11 +6,12 @@ import type {HeightField} from './heightField';
  * Aiming a fishery's deck at the water.
  *
  * Shared by the two places a fishery is drawn on terrain: BuildingSync,
- * which stands the built hut and hands sceneSync the deck line its
- * fisherman walks, and GhostPlacement, which shows the player the same hut
- * under the cursor before they commit to the spot. Both want the identical
- * answer — a preview whose jetty ends on grass is a promise the finished
- * building then breaks.
+ * which stands the hut — the site going up and then the finished building,
+ * whose deck line it hands sceneSync for the fisherman to walk — and
+ * GhostPlacement, which shows the player the same hut under the cursor
+ * before they commit to the spot. All of them want the identical answer —
+ * a preview whose jetty ends on grass, or a site whose jetty swings on its
+ * last tick, is a promise the finished building then breaks.
  */
 
 /** A fishery's pier, in world space: the deck line from its landward end to
@@ -27,6 +28,13 @@ export interface PierInfo {
   spotZ: number;
   yaw: number;
   deckY: number;
+  /** The fit as applied, so the same deck can be laid again on a fresh
+   * model (`layPier`): radians the whole building was spun past its sim
+   * facing to reach `yaw`, and the share of the authored deck length kept.
+   * A site is drawn on one model and the finished hut on another, and
+   * the jetty must not move between them. */
+  turn: number;
+  scale: number;
 }
 
 /** How far below the waterline the shoal group is re-seated, in world
@@ -359,6 +367,110 @@ export function pierModel(parts: PierParts): THREE.Object3D {
   return model;
 }
 
+/** The deck as the template lays it under the sim's quarter turn: the
+ * yaw it runs at, its landward end and its length, read off the model
+ * before any fit has moved it. */
+interface AuthoredDeck {
+  facingYaw: number;
+  baseX: number;
+  baseZ: number;
+  len: number;
+}
+
+function authoredDeck(parts: PierParts): AuthoredDeck {
+  const {root, pier} = parts;
+  // This runs on structural updates, possibly before the next render
+  // ticks world matrices — settle them before measuring.
+  root.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(pier);
+  const facingYaw = (parts.facing * Math.PI) / 2;
+  const cx = (box.min.x + box.max.x) / 2;
+  const cz = (box.min.z + box.max.z) / 2;
+  // Facing is a quarter turn, so the authored deck line lies along one
+  // axis.
+  const along = Math.abs(Math.sin(facingYaw)) > 0.5;
+  const len = along ? box.max.x - box.min.x : box.max.z - box.min.z;
+  // The landward end, where the deck meets the hut. A trim shortens the
+  // deck about this point, so it never comes loose; a turn instead
+  // rotates the whole model about the footprint center (`spinAbout`).
+  return {
+    facingYaw,
+    baseX: cx - Math.sin(facingYaw) * (len / 2),
+    baseZ: cz - Math.cos(facingYaw) * (len / 2),
+    len,
+  };
+}
+
+/** Where (x, z) lands once the whole building is turned `th` about its
+ * footprint center — the pivot every turn uses, so house and deck never
+ * come apart. */
+function spinAbout(
+  root: THREE.Object3D,
+  x: number,
+  z: number,
+  th: number,
+): [number, number] {
+  const rx = x - root.position.x;
+  const rz = z - root.position.z;
+  const c = Math.cos(th);
+  const sn = Math.sin(th);
+  return [
+    root.position.x + rx * c + rz * sn,
+    root.position.z + rz * c - rx * sn,
+  ];
+}
+
+/**
+ * Lay this fishery's deck by a fit already chosen — `fitPier`'s tail, on
+ * its own for the model that has to wear a deck decided on another: the
+ * finished hut stands on a fresh model where the site's stood, and its
+ * jetty must be the site's jetty, not a new search that a neighbour
+ * finished in the meantime could answer differently.
+ *
+ * Mutates the model as `fitPier` does, and expects it at its authored
+ * rest for the same reason.
+ */
+export function layPier(
+  parts: PierParts,
+  lay: Pick<PierInfo, 'turn' | 'scale'>,
+): PierInfo {
+  return layDeck(parts, authoredDeck(parts), lay);
+}
+
+/** `layPier` with the authored deck already measured — so `fitPier`, which
+ * has read it for its search, does not read it a second time to lay it. */
+function layDeck(
+  parts: PierParts,
+  deck: AuthoredDeck,
+  lay: Pick<PierInfo, 'turn' | 'scale'>,
+): PierInfo {
+  const {root, pier, shoal} = parts;
+  const {facingYaw, baseX, baseZ, len} = deck;
+  const {turn, scale} = lay;
+  const yaw = facingYaw + turn;
+  const fitLen = len * scale;
+  const [fitBaseX, fitBaseZ] = spinAbout(root, baseX, baseZ, turn);
+  if (turn !== 0) {
+    pierModel(parts).rotation.y += turn;
+    root.updateWorldMatrix(true, true);
+  }
+  if (scale !== 1) fitDecor(pier, shoal, fitBaseX, fitBaseZ, scale);
+  return {
+    bx: root.position.x,
+    bz: root.position.z,
+    baseX: fitBaseX,
+    baseZ: fitBaseZ,
+    spotX: fitBaseX + Math.sin(yaw) * (fitLen - PIER_SPOT_BACK),
+    spotZ: fitBaseZ + Math.cos(yaw) * (fitLen - PIER_SPOT_BACK),
+    yaw,
+    // A trimmed deck is a smaller dock, planks and all, so its top comes
+    // down with it.
+    deckY: root.position.y + PIER_DECK_Y * scale,
+    turn,
+    scale,
+  };
+}
+
 /**
  * Aim this fishery's deck at the open water and report where it ends up.
  *
@@ -382,42 +494,9 @@ export function fitPier(
   heights: HeightField,
   taken: readonly PierInfo[] = [],
 ): PierInfo {
-  const {root, pier, shoal} = parts;
-  // This runs on structural updates, possibly before the next render
-  // ticks world matrices — settle them before measuring.
-  root.updateWorldMatrix(true, true);
-  const box = new THREE.Box3().setFromObject(pier);
-  const facingYaw = (parts.facing * Math.PI) / 2;
-  const cx = (box.min.x + box.max.x) / 2;
-  const cz = (box.min.z + box.max.z) / 2;
-  // Facing is a quarter turn, so the authored deck line lies along one
-  // axis.
-  const along = Math.abs(Math.sin(facingYaw)) > 0.5;
-  const len = along ? box.max.x - box.min.x : box.max.z - box.min.z;
-  // The landward end, where the deck meets the hut. A trim shortens the
-  // deck about this point, so it never comes loose; a turn instead
-  // rotates the whole model about the footprint center (below).
-  const baseX = cx - Math.sin(facingYaw) * (len / 2);
-  const baseZ = cz - Math.cos(facingYaw) * (len / 2);
-  let yaw = facingYaw;
-  let scale = 1;
-  // The deck stays square to the hut: a turn rotates the WHOLE model
-  // (house, deck and all) about the footprint center, so the pair never
-  // come apart. The fit search therefore pivots the deck line about the
-  // building center rather than the deck's landward end.
-  const pvX = root.position.x;
-  const pvZ = root.position.z;
-  const spin = (x: number, z: number, th: number): [number, number] => {
-    const rx = x - pvX;
-    const rz = z - pvZ;
-    const c = Math.cos(th);
-    const sn = Math.sin(th);
-    return [pvX + rx * c + rz * sn, pvZ + rz * c - rx * sn];
-  };
-  let fitBaseX = baseX;
-  let fitBaseZ = baseZ;
-  let spotX = baseX + Math.sin(yaw) * (len - PIER_SPOT_BACK);
-  let spotZ = baseZ + Math.cos(yaw) * (len - PIER_SPOT_BACK);
+  const {root} = parts;
+  const deck = authoredDeck(parts);
+  const {facingYaw, baseX, baseZ, len} = deck;
   // Where each standing deck runs, as a segment this one must not cross.
   const others = taken.map(p => {
     const dirX = Math.sin(p.yaw);
@@ -457,6 +536,8 @@ export function fitPier(
   // Which way this shore opens, read once off the building's own ground —
   // the aim every candidate is measured against below.
   const aim = waterAim(heights, root.position.x, root.position.z, len);
+  // The authored deck, until a pass finds better.
+  let lay: Pick<PierInfo, 'turn' | 'scale'> = {turn: 0, scale: 1};
   // Deep enough to read as water if any aim can manage it, wet at all if
   // none can; a shore that no aim reaches keeps the authored deck, which is
   // no worse than what the model shipped with.
@@ -469,7 +550,11 @@ export function fitPier(
     let best: ScoredFit | null = null;
     for (const f of PIER_FITS) {
       const th = f.turn * PIER_TURN_STEP;
-      const [bX, bZ] = spin(baseX, baseZ, th);
+      // The deck stays square to the hut: a turn rotates the WHOLE model
+      // (house, deck and all) about the footprint center, so the pair
+      // never come apart. The search therefore pivots the deck line about
+      // the building center rather than the deck's landward end.
+      const [bX, bZ] = spinAbout(root, baseX, baseZ, th);
       const fitYaw = facingYaw + th;
       const fitLen = len - f.trim * PIER_TRIM_STEP;
       const dirX = Math.sin(fitYaw);
@@ -497,32 +582,13 @@ export function fitPier(
       if (best === null || better(cand, best)) best = cand;
     }
     if (!best) continue;
-    const th = best.turn * PIER_TURN_STEP;
-    const fitLen = len - best.trim * PIER_TRIM_STEP;
-    yaw = facingYaw + th;
-    scale = fitLen / len;
-    [fitBaseX, fitBaseZ] = spin(baseX, baseZ, th);
-    spotX = fitBaseX + Math.sin(yaw) * (fitLen - PIER_SPOT_BACK);
-    spotZ = fitBaseZ + Math.cos(yaw) * (fitLen - PIER_SPOT_BACK);
-    if (th !== 0) {
-      pierModel(parts).rotation.y += th;
-      root.updateWorldMatrix(true, true);
-    }
+    lay = {
+      turn: best.turn * PIER_TURN_STEP,
+      scale: (len - best.trim * PIER_TRIM_STEP) / len,
+    };
     break;
   }
-  if (scale !== 1) fitDecor(pier, shoal, fitBaseX, fitBaseZ, scale);
-  return {
-    bx: root.position.x,
-    bz: root.position.z,
-    baseX: fitBaseX,
-    baseZ: fitBaseZ,
-    spotX,
-    spotZ,
-    yaw,
-    // A trimmed deck is a smaller dock, planks and all, so its top comes
-    // down with it.
-    deckY: root.position.y + PIER_DECK_Y * scale,
-  };
+  return layDeck(parts, deck, lay);
 }
 
 /**

@@ -78,6 +78,8 @@ const PIER: PierInfo = {
   spotZ: 30,
   yaw: Math.PI / 2, // +x
   deckY: 0.4,
+  turn: 0,
+  scale: 1,
 };
 
 function fisherman(action: number = ACTION.work): UnitSnapshot {

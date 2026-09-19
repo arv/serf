@@ -660,7 +660,7 @@ export async function runMatch(
     renderer.scene,
     heights,
     mirror.map,
-    () => buildingSync.fisheryPiers(),
+    () => buildingSync.pierLines(),
     config.myPlayerId,
   );
   const selectedReach = new SelectedReach(renderer.scene, heights);

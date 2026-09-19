@@ -212,7 +212,6 @@ scene.add(new ScatterMesh(map, heights).group);
 // apart that a frame only ever holds the one it is centered on.
 const buildings = new BuildingSync(scene, FIT ? heights : filledIn);
 buildings.update(picked.map((s, i) => snap(i + 1, s.x, s.y)));
-buildings.fisheryPiers();
 
 const gl = document.createElement('canvas');
 const renderer = makeRenderer(gl);

@@ -35,7 +35,7 @@ import {
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
-import {fitPier, seatShoal, type PierInfo} from './pierFit';
+import {fitPier, layPier, seatShoal, type PierInfo} from './pierFit';
 import {
   harvestTrainingRig,
   ownTrainingMaterials,
@@ -259,19 +259,15 @@ interface BuildingVisual {
    * banks rather than snapping with the batch boundary (see #smokeFrame). */
   smokeLevel: number;
   shoal?: THREE.Object3D;
-  /** The fishery's pier decor — the deck the fisherman walks out on. */
-  pier?: THREE.Object3D;
-  /** Measured deck line, cached: measuring may also swing the whole
-   * building toward the water, and that must happen exactly once. */
+  /** The deck line as laid at creation (fitPier), which may also have
+   * swung the whole building toward the water — done exactly once, and
+   * carried over unchanged to the built model when a site finishes. */
   pierLine?: PierInfo;
   /** The farm's authored walk marks: gate first, then the circuit in
    * visiting order. Empty for everything without a field. */
   mowMarks: THREE.Object3D[];
   /** Measured circuit, cached like pierLine — buildings do not move. */
   fieldInfo?: FieldInfo;
-  /** Quarter turns from "front faces +z" (shore buildings turn to their
-   * water); kept for deriving where the pier runs. */
-  facing: number;
   staffed: boolean;
   /** Latest BuildingSnap.working — a convert batch actually ticking. */
   working: boolean;
@@ -732,6 +728,11 @@ export class BuildingSync {
     for (const b of buildings) {
       seen.add(b.id);
       let v = this.#visuals.get(b.id);
+      // The deck a site was drawn with is the deck the finished hut keeps:
+      // the swap below stands a fresh model where the old one stood, and a
+      // jetty that swung on completion is the exact thing the preview and
+      // the site promised it would not do.
+      let kept: PierInfo | undefined;
       if (v && v.state !== b.state) {
         // The site's scaffolding comes down and the finished building
         // stands: the one moment construction is worth hearing. Only for
@@ -746,11 +747,12 @@ export class BuildingSync {
         ) {
           this.onCue('buildingComplete', b.x + b.w / 2, b.y + b.h / 2);
         }
+        kept = v.pierLine;
         this.#dispose(b.id);
         v = undefined;
       }
       if (!v) {
-        v = this.#create(b);
+        v = this.#create(b, kept);
         this.#visuals.set(b.id, v);
       }
       if (b.state === BuildingState.site) {
@@ -879,7 +881,7 @@ export class BuildingSync {
    * together. The claim #create made is only as good as the building was
    * that moment: the stock at the door comes and goes (#syncPiles stands
    * it a third of a tile OUTSIDE the front wall, which is ground the
-   * footprint never covers), and a jetty is aimed after it is built.
+   * footprint never covers).
    */
   #reclaimDrawn(id: number, v: BuildingVisual): void {
     if (v.road) return;
@@ -962,7 +964,10 @@ export class BuildingSync {
     });
   }
 
-  #create(b: BuildingSnap): BuildingVisual {
+  /** `kept` is the deck line this building was already drawn with, on the
+   * model this one replaces (a site finishing): laid again as it was,
+   * rather than searched for afresh. */
+  #create(b: BuildingSnap, kept?: PierInfo): BuildingVisual {
     const root = new THREE.Group();
     const cx = b.x + b.w / 2;
     const cz = b.y + b.h / 2;
@@ -1049,15 +1054,47 @@ export class BuildingSync {
       shoal.userData[PICK_IGNORE] = true;
     }
 
-    // The model's own box. Root-local, like the clip's above: the root is
-    // not in the scene yet, so setFromObject reads the model's own space —
-    // which is what both readings below want, a height over the base and a
-    // reach out from the center. An empty group (salvage) has no box to
-    // read, and the pile is ankle-high anyway.
-    const bbox =
-      b.type === BuildingTypeId.salvage
-        ? null
-        : new THREE.Box3().setFromObject(model);
+    // Aim the deck at the water the moment the hut is drawn, site or
+    // finished — before the box below is read, so the ground it claims is
+    // the ground the turned, trimmed jetty is really over. A site wears the
+    // same jetty as the placement preview it came from and the finished hut
+    // it becomes; without this the planks stood at the sim's bare quarter
+    // turn for the whole build and swung into place at the last tick.
+    //
+    // A newcomer keeps clear of the decks already standing, sites included
+    // (fitPier). First drawn, first served: a deck is laid once and never
+    // re-aimed, so the newcomer is the one that gives way — the same rule
+    // a player would expect from the yard. Which does make the aim depend
+    // on the order the visuals were made, and a player who joins mid-match
+    // makes them all in one frame. That is a cosmetic difference in one
+    // deck's angle between two screens, not a divergence: nothing here
+    // reaches the sim, and the fisherman walks whatever deck his own client
+    // drew.
+    const pier = model.getObjectByName('fisheryPier') ?? undefined;
+    let pierLine: PierInfo | undefined;
+    if (pier) {
+      const parts = {root, pier, shoal, facing: b.facing ?? 0};
+      pierLine = kept
+        ? layPier(parts, kept)
+        : fitPier(parts, this.#heights, this.pierLines());
+    }
+
+    // The model's own box, root-local — which is what both readings below
+    // want, a height over the base and a reach out from the center. The
+    // root is not in the scene yet, but the pier fit above settles its
+    // world matrix (position and all), so this is read in world space and
+    // brought back explicitly rather than trusting the matrix to be blank
+    // as the clip's reading above does. The root carries no rotation or
+    // scale, so its position is the whole of the difference. An empty
+    // group (salvage) has no box to read, and the pile is ankle-high
+    // anyway.
+    let bbox: THREE.Box3 | null = null;
+    if (b.type !== BuildingTypeId.salvage) {
+      root.updateWorldMatrix(true, true);
+      bbox = new THREE.Box3()
+        .setFromObject(model)
+        .translate(SCRATCH_POS.copy(root.position).negate());
+    }
     const topY = clip ? clip.height : (bbox?.max.y ?? 0);
     // Where this building's roof will reach when it is finished, which is
     // what the pick walk wants as its ceiling: a site's finished height
@@ -1150,9 +1187,8 @@ export class BuildingSync {
       flue: model.getObjectByName('smokeFlue') ?? undefined,
       smokeLevel: 0,
       shoal,
-      pier: model.getObjectByName('fisheryPier') ?? undefined,
+      pierLine,
       mowMarks: harvestMowMarks(model),
-      facing: b.facing ?? 0,
       staffed: false,
       working: false,
       span: Math.max(b.w, b.h),
@@ -1284,37 +1320,26 @@ export class BuildingSync {
    * and the yaw that faces the water. sceneSync walks the resident
    * fisherman out along it and stands him at the spot, line in the water —
    * the same render-side move as the well serfs, because the sim parks him
-   * on whatever tile the path found. */
+   * on whatever tile the path found. Built only: a site has no fisherman,
+   * and a man parked beside one belongs to some other hut. */
   fisheryPiers(): PierInfo[] {
+    return this.#pierLines(true);
+  }
+
+  /** Every fishery's deck line, the sites' included — what a new deck
+   * keeps clear of (fitPier), and so what the placement ghost aims its
+   * preview against: a site's planks are drawn and aimed from its first
+   * tick, and the finished hut keeps them exactly, so a preview that
+   * ignored them would promise a deck through planks already there. */
+  pierLines(): PierInfo[] {
+    return this.#pierLines(false);
+  }
+
+  #pierLines(builtOnly: boolean): PierInfo[] {
     const out: PierInfo[] = [];
-    // The decks already standing, so a hut measured now keeps its planks
-    // clear of theirs (fitPier). First come, first served: a deck is
-    // measured once and never re-aimed, so the newcomer is the one that
-    // gives way — the same rule a player would expect from the yard.
-    //
-    // Which does make the aim depend on the order the visuals were made,
-    // and a player who joins mid-match makes them all in one frame. That
-    // is a cosmetic difference in one deck's angle between two screens, not
-    // a divergence: nothing here reaches the sim, and the fisherman walks
-    // whatever deck his own client drew.
-    const standing: PierInfo[] = [];
-    for (const v of this.#visuals.values())
-      if (v.pierLine) standing.push(v.pierLine);
-    for (const [id, v] of this.#visuals) {
-      if (v.state !== BuildingState.built || !v.pier) continue;
-      if (!v.pierLine) {
-        v.pierLine = this.#measurePier(v, standing);
-        standing.push(v.pierLine);
-        // The fit can turn the hut and trim the deck, so the water this
-        // building is drawn over is no longer the water #create claimed
-        // for it (see #drawn). Measured once, re-claimed once.
-        v.model.updateWorldMatrix(true, true);
-        v.modelBox.setFromObject(v.model);
-        // setFromObject reads world space now that the root is in the
-        // scene; the claim wants the model's own, as at creation.
-        v.modelBox.translate(SCRATCH_POS.copy(v.root.position).negate());
-        this.#reclaimDrawn(id, v);
-      }
+    for (const v of this.#visuals.values()) {
+      if (!v.pierLine) continue;
+      if (builtOnly && v.state !== BuildingState.built) continue;
       out.push(v.pierLine);
     }
     return out;
@@ -1373,14 +1398,6 @@ export class BuildingSync {
       maxZ: maxZ + M,
       padY,
     };
-  }
-
-  #measurePier(v: BuildingVisual, standing: readonly PierInfo[]): PierInfo {
-    return fitPier(
-      {root: v.root, pier: v.pier!, shoal: v.shoal, facing: v.facing},
-      this.#heights,
-      standing,
-    );
   }
 
   /** Per render frame: the decor that moves. dt in seconds (pass 0 while
