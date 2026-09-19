@@ -121,6 +121,67 @@ how close and from where. Turn the camera before calling a deck wrong: at
 some yaws a deck that runs behind its hut is mostly occluded by the roof
 and reads as a staircase.
 
+## The fisherman's rod
+
+`_angler.html` is where the rod's hold is judged. Whether the man is holding
+it is not a property of the model — it is the model, the hand socket, and
+what `Fishing_Idle` has done to both wrists, multiplied together — so it
+cannot be read off the asset or argued from the Euler angles in
+`fishingPoleProp`. This page stands the man on the game's own rig, equips
+him through the same `setWorkTool(WORK.fish)` a match does, and turns him
+through four quarter turns, because a hold is a three-dimensional claim and
+one yaw cannot settle it: a rod pointing straight at the camera and a rod
+pointing straight down the man's own nose draw the same.
+
+```sh
+pnpm dev   # then /tools/modelLab/_angler.html
+```
+
+It prints its reading to the console and leaves it on
+`window.ANGLER_READING`, because squinting settles nothing and a fist a
+finger's width off the haft draws like a fist holding it: the shaft's aim
+against the man's own forward and right, each handslot's perpendicular miss
+from the shaft's line, how far the hanging line is off plumb, and which way
+the guide face points. Every constant in `fishingPoleProp` was read off it.
+
+What it was written to catch was a rod lying across the man's chest. The aim
+had been set by a pitch about the hand SOCKET's x, on the assumption that
+the socket is squared to the body, and it is not — so the pitch rolled the
+rod out sideways instead of forward.
+
+**The left fist does not reach the rod, and that is a deliberate trade.**
+Fishing_Idle is a two-handed pose, and the segment between its fists — steady
+to 0.18 of a degree over the whole clip — lies 77.6 degrees off the man's
+right, with his hips, chest and head all square to the front. Laid on THAT
+axis the rod is gripped perfectly by both fists and points across his body.
+Laid forward, which is what the fishery wants, the right fist still holds it
+(the rod hangs off that socket, so it cannot miss) and the left falls about
+0.098 short. Closing that gap means IKing the free hand onto the haft with
+the machinery the farmer's scythe already uses, not moving `ROD_AIM`. The
+page reports both misses so the trade stays visible rather than becoming
+folklore.
+
+The roll about the shaft is the other half of the placement, and the aim
+alone does not set it: a shortest-arc turn onto `ROD_AIM` leaves the roll to
+fall out of the arithmetic, which is how the reel came to hang off the SIDE
+of the pole. `ROD_GUIDES` pins it — the face the guides and reel stand off,
+averaged from the rod mesh's own vertices rather than taken from the reel
+handle, which is a crank and sticks out sideways by design (89.9 degrees off
+the guides, and rolling by it is exactly the mistake). Reel and guides share
+one face on this model, 0.8 degrees apart, so they cannot be split: the
+guide face rides up, which puts the reel above the shaft.
+
+`?yaws=<n>` sets how many turns, `?spin=<deg>` turns the whole strip (a
+single figure wants this — square to the camera the rod is aimed at the lens
+and foreshortens to a dot; `?spin=90` lays it across the frame, which is the
+view that settles which face the line runs down), `?t=<0..1>` scrubs the
+clip, `?roll=<deg>` spins the rod about its own shaft, and `?rx`/`?ry`/`?rz`
+override the wrap live so a new aim can be read off a screenshot. `?raw=1`
+undoes everything `fishingPoleProp` did — hold, wrap, aim, grip slide, the
+line's plumb and its stretch — and hangs the rod in the socket the way the
+pack ships it, which is the before shot every correction is measured
+against. `w`/`h`/`zoom`/`fy` size and frame the shot, as on the other pages.
+
 ## The farmstead
 
 `_farm.html` is where the wheat farm's field was composed and the farmer's
