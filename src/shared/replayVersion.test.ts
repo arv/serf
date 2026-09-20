@@ -816,8 +816,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // with the column and then left walking at the garrison when the column
 // turned home. The legs order the column now. 74 is unreleased, so there
 // is no log stamped with it to break — and the hash is over raw bytes.
-const EXPECTED_VERSION = 74;
-const EXPECTED_HASH = '7a6e47517351d3f0056cf9f08bab3bc0';
+// 75 for the drained puddles: a body of water that cannot hold a solid
+// three-by-three square is filled back in (LAKE_MIN_SPAN in sim/map.ts),
+// which moves every tile of every generated map and reshuffles the draws
+// that scatter resources over them. Ground is the one thing a replay
+// cannot bring with it.
+const EXPECTED_VERSION = 75;
+const EXPECTED_HASH = '8432cec592b0132005087d706ad8645a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

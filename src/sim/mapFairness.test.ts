@@ -12,6 +12,7 @@ import {
   HOME_SEAM_BAND,
   IRON_HOME_WORTH,
   IRON_RESERVE_WORTH,
+  LAKE_MIN_SPAN,
   RESERVE_SEAM_BAND,
   SEAM_REACH,
   SEAM_TILES,
@@ -37,9 +38,12 @@ import {createWorld, type World} from './world.ts';
 // fell to the 96 rescale; 7, 20260724 and then 17 to the border passes;
 // 5 to the edge-noise pass; 3 to the margin grid; 7 again — its gold
 // drifting into solo reach — when the pan clamp and the zoom cap took
-// their share of the scenery ring. The default valley has its own
-// standing coverage in winnable.test.ts and holds no chair here).
-const SEEDS = [4, 2, 11, 19];
+// their share of the scenery ring; 19 to the drained puddles
+// (LAKE_MIN_SPAN in map.ts), which moved its solo gold out past the
+// mid-ring bound the way 96655595's sits past it below. The default
+// valley has its own standing coverage in winnable.test.ts and holds no
+// chair here).
+const SEEDS = [4, 2, 11, 23];
 /**
  * The seam audit's own list: the shared seeds plus the valley that audit
  * was written for. 96655595's four-seat deal gave one seat a silver
@@ -398,6 +402,63 @@ describe('map fairness', () => {
           expect(
             found,
             `seed ${seed}, ${players}p, start ${h.x},${h.y}: water access`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('no puddles: every body of water is a lake somewhere along it', () => {
+    // What the eye complains about, pinned: the noise dips below the lake
+    // level in single tiles as readily as it does in basins, and a valley
+    // freckled with potholes reads as a bug in the ground rather than as
+    // water. Every body must hold one solid LAKE_MIN_SPAN square
+    // somewhere, which is what drainPuddles (map.ts) leaves standing —
+    // judged per body, not per tile, so a lake keeps its one-tile inlets
+    // and a dug pond its ragged rim.
+    for (const players of [1, 2, 3, 4]) {
+      for (const seed of SEEDS) {
+        const world = makeWorld(seed, players);
+        const {size, terrain} = world.map;
+        const isWater = (i: number): boolean => terrain[i] === Terrain.Water;
+        const holdsSquare = (i: number): boolean => {
+          const x = tileX(i, size);
+          const y = tileY(i, size);
+          if (x + LAKE_MIN_SPAN > size || y + LAKE_MIN_SPAN > size)
+            return false;
+          for (let dy = 0; dy < LAKE_MIN_SPAN; dy++)
+            for (let dx = 0; dx < LAKE_MIN_SPAN; dx++)
+              if (!isWater((y + dy) * size + x + dx)) return false;
+          return true;
+        };
+        const seen = new Uint8Array(tileCount(size));
+        for (let start = 0; start < tileCount(size); start++) {
+          if (seen[start] || !isWater(start)) continue;
+          const body = [start];
+          seen[start] = 1;
+          let isLake = false;
+          for (let head = 0; head < body.length; head++) {
+            const i = body[head]!;
+            if (holdsSquare(i)) isLake = true;
+            const x = tileX(i, size);
+            const y = tileY(i, size);
+            for (const [nx, ny] of [
+              [x - 1, y],
+              [x + 1, y],
+              [x, y - 1],
+              [x, y + 1],
+            ] as const) {
+              if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+              const n = ny * size + nx;
+              if (seen[n] || !isWater(n)) continue;
+              seen[n] = 1;
+              body.push(n);
+            }
+          }
+          expect(
+            isLake,
+            `seed ${seed}, ${players}p: ${body.length}-tile puddle at ` +
+              `${tileX(start, size)},${tileY(start, size)}`,
           ).toBe(true);
         }
       }

@@ -1740,6 +1740,121 @@ function valueNoise(seed: number, x: number, y: number, scale: number): number {
 /** Below this raw-noise value a tile floods into a lake. */
 const LAKE_LEVEL_T = 0.26;
 
+/**
+ * Where a tile stands when it is dry ground for a reason other than the
+ * noise: the lowest land there is, a hair above the waterline rather than
+ * on it. The hair is not cosmetic — `raw` is a Float32Array, so a value
+ * parked exactly at LAKE_LEVEL_T rounds a shade under it on the way in,
+ * and everything that reads the field back (the drowned test, the shore
+ * curve, which takes the difference to a fractional power) would see a
+ * tile that is still under water.
+ */
+const DRY_LEVEL_T = LAKE_LEVEL_T + 0.06;
+
+/**
+ * What a lake has to be able to hold, or it is a puddle: one solid square
+ * of water this many tiles on a side. A body is judged whole, so an arm
+ * one tile wide is kept as long as it runs off water that clears the bar
+ * somewhere — a lake is allowed its inlets; a scratch of noise on its own
+ * is not a lake.
+ */
+export const LAKE_MIN_SPAN = 3;
+
+/**
+ * Fill in every water body too small to read as a lake.
+ *
+ * Called twice, because three different passes put water on the ground.
+ * First on the flooded basins once the causeway has been cut through them,
+ * and before anything downstream looks at the water — the landmass flood,
+ * the fishing-shore audit, the resource scatter — so a start whose only
+ * water was a pothole is seen as having none and gets a proper pond dug
+ * for it like any other dry start. Then again at the end, for what those
+ * later passes leave: a grass pocket the ridge cut off and the landmass
+ * flood drowned, and the odd tile a dug pond's ragged rim strands off its
+ * own corner.
+ *
+ * The ground each body hands itself back to is the ground around it —
+ * meadow, or border rock where rock is the only thing touching it, which
+ * is what a pocket inside the ridge band always is. Rock rather than
+ * grass there is not cosmetic: the drowning that made it was the sim's
+ * one guarantee that nothing generates on ground no serf can walk to, and
+ * dry grass in a sealed rock pocket would hand that guarantee back.
+ *
+ * Filled tiles have to come back up with the ground: `raw` below the lake
+ * level is the mark of a drowned tile, and the heightfield pass reads it
+ * for a depth rather than a height. A meadow tile rises to DRY_LEVEL_T,
+ * so the hollow stays a hollow — the lowest ground around, merely dry. A
+ * rock tile takes the highest raw its neighbours have, so the ridge
+ * closes over the hole instead of keeping a shaft through it.
+ */
+function drainPuddles(map: GameMap, raw: Float32Array): void {
+  const size = map.size;
+  const tiles = tileCount(size);
+  const isWater = (i: number): boolean => map.terrain[i] === TerrainNs.Water;
+  /** Is this tile the top-left corner of a full square of water? */
+  const holdsSquare = (i: number): boolean => {
+    const x = i % size;
+    const y = (i / size) | 0;
+    if (x + LAKE_MIN_SPAN > size || y + LAKE_MIN_SPAN > size) return false;
+    for (let dy = 0; dy < LAKE_MIN_SPAN; dy++)
+      for (let dx = 0; dx < LAKE_MIN_SPAN; dx++)
+        if (!isWater(tileIdx(x + dx, y + dy, size))) return false;
+    return true;
+  };
+  const seen = new Uint8Array(tiles);
+  for (let start = 0; start < tiles; start++) {
+    if (seen[start] || !isWater(start)) continue;
+    // The whole body first, then the verdict: a tile cannot answer for
+    // the water it is joined to, only the body can.
+    const body: number[] = [start];
+    seen[start] = 1;
+    let isLake = false;
+    for (let head = 0; head < body.length; head++) {
+      const i = body[head]!;
+      if (!isLake && holdsSquare(i)) isLake = true;
+      const x = i % size;
+      const y = (i / size) | 0;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (!inBounds(nx, ny, size)) continue;
+        const n = tileIdx(nx, ny, size);
+        if (seen[n] || !isWater(n)) continue;
+        seen[n] = 1;
+        body.push(n);
+      }
+    }
+    if (isLake) continue;
+    // What surrounds the body decides what it becomes, so the whole rim
+    // is read before a tile of it is written.
+    let touchesGrass = false;
+    let rimRaw = DRY_LEVEL_T;
+    for (const i of body) {
+      const x = i % size;
+      const y = (i / size) | 0;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (!inBounds(nx, ny, size)) continue;
+        const n = tileIdx(nx, ny, size);
+        if (map.terrain[n] === TerrainNs.Grass) touchesGrass = true;
+        else if (map.terrain[n] === TerrainNs.Rock)
+          rimRaw = Math.max(rimRaw, raw[n]!);
+      }
+    }
+    for (const i of body) {
+      map.terrain[i] = touchesGrass ? TerrainNs.Grass : TerrainNs.Rock;
+      raw[i] = Math.max(raw[i]!, touchesGrass ? DRY_LEVEL_T : rimRaw);
+    }
+  }
+}
+
 /** Are two tiles on the same 4-connected grass component? */
 function connected(map: GameMap, from: number, to: number): boolean {
   const size = map.size;
@@ -1863,12 +1978,26 @@ function computeTerrain(
           const ci = tileIdx(cx, cy, size);
           if (map.terrain[ci] === TerrainNs.Water && raw[ci]! < LAKE_LEVEL_T) {
             map.terrain[ci] = TerrainNs.Grass;
-            raw[ci] = LAKE_LEVEL_T + 0.06; // causeway height, just above the water
+            raw[ci] = DRY_LEVEL_T; // causeway height, just above the water
           }
         }
       }
     }
   }
+
+  // ...and the puddles drain again. The noise dips below the lake level in
+  // single tiles and hairline scratches as readily as it does in basins,
+  // and a valley came out freckled with a dozen of them: one tile of
+  // water in the middle of a meadow is a pothole, not a lake.
+  //
+  // After the causeway rather than before it, and ahead of the landmass
+  // flood and the shore audit: the bridge is the one pass below that takes
+  // water AWAY, and a 2-wide cut through a narrow lake can leave halves
+  // that hold no square between them. Draining after the cut means every
+  // pass that follows only ever adds water, which is what lets the second
+  // drain run behind the audit without ever taking back the shore the
+  // audit just accepted.
+  drainPuddles(map, raw);
 
   // One landmass: drown grass pockets the lakes cut off from home.
   const center = anchorTile(starts[0]!);
@@ -1998,11 +2127,27 @@ function computeTerrain(
         // Ragged edge: each tile draws its own threshold, so the pond
         // comes out lobed rather than stamped as a circle.
         const rim = pondR * (0.72 + 0.58 * hash2(i, seed + 9));
-        if (Math.hypot(dx, dy) > rim) continue;
+        // The core is not up to the threshold: a dug pond answers to the
+        // same minimum every other body of water does (LAKE_MIN_SPAN), and
+        // the smaller fallback radius can draw a rim tight enough to leave
+        // the corners of that square dry.
+        const core =
+          Math.abs(dx) <= LAKE_MIN_SPAN >> 1 &&
+          Math.abs(dy) <= LAKE_MIN_SPAN >> 1;
+        if (!core && Math.hypot(dx, dy) > rim) continue;
         map.terrain[i] = TerrainNs.Water;
       }
     }
   }
+
+  // The second drain (see drainPuddles): the landmass flood and the ponds
+  // above are the last passes that write water, and between them they
+  // leave a pothole or two — a ridge-locked pocket that drowned, a lobe
+  // of a pond's ragged rim stranded on a corner. Nothing the audit counted
+  // can go with them: both passes since the first drain only add water, so
+  // a body that cleared the bar then still clears it now, and every dug
+  // pond keeps its forced core.
+  drainPuddles(map, raw);
 
   // 4-neighbor BFS distances (in tiles): to the nearest water tile, for
   // banks that dive toward the waterline, and to the nearest land tile,

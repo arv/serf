@@ -20,6 +20,31 @@
  * directly.
  */
 /**
+ * 75: a lake is at least three tiles across, or it is not a lake.
+ *
+ * The heightfield's basins flood wherever the noise dips under the lake
+ * level, and it dips there in single tiles as readily as it does in real
+ * hollows: a generated valley came out freckled with a dozen potholes, one
+ * tile of water sitting in open meadow. They drain now — every body of
+ * water has to hold one solid three-by-three square somewhere or it is
+ * filled back in (LAKE_MIN_SPAN, `drainPuddles` in sim/map.ts), judged per
+ * body rather than per tile, so a lake keeps its one-tile inlets and only
+ * the scratches that are nothing but scratch go.
+ *
+ * Twice, because three passes put water down: on the flooded basins,
+ * ahead of the landmass flood and the fishing-shore audit so both judge
+ * the water a player will actually see — a start whose only water was a
+ * pothole now reads as dry and has a proper pond dug for it — and once
+ * more at the end, for a ridge-locked pocket the drowning left and the odd
+ * lobe a dug pond's ragged rim strands on a corner.
+ *
+ * Every tile of every generated map moves with it: the ground itself is
+ * different, and the draws that scatter resources across it run a
+ * different number of times, so a log recorded on an older build replays
+ * against a valley that is not the one it was played in.
+ *
+ * 74's note follows.
+ *
  * 74: the captain looks at who is standing there before he marches.
  *
  * `marchConfidence` (defs/aiStrategies.ts) has been 0 on every printed
@@ -1367,4 +1392,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 74;
+export const REPLAY_VERSION = 75;

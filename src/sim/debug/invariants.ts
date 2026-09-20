@@ -121,11 +121,20 @@ export function checkInvariants(world: World): InvariantReport {
       // Holding a good with no job is a legitimate state since move orders
       // stopped destroying cargo: abortJob leaves the good in his hands on
       // purpose, and rehomeCarriedGoods only gets a turn on matcher ticks,
-      // so he may walk the errand and then wait, both for seconds. What is
-      // still wrong is a carrier in a task nothing drives — the shape an
-      // ex-worker takes when he is unbound while a gather task is still on
-      // him, which no system will ever pick up again.
-      if (u.task.t !== UnitTaskKind.idle && u.task.t !== UnitTaskKind.move) {
+      // so he may walk the errand and then wait, both for seconds. An
+      // order to fight is the same thing — the mob the last stand calls up
+      // (systems/ai.ts #lastStand) is every villager the seat has left,
+      // sack of grain and all, and one sent at a wall trades his A order
+      // for a raid on the way in (tick.ts). What is still wrong is a
+      // carrier in a task nothing drives — the shape an ex-worker takes
+      // when he is unbound while a gather task is still on him, which no
+      // system will ever pick up again.
+      if (
+        u.task.t !== UnitTaskKind.idle &&
+        u.task.t !== UnitTaskKind.move &&
+        u.task.t !== UnitTaskKind.attackMove &&
+        u.task.t !== UnitTaskKind.raid
+      ) {
         violations.push(
           `serf ${u.id}: carrying ${u.carrying} in task ${u.task.t} with no job`,
         );
