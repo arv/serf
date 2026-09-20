@@ -1784,7 +1784,7 @@ function valueNoise(seed: number, x: number, y: number, scale: number): number {
 }
 
 /** Below this raw-noise value a tile floods into a lake. */
-const LAKE_LEVEL_T = 0.26;
+export const LAKE_LEVEL_T = 0.26;
 
 /**
  * The home plateau: how far from a start's castle middle the heightfield
@@ -1898,7 +1898,7 @@ const LAKE_FILL_HEAD = 0.05;
  * power, which has no real value on the wrong side of it. Both places
  * that dry a tile out (the causeway, a drained basin) settle it here.
  */
-const DRY_LEVEL_T = LAKE_LEVEL_T + 0.06;
+export const DRY_LEVEL_T = LAKE_LEVEL_T + 0.06;
 
 /**
  * Raise sub-lake-sized basins until they are lakes, or drain them.
@@ -1926,8 +1926,13 @@ const DRY_LEVEL_T = LAKE_LEVEL_T + 0.06;
  * pass judges what the two make together; that also bounds the loop,
  * since every pass either settles a body, drains one, or merges two, and
  * each of those leaves one fewer unsettled body behind.
+ *
+ * Exported, with the two levels it reads, for lakes.test.ts: the second
+ * call below stands behind a carve the noise has never once had cause to
+ * run, so the only way to put that case under a test is to hand this the
+ * split lake directly.
  */
-function settleBasins(
+export function settleBasins(
   map: GameMap,
   raw: Float32Array,
   onPlateau: (x: number, y: number) => boolean,
@@ -2241,35 +2246,57 @@ function computeTerrain(
   // one the lake pass above could never have reached, since the pocket is
   // still dry ground when it runs.
   //
+  // The whole pocket is walked before a tile of it is written, because
+  // the verdict belongs to the pocket and not to the tile. Deciding tile
+  // by tile in scan order splits one: a three-tile hollow touching water
+  // only at its far end turned the first two to rock and the last to
+  // water, which is a rock plug standing in a drowned hollow — 56 of 4043
+  // pockets over 480 worlds came out split that way.
+  //
   // A pocket that turns to rock comes up to the rim's own height as well,
   // or the range keeps a shaft where the hole was: the heightfield below
   // reads `raw` for how tall a rock tile stands, and a pocket's raw is
-  // meadow-low. Taking the tallest rock touching it closes the ridge over
-  // the hole, and a pocket bigger than a tile closes from its rim inward,
-  // since a tile's own neighbours are settled by the time it is read
-  // (rows run top-left first, and a rock pocket's earlier neighbour is
-  // always rock — the rim's, or one this loop has already raised).
-  for (let i = 0; i < tiles; i++) {
-    const x = i % size;
-    const y = (i / size) | 0;
-    if (!inPlayArea(map, x, y)) continue; // margin: scenery, not a pocket
-    if (map.terrain[i] !== TerrainNs.Grass || reached[i]) continue;
-    let shore: TerrainKind = TerrainNs.Rock;
-    let rimRaw = raw[i]!;
-    for (const [nx, ny] of [
-      [x - 1, y],
-      [x + 1, y],
-      [x, y - 1],
-      [x, y + 1],
-    ] as const) {
-      if (!inBounds(nx, ny, size)) continue;
-      const n = tileIdx(nx, ny, size);
-      if (map.terrain[n] === TerrainNs.Water) shore = TerrainNs.Water;
-      else if (map.terrain[n] === TerrainNs.Rock)
-        rimRaw = Math.max(rimRaw, raw[n]!);
+  // meadow-low. The tallest rock around the whole pocket closes the ridge
+  // over it.
+  const pocketSeen = new Uint8Array(tiles);
+  for (let s = 0; s < tiles; s++) {
+    if (pocketSeen[s] || map.terrain[s] !== TerrainNs.Grass || reached[s])
+      continue;
+    if (!inPlayArea(map, s % size, (s / size) | 0)) continue; // margin: scenery
+    const pocket = [s];
+    pocketSeen[s] = 1;
+    let drowns = false;
+    let rimRaw = DRY_LEVEL_T;
+    for (let head = 0; head < pocket.length; head++) {
+      const i = pocket[head]!;
+      const x = i % size;
+      const y = (i / size) | 0;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (!inBounds(nx, ny, size)) continue;
+        const n = tileIdx(nx, ny, size);
+        if (map.terrain[n] === TerrainNs.Water) drowns = true;
+        else if (map.terrain[n] === TerrainNs.Rock)
+          rimRaw = Math.max(rimRaw, raw[n]!);
+        else if (
+          !pocketSeen[n] &&
+          !reached[n] &&
+          map.terrain[n] === TerrainNs.Grass &&
+          inPlayArea(map, nx, ny)
+        ) {
+          pocketSeen[n] = 1;
+          pocket.push(n);
+        }
+      }
     }
-    map.terrain[i] = shore;
-    if (shore === TerrainNs.Rock) raw[i] = rimRaw;
+    for (const i of pocket) {
+      map.terrain[i] = drowns ? TerrainNs.Water : TerrainNs.Rock;
+      if (!drowns) raw[i] = Math.max(raw[i]!, rimRaw);
+    }
   }
 
   // Every start keeps fishable water within a short walk: a pond, a lake,
