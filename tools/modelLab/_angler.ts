@@ -19,7 +19,10 @@ import * as THREE from 'three';
 import {WORK} from '../../src/protocol/sabLayout';
 import * as AnimKey from '../../src/render/animKeyEnum.ts';
 import {loadGlbAssets} from '../../src/render/assets';
-import type {CharacterVisual} from '../../src/render/characters';
+import type {
+  AnimKey as AnimKeyType,
+  CharacterVisual,
+} from '../../src/render/characters';
 import {
   loadCharacterAssets,
   makeCharacter,
@@ -28,6 +31,7 @@ import {
   ROD_GUIDES,
   ROD_LINE_STRETCH,
   setWorkTool,
+  updateRodLine,
 } from '../../src/render/characters';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import {makeLights, makeRenderer, YAW, PITCH} from './scene';
@@ -39,6 +43,21 @@ const YAWS = Number(params.get('yaws') ?? '4');
  * in the strip. A rod aimed straight at the camera is a dot, so the single
  * figure wants turning before it can be judged at all. */
 const SPIN = (Number(params.get('spin') ?? '0') * Math.PI) / 180;
+/**
+ * Which clip to stand him in. The rod does not leave his hand when he stops
+ * fishing — he paces the deck and walks the catch to the hut still holding
+ * it (sceneSync only stows a tool for full hands) — so the walk and the
+ * idle are as much a part of "how he holds it" as the fishing pose, and
+ * they are where a line hung by a baked constant went visibly wrong.
+ */
+const CLIPS: Record<string, AnimKeyType> = {
+  fish: AnimKey.fish,
+  walk: AnimKey.walk,
+  jog: AnimKey.jog,
+  idle: AnimKey.idle,
+  carry: AnimKey.carryIdle,
+};
+const CLIP = CLIPS[params.get('clip') ?? 'fish'] ?? AnimKey.fish;
 
 await Promise.all([loadGlbAssets(), loadCharacterAssets()]);
 
@@ -162,11 +181,15 @@ function angler(x: number, spin: number): void {
   scene.add(made_.group);
   if (!made_.visual) return;
   setWorkTool(made_.visual, WORK.fish);
-  playAnimation(made_.visual, AnimKey.fish, 0);
+  playAnimation(made_.visual, CLIP, 0);
   const tuned = tuneRod(made_.visual.toolCustom);
-  const action = made_.visual.actions.get(AnimKey.fish);
+  const action = made_.visual.actions.get(CLIP);
   if (action) action.time = t * action.getClip().duration;
   made_.visual.mixer.update(0);
+  // Exactly what sceneSync does every frame, and for the same reason: the
+  // line answers to gravity, not to the hand. A page that skipped it would
+  // be judging a rod the renderer never draws.
+  updateRodLine(made_.visual);
   if (tuned) rehangLine(tuned);
 }
 
@@ -230,31 +253,57 @@ function measure(made_: {group: THREE.Group}): Record<string, number | string> {
   };
 }
 
-/** The worst the line leans over the whole clip, in degrees. Scrubs the
- * mixer and puts it back where it found it, so the frame that gets rendered
- * is the one the caller asked for. */
+/**
+ * The worst the line leans, in degrees, across EVERY clip the fisherman
+ * plays — not just the fishing one.
+ *
+ * Scanning only Fishing_Idle is what let a standing-up line ship. The line
+ * used to be corrected by a constant measured in the hand socket's frame,
+ * which is true only for the pose it was measured at; inside Fishing_Idle
+ * that read 2.7 degrees and looked safe. He walks back down the pier still
+ * holding the rod, and on those clips the same constant was 56, 64 and 73
+ * degrees out. So the sweep covers the walk, the jog, the carry and the
+ * plain idle, and takes the worst of the lot.
+ *
+ * Restores the clip it found, so the rendered frame is the caller's.
+ */
+const LEAN_CLIPS = [
+  AnimKey.fish,
+  AnimKey.walk,
+  AnimKey.jog,
+  AnimKey.idle,
+  AnimKey.carryIdle,
+] as const;
+
 function worstLineLean(made_: {
   group: THREE.Group;
   visual: CharacterVisual;
 }): number {
-  const action = made_.visual.actions.get(AnimKey.fish);
-  if (!action) return 0;
-  const {duration} = action.getClip();
-  const held = action.time;
+  const held = made_.visual.current;
   const tip = new THREE.Vector3();
   const hook = new THREE.Vector3();
   let worst = 0;
-  for (let i = 0; i < 32; i++) {
-    action.time = (i / 32) * duration;
-    made_.visual.mixer.update(0);
-    made_.group.updateWorldMatrix(true, true);
-    made_.group.getObjectByName('fishing_rod_line')!.getWorldPosition(tip);
-    made_.group.getObjectByName('fishing_rod_hook')!.getWorldPosition(hook);
-    const d = hook.clone().sub(tip);
-    worst = Math.max(worst, Math.atan2(Math.hypot(d.x, d.z), -d.y));
+  for (const key of LEAN_CLIPS) {
+    const action = made_.visual.actions.get(key);
+    if (!action) continue;
+    for (const other of made_.visual.actions.values()) other.stop();
+    action.reset().play();
+    made_.visual.current = key;
+    const {duration} = action.getClip();
+    for (let i = 0; i < 16; i++) {
+      action.time = (i / 16) * duration;
+      made_.visual.mixer.update(0);
+      updateRodLine(made_.visual);
+      made_.group.updateWorldMatrix(true, true);
+      made_.group.getObjectByName('fishing_rod_line')!.getWorldPosition(tip);
+      made_.group.getObjectByName('fishing_rod_hook')!.getWorldPosition(hook);
+      const d = hook.clone().sub(tip);
+      worst = Math.max(worst, Math.atan2(Math.hypot(d.x, d.z), -d.y));
+    }
   }
-  action.time = held;
+  if (held !== null) playAnimation(made_.visual, held, 0);
   made_.visual.mixer.update(0);
+  updateRodLine(made_.visual);
   made_.group.updateWorldMatrix(true, true);
   return Math.round(((worst * 180) / Math.PI) * 100) / 100;
 }
@@ -262,7 +311,7 @@ function worstLineLean(made_: {
 // The first figure stands square, so its numbers are the ones to read; the
 // rest only differ by the turn the strip gives them.
 const READING = made[0]
-  ? {...measure(made[0]), lineOffPlumbWorstDeg: worstLineLean(made[0])}
+  ? {...measure(made[0]), lineOffPlumbWorstAnyClipDeg: worstLineLean(made[0])}
   : null;
 (window as unknown as {ANGLER_READING: unknown}).ANGLER_READING = READING;
 
@@ -285,5 +334,12 @@ camera.position.set(
 camera.lookAt(0, FOCUS_Y, 0);
 renderer.render(scene, camera);
 (window as unknown as {ANGLER_READY: boolean}).ANGLER_READY = true;
-console.log('rendered t=' + t + ' yaws=' + YAWS);
+console.log(
+  'rendered t=' +
+    t +
+    ' yaws=' +
+    YAWS +
+    ' clip=' +
+    (params.get('clip') ?? 'fish'),
+);
 if (READING) console.table(READING);

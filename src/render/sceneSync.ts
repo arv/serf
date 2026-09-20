@@ -29,6 +29,7 @@ import {
   setGaitSpeed,
   setWorkTool,
   TOOL_STOWED,
+  updateRodLine,
   type CharacterVisual,
 } from './characters';
 import type {FogQuery} from './fogOfWar';
@@ -1478,6 +1479,10 @@ export class SceneSync {
         // A tool held one way and swung another changes hands over the
         // same blend the clips do (the farmer's scythe).
         if (visual.char.grip) updateGrip(visual.char, dt);
+        // And the fisherman's line falls plumb from wherever this frame's
+        // pose left the rod tip — it is the one part of a held prop that
+        // does not belong to the hand.
+        if (visual.char.rodLine) updateRodLine(visual.char);
         // The 'loop' event only covers cycles after the first wrap, so a
         // percussive clip (re)started this frame would play its whole
         // first cycle mute — for Pickaxing that is two silent swings and

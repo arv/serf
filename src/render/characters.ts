@@ -328,6 +328,10 @@ export interface CharacterVisual {
   grip?: GripRig;
   /** The archer's bow, string and nocked arrow (see BowRig). */
   bow?: BowRig;
+  /** The fishing rod's line node, when a rod is the equipped work tool.
+   * Re-hung plumb every frame by updateRodLine — see it for why this
+   * cannot be baked. */
+  rodLine?: THREE.Object3D;
 }
 
 // --- The bow: a string that follows the draw hand, an arrow on it -------
@@ -1079,29 +1083,9 @@ function fishingPoleProp(): THREE.Group {
   tilt.quaternion.copy(rodOrientation());
   tilt.position.copy(ROD_AIM).multiplyScalar(-GRIP_SLIDE);
   tilt.add(rod);
-  if (line) {
-    // Undo the aim for the line alone. `tilt` is the root of what we have
-    // built so far and `wrap` below cancels the hold exactly, so resolving
-    // matrices from here puts the line's parent in the same socket frame
-    // ROD_PLUMB is measured in — no posed skeleton needed.
-    //
-    // Baked once, and only EXACT at the pose ROD_PLUMB was measured at.
-    // Turning the man does not disturb it (a yaw leaves world-down alone),
-    // but Fishing_Idle sways the wrist, and the line, being rigid, leans
-    // with it. Measured over the whole clip that is 0 to 2.75 degrees off
-    // plumb, mean 1.21, which carries the float at most 0.038 sideways of
-    // the tip — a third of the float's own width, at a zoom where the
-    // float is a few pixels. Re-deriving this every frame for every
-    // fisherman to buy that back is not a trade worth making; the lab
-    // prints the worst case over the clip so the number stays honest
-    // rather than becoming an unexamined claim of "plumb".
-    tilt.updateMatrixWorld(true);
-    const parent = new THREE.Quaternion();
-    line.parent!.getWorldQuaternion(parent);
-    line.quaternion
-      .setFromUnitVectors(LINE_HANG, ROD_PLUMB)
-      .premultiply(parent.invert());
-  }
+  // The line is NOT hung here. It is rigid, so whatever this group is
+  // aimed at it inherits, and the pose it would have to be corrected
+  // against is not known until the clip has run — see updateRodLine.
   // The relaxed gripPose that suits the swung tools lays a rod tip-down.
   // Cancel it — the rotation (inverse, hence the reversed order) back to
   // the bare handslot axis that ROD_AIM and ROD_PLUMB are measured in, and
@@ -1113,6 +1097,42 @@ function fishingPoleProp(): THREE.Group {
   wrap.position.y = GRIP_SLIDE;
   wrap.add(tilt);
   return wrap;
+}
+
+/** Straight down, once, as the rotation that takes the line node's own
+ * hanging axis there. Both are constant, so this is built at load and only
+ * ever copied. */
+const LINE_PLUMB = new THREE.Quaternion().setFromUnitVectors(
+  LINE_HANG,
+  new THREE.Vector3(0, -1, 0),
+);
+const LINE_PARENT_Q = new THREE.Quaternion();
+
+/**
+ * Hang the fishing line plumb, against the pose the clip has just struck.
+ *
+ * A rod is rigid and belongs to the fist: it rolls and swings with the
+ * wrist, and that is right. A line does not — it answers to gravity and
+ * nothing else. But the pack models the line as a rigid node hanging off
+ * the rod's tip, so left alone it swings with the rod, and the correction
+ * has to be re-derived from wherever the hand has ended up.
+ *
+ * This cannot be baked, which is the mistake it replaces. A constant
+ * measured in the hand socket's frame is only true for the pose it was
+ * measured at: correct to within 2.7 degrees across Fishing_Idle, and then
+ * 56 degrees out on the walk back down the pier, 64 carrying, and 73 on a
+ * plain idle — a line standing up out of the rod like a wire. The bound
+ * looked safe only because it had been measured across one clip.
+ *
+ * Cheap enough to run unconditionally: one quaternion off the parent and
+ * one copy, for the handful of men holding rods.
+ */
+export function updateRodLine(visual: CharacterVisual): void {
+  const line = visual.rodLine;
+  const parent = line?.parent;
+  if (!line || !parent) return;
+  parent.getWorldQuaternion(LINE_PARENT_Q);
+  line.quaternion.copy(LINE_PLUMB).premultiply(LINE_PARENT_Q.invert());
 }
 
 /** How far down its own haft a tool is gripped, world units. Exported so
@@ -1432,6 +1452,8 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   if (!visual.toolCustom || visual.toolKind === workKind) return;
   visual.toolKind = workKind;
   visual.toolCustom.clear();
+  // Dropped with the old tool; re-found below if the new one has a line.
+  visual.rodLine = undefined;
   if (workKind === TOOL_STOWED) {
     if (visual.defaultTool) visual.defaultTool.visible = false;
     return;
@@ -1446,6 +1468,10 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
     // tool would undo its own fix-up.
     gripPose(visual.toolCustom, WORK_TOOL_HOLD[workKind]);
     visual.toolCustom.add(make());
+    // By name rather than by work kind: the rod is the only prop with a
+    // line, so finding one is what says there is one to hang.
+    visual.rodLine =
+      visual.toolCustom.getObjectByName('fishing_rod_line') ?? undefined;
     if (visual.defaultTool) visual.defaultTool.visible = false;
   } else if (visual.defaultTool) {
     const d = visual.defaultTool.userData;
