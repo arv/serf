@@ -1,7 +1,7 @@
 # Architecture: one pure world, two owners, one wire
 
 > **Status: description, not plan.** This is the shape of the code as of
-> v0.15 (September 2026), drawn in one piece. The `README.md` Architecture
+> v0.16 (September 2026), drawn in one piece. The `README.md` Architecture
 > section and the file-header comments quoted here are the primary record;
 > when they disagree with this page, the code wins and this page is stale.
 
@@ -14,7 +14,7 @@ knows only enough to show a connection state and open the chat line.
 
 | | |
 | --- | --- |
-| ~119k | TypeScript lines including tests, at v0.15 |
+| ~130k | TypeScript lines including tests, at v0.16 |
 | 20 Hz | tick and publish rate (`TICK_MS = 50`) |
 | 18 | steps per tick, in a fixed order |
 | 2 | owners of the World: `simWorker.ts`, `server/src/rooms.ts` |
@@ -63,13 +63,13 @@ flowchart TB
   style sim stroke:#b8891a,stroke-width:2px
 ```
 
-Rough weight per directory at v0.15, tests included and rounded, since the
-exact figures move with every merge: `sim` 46k, `render` 21k, `ui` 18k,
-`editor` + `areas` 9k, `input` 7k, `app` 7k, `protocol` 3k, `audio` 3k,
-`shared` 2k, `ai` 2k, `net` under 1k. The sim is the heaviest layer and the
-only one with no dependency above `shared`. The one
-cross-cut is the AI brain: `sim/systems/ai.ts` reads a World and emits
-ordinary commands, and `src/ai` shapes the posture it plays.
+Rough weight per directory at v0.16, tests included and rounded, since the
+exact figures move with every merge: `sim` 50k, `render` 27k, `ui` 18k,
+`editor` + `areas` 9k, `input` 8k, `app` 7k, `protocol` 3k, `shared` 3k,
+`audio` 3k, `ai` 2k, `net` under 1k. The sim is the heaviest layer and the
+only one with no dependency above `shared`. The one cross-cut is the AI
+brain: `sim/systems/ai.ts` reads a World and emits ordinary commands, and
+`src/ai` shapes the posture it plays.
 
 Directory-level import edges, non-test files, from the code as it stands:
 
