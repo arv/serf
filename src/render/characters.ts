@@ -328,6 +328,10 @@ export interface CharacterVisual {
   grip?: GripRig;
   /** The archer's bow, string and nocked arrow (see BowRig). */
   bow?: BowRig;
+  /** The fishing rod's line node, when a rod is the equipped work tool.
+   * Re-hung plumb every frame by updateRodLine — see it for why this
+   * cannot be baked. */
+  rodLine?: THREE.Object3D;
 }
 
 // --- The bow: a string that follows the draw hand, an arrow on it -------
@@ -918,6 +922,132 @@ function scytheProp(): THREE.Group {
   return g;
 }
 
+/**
+ * How far the rod's line node is stretched past its authored length.
+ *
+ * The line stops 1.94 under the tip as authored, which at our scale strands
+ * the hook chest-high over the pier. Exported because the model lab's
+ * `?raw=1` has to be able to put the rod back exactly as the pack ships it,
+ * and a copy of this number there would be a copy that drifts.
+ *
+ * 1.4 and not the 1.8 this wore while the line hung off a slanted rod: that
+ * line spent much of its length on sideways reach rather than depth, and
+ * dropped plumb the same 1.8 would sink the hook half again as far as it
+ * ever did. 1.4 is the drop the 1.8 actually achieved — a shade under 0.3
+ * below the planks — so hanging the line plumb changed which way the tackle
+ * falls and not how far.
+ *
+ * Which is NOT far enough to wet it: a fishery's deck clears the waterline
+ * by about 0.47 on a median shore (0.4 to 0.9 across seeds 1-5 — pad height
+ * from the height field, plus PIER_DECK_Y), so the float rides in the air
+ * short of the lake. That is how it has always hung here and it is left
+ * alone on purpose, because the honest fix is not a bigger constant: the
+ * drop wanted is `deckY - WATER_LEVEL`, which is per-site, and pierFit is
+ * the one that knows it.
+ */
+export const ROD_LINE_STRETCH = 1.4;
+
+/**
+ * The rod's own axis: up +Y with the sweep the model is authored with
+ * leaning it toward +z. Measured off the asset — grip node to line node —
+ * rather than assumed, because the sweep is what makes the shaft's
+ * direction not simply "the model's +y".
+ */
+const ROD_SHAFT = new THREE.Vector3(0, 0.9139, 0.4059).normalize();
+
+/**
+ * Where that shaft has to lie, as a direction in the bare hand socket's
+ * frame: the fisherman's own forward, pitched 38 degrees up, so the rod
+ * reaches out ahead of him rather than out across him.
+ *
+ * This is a choice made against the clip, and worth saying so. Fishing_Idle
+ * is a two-handed pose, and the segment between its fists — `handslotl`
+ * minus `handslotr`, steady to 0.18 of a degree over the whole clip — lies
+ * 77.6 degrees off his right, with hips, chest and head all square to the
+ * front. Laid on THAT axis the rod is gripped perfectly by both hands and
+ * points across his body; laid forward it is gripped by the right hand
+ * (which is the socket it hangs from, so that one cannot miss it) while the
+ * left falls short of the haft. Forward is what the fishery wants, so the
+ * left hand is the thing that gives.
+ *
+ * Read off `tools/modelLab/_angler.html`, which stands the man on the
+ * game's rig and prints both the aim and how far each fist misses by.
+ */
+export const ROD_AIM = new THREE.Vector3(0.5562, 0.8293, 0.0531).normalize();
+
+/**
+ * Which way the rod's guide face points, in the model's frame — the side
+ * the line guides stand off and the reel hangs from. Exactly square to
+ * ROD_SHAFT, and measured the only way that is not guesswork: take the rod
+ * mesh's own vertices, throw away the ones hugging the shaft, and average
+ * where the rest stand proud (the guides are the only thing on it that
+ * does).
+ *
+ * NOT the reel handle: `fishing_rod_reelhandle` is the crank, and a crank
+ * sticks out the SIDE of a reel — it sits 89.9 degrees off this, so rolling
+ * by it hangs the spool sideways and runs the line down the wrong face of
+ * the pole.
+ *
+ * This face rides UP (see `rodOrientation`). The model carries it on the
+ * rod's upper side, so hanging it downward turns the whole rod over.
+ */
+export const ROD_GUIDES = new THREE.Vector3(0, 0.4059, -0.9139).normalize();
+
+/**
+ * Straight down, in that same socket frame — where the line has to fall.
+ *
+ * The line is not string: it is a rigid node hanging off the tip, so left
+ * alone it swings with whatever the rod is aimed at. Hung on its own it
+ * falls plumb from wherever the tip has ended up, which is both what a
+ * weighted line does and the only reading that survives a change to
+ * ROD_AIM.
+ */
+const ROD_PLUMB = new THREE.Vector3(0.3101, -0.9467, -0.0872).normalize();
+
+/** The line's own hanging axis, in the line node's frame: it falls down
+ * the node's -y, which is also the axis the stretch below runs along. */
+const LINE_HANG = new THREE.Vector3(0, -1, 0);
+
+/**
+ * How the rod sits in the fist: shaft along ROD_AIM, guide face up.
+ *
+ * Two constraints, so this is a whole orientation and not a shortest-arc
+ * turn. `setFromUnitVectors(ROD_SHAFT, ROD_AIM)` gets the shaft right and
+ * leaves the roll about it to fall out of the arithmetic, which is how the
+ * reel came to hang off the side of the pole. Naming the second axis pins
+ * it.
+ *
+ * Which way that axis goes is one word, and it is worth being exact about
+ * it because the reel rides on the guide face — the two are 0.8 degrees
+ * apart on this model, so they cannot be split. The guide face rides UP,
+ * and the reel therefore sits ABOVE the shaft. Turning it over is a matter
+ * of targeting `down` here instead, and nothing else.
+ *
+ * Both triads are orthonormal by construction — ROD_GUIDES is square to
+ * ROD_SHAFT as measured, and `up` is taken square to ROD_AIM here — so
+ * mapping one basis onto the other is a pure rotation.
+ */
+function rodOrientation(): THREE.Quaternion {
+  // Straight up, taken square to the aim — the guide face rides on top.
+  const up = ROD_PLUMB.clone()
+    .addScaledVector(ROD_AIM, -ROD_PLUMB.dot(ROD_AIM))
+    .normalize()
+    .negate();
+  const from = new THREE.Matrix4().makeBasis(
+    ROD_SHAFT,
+    ROD_GUIDES,
+    new THREE.Vector3().crossVectors(ROD_SHAFT, ROD_GUIDES),
+  );
+  const to = new THREE.Matrix4().makeBasis(
+    ROD_AIM,
+    up,
+    new THREE.Vector3().crossVectors(ROD_AIM, up),
+  );
+  const qFrom = new THREE.Quaternion().setFromRotationMatrix(from);
+  const qTo = new THREE.Quaternion().setFromRotationMatrix(to);
+  return qTo.multiply(qFrom.invert());
+}
+
 function fishingPoleProp(): THREE.Group {
   // The RPG Tools Bits rod: grip at the origin, rod up +Y with a built-in
   // forward sweep toward +z, line + floater + hook hanging off the tip
@@ -926,11 +1056,10 @@ function fishingPoleProp(): THREE.Group {
   const rod = kkAssets!.props.get('tools/fishing_rod')!.clone();
   const s = 0.36;
   rod.scale.setScalar(s);
-  // The authored line stops 1.94 under the tip, which at this scale
-  // strands the hook chest-high over the pier. Stretch the line node (its
-  // mesh hangs from the tip) and counter-scale the floater and hook it
-  // carries so they keep their shape while riding down to the water.
-  const K = 1.8;
+  // Stretch the line node (its mesh hangs from the tip) and counter-scale
+  // the floater and hook it carries so they keep their shape while riding
+  // down toward the water. See ROD_LINE_STRETCH for how far, and why.
+  const K = ROD_LINE_STRETCH;
   const line = rod.getObjectByName('fishing_rod_line');
   if (line) {
     line.scale.y *= K;
@@ -942,18 +1071,68 @@ function fishingPoleProp(): THREE.Group {
       if (o) o.scale.y /= K;
     }
   }
-  // The relaxed gripPose that suits the swung tools lays a rod tip-down.
-  // Cancel it (inverse rotation, hence the reversed order) back to the
-  // bare handslot axis, then a modest forward pitch — the rod's own sweep
-  // does the rest, and the hanging line stays near plumb.
+  // Swing the shaft onto ROD_AIM — the man's forward, NOT the axis his two
+  // fists make; see ROD_AIM for why those differ and what it costs — and
+  // slide the rod down its own haft so the right fist closes GRIP_SLIDE
+  // along it rather than on the butt cap. gripPose's slide cannot do that
+  // job here: it runs down the HOLDER's +y on the assumption that the haft
+  // does too, and this haft is aimed 40-odd degrees off it — which is the
+  // very error gripPose's own comment describes, a fist closed on air
+  // beside the wood.
   const tilt = new THREE.Group();
-  tilt.rotation.x = 0.5;
+  tilt.quaternion.copy(rodOrientation());
+  tilt.position.copy(ROD_AIM).multiplyScalar(-GRIP_SLIDE);
   tilt.add(rod);
+  // The line is NOT hung here. It is rigid, so whatever this group is
+  // aimed at it inherits, and the pose it would have to be corrected
+  // against is not known until the clip has run — see updateRodLine.
+  // The relaxed gripPose that suits the swung tools lays a rod tip-down.
+  // Cancel it — the rotation (inverse, hence the reversed order) back to
+  // the bare handslot axis that ROD_AIM and ROD_PLUMB are measured in, and
+  // the slide with it, since `tilt` has just laid a truer one down the
+  // rod's own haft.
   const wrap = new THREE.Group();
   wrap.rotation.order = 'ZYX';
   wrap.rotation.set(-0.35, 0, 0.55);
+  wrap.position.y = GRIP_SLIDE;
   wrap.add(tilt);
   return wrap;
+}
+
+/** Straight down, once, as the rotation that takes the line node's own
+ * hanging axis there. Both are constant, so this is built at load and only
+ * ever copied. */
+const LINE_PLUMB = new THREE.Quaternion().setFromUnitVectors(
+  LINE_HANG,
+  new THREE.Vector3(0, -1, 0),
+);
+const LINE_PARENT_Q = new THREE.Quaternion();
+
+/**
+ * Hang the fishing line plumb, against the pose the clip has just struck.
+ *
+ * A rod is rigid and belongs to the fist: it rolls and swings with the
+ * wrist, and that is right. A line does not — it answers to gravity and
+ * nothing else. But the pack models the line as a rigid node hanging off
+ * the rod's tip, so left alone it swings with the rod, and the correction
+ * has to be re-derived from wherever the hand has ended up.
+ *
+ * This cannot be baked, which is the mistake it replaces. A constant
+ * measured in the hand socket's frame is only true for the pose it was
+ * measured at: correct to within 2.7 degrees across Fishing_Idle, and then
+ * 56 degrees out on the walk back down the pier, 64 carrying, and 73 on a
+ * plain idle — a line standing up out of the rod like a wire. The bound
+ * looked safe only because it had been measured across one clip.
+ *
+ * Cheap enough to run unconditionally: one quaternion off the parent and
+ * one copy, for the handful of men holding rods.
+ */
+export function updateRodLine(visual: CharacterVisual): void {
+  const line = visual.rodLine;
+  const parent = line?.parent;
+  if (!line || !parent) return;
+  parent.getWorldQuaternion(LINE_PARENT_Q);
+  line.quaternion.copy(LINE_PLUMB).premultiply(LINE_PARENT_Q.invert());
 }
 
 /** How far down its own haft a tool is gripped, world units. Exported so
@@ -1273,6 +1452,8 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   if (!visual.toolCustom || visual.toolKind === workKind) return;
   visual.toolKind = workKind;
   visual.toolCustom.clear();
+  // Dropped with the old tool; re-found below if the new one has a line.
+  visual.rodLine = undefined;
   if (workKind === TOOL_STOWED) {
     if (visual.defaultTool) visual.defaultTool.visible = false;
     return;
@@ -1287,6 +1468,10 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
     // tool would undo its own fix-up.
     gripPose(visual.toolCustom, WORK_TOOL_HOLD[workKind]);
     visual.toolCustom.add(make());
+    // By name rather than by work kind: the rod is the only prop with a
+    // line, so finding one is what says there is one to hang.
+    visual.rodLine =
+      visual.toolCustom.getObjectByName('fishing_rod_line') ?? undefined;
     if (visual.defaultTool) visual.defaultTool.visible = false;
   } else if (visual.defaultTool) {
     const d = visual.defaultTool.userData;
