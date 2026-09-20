@@ -9,6 +9,7 @@ import {
   playAnimation,
   setWorkTool,
   updateGrip,
+  updateRodLine,
   TOOL_STOWED,
   type CharacterVisual,
 } from '../render/characters';
@@ -279,6 +280,7 @@ export async function mountWardrobe(
       // on his mowing stroke: without this he would hold the scythe the
       // way he carries it and swing the clip's own uncorrected arm.
       if (visual.grip) updateGrip(visual, dt);
+      if (visual.rodLine) updateRodLine(visual);
     }
     for (const l of labels) {
       const p = worldToScreen(renderer.rig.camera, canvas, l.x, l.y, l.z);
