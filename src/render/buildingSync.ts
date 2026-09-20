@@ -22,6 +22,7 @@ import {
   playAnimation,
   updateBow,
   updateGrip,
+  updateRodLine,
   type CharacterVisual,
 } from './characters';
 import type {FogQuery} from './fogOfWar';
@@ -1509,6 +1510,7 @@ export class BuildingSync {
         char.mixer.update(dt);
         if (char.bow) updateBow(char);
         if (char.grip) updateGrip(char, dt);
+        if (char.rodLine) updateRodLine(char);
         // Each man's projectile leaves at his own clip's release — the
         // same phase-crossing watch the field archers keep (sceneSync),
         // against the throw's measured release for the levy. Volleys ride
