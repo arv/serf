@@ -822,7 +822,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // size. Every tile of every generated map moves, so a skirmish log
 // re-run here is a log played on different ground.
 const EXPECTED_VERSION = 75;
-const EXPECTED_HASH = '55b1997f30f04433978329ab2cc32c59';
+const EXPECTED_HASH = 'b749b231e7a9112b1f30d360e9f43315';
 
 /**
  * Everything a replay's playback depends on, as raw source:

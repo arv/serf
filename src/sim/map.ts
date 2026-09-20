@@ -1519,11 +1519,18 @@ export function generateMap(
       return dc >= 13 && dc <= 17;
     };
     // Pathological seed: the ring came up lake, hillside or grove the
-    // whole way round. A band either side of it still puts the seam
-    // within a mine's walk — it is where the ring's own clusters spill
-    // to anyway, since one is drawn at a center and spreads a couple of
-    // tiles off it — and it is the same degradation the reserve seam
-    // above makes for the same reason.
+    // whole way round. A band around it still puts the seam within a
+    // mine's walk — it is where the ring's own clusters spill to anyway,
+    // since one is drawn at a center and spreads a couple of tiles off
+    // it — and it is the same degradation the reserve seam above makes
+    // for the same reason.
+    //
+    // It widens outward and only outward, whatever the 12 below says:
+    // `spotPref`'s own keep-out (14, one line down) is what bounds this
+    // band on the inside, and on a solo map the two distances are the
+    // same measurement — the start anchor IS the map's middle. The 12
+    // is what the band would open to if that keep-out ever moved, not a
+    // reach this tier has today.
     //
     // What it replaces is the fall-through inside `spotPref`, which is
     // any grass at all past the plateau: forty draws is not many when
@@ -2056,9 +2063,19 @@ function computeTerrain(
   // Plateau centers sit at each start's storehouse middle (solo: the map
   // center, exactly the classic constant).
   const centers = starts.map(s => ({x: s.x + 1.5, y: s.y + 1.5}));
-  /** Is this tile on someone's home plateau — the flat, dry, buildable
+  /**
+   * Is this tile on someone's home plateau — the flat, dry, buildable
    * ground a start is promised? Water dug or raised afterwards keeps off
-   * it; the heightfield below is what puts it there in the first place. */
+   * it; the heightfield below is what puts it there in the first place.
+   *
+   * Tile centers, where the flattening itself measures tile corners, so
+   * the two discs sit half a tile apart. Deliberate: matching them is a
+   * worldgen change (it moves every map, and the balance tiers are
+   * measured against these) bought for a sliver of rim tiles where the
+   * flattening has already blended back into the natural ground and
+   * there is nothing left to protect. The metric here is the one every
+   * other keep-out measured from a castle uses.
+   */
   const onPlateau = (x: number, y: number): boolean => {
     for (const c of centers) {
       if (Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) < PLATEAU_R) return true;
@@ -2139,7 +2156,11 @@ function computeTerrain(
           const cy = py + oy;
           if (!inBounds(cx, cy, size)) continue;
           const ci = tileIdx(cx, cy, size);
-          if (map.terrain[ci] === TerrainNs.Water && raw[ci]! < LAKE_LEVEL_T) {
+          // Anything the flood or `settleBasins` put here, which is every
+          // tile below DRY_LEVEL_T: a raised tile keeps the `raw` it had
+          // as grass, so testing against the lake level alone would leave
+          // a grown basin's water standing right across the bridge.
+          if (map.terrain[ci] === TerrainNs.Water && raw[ci]! < DRY_LEVEL_T) {
             map.terrain[ci] = TerrainNs.Grass;
             raw[ci] = DRY_LEVEL_T; // causeway height, just above the water
           }
@@ -2269,6 +2290,11 @@ function computeTerrain(
         for (let x = 0; x < size; x++) {
           const dc = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
           if (dc < dMin || dc > dMax) continue;
+          // The middle has to be diggable, or the flood below has nowhere
+          // to start and the pond comes out empty: the fallback tiers
+          // reach in to 8, inside this plateau's own radius, and any tier
+          // can land on a RIVAL's plateau.
+          if (onPlateau(x, y)) continue;
           if (playEdgeDist(map, x, y) < rimClear + clearK) continue;
           let clear = true;
           for (let dy = -clearK; dy <= clearK && clear; dy++) {
