@@ -166,6 +166,8 @@ describe("the fishery preview's dock", () => {
       spotZ: 10.2 + dir.z * 3.1,
       yaw: Math.PI * 1.25,
       deckY: 0.15,
+      turn: Math.PI / 4,
+      scale: 1,
     };
     const nTip = {
       x: neighbour.spotX + dir.x * 0.4,
@@ -211,6 +213,8 @@ describe("the fishery preview's dock", () => {
       spotZ: 10.2 + dir.z * 3.1,
       yaw: Math.PI * 1.25,
       deckY: 0.15,
+      turn: Math.PI / 4,
+      scale: 1,
     };
     const standing: PierInfo[] = [];
     const {ghost, scene} = shore(
