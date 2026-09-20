@@ -5,6 +5,9 @@
  * fileStore's; what lives here is what makes a file a *replay*: the
  * version stamp a row has to show, and the screening an imported file has
  * to pass.
+ *
+ * At the bottom sits the one replay that is not a saved replay: the
+ * scratch slot the end card's "Watch replay" hands playback through.
  */
 
 import {
@@ -91,4 +94,43 @@ export function readReplayFile(name: string): Promise<string | null> {
 
 export function deleteReplayFile(name: string): Promise<void> {
   return store.remove(name);
+}
+
+/**
+ * The scratch slot behind the end card's "Watch replay": one recording,
+ * off the shelf, kept only until the next match asks for the slot. Its own
+ * directory rather than a reserved name under /replays, because the shelf
+ * lists whatever it finds there and this file is not a saved replay —
+ * nothing the player filed, nothing they have to tidy away.
+ */
+const scratch = createFileStore('replay-scratch');
+
+/** The one name the slot ever uses. */
+const SCRATCH_NAME = 'last match';
+
+/**
+ * The staged recording, also held here. Navigation costs no document
+ * (app/router.ts), so this is what the handoff actually reads back a
+ * moment later — and it is the answer where OPFS is unavailable or
+ * refuses, which would otherwise make "Watch replay" a button that does
+ * nothing. The file is what makes a *reload* of ?rewatch come back into
+ * the same recording.
+ */
+let staged: string | null = null;
+
+/**
+ * Put a replay in the scratch slot, replacing whatever was there — the
+ * store suffixes rather than overwrites, so the old file goes first.
+ * Resolves once the recording can be read back.
+ */
+export async function stageReplay(data: string): Promise<void> {
+  staged = data;
+  await scratch.remove(SCRATCH_NAME);
+  await scratch.write(SCRATCH_NAME, data);
+}
+
+/** The staged replay's JSON, or null when nothing is staged (nor left in
+ * the slot by an earlier visit to this tab's origin). */
+export async function readStagedReplay(): Promise<string | null> {
+  return staged ?? (await scratch.read(SCRATCH_NAME));
 }
