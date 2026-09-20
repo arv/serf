@@ -36,7 +36,7 @@ import * as DemandKind from '../sim/demandKindEnum.ts';
 import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
-
+import {builderHasWork} from '../sim/systems/construction.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
 import type {Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
@@ -774,14 +774,29 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
   // A hauler on the well's windlass. The well keeps no resident, so this is
   // the only way anyone is ever seen drawing.
   if (drawingAt(w, u) !== undefined) return ACTION.work;
-  // Resident workers: builders hammering up their site once materials are
-  // in, or convert-building staff mid-batch (hoeing, hammering...).
+  // Resident workers: builders raising the part of their site the
+  // deliveries have paid for, or convert-building staff mid-batch (hoeing,
+  // hammering...).
   if (u.homeId !== undefined && u.task.t === UnitTaskKind.idle) {
     const home = w.buildings.get(u.homeId);
     if (home && !home.dead) {
       if (home.state === BuildingState.site) {
-        const waiting = GOODS.some(g => ((home.siteNeeds ?? {})[g] ?? 0) > 0);
-        return waiting ? ACTION.idle : ACTION.work;
+        // Whether the frame can rise under his hands this tick, which is
+        // the sim's own question (systems/construction.ts) and not "is
+        // every load in": a site rises as far as it is paid for, so the
+        // builder is swinging through the whole part-paid stretch of the
+        // build and not only over its last good.
+        //
+        // Widened for the reason `describable` above is: the answer is read
+        // out of the def's `cost`, and a type no BUILDING_DEFS entry
+        // answers to has none. This is the only def the unit pass reads for
+        // a site — workKindOf hands a frame its hammer without asking — so
+        // an undescribable site used to cost the roster one building and
+        // would otherwise now throw every unit off the wire with it.
+        const def: BuildingDef | undefined = buildingDef(home.type);
+        return def !== undefined && builderHasWork(home, def)
+          ? ACTION.work
+          : ACTION.idle;
       }
       if (home.prodTicksLeft !== undefined) return ACTION.work;
     }

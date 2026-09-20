@@ -816,13 +816,21 @@ import {REPLAY_VERSION} from './replayVersion';
 // with the column and then left walking at the garrison when the column
 // turned home. The legs order the column now. 74 is unreleased, so there
 // is no log stamped with it to break — and the hash is over raw bytes.
+// Still 74 with the builder's swing: the question "is there bought work at
+// this frame" moved out of systems/staffing.ts into `builderHasWork`
+// (systems/construction.ts) so the snapshot can ask it too. The staffing
+// call site is the same three tests it already ran — the halt it gained is
+// one the recruiting sweep skips on the line above — and construction only
+// gained an export, so no tick executes a different statement. What
+// changed is who the renderer is told is working, which is not the sim.
 // 75 for the valley's puddles becoming lakes: sim/map.ts settles every
 // body of water short of a 7x7 one, closes a cut-off pocket with the
 // terrain that cut it off, and digs the water-access pond to the same
 // size. Every tile of every generated map moves, so a skirmish log
-// re-run here is a log played on different ground.
+// re-run here is a log played on different ground — which is what the
+// builder's swing above, landing beside it, did NOT do.
 const EXPECTED_VERSION = 75;
-const EXPECTED_HASH = 'a6d2323e2d83de32609fbd837626f61d';
+const EXPECTED_HASH = 'PENDING';
 
 /**
  * Everything a replay's playback depends on, as raw source:

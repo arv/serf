@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import type {WebSocket} from 'ws';
 import {DEFAULT_MAP_SIZE, tileIdx} from '../../src/shared/grid.ts';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../../src/sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import {bindWorker} from '../../src/sim/systems/production.ts';
 import {placeSite, spawnUnit} from '../../src/sim/world.ts';
@@ -86,6 +87,7 @@ describe('sendHot: a bearing is a location too', () => {
     const world = room.world!;
     const site = placeSite(world, BuildingTypeId.woodcutter, 1, 32, 30);
     site.siteNeeds = {}; // every load in: he is hammering, not waiting
+    site.inputs[GoodId.hammer] = 1; // ...with the borrowed tool to do it with
     const builder = spawnUnit(world, UnitTypeId.worker, 1, 30.5, 31);
     bindWorker(site, builder);
     const vision = seat.view!.vision;
