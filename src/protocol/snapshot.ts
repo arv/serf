@@ -786,7 +786,15 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
         // every load in": a site rises as far as it is paid for, so the
         // builder is swinging through the whole part-paid stretch of the
         // build and not only over its last good.
-        return builderHasWork(home, buildingDef(home.type))
+        //
+        // Widened for the reason `describable` above is: the answer is read
+        // out of the def's `cost`, and a type no BUILDING_DEFS entry
+        // answers to has none. This is the only def the unit pass reads for
+        // a site — workKindOf hands a frame its hammer without asking — so
+        // an undescribable site used to cost the roster one building and
+        // would otherwise now throw every unit off the wire with it.
+        const def: BuildingDef | undefined = buildingDef(home.type);
+        return def !== undefined && builderHasWork(home, def)
           ? ACTION.work
           : ACTION.idle;
       }

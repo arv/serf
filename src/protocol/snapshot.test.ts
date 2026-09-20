@@ -627,6 +627,35 @@ describe('snapBuildings: a building the definitions cannot describe', () => {
 });
 
 /**
+ * The same hazard on the other channel. The unit pass reads one definition
+ * for a site — whether the frame can rise under the builder's hands — and
+ * the units ride the SAB, which has no per-row failure: a throw in the
+ * generator costs every man on the map his position, not one row. So an
+ * undescribable site is a builder who stands there, and nothing more.
+ */
+describe('unitSnapshots: a builder at a site nothing can describe', () => {
+  it('keeps every man on the wire and stands the builder down', () => {
+    const world = bareWorld();
+    const site = placeSite(world, BuildingTypeId.woodcutter, 0, 30, 30);
+    site.siteNeeds = {};
+    site.inputs[GoodId.hammer] = 1;
+    const builder = spawnUnit(world, UnitTypeId.worker, 0, 32, 30.5);
+    bindWorker(site, builder);
+    const passerby = spawnUnit(world, UnitTypeId.serf, 0, 20, 20);
+    // A type no BUILDING_DEFS entry answers to — what a save written by a
+    // build with one more building in it hands this one.
+    (site as {type: number}).type = 9999;
+
+    const snaps = [...unitSnapshots(world)];
+
+    expect(snaps.map(s => s.id).sort((a, z) => a - z)).toEqual(
+      [builder.id, passerby.id].sort((a, z) => a - z),
+    );
+    expect(snaps.find(s => s.id === builder.id)!.action).not.toBe(ACTION.work);
+  });
+});
+
+/**
  * The festival mark rides the unit, not the seat: a rival's research is
  * redacted on the wire, and the mark's whole job is telling a player that
  * the men marching on them have been drinking.
