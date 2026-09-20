@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {
   DEFAULT_MAP_SIZE,
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
   gridFor,
   tileCount,
   tileX,
@@ -12,6 +14,7 @@ import {
   HOME_SEAM_BAND,
   IRON_HOME_WORTH,
   IRON_RESERVE_WORTH,
+  MIN_LAKE_TILES,
   RESERVE_SEAM_BAND,
   SEAM_REACH,
   SEAM_TILES,
@@ -103,9 +106,10 @@ function amountNear(
   return total;
 }
 
-function makeWorld(seed: number, players: number): World {
+function makeWorld(seed: number, players: number, mapSize?: number): World {
   return createWorld({
     seed,
+    mapSize,
     players: Array.from({length: players}, () => ({kind: PlayerKind.human})),
   });
 }
@@ -399,6 +403,70 @@ describe('map fairness', () => {
             found,
             `seed ${seed}, ${players}p, start ${h.x},${h.y}: water access`,
           ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('no puddles: every body of water is a lake', () => {
+    // What the eye complains about, pinned. The noise dips under the lake
+    // level in single tiles as readily as it does in real hollows, and a
+    // valley freckled with one-tile potholes reads as a fault in the
+    // ground rather than as water — 174 of 356 inland bodies over twenty
+    // seeds were a single tile before `settleBasins` (map.ts) raised the
+    // small ones into lakes and filled in the hollows that would not hold
+    // one.
+    //
+    // Every body, over the whole grid rather than the play square: the
+    // scenery ring is water the player looks at, and a pothole out there
+    // is as visible as a pothole inside.
+    //
+    // The floor is asserted on the finished map because three passes put
+    // water down after the settling and one takes it away, and every one
+    // of them has to leave the floor standing: the drowned pockets and
+    // the dug pond only ever add (the pond a lake's worth or nothing),
+    // while the causeway carve can cut a lake in two and leave halves
+    // that are each short — which is why `settleBasins` runs a second
+    // time behind it. That is the part worth a test rather than an
+    // argument, and it is why the argument alone was not enough.
+    //
+    // At all three legal sizes, not just the default one: the passes
+    // read `size`, `play` and the border geometry, and a defect at the
+    // 64- or 128-tile bound would sit outside a 96-only audit entirely.
+    for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
+      for (const players of [1, 2, 3, 4]) {
+        for (const seed of SEEDS) {
+          const world = makeWorld(seed, players, play);
+          const {size, terrain} = world.map;
+          const seen = new Uint8Array(tileCount(size));
+          for (let start = 0; start < seen.length; start++) {
+            if (seen[start] || terrain[start] !== Terrain.Water) continue;
+            const body = [start];
+            seen[start] = 1;
+            for (let head = 0; head < body.length; head++) {
+              const i = body[head]!;
+              const x = tileX(i, size);
+              const y = tileY(i, size);
+              for (const [nx, ny] of [
+                [x - 1, y],
+                [x + 1, y],
+                [x, y - 1],
+                [x, y + 1],
+              ] as const) {
+                if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+                const n = ny * size + nx;
+                if (seen[n] || terrain[n] !== Terrain.Water) continue;
+                seen[n] = 1;
+                body.push(n);
+              }
+            }
+            expect(
+              body.length,
+              `${play}-tile map, seed ${seed}, ${players}p: ` +
+                `${body.length}-tile puddle at ` +
+                `${tileX(start, size)},${tileY(start, size)}`,
+            ).toBeGreaterThanOrEqual(MIN_LAKE_TILES);
+          }
         }
       }
     }

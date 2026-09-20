@@ -823,8 +823,14 @@ import {REPLAY_VERSION} from './replayVersion';
 // one the recruiting sweep skips on the line above — and construction only
 // gained an export, so no tick executes a different statement. What
 // changed is who the renderer is told is working, which is not the sim.
-const EXPECTED_VERSION = 74;
-const EXPECTED_HASH = 'a9fefd876dd9d830d16e56648ad0dede';
+// 75 for the valley's puddles becoming lakes: sim/map.ts settles every
+// body of water short of a 7x7 one, closes a cut-off pocket with the
+// terrain that cut it off, and digs the water-access pond to the same
+// size. Every tile of every generated map moves, so a skirmish log
+// re-run here is a log played on different ground — which is what the
+// builder's swing above, landing beside it, did NOT do.
+const EXPECTED_VERSION = 75;
+const EXPECTED_HASH = '5ca3394d0c658ba1cb3fa97bc9a2a311';
 
 /**
  * Everything a replay's playback depends on, as raw source:

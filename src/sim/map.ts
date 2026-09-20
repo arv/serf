@@ -1518,15 +1518,61 @@ export function generateMap(
       const dc = centerDist(x0, y0);
       return dc >= 13 && dc <= 17;
     };
+    // Pathological seed: the ring came up lake, hillside or grove the
+    // whole way round. A band around it still puts the seam within a
+    // mine's walk — it is where the ring's own clusters spill to anyway,
+    // since one is drawn at a center and spreads a couple of tiles off
+    // it — and it is the same degradation the reserve seam above makes
+    // for the same reason.
+    //
+    // It widens outward and only outward, whatever the 12 below says:
+    // `spotPref`'s own keep-out (14, one line down) is what bounds this
+    // band on the inside, and on a solo map the two distances are the
+    // same measurement — the start anchor IS the map's middle. The 12
+    // is what the band would open to if that keep-out ever moved, not a
+    // reach this tier has today.
+    //
+    // What it stands in front of is the fall-through inside `spotPref`,
+    // which is any grass at all past the plateau: forty draws is not many
+    // when the ring is a twenty-fifth of the map, so roughly one solo
+    // seed in seven used to put its gold wherever the last dart landed —
+    // forty tiles out on seed 19, which is a seam a solo game never
+    // mines. A tier is still forty more darts and could miss too, so the
+    // band is enumerated below rather than thrown at once they all have.
+    // Seeds that find the ring are untouched, draw for draw.
+    const nearRing = (x0: number, y0: number): boolean => {
+      const dc = centerDist(x0, y0);
+      return dc >= 12 && dc <= 18;
+    };
     for (const [res, amt, count] of deposits) {
       for (let c = 0; c < count; c++) {
         // A center inside an existing grove writes nothing — redraw then.
         // Seeds whose first draw lands keep their exact classic worlds.
         for (let tries = 0; tries < 40; tries++) {
-          const [x, y] = spotPref(4, 14, [
+          let [x, y] = spotPref(4, 14, [
             (x0, y0) => onRing(x0, y0) && heightAt(x0, y0) > 1.0,
             onRing,
+            nearRing,
           ]);
+          // Darts that all miss still land somewhere, and `spotPref`'s
+          // own last resort is any grass past the keep-out — which is the
+          // forty-tile gold this band exists to prevent. So once the
+          // tiers have had their draws, the band is enumerated and one of
+          // its tiles taken, the way the reserve seam does it: a miss is
+          // then only possible where the band truly holds no ground.
+          if (!nearRing(x, y)) {
+            const band: [number, number][] = [];
+            for (let y0 = p0; y0 < p1; y0++) {
+              for (let x0 = p0; x0 < p1; x0++) {
+                if (!nearRing(x0, y0) || startDist(x0, y0) < 14) continue;
+                if (playEdgeDist(map, x0, y0) < 4) continue;
+                if (map.terrain[tileIdx(x0, y0, size)] !== TerrainNs.Grass)
+                  continue;
+                band.push([x0, y0]);
+              }
+            }
+            if (band.length > 0) [x, y] = band[rng.int(band.length)]!;
+          }
           if (placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1) > 0) break;
         }
       }
@@ -1738,7 +1784,263 @@ function valueNoise(seed: number, x: number, y: number, scale: number): number {
 }
 
 /** Below this raw-noise value a tile floods into a lake. */
-const LAKE_LEVEL_T = 0.26;
+export const LAKE_LEVEL_T = 0.26;
+
+/**
+ * The home plateau: how far from a start's castle middle the heightfield
+ * is flattened toward gentle meadow, and the inner disc it holds dead
+ * flat before it begins easing back into the natural ground.
+ *
+ * This is the buildable land every faction is promised, and what stands
+ * on it is a town rather than a view, so nothing worldgen does afterwards
+ * may take it back — the rising water of `settleBasins` least of all,
+ * since a lake is the one feature that takes ground away permanently.
+ */
+const PLATEAU_R = 9;
+const PLATEAU_FLAT = 3;
+
+/**
+ * The smallest body of water worldgen leaves standing: a 7x7 lake's worth
+ * of tiles.
+ *
+ * The heightfield owes nobody a basin of any particular size, and left to
+ * itself it draws a great many that are one or two tiles across — 174 of
+ * the 356 inland bodies over twenty default seeds were a single tile, and
+ * three quarters of them were under twenty. A single wet tile is not a
+ * lake. It is a puddle: too small to fish from, too small to sail around,
+ * too small to read as water at all from the play camera, and — since
+ * every one of them is still impassable ground — a scatter of pot-holes
+ * for the pathfinder to thread.
+ *
+ * So a basin has to earn the name. `settleBasins` raises the level of
+ * every body short of this until it holds a lake's worth, and drains the
+ * ones whose ground will not hold that much (`LAKE_FILL_HEAD`). The
+ * water-access pond digs to the same figure, so a start the noise left
+ * dry opens beside a lake rather than beside the puddle a 2.4-tile carve
+ * used to leave.
+ */
+export const MIN_LAKE_TILES = 49;
+
+/**
+ * What the water-access dig settles for: the tiles of water it digs, the
+ * half-width of the all-grass square it needs to sit in, and how far out
+ * from the castle it looks for one.
+ *
+ * The first tier is a lake, and it is what nearly every dry start gets —
+ * across sixty default seeds the wide clearing was there every time one
+ * was asked for. The two below it are the pools this dig used to hand out
+ * as its best, kept as what a start boxed in by ridge and forest settles
+ * for: a pond under the minimum is a poor lake, but a start with no shore
+ * at all is a start whose fishery was never buildable.
+ *
+ * Every tier digs a lake or digs nothing: one that cannot fill hands on
+ * to the next rather than leaving a pool behind. A pond under the
+ * minimum is the very thing the rest of this file exists to keep off the
+ * map, and this dig runs after `settleBasins` — nothing downstream will
+ * judge what it leaves, so the floor is the dig's own to keep.
+ *
+ * Each clearance is wide enough for the lake to sit strictly inside it
+ * (the dig stays a tile clear of the square's edge, so that outer ring
+ * survives as a 4-connected cycle of land and a dug pond can never sever
+ * the landmass), and to still hold MIN_LAKE_TILES after a plateau has
+ * taken its bite: 121 and 81 tiles of room for a lake of 49. The room to
+ * spare is the whole point of the margin. A 4 clearance was tried and
+ * dropped — its interior is 49 tiles exactly, so ANY bite is fatal, and
+ * a bite can come from a rival's plateau at any range, which no choice
+ * of ring can put out of reach. Forced to dig at these two, every one of
+ * 335 sites filled; forced at a 4, 81 of them came up short.
+ *
+ * The ring is measured to the pond's MIDDLE, which is why a lake is sited
+ * further out than the pool was: at the 9.5 the old carve used, water
+ * this size would stand against the castle wall and take the town's yard
+ * with it. The narrower tier sits further out still — less room means
+ * less of it can be spared to the plateau. The far end stays inside
+ * WATER_ACCESS_RADIUS, since the middle of the pond is water and a
+ * fishery only needs to reach the shore.
+ */
+const POND_TIERS: readonly (readonly [clearance: number, ring: number])[] = [
+  [6, 12],
+  [5, 13],
+];
+
+/**
+ * How far a dug pond's shore wanders off the circle, in tiles, and the
+ * size of the lobes it wanders in.
+ *
+ * Value noise rather than a per-tile hash, because the wobble is wider
+ * than a tile: white noise this wide speckles — a tile draws low, its
+ * neighbours draw high, and the pond sheds single tiles of water around
+ * its shore, which are puddles of exactly the kind MIN_LAKE_TILES exists
+ * to abolish. (The dig below is a flood from the middle outwards, so a
+ * shed tile could not happen anyway. It would just come out square-ish
+ * and speckled where the rank order crosses itself.)
+ */
+const POND_LOBE = 2.2;
+const POND_LOBE_SCALE = 4;
+
+/**
+ * How far above `LAKE_LEVEL_T` a basin may be filled while it grows to
+ * `MIN_LAKE_TILES` — the head of water the ground is asked to hold.
+ *
+ * This is what decides whether a puddle becomes a lake or disappears. A
+ * shallow dish spreads a long way for a small rise and fills easily; a
+ * pinprick in steep ground would have to drown a hillside to reach the
+ * minimum, and is drained instead. Raising the head makes lakes both more
+ * numerous and larger; lowering it turns more of them back into meadow.
+ */
+const LAKE_FILL_HEAD = 0.05;
+
+/**
+ * The raw height a tile takes when land is put back where water was: the
+ * lake level plus a hair. Grass below the lake level is not a state this
+ * generator has — the flood pass is what defines the shoreline, and the
+ * height curve below reads `raw - LAKE_LEVEL_T` through a fractional
+ * power, which has no real value on the wrong side of it. Both places
+ * that dry a tile out (the causeway, a drained basin) settle it here.
+ */
+export const DRY_LEVEL_T = LAKE_LEVEL_T + 0.06;
+
+/**
+ * Raise sub-lake-sized basins until they are lakes, or drain them.
+ *
+ * Each body of water short of `MIN_LAKE_TILES` floods its lowest dry
+ * neighbour, over and over — the same thing rising water does — until it
+ * holds a lake's worth or the only ground left to take is higher than
+ * `LAKE_FILL_HEAD` above the lake level, at which point the basin has
+ * spilled: it never held a lake, so it is filled back in.
+ *
+ * The one place the water is told where it may not go is the home
+ * plateaus. A basin the noise cut at their skirt would otherwise rise
+ * into the buildable land a start is promised — the head is enough to
+ * carry it several tiles closer in than the flood line ever reaches —
+ * and a town cannot be built on the view. Nothing else needs a rule: the
+ * border ridge and the plateaus' own middles were forced well above the
+ * lake level in the raw field before this runs, so the head cannot reach
+ * them anyway.
+ *
+ * Bodies are taken in tile order and the frontier is picked by height
+ * (ties by tile index), so this draws no rng and adds none — a seed that
+ * had no puddles keeps its world byte for byte.
+ *
+ * Growth stops the moment the water reaches another body, and the next
+ * pass judges what the two make together; that also bounds the loop,
+ * since every pass either settles a body, drains one, or merges two, and
+ * each of those leaves one fewer unsettled body behind.
+ *
+ * Exported, with the two levels it reads, for lakes.test.ts: the second
+ * call below stands behind a carve the noise has never once had cause to
+ * run, so the only way to put that case under a test is to hand this the
+ * split lake directly.
+ */
+export function settleBasins(
+  map: GameMap,
+  raw: Float32Array,
+  onPlateau: (x: number, y: number) => boolean,
+): void {
+  const size = map.size;
+  const tiles = tileCount(size);
+  const ceiling = LAKE_LEVEL_T + LAKE_FILL_HEAD;
+  /** Tiles in a body that already holds a lake's worth. */
+  const settled = new Uint8Array(tiles);
+  const seen = new Uint8Array(tiles);
+  const queued = new Uint8Array(tiles);
+  const neighbors = (i: number): number[] => {
+    const x = i % size;
+    const y = (i / size) | 0;
+    const out: number[] = [];
+    for (const [nx, ny] of [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ] as const) {
+      if (inBounds(nx, ny, size)) out.push(tileIdx(nx, ny, size));
+    }
+    return out;
+  };
+
+  for (;;) {
+    // The first body short of a lake, in tile order. Settled tiles are
+    // skipped outright, so the sea is walked once and never again.
+    seen.fill(0);
+    let body: number[] | undefined;
+    for (let s = 0; s < tiles && !body; s++) {
+      if (map.terrain[s] !== TerrainNs.Water || seen[s] || settled[s]) continue;
+      const comp = [s];
+      seen[s] = 1;
+      let holdsSettled = false;
+      for (let head = 0; head < comp.length; head++) {
+        for (const n of neighbors(comp[head]!)) {
+          if (seen[n] || map.terrain[n] !== TerrainNs.Water) continue;
+          seen[n] = 1;
+          if (settled[n]) holdsSettled = true;
+          comp.push(n);
+        }
+      }
+      // A body that already measures up — or that has merged into one —
+      // is a lake; mark it so and never walk it again.
+      if (holdsSettled || comp.length >= MIN_LAKE_TILES) {
+        for (const i of comp) settled[i] = 1;
+      } else {
+        body = comp;
+      }
+    }
+    if (!body) return;
+
+    // Rising water: the frontier is the dry ground the body touches, and
+    // the lowest tile of it goes under first.
+    queued.fill(0);
+    const frontier: number[] = [];
+    for (const i of body) queued[i] = 1;
+    const offer = (i: number): void => {
+      if (queued[i]) return;
+      queued[i] = 1;
+      if (map.terrain[i] === TerrainNs.Grass) frontier.push(i);
+    };
+    for (const i of body) for (const n of neighbors(i)) offer(n);
+
+    let spilled = false;
+    let met = false;
+    while (!met && body.length < MIN_LAKE_TILES) {
+      let pick = -1;
+      let pickAt = -1;
+      let lowest = ceiling;
+      for (let k = 0; k < frontier.length; k++) {
+        const i = frontier[k]!;
+        if (i < 0) continue; // already flooded
+        if (raw[i]! >= lowest) continue;
+        if (onPlateau(i % size, (i / size) | 0)) continue;
+        lowest = raw[i]!;
+        pick = i;
+        pickAt = k;
+      }
+      if (pick < 0) {
+        spilled = true;
+        break;
+      }
+      frontier[pickAt] = -1;
+      map.terrain[pick] = TerrainNs.Water;
+      body.push(pick);
+      for (const n of neighbors(pick)) {
+        // Water the body has not counted is a body of its own: stop here
+        // and let the next pass weigh the two as one.
+        if (map.terrain[n] === TerrainNs.Water && !queued[n]) met = true;
+        offer(n);
+      }
+    }
+
+    if (spilled) {
+      // Never a lake: fill the hollow back in, up to the waterline it
+      // could not hold.
+      for (const i of body) {
+        map.terrain[i] = TerrainNs.Grass;
+        raw[i] = Math.max(raw[i]!, DRY_LEVEL_T);
+      }
+    } else if (!met) {
+      for (const i of body) settled[i] = 1;
+    }
+  }
+}
 
 /** Are two tiles on the same 4-connected grass component? */
 function connected(map: GameMap, from: number, to: number): boolean {
@@ -1796,6 +2098,25 @@ function computeTerrain(
   // Plateau centers sit at each start's storehouse middle (solo: the map
   // center, exactly the classic constant).
   const centers = starts.map(s => ({x: s.x + 1.5, y: s.y + 1.5}));
+  /**
+   * Is this tile on someone's home plateau — the flat, dry, buildable
+   * ground a start is promised? Water dug or raised afterwards keeps off
+   * it; the heightfield below is what puts it there in the first place.
+   *
+   * Tile centers, where the flattening itself measures tile corners, so
+   * the two discs sit half a tile apart. Deliberate: matching them is a
+   * worldgen change (it moves every map, and the balance tiers are
+   * measured against these) bought for a sliver of rim tiles where the
+   * flattening has already blended back into the natural ground and
+   * there is nothing left to protect. The metric here is the one every
+   * other keep-out measured from a castle uses.
+   */
+  const onPlateau = (x: number, y: number): boolean => {
+    for (const c of centers) {
+      if (Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) < PLATEAU_R) return true;
+    }
+    return false;
+  };
   for (let i = 0; i < tiles; i++) {
     const x = i % size;
     const y = (i / size) | 0;
@@ -1809,8 +2130,11 @@ function computeTerrain(
       const d = Math.hypot(x - c.x, y - c.y);
       if (d < dc) dc = d;
     }
-    if (dc < 9) {
-      const g = Math.min(Math.max((dc - 3) / 6, 0), 1);
+    if (dc < PLATEAU_R) {
+      const g = Math.min(
+        Math.max((dc - PLATEAU_FLAT) / (PLATEAU_R - PLATEAU_FLAT), 0),
+        1,
+      );
       const blend = g * g * (3 - 2 * g);
       const clamped = Math.min(Math.max(r, 0.4), 0.55);
       r = clamped + (r - clamped) * blend;
@@ -1835,6 +2159,12 @@ function computeTerrain(
     if (map.terrain[i] === TerrainNs.Grass && raw[i]! < LAKE_LEVEL_T)
       map.terrain[i] = TerrainNs.Water;
   }
+  // ...and then settle into lakes or dry out: what the noise floods is a
+  // field of basins of every size, and the small ones are puddles rather
+  // than water. Before the land bridges and the drowning below, so that
+  // the connectivity repairs still have the last word on the shape of the
+  // landmass.
+  settleBasins(map, raw, onPlateau);
 
   // Rival plateaus must share the landmass: if the lakes cut a start off
   // from start 0, carve a 2-wide land bridge along the straight line
@@ -1861,16 +2191,32 @@ function computeTerrain(
           const cy = py + oy;
           if (!inBounds(cx, cy, size)) continue;
           const ci = tileIdx(cx, cy, size);
-          if (map.terrain[ci] === TerrainNs.Water && raw[ci]! < LAKE_LEVEL_T) {
+          // Anything the flood or `settleBasins` put here, which is every
+          // tile below DRY_LEVEL_T: a raised tile keeps the `raw` it had
+          // as grass, so testing against the lake level alone would leave
+          // a grown basin's water standing right across the bridge.
+          if (map.terrain[ci] === TerrainNs.Water && raw[ci]! < DRY_LEVEL_T) {
             map.terrain[ci] = TerrainNs.Grass;
-            raw[ci] = LAKE_LEVEL_T + 0.06; // causeway height, just above the water
+            raw[ci] = DRY_LEVEL_T; // causeway height, just above the water
           }
         }
       }
     }
   }
 
-  // One landmass: drown grass pockets the lakes cut off from home.
+  // ...and settle once more, because the carve above is the one pass in
+  // the whole generator that takes water AWAY: a 2-wide cut through a
+  // narrow lake can leave halves that are each short of a lake, and the
+  // floor has to hold on the map a player is given, not on the map as it
+  // stood two passes ago. A no-op on every seed measured — the carve
+  // itself has never yet had cause to run — and it cannot undo the
+  // bridge it follows, since a causeway tile is parked at DRY_LEVEL_T,
+  // which stands above the head any basin is allowed to rise through.
+  // Still ahead of the drowning below, so the connectivity repairs keep
+  // the last word on the shape of the landmass.
+  settleBasins(map, raw, onPlateau);
+
+  // One landmass: close off the grass pockets the lakes cut off from home.
   const center = anchorTile(starts[0]!);
   const reached = new Uint8Array(tiles);
   const flood: number[] = [center];
@@ -1892,10 +2238,65 @@ function computeTerrain(
       flood.push(n);
     }
   }
-  for (let i = 0; i < tiles; i++) {
-    if (!inPlayArea(map, i % size, (i / size) | 0)) continue; // margin: scenery, not a pocket
-    if (map.terrain[i] === TerrainNs.Grass && !reached[i])
-      map.terrain[i] = TerrainNs.Water;
+  // A pocket takes the terrain of whatever cut it off. Water on any side
+  // means the lakes did it, and the pocket drowns into the body that
+  // surrounded it; a hollow walled in by nothing but rim rock is part of
+  // the range, and drowning it left a lone tile of water inside a
+  // mountain — the single commonest puddle on the map before this, and
+  // one the lake pass above could never have reached, since the pocket is
+  // still dry ground when it runs.
+  //
+  // The whole pocket is walked before a tile of it is written, because
+  // the verdict belongs to the pocket and not to the tile. Deciding tile
+  // by tile in scan order splits one: a three-tile hollow touching water
+  // only at its far end turned the first two to rock and the last to
+  // water, which is a rock plug standing in a drowned hollow — 56 of 4043
+  // pockets over 480 worlds came out split that way.
+  //
+  // A pocket that turns to rock comes up to the rim's own height as well,
+  // or the range keeps a shaft where the hole was: the heightfield below
+  // reads `raw` for how tall a rock tile stands, and a pocket's raw is
+  // meadow-low. The tallest rock around the whole pocket closes the ridge
+  // over it.
+  const pocketSeen = new Uint8Array(tiles);
+  for (let s = 0; s < tiles; s++) {
+    if (pocketSeen[s] || map.terrain[s] !== TerrainNs.Grass || reached[s])
+      continue;
+    if (!inPlayArea(map, s % size, (s / size) | 0)) continue; // margin: scenery
+    const pocket = [s];
+    pocketSeen[s] = 1;
+    let drowns = false;
+    let rimRaw = DRY_LEVEL_T;
+    for (let head = 0; head < pocket.length; head++) {
+      const i = pocket[head]!;
+      const x = i % size;
+      const y = (i / size) | 0;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (!inBounds(nx, ny, size)) continue;
+        const n = tileIdx(nx, ny, size);
+        if (map.terrain[n] === TerrainNs.Water) drowns = true;
+        else if (map.terrain[n] === TerrainNs.Rock)
+          rimRaw = Math.max(rimRaw, raw[n]!);
+        else if (
+          !pocketSeen[n] &&
+          !reached[n] &&
+          map.terrain[n] === TerrainNs.Grass &&
+          inPlayArea(map, nx, ny)
+        ) {
+          pocketSeen[n] = 1;
+          pocket.push(n);
+        }
+      }
+    }
+    for (const i of pocket) {
+      map.terrain[i] = drowns ? TerrainNs.Water : TerrainNs.Rock;
+      if (!drowns) raw[i] = Math.max(raw[i]!, rimRaw);
+    }
   }
 
   // Every start keeps fishable water within a short walk: a pond, a lake,
@@ -1958,6 +2359,11 @@ function computeTerrain(
         for (let x = 0; x < size; x++) {
           const dc = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
           if (dc < dMin || dc > dMax) continue;
+          // The middle has to be diggable, or the flood below has nowhere
+          // to start and the pond comes out empty: the fallback tiers
+          // reach in to 8, inside this plateau's own radius, and any tier
+          // can land on a RIVAL's plateau.
+          if (onPlateau(x, y)) continue;
           if (playEdgeDist(map, x, y) < rimClear + clearK) continue;
           let clear = true;
           for (let dy = -clearK; dy <= clearK && clear; dy++) {
@@ -1978,30 +2384,86 @@ function computeTerrain(
       }
       return best;
     };
-    let center = dig(4, 9.5, 15.5);
-    let pondR = 2.4;
-    if (center < 0) {
-      // Pathological seed: a smaller pool, wider ring, up against the
-      // plateau's toe if it must — still beats a start with no shore.
-      center = dig(3, 8, 15.5);
-      pondR = 1.6;
-    }
-    if (center < 0) continue; // no meadow at all within reach; live with it
-    const cx = center % size;
-    const cy = (center / size) | 0;
-    const pr = Math.ceil(pondR * 1.3);
-    for (let dy = -pr; dy <= pr; dy++) {
-      for (let dx = -pr; dx <= pr; dx++) {
-        const x = cx + dx;
-        const y = cy + dy;
+    // A dug pond is a lake like any other, so it is dug the way the
+    // basins above settle: flood the middle, then the next tile
+    // outwards, over and over, until it holds a lake's worth. Ranking
+    // the frontier by distance plus a wandering lobe (rather than
+    // carving a radius) is what makes it a pond rather than a stamped
+    // circle, and it comes out one 4-connected piece by construction
+    // whatever the lobes do.
+    /**
+     * The lake a clearing at `center` can hold, as tiles — collected
+     * rather than written, so a clearing that cannot hold a whole one
+     * costs nothing to have tried.
+     */
+    const digLake = (center: number, clearance: number): number[] => {
+      const cx = center % size;
+      const cy = (center / size) | 0;
+      const reach = clearance - 1; // strictly inside the cleared square
+      const frontier: number[] = [];
+      const offered = new Uint8Array(tiles);
+      const offer = (x: number, y: number): void => {
+        if (Math.abs(x - cx) > reach || Math.abs(y - cy) > reach) return;
+        // A pond sited at the inner edge of the ring can otherwise reach
+        // its whole radius back into the home plateau, and a lake-sized
+        // one reaches far enough to matter: it digs away from home
+        // instead, and the tiers are sized to hold a lake without the
+        // ground the plateau keeps.
+        if (onPlateau(x, y)) return;
         const i = tileIdx(x, y, size);
-        // Ragged edge: each tile draws its own threshold, so the pond
-        // comes out lobed rather than stamped as a circle.
-        const rim = pondR * (0.72 + 0.58 * hash2(i, seed + 9));
-        if (Math.hypot(dx, dy) > rim) continue;
-        map.terrain[i] = TerrainNs.Water;
+        if (offered[i]) return;
+        offered[i] = 1;
+        frontier.push(i);
+      };
+      offer(cx, cy);
+      const lake: number[] = [];
+      while (lake.length < MIN_LAKE_TILES) {
+        let pick = -1;
+        let pickAt = -1;
+        let nearest = Infinity;
+        for (let k = 0; k < frontier.length; k++) {
+          const i = frontier[k]!;
+          if (i < 0) continue; // already under water
+          const x = i % size;
+          const y = (i / size) | 0;
+          const r =
+            Math.hypot(x - cx, y - cy) +
+            POND_LOBE * valueNoise(seed + 9, x, y, POND_LOBE_SCALE);
+          if (r >= nearest) continue;
+          nearest = r;
+          pick = i;
+          pickAt = k;
+        }
+        if (pick < 0) break; // the clearing is full: nothing left to flood
+        frontier[pickAt] = -1;
+        lake.push(pick);
+        const px = pick % size;
+        const py = (pick / size) | 0;
+        offer(px - 1, py);
+        offer(px + 1, py);
+        offer(px, py - 1);
+        offer(px, py + 1);
+      }
+      return lake;
+    };
+
+    // The widest clearing first, and a lake or nothing from each: a tier
+    // whose clearing cannot hold MIN_LAKE_TILES hands on to the next
+    // rather than leaving a pool behind. This runs after `settleBasins`
+    // and is never judged by it, so the floor is this loop's to keep.
+    let lake: number[] = [];
+    for (const [clearance, ring] of POND_TIERS) {
+      const center = dig(clearance, ring, 15.5);
+      if (center < 0) continue;
+      const cut = digLake(center, clearance);
+      if (cut.length >= MIN_LAKE_TILES) {
+        lake = cut;
+        break;
       }
     }
+    // An empty lake means no clearing in reach could hold one: the start
+    // keeps the shore it has, which is none, and we live with it.
+    for (const i of lake) map.terrain[i] = TerrainNs.Water;
   }
 
   // 4-neighbor BFS distances (in tiles): to the nearest water tile, for
