@@ -20,6 +20,50 @@
  * directly.
  */
 /**
+ * 75: a lake, or nothing — the puddles are gone from the valley.
+ *
+ * The heightfield floods whatever basin it draws, and left to itself it
+ * draws a great many one and two tiles across: 174 of the 356 inland
+ * bodies over twenty default seeds were a single tile, and three quarters
+ * were under twenty. None of those is a lake. A single wet tile is too
+ * small to fish from, too small to read as water from the play camera,
+ * and — since water is impassable — a pot-hole for the pathfinder to
+ * thread. The valley was pocked with them.
+ *
+ * So a body of water now has to be a lake or not be there. `settleBasins`
+ * (sim/map.ts) raises every body short of MIN_LAKE_TILES — a 7x7 lake's
+ * worth — by flooding its lowest dry neighbour over and over, the way
+ * rising water does, and fills in the hollows whose ground will not hold
+ * that much before it spills (LAKE_FILL_HEAD). The rising water is kept
+ * off the home plateaus, which is the one thing the raw field does not
+ * already keep it off: the head is enough to carry a basin at the
+ * plateau's skirt several tiles into the buildable land a start is
+ * promised.
+ *
+ * Two smaller sources of the same defect went with it. A grass pocket the
+ * lakes cut off from home used to drown wherever it was found, and one
+ * walled in by rim rock is a hollow in the mountain — a lone tile of
+ * water inside a range, and the single commonest puddle on the map. It
+ * takes the terrain that cut it off now: water where water did it, rock
+ * where the ridge did. And the pond the water-access audit digs for a
+ * start the noise left dry was a 2.4-tile carve, which is a puddle by
+ * this file's own definition; it digs a lake's worth now, sited a ring
+ * further out so that the bigger water does not take the town's yard.
+ *
+ * Every tile of every generated map moves, so a skirmish log re-run on an
+ * older build is a log played on different ground. (The campaign's maps
+ * are authored and untouched — but 32's note below says why that does not
+ * spare the version.)
+ *
+ * One thing that is not worldgen rode along, because the reshuffle
+ * exposed it: the classic solo mid-ring deposits fell through to "any
+ * grass past the plateau" when forty darts all missed the ring, which
+ * happened on about one seed in seven and put that world's gold as far as
+ * forty tiles from home. They degrade to a band either side of the ring
+ * first now, the same way the reserve seam already did.
+ *
+ * 74's note follows.
+ *
  * 74: the captain looks at who is standing there before he marches.
  *
  * `marchConfidence` (defs/aiStrategies.ts) has been 0 on every printed
@@ -1367,4 +1411,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 74;
+export const REPLAY_VERSION = 75;

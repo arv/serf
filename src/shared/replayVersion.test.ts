@@ -816,8 +816,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // with the column and then left walking at the garrison when the column
 // turned home. The legs order the column now. 74 is unreleased, so there
 // is no log stamped with it to break — and the hash is over raw bytes.
-const EXPECTED_VERSION = 74;
-const EXPECTED_HASH = '7a6e47517351d3f0056cf9f08bab3bc0';
+// 75 for the valley's puddles becoming lakes: sim/map.ts settles every
+// body of water short of a 7x7 one, closes a cut-off pocket with the
+// terrain that cut it off, and digs the water-access pond to the same
+// size. Every tile of every generated map moves, so a skirmish log
+// re-run here is a log played on different ground.
+const EXPECTED_VERSION = 75;
+const EXPECTED_HASH = '30a6d8917f650853b861ac13c0558206';
 
 /**
  * Everything a replay's playback depends on, as raw source:
