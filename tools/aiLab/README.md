@@ -535,8 +535,28 @@ stances were being scored on marches that partly never happened. And a
 ### The combat predictor, and a negative result worth keeping
 
 `src/sim/combatOdds.ts` predicts an engagement before the army commits to
-it, gated by the `marchConfidence` knob (0 in every playbook — off). It is
-the one experiment here that failed, and how it failed is the useful part.
+it, gated by the `marchConfidence` knob. It is the one experiment here that
+failed, and how it failed is the useful part.
+
+**The knob is ON as of the 74 replay bump, and the null below still
+stands.** Re-measured as its own ablation — the printed playbooks (15 to
+35, one appetite per lord) against a seat advised `marchConfidence: 0` —
+it reads **51.3% for the gate-off side over 384 trials, CI [46.3%,
+56.3%]**, with 0 undecided and 0 stalls. That is the null again, at the
+±5pp this file says a result needs, and it replicates the 51.6% recorded
+below. Nothing about the measurement changed its mind.
+
+What changed was the reason for wanting it. Seed 42945388 played a seat
+that marched six men at a rival castle, lost five, and then walked three
+spearmen at the same ground twice more — the second time into fifteen
+archers, a fight the predictor reads at 0% of the party surviving against
+73% for the seven spearmen it could have waited for. On that valley the
+gate halves the men committed to fights the seat is outnumbered two to one
+in (15 → 10). None of that is a win rate, and it was not shipped as one:
+an opponent that feeds men in threes is a bad opponent to watch whether or
+not the feeding is what beats him. **Read the rows below as still true —
+this knob has never bought a win — and read its being on as a decision
+about how the game plays, reversible at no measured cost.**
 
 At 40 seeds `marchConfidence: 30` looked like a win: **55.8%** (43/77),
 flips 8 toward the advised seat against 3 away, beating the noise floor at
@@ -615,9 +635,10 @@ Read that as unresolved rather than as a loss — 6.5pp is inside the ±8pp
 this sample can see, and the paired test is the one that matters. But it is
 certainly not a win, and the honest summary is that a materially better
 estimate of the enemy's strength bought nothing measurable, because almost
-nothing in the brain is gated on that estimate: `marchConfidence` is 0 in
-every playbook, and the posture cascade never looked at enemy army size at
-all.
+nothing in the brain was gated on that estimate: `marchConfidence` was 0 in
+every playbook when this was measured, and the posture cascade never looked
+at enemy army size at all. (The knob is on now — see the note above — and
+re-measuring the intel arm against it has not been done.)
 
 ### Classifying the opponent, and the null that beat it
 
@@ -943,9 +964,10 @@ the same trick `parseAdvice` plays.
 Numeric knobs move by a share of their own range (never less than 1, or
 `barracksQueueDepth` would never move) and clamp; a knob already pinned at
 the edge it was pushed towards steps the other way instead of wasting the
-mutation, which matters because every printed playbook holds
-`marchConfidence` at the bottom of its range. List knobs swap, drop or
-insert one entry.
+mutation, which matters because every playbook sits at a bound on
+something — the Mason still holds `marchConfidence` at the bottom of its
+range, the gate never speaking for a seat that does not march. List knobs
+swap, drop or insert one entry.
 
 The control for any search built on this is already measured: the `random`
 engine redraws these same knobs from scratch every consultation and scores

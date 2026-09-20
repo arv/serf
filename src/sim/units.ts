@@ -1,6 +1,6 @@
 import type {Enum} from '../shared/enum.ts';
 import type {GoodId} from './defs/goods.ts';
-import type {UnitTypeId} from './defs/units.ts';
+import {UNIT_DEFS, type FightStats, type UnitTypeId} from './defs/units.ts';
 import type {EntityId, Owner} from './entities.ts';
 import * as UnitTaskKindNs from './unitTaskKindEnum.ts';
 
@@ -130,11 +130,14 @@ export interface Unit {
    * separation.ts holdOff). A walker wedged against an enemy's rank for
    * DETOUR_AFTER of them re-plans his route round it, and the count starts
    * over for the new route — so it is absent both when nobody holds him
-   * and on the tick he detoured. Soldiers only, and never 0: absent (undefined,
-   * lazily — see clearMarchSpeed for why) is the only "no count" state.
+   * and on the tick he detoured. Only ever set on someone that pass takes
+   * (takesUpRoom: every soldier, and a civilian mid-fight), and never 0:
+   * absent (undefined, lazily — see clearMarchSpeed for why) is the only
+   * "no count" state.
    */
   heldTicks?: number;
-  // Combat runtime (units with a combat def):
+  // Combat runtime. Not a soldier's alone: a civilian swinging his knife
+  // (defs/units.ts MILITIA) keeps his clock and his target here too.
   cooldownLeft: number;
   targetId?: EntityId;
   targetIsBuilding?: boolean;
@@ -193,4 +196,76 @@ export function makeUnit(
     cooldownLeft: 0,
     dead: false,
   };
+}
+
+/**
+ * Can this man be handed an attack order at all?
+ *
+ * True for the civilians, who carry a knife (defs/units.ts MILITIA) and
+ * fight with it only while an A order is on them. Soldiers are never asked
+ * — they have a `combat` block, which outranks this everywhere it is read.
+ *
+ * The one gate between "a serf may defend himself" and "a serf may be sent
+ * at the enemy", so every order that arms somebody goes through it:
+ * tick.ts's attack-move, its assault on a building, and its focus order.
+ */
+export function canTakeUpArms(unit: Unit): boolean {
+  return UNIT_DEFS[unit.kind].militia !== undefined;
+}
+
+/**
+ * What a unit fights with right now, or undefined for one that is not in
+ * the war at all this tick. The combat system's per-unit gate (systems/
+ * combat.ts) and the separation pass's roster, below, are the same
+ * question asked twice, which is why it is answered once here.
+ *
+ * A soldier's is his weapon and never changes. A civilian's is his order,
+ * and that is the whole shape of the feature:
+ *
+ * - Under an attack order — A over the ground (UnitTaskKind.attackMove) or
+ *   over an enemy building (raid) — he fights like the melee unit he is
+ *   imitating. He acquires, closes, chases and strikes, at MILITIA's very
+ *   low output. This is the only way a villager ever goes looking for a
+ *   fight, and it takes a deliberate order every time: a plain move never
+ *   arms him, so the ordinary business of the valley is unchanged.
+ * - Under anything else — an errand, a stroll, a plain move, standing
+ *   idle — he is not in the war, whatever is happening around him. He can
+ *   still answer the man cutting him down (systems/combat.ts
+ *   lastResortStrike), but that is a reflex, not a fight he is in: it
+ *   never moves him a step and never puts him in anyone's way.
+ *
+ * Spelled as the task rather than as a flag on the unit, so the order IS
+ * the state: nothing extra to serialize, and no way for the two to drift.
+ */
+export function fightOf(unit: Unit): FightStats | undefined {
+  const def = UNIT_DEFS[unit.kind];
+  if (def.combat) return def.combat;
+  if (!def.militia) return undefined;
+  return unit.task.t === UnitTaskKindNs.attackMove ||
+    unit.task.t === UnitTaskKindNs.raid
+    ? def.militia
+    : undefined;
+}
+
+/**
+ * Does this man take up room — the separation pass's roster (systems/
+ * separation.ts), which is to say: can other men walk through him?
+ *
+ * Whoever has a fight in his hands, which is every soldier always and a
+ * civilian exactly while an attack order is on him. That is the rule the
+ * player is given and the one the order makes visible: an errand walks
+ * through a parade and a parade walks through an errand, because the
+ * economy must never jam behind a crowd — and a serf you sent in with A is
+ * a body like any other, his own side's included, from the moment he sets
+ * off to the moment the order ends.
+ *
+ * The order, not the swing. A hauler who is jumped mid-errand answers with
+ * his knife (systems/combat.ts lastResortStrike) and stays a ghost
+ * throughout: the alternative made every villager a raid caught in the
+ * open turn solid for a few seconds, which is the economy jamming behind a
+ * crowd by another name — and it let a fight nobody ordered decide who
+ * could walk where. If the player wants a wall of villagers he says so.
+ */
+export function takesUpRoom(unit: Unit): boolean {
+  return fightOf(unit) !== undefined;
 }

@@ -4,6 +4,7 @@ import type {CueId} from '../audio/cues';
 import type {BuildingSnap} from '../protocol/messages';
 import * as StaffingState from '../protocol/staffingStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
+import {tileIdx} from '../shared/grid';
 import {hash2} from '../shared/math';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import {buildingDef} from '../sim/defs/buildings';
@@ -12,7 +13,6 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {GOODS} from '../sim/defs/goods';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
-import {WATER_LEVEL} from '../sim/map';
 import * as AnimKey from './animKeyEnum.ts';
 import {crossedRelease} from './arrows';
 import {glbYardProp, glbYardRock, makeGlbBuilding} from './assets';
@@ -21,6 +21,7 @@ import {
   makeCharacter,
   playAnimation,
   updateBow,
+  updateGrip,
   type CharacterVisual,
 } from './characters';
 import type {FogQuery} from './fogOfWar';
@@ -34,26 +35,44 @@ import {
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
+import {fitPier, layPier, seatShoal, type PierInfo} from './pierFit';
+import {
+  harvestTrainingRig,
+  ownTrainingMaterials,
+  setTrainingLevel,
+  TRAINING_NODES,
+  type TrainingRig,
+} from './procTraining';
+import {
+  occluderMaterial,
+  OCCLUDER_PAD,
+  WALL_RENDER_ORDER,
+  type OccluderBox,
+} from './xrayOutline';
+
+/** How tall a building has to stand before it can hide anybody (the pad
+ * that goes with it lives with the test that reads it — see
+ * occluderBoxes and OCCLUDER_PAD). */
+const OCCLUDER_MIN_HEIGHT = 0.4;
+
+/** Model nodes that reach outside the footprint their building is boxed
+ * by, and so may not stamp the wall bit (see the marking in #create).
+ *
+ * A fishery's deck runs a couple of tiles out over open water and its
+ * shoal swims off the end of it, while occluderBoxes only ever emits the
+ * footprint. Marked, they would put the bit down over water no box
+ * vouches for. Named rather than measured because the model names them
+ * already — everything else a building carries stands within its own
+ * walls. */
+const BEYOND_FOOTPRINT = new Set(['fisheryPier', 'fisheryShoal']);
 
 type BuildingState = Enum<typeof BuildingState>;
 type GoodId = Enum<typeof GoodId>;
 
-/** A built fishery's pier, in world space: the deck line from its landward
- * end to the fishing spot near the tip, plank height, and the yaw the deck
- * runs at — which is where the water is, not merely where the hut faces
- * (#measurePier). Shared with sceneSync, which walks the fisherman out
- * along it. */
-export interface PierInfo {
-  /** Building center, the anchor a fisherman is matched to his pier by. */
-  bx: number;
-  bz: number;
-  baseX: number;
-  baseZ: number;
-  spotX: number;
-  spotZ: number;
-  yaw: number;
-  deckY: number;
-}
+// The pier fit moved out to pierFit.ts, where the placement ghost can aim
+// its preview deck by the same rules. Re-exported because a fishery's deck
+// line is still something callers ask this class for (fisheryPiers).
+export {PIER_SPOT_BACK, type PierInfo} from './pierFit';
 
 /** A built wheat farm's field, in world space: the mowing circuit the
  * resident farmer walks (authored into the farmstead model as named
@@ -80,102 +99,6 @@ export interface FieldInfo {
   /** World height of the worked pad's top — the field's deckY. */
   padY: number;
 }
-
-/** How far below the waterline the shoal group is re-seated, in world
- * units — enough that the tallest swim circle and the fish bodies stay
- * submerged rather than breaking the surface. */
-const SHOAL_DRAFT = 0.14;
-
-/**
- * How far short of the deck's tip the fisherman stands, world units: his
- * toes stay on the planks and the line drops off the end. The fit search
- * below wants this stretch of deck over water too — the rod hangs its line
- * near plumb (characters.ts fishingPoleProp), so a hook that clears the
- * shoreline by a plank's width is a hook in the grass.
- *
- * Exported because it is what closes `PierInfo`: the spot is the only point
- * on the deck the struct carries, and the tip — the thing that must not end
- * on grass — is this much further along the yaw. The model lab's pier page
- * (tools/modelLab/_pier.ts) scores decks on both.
- */
-export const PIER_SPOT_BACK = 0.4;
-
-/**
- * The docks model's plank top over the building's own ground, in world
- * units at the authored deck length. Read off the model (0.04 of its own
- * units, ~0.05 after the decor scale) rather than measured: the pier's
- * bbox can't say, because its mooring posts top out well above the deck.
- */
-const PIER_DECK_Y = 0.05;
-
-/**
- * How far under the water plane the deck's far end wants to sit, world
- * units.
- *
- * Wetness is asked of the height field rather than of the sim's water
- * tiles, because the question is what the player sees: the terrain mesh
- * draws that field vertex for vertex (terrainMesh.ts), so the shoreline on
- * screen is exactly where it crosses WATER_LEVEL. A tile-grid answer is
- * coarser than the thing it is answering about — the first water tile's
- * landward half can still be dry ground on screen — and a deck that clears
- * the line by a hair reads as planks on the bank. A plank's depth of margin
- * is what makes it read as planks over water.
- *
- * On the handful of shores where nothing the fit can reach is this deep
- * (a shallow pond, a marshy notch), the search runs again asking only to
- * be under the surface at all: touching the water beats standing off it.
- */
-const PIER_DRAFT = 0.15;
-
-/** One step of the deck's aim, radians. */
-const PIER_TURN_STEP = Math.PI / 12;
-/** How far either way the aim may swing: four steps, so 60 degrees. */
-const PIER_TURN_STEPS = 4;
-/** One step off the deck's authored length, world units. */
-const PIER_TRIM_STEP = 0.25;
-/** How much of the deck may be given up: four steps, so a whole tile. */
-const PIER_TRIM_STEPS = 4;
-
-/**
- * The deck fits `#measurePier` tries, least intrusive first: `turn` in
- * 15-degree steps off the building's facing (turning the WHOLE building —
- * the deck stays square to the hut), `trim` in quarter-tile steps
- * off the deck's authored length.
- *
- * Both are needed because neither the sim's facing nor the model's reach is
- * a promise about water. `Building.facing` is a quarter turn (world.ts
- * waterFacing) — on a shore that runs anywhere but square to the grid, the
- * nearest water is off that axis and the authored deck ends on grass. And
- * placement only promises water within a tile of the footprint
- * (`nearWater`), while the authored deck runs nearly two tiles past it, so
- * a narrow inlet or a pond edge is something the deck can stride clean over
- * and land dry on the far bank.
- *
- * One step of either counts the same, so the search gives up a quarter tile
- * of planking as readily as it turns the deck 15 degrees. The authored
- * placement is first in the list and wins whenever it already reaches
- * water, which on generated maps is a little under three sites in five;
- * past a 60-degree turn the deck stops reading as one that belongs to the
- * hut, and the sites that far off the facing are the ones a trim answers.
- * (tools/modelLab/_pier.html renders the result on generated shoreline —
- * it is where these numbers come from and where a change to them is
- * judged.)
- */
-const PIER_FITS: readonly {turn: number; trim: number}[] = (() => {
-  const fits: {turn: number; trim: number}[] = [];
-  for (let turn = -PIER_TURN_STEPS; turn <= PIER_TURN_STEPS; turn++)
-    for (let trim = 0; trim <= PIER_TRIM_STEPS; trim++) fits.push({turn, trim});
-  // Total distortion first — with a turn half again as heavy as a trim,
-  // because a turn swings the whole building while a trim only shortens
-  // planks — then the smaller turn (a hut that still points where the sim
-  // said is less surprising), east before west as the final tiebreak.
-  return fits.sort(
-    (a, b) =>
-      1.5 * Math.abs(a.turn) + a.trim - (1.5 * Math.abs(b.turn) + b.trim) ||
-      Math.abs(a.turn) - Math.abs(b.turn) ||
-      b.turn - a.turn,
-  );
-})();
 
 /**
  * The scale a ghost site starts at, when there is no GLB to clip and the
@@ -283,6 +206,15 @@ interface BuildingVisual {
   clip?: {plane: THREE.Plane; height: number; baseY: number};
   /** Model height above ground, for floating the hp bar. */
   topY: number;
+  /** A site's own marked meshes, so the stamping can be turned on and off
+   * as it rises (see #syncWall). Absent on a finished building, whose
+   * marked materials are shared with every other of its type and are
+   * never turned off. */
+  wall?: THREE.Mesh[];
+  /** Half the footprint, in tiles — the box the x-ray outlines test a
+   * unit's line of sight against (see occluderBoxes). */
+  halfW: number;
+  halfD: number;
   /**
    * A road: flat ground once it is laid, and a thing units walk along
    * rather than a thing anyone clicks. Its scaffolding is not worth a pick
@@ -293,6 +225,13 @@ interface BuildingVisual {
   /** A salvage pile: no model, only piles — and no collapse when it
    * clears, because the goods left one by one on serfs' shoulders. */
   salvage: boolean;
+  /** The tiles outside its own footprint this building is drawn over, as
+   * keys into #drawn — hers to give back when she comes down. */
+  drawn: number[];
+  /** The model's own box, in root space: what those tiles were read off.
+   * Kept so that a re-claim for a pile at the door does not have to walk
+   * every vertex of the building again. */
+  modelBox: THREE.Box3;
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
   /** Physical stock piles against the front wall. */
@@ -320,19 +259,15 @@ interface BuildingVisual {
    * banks rather than snapping with the batch boundary (see #smokeFrame). */
   smokeLevel: number;
   shoal?: THREE.Object3D;
-  /** The fishery's pier decor — the deck the fisherman walks out on. */
-  pier?: THREE.Object3D;
-  /** Measured deck line, cached: measuring may also swing the whole
-   * building toward the water, and that must happen exactly once. */
+  /** The deck line as laid at creation (fitPier), which may also have
+   * swung the whole building toward the water — done exactly once, and
+   * carried over unchanged to the built model when a site finishes. */
   pierLine?: PierInfo;
   /** The farm's authored walk marks: gate first, then the circuit in
    * visiting order. Empty for everything without a field. */
   mowMarks: THREE.Object3D[];
   /** Measured circuit, cached like pierLine — buildings do not move. */
   fieldInfo?: FieldInfo;
-  /** Quarter turns from "front faces +z" (shore buildings turn to their
-   * water); kept for deriving where the pier runs. */
-  facing: number;
   staffed: boolean;
   /** Latest BuildingSnap.working — a convert batch actually ticking. */
   working: boolean;
@@ -359,6 +294,19 @@ interface BuildingVisual {
    * so a relief — the levy going down as soldiers come up — rebuilds the
    * figures instead of leaving serfs standing in an archer's post. */
   levied: boolean;
+  /** The lit panes and their wall spills, harvested off the model of a
+   * building that trains; absent on every other one (procTraining.ts). */
+  train?: TrainingRig;
+  /** The materials that rig's glow rides on, cloned per building so one
+   * barracks' fire is not every barracks' fire. Freed with the visual. */
+  trainMats?: THREE.Material[];
+  /** Is a course actually running here — a started order at the barracks or
+   * the range, a serf being hired at the castle. */
+  training: boolean;
+  /** How lit the cue is, 0..1, eased toward that. The same treatment the
+   * chimney smoke gets and for the same reason: a fire is lit and banked
+   * rather than switched, and neither end happens between two frames. */
+  trainLevel: number;
 }
 
 /** One yard-stock entry: what good, worn as which look, standing where. */
@@ -385,6 +333,10 @@ const MINE_SPOTS: [number, number, number, number][] = [
 ];
 
 const HP_BAR_W = 1.1;
+
+/** Below this the windows are out, and the rig stops being walked at all —
+ * the same threshold setTrainingLevel itself reads for "lit". */
+const TRAIN_DARK = 0.02;
 
 /** Grinding-speed sail rotation, rad/s — brisk enough to read as working
  * at village zoom, slow enough to stay a windmill and not a propeller. */
@@ -427,6 +379,11 @@ const HP_FG_GEO = new THREE.PlaneGeometry(HP_BAR_W - 0.06, 0.07);
 const HP_BG_MAT = new THREE.MeshBasicMaterial({
   color: 0x140f0a,
   depthTest: false,
+  // Transparent at full opacity, for the queue rather than for the look —
+  // see hpBarMaterial in sceneSync.ts. An opaque bar draws before every
+  // transparent thing on the map whatever its renderOrder, and a ground
+  // decal drawn after it paints over a bar that wrote no depth.
+  transparent: true,
   userData: {noFog: true},
 });
 
@@ -434,6 +391,7 @@ const HP_BG_MAT = new THREE.MeshBasicMaterial({
 const HP_FG_MAT = new THREE.MeshBasicMaterial({
   color: 0xffffff,
   depthTest: false,
+  transparent: true,
   userData: {noFog: true},
 });
 
@@ -470,6 +428,66 @@ const BAR_QUAT_EPS = 1e-12;
 const BAR_CAPACITY_MIN = 32;
 
 /**
+ * Marks a branch of a building's tree as no part of its shape — see
+ * silhouetteT. Set on the thing hung off the root, and the whole branch
+ * under it goes with it.
+ */
+const PICK_IGNORE = 'noPick';
+
+/** Scratch for #reclaimDrawn — a pile rebuild is a common event. */
+const CLAIM_BOX = new THREE.Box3();
+const PILE_BOX = new THREE.Box3();
+
+/**
+ * Is a course actually running in this building — the cue procTraining's
+ * rig answers to.
+ *
+ * A queue is not a course: an order waiting on a sword nobody has forged
+ * yet is exactly the state a player wants told apart from four knights on
+ * the fire, so it is the STARTED order that counts (the same `started` the
+ * card's progress bar reads). The castle's own course is its serf hire,
+ * which has no queue of its own to look into — a hire in flight is what
+ * `hireQueue` means.
+ *
+ * Paused kills it outright: a paused barracks' clock is frozen and its
+ * windows have no business being lit.
+ */
+function isTraining(b: BuildingSnap): boolean {
+  if (b.paused === true) return false;
+  if (b.trainQueue?.some(q => q.started) === true) return true;
+  return (b.hireQueue ?? 0) > 0;
+}
+
+/** Whether `o` hangs somewhere under `of` — itself included. */
+function descends(o: THREE.Object3D, of: THREE.Object3D): boolean {
+  for (let n: THREE.Object3D | null = o; n; n = n.parent) {
+    if (n === of) return true;
+  }
+  return false;
+}
+
+/**
+ * The meshes of a building that are the building: drawn, and built into it
+ * rather than merely standing in its air (see PICK_IGNORE).
+ *
+ * Gathered before the ray is cast rather than sieved out of its hits
+ * afterwards, because a raycaster tests the triangles of everything it is
+ * handed and only then reports what it met. The roof watch is the reason
+ * the difference matters: those are skinned meshes, and skinned triangles
+ * are the dearest kind there are — a hover over a manned tower would pay
+ * for every one of them to learn they are not the tower.
+ *
+ * A raycast also reaches what the camera does not, since three tests
+ * geometry and never visibility: an unlit puff or a part the model keeps
+ * hidden would be as clickable as a wall.
+ */
+function collectPickable(o: THREE.Object3D, out: THREE.Object3D[]): void {
+  if (!o.visible || o.userData[PICK_IGNORE] === true) return;
+  if (o instanceof THREE.Mesh) out.push(o);
+  for (const child of o.children) collectPickable(child, out);
+}
+
+/**
  * Mirrors the building list into the scene. Sites show a timber frame with
  * the real building rising out of it half-built (clip-plane reveal) while a
  * peasant hammers away; completion swaps in the solid model. Without loaded
@@ -504,6 +522,30 @@ export class BuildingSync {
    * more, every raze.
    */
   #ceiling = Number.NEGATIVE_INFINITY;
+  /**
+   * Tile -> the buildings drawn over it from off their own plots. The
+   * sim's map says which building *stands* on a tile, and for the pointer
+   * that is not the same question: a fishery's jetty runs a good two tiles
+   * out over the water (assets.ts PIER_TILES), drawn on ground the
+   * footprint never claims. Without this the walk finds no candidate out
+   * there and a click on the planks reads as a click on the lake.
+   *
+   * Every claimant, not the first: two jetties can cross the same water —
+   * a pier reaches 2.54 tiles and placement only holds a ring of one — and
+   * a tile that named one of them would hide the other from the trace, and
+   * then go empty the moment the one it named came down.
+   */
+  #drawn = new Map<number, number[]>();
+  /** Reused by silhouetteT: a pick runs every frame the pointer moves, and
+   * a fresh raycaster and hit list each would be an allocation a frame. */
+  /** Seconds of drawn time, for the cues whose motion is periodic rather
+   * than integrated: a barracks picked up mid-drill joins the beat the
+   * yard is already on instead of starting its own (see
+   * setTrainingLevel). */
+  #now = 0;
+  #pickRay = new THREE.Raycaster();
+  #pickHits: THREE.Intersection[] = [];
+  #pickMeshes: THREE.Object3D[] = [];
   /**
    * Presentation cue channel, injected from main. Every call is guarded
    * on `v.root.visible`: unlike sceneSync, this loop does NOT skip fogged
@@ -557,13 +599,47 @@ export class BuildingSync {
     // ground people order units down — a pick box on each would hang a
     // wall of them over the route. Nobody means to click a road anyway.
     if (v.road) return 0;
+    // Scaffolding you can see is scaffolding you can click, so the pick
+    // box never falls below the frame. The occluders take the bare
+    // #raised instead: a frame is four posts and some rails, and a man
+    // behind one is not hidden by it.
+    return Math.max(
+      v.state === BuildingState.site ? SITE_FRAME_H : 0,
+      this.#raised(v),
+    );
+  }
+
+  /** How far the model itself has actually risen above its own base. */
+  #raised(v: BuildingVisual): number {
     if (v.state !== BuildingState.site) return v.topY;
-    const raised = v.clip
+    return v.clip
       ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
       : // The ghost site grows by scale rather than by clip, and topY was
         // measured at the seed scale — read the drawn height back off it.
         (v.topY * v.model.scale.y) / GHOST_SEED_SCALE;
-    return Math.max(SITE_FRAME_H, raised);
+  }
+
+  /** Turn a site's wall stamping on or off. Cheap enough to call every
+   * frame: both of these are state flags, not shader defines, and the
+   * write is skipped while it is already where it should be.
+   *
+   * Both halves move together, and the render order is not the cosmetic
+   * one. The bit is never cleared, so an unmarked mesh left standing in
+   * the buildings' late slot is a way to inherit one: three sorts the
+   * opaque queue by renderOrder and then by MATERIAL ID, so an unmarked
+   * site sharing that slot can be drawn after a wall, win the depth test
+   * at a pixel that wall had stamped, and leave the bit behind over
+   * ground the wall no longer owns. Back in the ordinary world it draws
+   * before every marked building instead, and a building that then loses
+   * the depth test to it stamps nothing at all (ZFail keeps). */
+  #syncWall(v: BuildingVisual, on: boolean): void {
+    if (!v.wall) return;
+    for (const mesh of v.wall) {
+      mesh.renderOrder = on ? WALL_RENDER_ORDER : 0;
+      eachMaterial(mesh, m => {
+        if (m.stencilWrite !== on) m.stencilWrite = on;
+      });
+    }
   }
 
   /** The elevation this building stands on — see BuildingHeights.baseOf. */
@@ -576,6 +652,72 @@ export class BuildingSync {
     return this.#ceiling;
   }
 
+  /**
+   * The buildings drawn over this ground from off their own plots, pushed
+   * onto `out` — see #drawn. The broad phase asks it beside the footprint
+   * the sim keeps, so that what a building reaches out over gets a
+   * candidate at all; whether the ray truly meets one is still
+   * silhouetteT's to answer.
+   */
+  drawnAt(x: number, z: number, out: number[]): void {
+    const size = this.#heights.size;
+    const tx = Math.floor(x);
+    const tz = Math.floor(z);
+    if (tx < 0 || tz < 0 || tx >= size || tz >= size) return;
+    const here = this.#drawn.get(tileIdx(tx, tz, size));
+    if (here) out.push(...here);
+  }
+
+  /**
+   * How far along the ray this building is met as it is actually drawn, or
+   * -1 where the ray passes through its box and touches nothing of it — the
+   * pick's narrow phase (see screenToBuilding).
+   *
+   * The box a footprint and a roofline make is far more building than the
+   * building: a keep is towers with sky between them, a cottage is a ridge
+   * with sky over its eaves, and a click on that sky went to the box. So
+   * the model itself answers, triangle by triangle. What is hung in a
+   * building's air rather than built into it — its chimney smoke, the fish
+   * off a fishery's pier, the archers posted on its roof — is not part of
+   * the shape (see PICK_IGNORE): the smoke would hand back exactly the
+   * column of dead sky this exists to give up, and a man is not a wall.
+   */
+  silhouetteT(id: number, origin: THREE.Vector3, dir: THREE.Vector3): number {
+    const v = this.#visuals.get(id);
+    // Nothing drawn has no silhouette to meet: a road is ground, and a
+    // building on unscouted land is a memory the fog has not handed back
+    // yet. Both fall through to the caller's ground hit, which is the pick
+    // they had before any of this.
+    if (!v || v.road || !v.root.visible) return -1;
+    // A pick runs between frames — after a roster arrived and before the
+    // render that settles the scene's matrices — so settle this one's.
+    v.root.updateWorldMatrix(true, true);
+    const meshes = this.#pickMeshes;
+    meshes.length = 0;
+    collectPickable(v.root, meshes);
+    this.#pickRay.set(origin, dir);
+    const hits = this.#pickHits;
+    hits.length = 0;
+    this.#pickRay.intersectObjects(meshes, false, hits);
+    for (const hit of hits) {
+      // A site is revealed bottom-up by a clip plane, and clipping is a
+      // shader's business: the courses nobody has laid yet are still there
+      // in the geometry for a ray to hit. Half a keep is half a keep to the
+      // pointer too. The plane is installed on the model's own materials
+      // and on nothing else, so the frame around it is not cut — its posts
+      // stand to their full height from the first tick.
+      if (
+        v.clip &&
+        hit.point.y > v.clip.plane.constant &&
+        descends(hit.object, v.model)
+      ) {
+        continue;
+      }
+      return hit.distance;
+    }
+    return -1;
+  }
+
   constructor(scene: THREE.Scene, heights: HeightField) {
     this.#scene = scene;
     this.#heights = heights;
@@ -586,6 +728,11 @@ export class BuildingSync {
     for (const b of buildings) {
       seen.add(b.id);
       let v = this.#visuals.get(b.id);
+      // The deck a site was drawn with is the deck the finished hut keeps:
+      // the swap below stands a fresh model where the old one stood, and a
+      // jetty that swung on completion is the exact thing the preview and
+      // the site promised it would not do.
+      let kept: PierInfo | undefined;
       if (v && v.state !== b.state) {
         // The site's scaffolding comes down and the finished building
         // stands: the one moment construction is worth hearing. Only for
@@ -600,11 +747,12 @@ export class BuildingSync {
         ) {
           this.onCue('buildingComplete', b.x + b.w / 2, b.y + b.h / 2);
         }
+        kept = v.pierLine;
         this.#dispose(b.id);
         v = undefined;
       }
       if (!v) {
-        v = this.#create(b);
+        v = this.#create(b, kept);
         this.#visuals.set(b.id, v);
       }
       if (b.state === BuildingState.site) {
@@ -618,6 +766,15 @@ export class BuildingSync {
             GHOST_SEED_SCALE + (1 - GHOST_SEED_SCALE) * p,
           );
         }
+        // ...and the wall bit says exactly what occluderBoxes says. A
+        // site is only an occluder once what has RISEN inside its frame
+        // is tall enough to hide somebody; before that the boxes leave it
+        // out, and the pixels have to agree — a sill lying along the
+        // ground and four ankle-high posts that stamp are how a green arc
+        // gets drawn under a man's boots, which is the whole artefact
+        // this pass was rewritten to stop. Read off the same #raised as
+        // the box, every frame, because it is what changes.
+        this.#syncWall(v, this.#raised(v) >= OCCLUDER_MIN_HEIGHT);
       }
 
       // Enemy buildings are remembered: once you have seen a camp it stays
@@ -637,9 +794,16 @@ export class BuildingSync {
 
       v.staffed = b.staffing === StaffingState.staffed;
       v.working = b.working === true;
+      v.training = isTraining(b);
       v.firing = b.firing === true;
       v.volleyRange = volleyRangeOf(b);
+      const pileKey = v.pileKey;
       this.#syncPiles(v, b);
+      // The stock at the door stands a third of a tile outside the front
+      // wall, on ground the footprint never covers, and it comes and goes
+      // with the hauling: when it changes, so does the ground this
+      // building is drawn over.
+      if (v.pileKey !== pileKey) this.#reclaimDrawn(b.id, v);
       this.#syncGarrison(v, b);
 
       // Damage bar: appears once hurt (highlight() shows it on healthy
@@ -661,6 +825,85 @@ export class BuildingSync {
     this.#rebuildHpBars();
   }
 
+  /**
+   * Take the tiles this building is drawn over but does not stand on, and
+   * hand back the keys to them — see #drawn. The footprint's own tiles are
+   * left out: the sim's map already answers for those, and the smaller
+   * this stays the less there is to keep straight.
+   */
+  #claimDrawn(
+    id: number,
+    root: THREE.Group,
+    halfW: number,
+    halfD: number,
+    bbox: THREE.Box3 | null,
+  ): number[] {
+    const drawn: number[] = [];
+    if (!bbox || bbox.isEmpty()) return drawn;
+    const size = this.#heights.size;
+    const x0 = Math.floor(root.position.x + bbox.min.x);
+    const x1 = Math.floor(root.position.x + bbox.max.x);
+    const z0 = Math.floor(root.position.z + bbox.min.z);
+    const z1 = Math.floor(root.position.z + bbox.max.z);
+    // The footprint, back out of the center the root stands on.
+    const fx = root.position.x - halfW;
+    const fz = root.position.z - halfD;
+    for (let tz = z0; tz <= z1; tz++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        if (tx < 0 || tz < 0 || tx >= size || tz >= size) continue;
+        if (tx >= fx && tx < fx + halfW * 2 && tz >= fz && tz < fz + halfD * 2)
+          continue;
+        const key = tileIdx(tx, tz, size);
+        const here = this.#drawn.get(key);
+        if (here) here.push(id);
+        else this.#drawn.set(key, [id]);
+        drawn.push(key);
+      }
+    }
+    return drawn;
+  }
+
+  /** Give back the tiles a visual claimed, leaving any neighbour that
+   * reaches over the same ground still holding it. */
+  #releaseDrawn(id: number, v: BuildingVisual): void {
+    for (const key of v.drawn) {
+      const here = this.#drawn.get(key);
+      if (!here) continue;
+      const at = here.indexOf(id);
+      if (at >= 0) here.splice(at, 1);
+      if (here.length === 0) this.#drawn.delete(key);
+    }
+    v.drawn.length = 0;
+  }
+
+  /**
+   * Re-take the ground this building is drawn over, model and door piles
+   * together. The claim #create made is only as good as the building was
+   * that moment: the stock at the door comes and goes (#syncPiles stands
+   * it a third of a tile OUTSIDE the front wall, which is ground the
+   * footprint never covers).
+   */
+  #reclaimDrawn(id: number, v: BuildingVisual): void {
+    if (v.road) return;
+    this.#releaseDrawn(id, v);
+    CLAIM_BOX.copy(v.modelBox);
+    if (v.piles) {
+      // Settle the pile group's own matrices first: a claim runs when the
+      // roster lands, which can be before any frame has been drawn, and a
+      // box read off an unsettled tree is a box at the origin. Its own,
+      // not the whole building's — the parents walk up to the scene and
+      // the props under it are a handful.
+      v.piles.updateWorldMatrix(true, true);
+      // The root is in the scene by now, so this reads world space; the
+      // claim wants the model's own, as at creation. The root carries no
+      // rotation or scale, so its position is the whole of the difference.
+      PILE_BOX.setFromObject(v.piles);
+      PILE_BOX.translate(SCRATCH_POS.copy(v.root.position).negate());
+      CLAIM_BOX.union(PILE_BOX);
+    }
+    v.drawn = this.#claimDrawn(id, v.root, v.halfW, v.halfD, CLAIM_BOX);
+  }
+
   #beginTeardown(id: number): void {
     const v = this.#visuals.get(id);
     if (!v) return;
@@ -673,6 +916,8 @@ export class BuildingSync {
       return;
     }
     this.#visuals.delete(id);
+    // A model on its way into the ground is no longer drawn over anything.
+    this.#releaseDrawn(id, v);
     // The rumble belongs to the dust cloud below — and only where the
     // cloud is drawn (fog guard — see onCue).
     if (this.onCue && v.root.visible) {
@@ -719,7 +964,10 @@ export class BuildingSync {
     });
   }
 
-  #create(b: BuildingSnap): BuildingVisual {
+  /** `kept` is the deck line this building was already drawn with, on the
+   * model this one replaces (a site finishing): laid again as it was,
+   * rather than searched for afresh. */
+  #create(b: BuildingSnap, kept?: PierInfo): BuildingVisual {
     const root = new THREE.Group();
     const cx = b.x + b.w / 2;
     const cz = b.y + b.h / 2;
@@ -796,23 +1044,58 @@ export class BuildingSync {
     // root's own x/z rotation belongs to the collapse animation.
     if (b.facing) model.rotation.y = (b.facing * Math.PI) / 2;
 
-    // The template bakes the fishery's shoal at deck height off the front
-    // edge, but the water surface is a world plane well below the shore the
-    // building stands on — left there, the fish circle in the air over the
-    // waterline. Re-seat the group so they swim just under the surface: a
-    // world-unit drop, folded back into the model's vertical scale.
     const shoal = model.getObjectByName('fisheryShoal') ?? undefined;
-    if (shoal)
-      shoal.position.y =
-        (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
+    if (shoal) {
+      // The template bakes the fish at deck height off the front edge, well
+      // above the water plane the building stands over (seatShoal).
+      seatShoal(shoal, model, root.position.y);
+      // The fish swim off the end of the pier, out over open water: a
+      // click on them is a click on the sea, not on the hut — silhouetteT.
+      shoal.userData[PICK_IGNORE] = true;
+    }
 
-    const topY = clip
-      ? clip.height
-      : b.type === BuildingTypeId.salvage
-        ? // An empty group's bbox has no max to read — and the pile is
-          // ankle-high anyway.
-          0
-        : new THREE.Box3().setFromObject(model).max.y;
+    // Aim the deck at the water the moment the hut is drawn, site or
+    // finished — before the box below is read, so the ground it claims is
+    // the ground the turned, trimmed jetty is really over. A site wears the
+    // same jetty as the placement preview it came from and the finished hut
+    // it becomes; without this the planks stood at the sim's bare quarter
+    // turn for the whole build and swung into place at the last tick.
+    //
+    // A newcomer keeps clear of the decks already standing, sites included
+    // (fitPier). First drawn, first served: a deck is laid once and never
+    // re-aimed, so the newcomer is the one that gives way — the same rule
+    // a player would expect from the yard. Which does make the aim depend
+    // on the order the visuals were made, and a player who joins mid-match
+    // makes them all in one frame. That is a cosmetic difference in one
+    // deck's angle between two screens, not a divergence: nothing here
+    // reaches the sim, and the fisherman walks whatever deck his own client
+    // drew.
+    const pier = model.getObjectByName('fisheryPier') ?? undefined;
+    let pierLine: PierInfo | undefined;
+    if (pier) {
+      const parts = {root, pier, shoal, facing: b.facing ?? 0};
+      pierLine = kept
+        ? layPier(parts, kept)
+        : fitPier(parts, this.#heights, this.pierLines());
+    }
+
+    // The model's own box, root-local — which is what both readings below
+    // want, a height over the base and a reach out from the center. The
+    // root is not in the scene yet, but the pier fit above settles its
+    // world matrix (position and all), so this is read in world space and
+    // brought back explicitly rather than trusting the matrix to be blank
+    // as the clip's reading above does. The root carries no rotation or
+    // scale, so its position is the whole of the difference. An empty
+    // group (salvage) has no box to read, and the pile is ankle-high
+    // anyway.
+    let bbox: THREE.Box3 | null = null;
+    if (b.type !== BuildingTypeId.salvage) {
+      root.updateWorldMatrix(true, true);
+      bbox = new THREE.Box3()
+        .setFromObject(model)
+        .translate(SCRATCH_POS.copy(root.position).negate());
+    }
+    const topY = clip ? clip.height : (bbox?.max.y ?? 0);
     // Where this building's roof will reach when it is finished, which is
     // what the pick walk wants as its ceiling: a site's finished height
     // (topY is already that for a clipped one, and the seed scale away from
@@ -822,12 +1105,58 @@ export class BuildingSync {
     // claim on the camera ceiling; the tile pick still selects it.
     const road =
       buildingDef(b.type).isRoad === true || b.type === BuildingTypeId.salvage;
+
+    // The walls say where they are, for the x-ray outlines: every fragment
+    // of the model stamps a stencil bit where it wins the depth test, and
+    // that bit — not "something is nearer than me" — is what lets an
+    // outline be drawn over it.
+    //
+    // Only what occluderBoxes is willing to call an occluder, because a
+    // bit the boxes do not vouch for is a green arc drawn over something
+    // that is not hiding anybody. A road's pile of stone and a salvage
+    // heap are ankle-high and are left out of the boxes, so they stamp
+    // nothing. Neither does a site's frame: the boxes measure a site by
+    // what has RISEN inside it (#raised), never by its scaffolding, and
+    // that scaffolding is a sill lying along the ground — exactly the
+    // thing that must not stamp. The model alone, and for a site only
+    // once it has risen far enough to earn a box (#syncWall).
+    //
+    // Drawn last among the opaque world (WALL_RENDER_ORDER), because a
+    // bit is never cleared and anything unmarked drawing after a building
+    // would leave one standing over its own depth.
+    const wall: THREE.Mesh[] = [];
+    if (!road) {
+      // Walked rather than traversed, so a subtree that reaches past the
+      // footprint can be left whole where it stands.
+      const mark = (o: THREE.Object3D): void => {
+        if (BEYOND_FOOTPRINT.has(o.name) || TRAINING_NODES.has(o.name)) return;
+        if (o instanceof THREE.Mesh) {
+          mapMaterials(o, occluderMaterial);
+          o.renderOrder = WALL_RENDER_ORDER;
+          wall.push(o);
+        }
+        for (const child of o.children) mark(child);
+      };
+      mark(model);
+    }
     const finished =
       b.state === BuildingState.site
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
         : topY;
     if (!road)
       this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
+    // The training cue, harvested once off the finished model. After the
+    // wall marking above on purpose — that pass would otherwise hand the
+    // glow meshes an occluder twin, and the clone below would then be
+    // setting the opacity of a material nothing is drawing with.
+    const train =
+      b.state === BuildingState.built ? harvestTrainingRig(model) : null;
+    const trainMats = train ? ownTrainingMaterials(train) : [];
+
+    const modelBox = bbox ?? new THREE.Box3().makeEmpty();
+    const drawn = road
+      ? []
+      : this.#claimDrawn(b.id, root, b.w / 2, b.h / 2, modelBox);
     this.#scene.add(root);
     return {
       root,
@@ -837,7 +1166,18 @@ export class BuildingSync {
       model,
       clip,
       topY,
+      // Only a site's, and only because its model's materials are
+      // per-site clones (the clip and ghost passes above): turning those
+      // off turns off this one building. A finished building's are the
+      // marked templates its whole type shares, and are never off — nor
+      // is its place in the queue, which only an unmarked mesh has to
+      // give up.
+      wall: b.state === BuildingState.site ? wall : undefined,
+      halfW: b.w / 2,
+      halfD: b.h / 2,
       road,
+      drawn,
+      modelBox,
       pct: 1,
       pileKey: '',
       pileLanes: new Map(),
@@ -847,9 +1187,8 @@ export class BuildingSync {
       flue: model.getObjectByName('smokeFlue') ?? undefined,
       smokeLevel: 0,
       shoal,
-      pier: model.getObjectByName('fisheryPier') ?? undefined,
+      pierLine,
       mowMarks: harvestMowMarks(model),
-      facing: b.facing ?? 0,
       staffed: false,
       working: false,
       span: Math.max(b.w, b.h),
@@ -862,8 +1201,90 @@ export class BuildingSync {
       volleyRange: 0,
       levied: false,
       salvage: b.type === BuildingTypeId.salvage,
+      // Only on a finished building: a site draws the same model (under a
+      // clip plane, with its own material clones) and a half-raised
+      // barracks with its windows lit would be a barracks nobody built yet
+      // announcing a course it cannot be running.
+      train: train ?? undefined,
+      trainMats: trainMats.length > 0 ? trainMats : undefined,
+      training: false,
+      trainLevel: 0,
     };
   }
+
+  /**
+   * The standing buildings as plain boxes, for the x-ray outlines: a unit
+   * whose line to the camera crosses one of these is hidden behind a wall
+   * and gets an outline drawn over it (xrayOutline.ts).
+   *
+   * Roads, salvage piles and bare foundations are not in it — nothing
+   * ankle-high hides anybody — and neither is a building this seat has
+   * never seen: it is not drawn, so it cannot be what is standing in
+   * front of anyone, and the same rule that keeps a cue from announcing
+   * construction in unexplored ground keeps an outline from being drawn
+   * against a wall nobody knows is there.
+   *
+   * The horizontal extent is padded past the footprint, because eaves
+   * overhang and the test is allowed to be generous but never mean: a box
+   * that missed would cost an outline, where a box that over-reaches
+   * costs two draws the depth test throws away.
+   *
+   * Read every frame rather than snapshotted when the roster changes, and
+   * that is the whole of why: what belongs in this list turns on more than
+   * the roster message. The fog decides it, and reaches this sync after
+   * the first pass and turns again with the viewed seat in a replay;
+   * forgetMonuments drops visuals on a players-only frame; a construction
+   * site rises between messages. Three snapshot points had been found by
+   * the time this comment was written and a fourth was waiting. Reading it
+   * live has none. The array and the boxes in it are reused, so a caller
+   * must read them rather than keep them, and a quiet frame allocates
+   * nothing.
+   */
+  occluderBoxes(): readonly OccluderBox[] {
+    const out = this.#occluders;
+    let n = 0;
+    for (const v of this.#visuals.values()) n = this.#addBox(out, n, v);
+    // A wreck is still a wall until the dust settles: teardown takes the
+    // building off the roster at once and spends the next second sinking
+    // and tilting the model, which goes on writing depth the whole time.
+    // Left out, a man behind a collapsing keep would lose his edge while
+    // the keep was still in front of him. The box follows the sink (it is
+    // read off the live root) and ignores the tilt, which is what the
+    // eaves padding is there to absorb.
+    for (const d of this.#dying) n = this.#addBox(out, n, d.visual);
+    out.length = n;
+    return out;
+  }
+
+  /** One building's box appended at `n`, or nothing if it cannot hide
+   * anybody. Returns where the next one goes. */
+  #addBox(out: OccluderBox[], n: number, v: BuildingVisual): number {
+    if (v.salvage || !v.root.visible) return n;
+    // What the model has raised so far, not what it will be, and not the
+    // frame the pick box floors at: a foundation hides nobody and a
+    // half-built keep hides them to exactly the course it has reached.
+    const top = v.road ? 0 : this.#raised(v);
+    if (top < OCCLUDER_MIN_HEIGHT) return n;
+    const {x, y, z} = v.root.position;
+    const box = (out[n] ??= {
+      minX: 0,
+      maxX: 0,
+      minZ: 0,
+      maxZ: 0,
+      baseY: 0,
+      topY: 0,
+    });
+    box.minX = x - v.halfW - OCCLUDER_PAD;
+    box.maxX = x + v.halfW + OCCLUDER_PAD;
+    box.minZ = z - v.halfD - OCCLUDER_PAD;
+    box.maxZ = z + v.halfD + OCCLUDER_PAD;
+    box.baseY = y;
+    box.topY = y + top;
+    return n + 1;
+  }
+
+  /** Reused frame to frame by occluderBoxes — see the note there. */
+  #occluders: OccluderBox[] = [];
 
   /** Built wells' world centers, windlasses and grip handles — sceneSync
    * stands the drawing serf beside the crank, IK-glues their hand to the
@@ -899,12 +1320,27 @@ export class BuildingSync {
    * and the yaw that faces the water. sceneSync walks the resident
    * fisherman out along it and stands him at the spot, line in the water —
    * the same render-side move as the well serfs, because the sim parks him
-   * on whatever tile the path found. */
+   * on whatever tile the path found. Built only: a site has no fisherman,
+   * and a man parked beside one belongs to some other hut. */
   fisheryPiers(): PierInfo[] {
+    return this.#pierLines(true);
+  }
+
+  /** Every fishery's deck line, the sites' included — what a new deck
+   * keeps clear of (fitPier), and so what the placement ghost aims its
+   * preview against: a site's planks are drawn and aimed from its first
+   * tick, and the finished hut keeps them exactly, so a preview that
+   * ignored them would promise a deck through planks already there. */
+  pierLines(): PierInfo[] {
+    return this.#pierLines(false);
+  }
+
+  #pierLines(builtOnly: boolean): PierInfo[] {
     const out: PierInfo[] = [];
     for (const v of this.#visuals.values()) {
-      if (v.state !== BuildingState.built || !v.pier) continue;
-      out.push((v.pierLine ??= this.#measurePier(v)));
+      if (!v.pierLine) continue;
+      if (builtOnly && v.state !== BuildingState.built) continue;
+      out.push(v.pierLine);
     }
     return out;
   }
@@ -964,135 +1400,6 @@ export class BuildingSync {
     };
   }
 
-  #measurePier(v: BuildingVisual): PierInfo {
-    // This runs on structural updates, possibly before the next render
-    // ticks world matrices — settle them before measuring.
-    v.root.updateWorldMatrix(true, true);
-    const box = new THREE.Box3().setFromObject(v.pier!);
-    const facingYaw = (v.facing * Math.PI) / 2;
-    const cx = (box.min.x + box.max.x) / 2;
-    const cz = (box.min.z + box.max.z) / 2;
-    // Facing is a quarter turn, so the authored deck line lies along one
-    // axis.
-    const along = Math.abs(Math.sin(facingYaw)) > 0.5;
-    const len = along ? box.max.x - box.min.x : box.max.z - box.min.z;
-    // The landward end, where the deck meets the hut. A trim shortens the
-    // deck about this point, so it never comes loose; a turn instead
-    // rotates the whole model about the footprint center (below).
-    const baseX = cx - Math.sin(facingYaw) * (len / 2);
-    const baseZ = cz - Math.cos(facingYaw) * (len / 2);
-    let yaw = facingYaw;
-    let scale = 1;
-    // The deck stays square to the hut: a turn rotates the WHOLE model
-    // (house, deck and all) about the footprint center, so the pair never
-    // come apart. The fit search therefore pivots the deck line about the
-    // building center rather than the deck's landward end.
-    const pvX = v.root.position.x;
-    const pvZ = v.root.position.z;
-    const spin = (x: number, z: number, th: number): [number, number] => {
-      const rx = x - pvX;
-      const rz = z - pvZ;
-      const c = Math.cos(th);
-      const sn = Math.sin(th);
-      return [pvX + rx * c + rz * sn, pvZ + rz * c - rx * sn];
-    };
-    let fitBaseX = baseX;
-    let fitBaseZ = baseZ;
-    let spotX = baseX + Math.sin(yaw) * (len - PIER_SPOT_BACK);
-    let spotZ = baseZ + Math.cos(yaw) * (len - PIER_SPOT_BACK);
-    // Aim the deck at the water: the least intrusive fit whose tip AND
-    // whose fishing spot both stand over it (see PIER_FITS for why the
-    // authored placement so often does not, and PIER_DRAFT for what
-    // standing over water means here). Deep enough to read as water if any
-    // fit can manage it, wet at all if none can; a shore that no fit
-    // reaches at all keeps the authored deck, which is no worse than what
-    // the model shipped with.
-    for (const draft of [PIER_DRAFT, 0]) {
-      const wet = (x: number, z: number): boolean =>
-        this.#heights.at(x, z) < WATER_LEVEL - draft;
-      const fit = PIER_FITS.find(f => {
-        const th = f.turn * PIER_TURN_STEP;
-        const [bX, bZ] = spin(baseX, baseZ, th);
-        const fitYaw = facingYaw + th;
-        const fitLen = len - f.trim * PIER_TRIM_STEP;
-        const dirX = Math.sin(fitYaw);
-        const dirZ = Math.cos(fitYaw);
-        return (
-          wet(bX + dirX * fitLen, bZ + dirZ * fitLen) &&
-          wet(
-            bX + dirX * (fitLen - PIER_SPOT_BACK),
-            bZ + dirZ * (fitLen - PIER_SPOT_BACK),
-          )
-        );
-      });
-      if (!fit) continue;
-      const th = fit.turn * PIER_TURN_STEP;
-      const fitLen = len - fit.trim * PIER_TRIM_STEP;
-      yaw = facingYaw + th;
-      scale = fitLen / len;
-      [fitBaseX, fitBaseZ] = spin(baseX, baseZ, th);
-      spotX = fitBaseX + Math.sin(yaw) * (fitLen - PIER_SPOT_BACK);
-      spotZ = fitBaseZ + Math.cos(yaw) * (fitLen - PIER_SPOT_BACK);
-      if (th !== 0) {
-        // The facing-rotated model is the pier's ancestor just under root.
-        let model: THREE.Object3D = v.pier!;
-        while (model.parent && model.parent !== v.root) model = model.parent;
-        model.rotation.y += th;
-        v.root.updateWorldMatrix(true, true);
-      }
-      break;
-    }
-    if (scale !== 1) this.#fitDecor(v, fitBaseX, fitBaseZ, scale);
-    return {
-      bx: v.root.position.x,
-      bz: v.root.position.z,
-      baseX: fitBaseX,
-      baseZ: fitBaseZ,
-      spotX,
-      spotZ,
-      yaw,
-      // A trimmed deck is a smaller dock, planks and all, so its top comes
-      // down with it.
-      deckY: v.root.position.y + PIER_DECK_Y * scale,
-    };
-  }
-
-  /**
-   * Re-seat the pier — and the shoal working the water off its end — for
-   * the trim `#measurePier` chose: pull both in to `scale` of their reach
-   * from the deck's landward end. (A turn is not handled here any more —
-   * it rotates the whole model, so the decor rides along for free.)
-   *
-   * The deck shrinks with its reach, and does so UNIFORMLY (the pier's own
-   * scale, all three axes): a trim leaves a smaller dock, narrower and
-   * lower in proportion, rather than a full-width deck squashed short.
-   * Uniform is also the only scale that needs no opinion about which of the
-   * prop's own axes its length runs along — decor is authored with a
-   * quarter-turn `rot` (assets.ts), and a length-only scale would silently
-   * pinch the width instead the day that rot changes. What it costs is
-   * piling depth, which is why the trim is bounded: the docks model's
-   * pilings hang ~1.27 under the deck, so even the deepest trim leaves
-   * ~0.76 against the ~0.4 they need to reach from the shore they stand on
-   * down past the waterline.
-   *
-   * The fish only swim in closer — a trim is the pier's, not theirs.
-   */
-  #fitDecor(
-    v: BuildingVisual,
-    baseX: number,
-    baseZ: number,
-    scale: number,
-  ): void {
-    const p = new THREE.Vector3();
-    for (const obj of [v.pier, v.shoal]) {
-      if (!obj?.parent) continue;
-      obj.parent.worldToLocal(p.set(baseX, 0, baseZ));
-      obj.position.x = p.x + (obj.position.x - p.x) * scale;
-      obj.position.z = p.z + (obj.position.z - p.z) * scale;
-    }
-    v.pier?.scale.multiplyScalar(scale);
-  }
-
   /** Per render frame: the decor that moves. dt in seconds (pass 0 while
    * paused). Windlasses are not here — the well keeps no resident, so there
    * is nothing building-side to key them off; sceneSync turns each one under
@@ -1127,10 +1434,13 @@ export class BuildingSync {
       this.#rebuildHpBars();
     }
     if (dt <= 0) return;
+    this.#now += dt;
     for (const v of this.#visuals.values()) {
       // Most of a settlement is huts and warehouses with nothing that
       // moves; this loop used to walk all of them to find that out.
-      if (!v.fan && !v.shoal && !v.flue && v.manned.length === 0) continue;
+      if (!v.fan && !v.shoal && !v.flue && !v.train && v.manned.length === 0) {
+        continue;
+      }
       if (!v.root.visible) continue; // fogged: remembered, not watched
       if (bounds !== undefined) {
         const bx = v.root.position.x;
@@ -1157,6 +1467,7 @@ export class BuildingSync {
         if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
       }
       if (v.flue) this.#smokeFrame(v, dt);
+      if (v.train) this.#trainFrame(v, dt);
       if (v.shoal && v.staffed && v.state === BuildingState.built) {
         // Each fish carries its own circle, direction and depth. Advancing
         // the phase and pointing the nose down the tangent is the whole
@@ -1197,6 +1508,7 @@ export class BuildingSync {
         playAnimation(char, v.firing ? shooting : AnimKey.idle, i * 0.37);
         char.mixer.update(dt);
         if (char.bow) updateBow(char);
+        if (char.grip) updateGrip(char, dt);
         // Each man's projectile leaves at his own clip's release — the
         // same phase-crossing watch the field archers keep (sceneSync),
         // against the throw's measured release for the levy. Volleys ride
@@ -1342,6 +1654,45 @@ export class BuildingSync {
   }
 
   /**
+   * The training cue, per frame: the level that lights this hall's windows
+   * and the light they throw on the stone (procTraining.ts holds both).
+   *
+   * The level eases rather than snapping, on the chimney smoke's own
+   * reasoning and with its own asymmetry: a course starting is a lamp put to
+   * a wick, which is brisk; a course ending is a fire left to burn down,
+   * which is not. The slow side also bridges the gap between two orders in a
+   * full queue — the sim starts the next one a tick after the last one ends,
+   * and a strictly-read cue would darken the hall and relight it between
+   * every two soldiers.
+   *
+   * A dark hall costs one compare. The rig is walked only while there is
+   * something to see, plus the single frame that crosses down through the
+   * threshold and puts it out — without that last one an idle castle would
+   * keep its windows lit at whatever level it was left at.
+   */
+  #trainFrame(v: BuildingVisual, dt: number): void {
+    const target = v.training && v.state === BuildingState.built ? 1 : 0;
+    const was = v.trainLevel;
+    v.trainLevel +=
+      (target - v.trainLevel) *
+      Math.min(1, dt * (target > v.trainLevel ? 2.2 : 0.7));
+    if (target === 0 && v.trainLevel < TRAIN_DARK) {
+      // Cold, and it eases asymptotically, so snap the tail to nothing
+      // rather than chasing zero forever.
+      //
+      // `target === 0` is load-bearing, and its absence was a real bug: a
+      // RISING level starts below this threshold too, and one frame's rise
+      // is dt-sized. At 60Hz the first step clears it (0.037) and the hall
+      // lit; at 120Hz it does not (0.018), so the level was snapped back to
+      // zero every frame and the windows never lit at all on a high-refresh
+      // display. Only the decay is snapped now.
+      v.trainLevel = 0;
+      if (was < TRAIN_DARK) return;
+    }
+    setTrainingLevel(v.train!, v.trainLevel, this.#now);
+  }
+
+  /**
    * Build one building's puff column, parked in root space over its flue.
    *
    * Off the root rather than off the anchor for the same reason the roof
@@ -1356,6 +1707,8 @@ export class BuildingSync {
     v.root.worldToLocal(SCRATCH_POS);
     const group = new THREE.Group();
     group.name = 'chimneySmoke';
+    // Smoke is weather, not masonry — see silhouetteT.
+    group.userData[PICK_IGNORE] = true;
     group.position.copy(SCRATCH_POS);
     const puffs: SmokePuff[] = [];
     for (let i = 0; i < SMOKE_PUFFS; i++) {
@@ -1510,6 +1863,10 @@ export class BuildingSync {
       // Face outward, away from the tower's middle: two men shoulder to
       // shoulder staring the same way read as a rank, not a watch.
       made.group.rotation.y = Math.atan2(SCRATCH_POS.x, SCRATCH_POS.z);
+      // A man on the roof is not the roof (see silhouetteT) — and he is a
+      // skinned mesh besides, the one shape on a building whose triangles
+      // a ray cannot test cheaply.
+      made.group.userData[PICK_IGNORE] = true;
       v.root.add(made.group);
       v.manned.push({group: made.group, char: made.visual});
     }
@@ -1755,6 +2112,7 @@ export class BuildingSync {
     if (!v) return;
     this.#scene.remove(v.root);
     this.#freeGpu(v);
+    this.#releaseDrawn(id, v);
     this.#visuals.delete(id);
   }
 
@@ -1775,6 +2133,14 @@ export class BuildingSync {
       for (const p of v.smoke.puffs)
         (p.mesh.material as THREE.Material).dispose();
       v.smoke = undefined;
+    }
+    // The cue's glow materials are this visual's alone — cloned at create
+    // so one barracks' fire is not every barracks' (ownTrainingMaterials).
+    // The geometry under them is the shared template's and stays.
+    if (v.trainMats) {
+      for (const m of v.trainMats) m.dispose();
+      v.trainMats = undefined;
+      v.train = undefined;
     }
     if (v.clip) {
       v.model.traverse(o => {

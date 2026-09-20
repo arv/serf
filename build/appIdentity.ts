@@ -30,6 +30,33 @@ export const ICON_FILES = [
   'apple-touch-icon.png',
 ] as const;
 
+/** What each of them is the size of — the one place that says so. The
+ * manifest's `sizes` strings are built from this below and the renderer
+ * bakes to it (identity/render.ts), so the number a file is declared to be
+ * and the number it is rendered at cannot drift apart. Typed against
+ * ICON_FILES, so adding a file there without a size here does not
+ * compile. */
+export const ICON_SIZES: Record<(typeof ICON_FILES)[number], number> = {
+  'icon-192.png': 192,
+  'icon-512.png': 512,
+  'apple-touch-icon.png': 180,
+};
+
+/** A manifest icon entry. Only the two the manifest names are built this
+ * way; apple-touch-icon is a link tag in index.html, not a manifest icon. */
+function manifestIcon(
+  file: (typeof ICON_FILES)[number],
+  purpose?: 'maskable',
+): Record<string, string> {
+  const edge = ICON_SIZES[file];
+  return {
+    src: `/${file}`,
+    sizes: `${edge}x${edge}`,
+    type: 'image/png',
+    ...(purpose === undefined ? {} : {purpose}),
+  };
+}
+
 export interface Identity {
   channel: Channel;
   /** The document's `<title>`: the tab, the installed window, and the
@@ -64,14 +91,9 @@ export function identityFor(channel: Channel): Identity {
       background_color: '#223526',
       theme_color: '#223526',
       icons: [
-        {src: '/icon-192.png', sizes: '192x192', type: 'image/png'},
-        {src: '/icon-512.png', sizes: '512x512', type: 'image/png'},
-        {
-          src: '/icon-512.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'maskable',
-        },
+        manifestIcon('icon-192.png'),
+        manifestIcon('icon-512.png'),
+        manifestIcon('icon-512.png', 'maskable'),
       ],
     },
   };

@@ -691,8 +691,133 @@ import {REPLAY_VERSION} from './replayVersion';
 // — the same gap between passes a finished bill already closed. 65 is this
 // build's own bump and has never shipped, so there is nothing older to
 // break.
-const EXPECTED_VERSION = 65;
-const EXPECTED_HASH = '44e5b1cea9d978a9ba413558a3803ee5';
+// 66 for the stop order: a twentieth command kind (sim/commandKindEnum.ts,
+// applied in sim/tick.ts), which an older build's sanitizeCommand throws
+// out of a log recorded here — the squad marches on there, and the battle
+// that follows is fought from different ground. In replayVersion.ts at
+// length.
+// Still 66 after the stop learned to reach a chaser: a focused or
+// acquired target is spelled as a target with the task left idle, so the
+// order now reads a man's feet and his target rather than his task alone.
+// Real tick behavior — a stopped man drops a chase he used to keep — but
+// 66 is this build's own bump and has never shipped, so there is nothing
+// older to break.
+// 67 for the clearing's silver seam and the larder that works it: six
+// tiles of ore where bare grass was (defs/maps/clearing.json) and a
+// changed opening stock for mission 1 (defs/missions.ts). Ground and
+// first-tick stock are both worlds a log re-runs in, so a mission log
+// recorded before this build plays back in a different valley. See
+// replayVersion.ts for why the ground moved — the commission was
+// unwinnable on `hard` without it.
+// 68 for the forge's bare-larder rule (autoForgeIndex, systems/production.ts):
+// a Smith on auto now forges the scythe, the cauldron or the rod ahead of
+// the widest gap when there is no bread on any shelf. Real tick behavior —
+// which batch a Smith starts is decided inside the tick, and one different
+// batch moves every haul and bind after it, so yesterday's logs cannot
+// re-run. replayVersion.ts carries the whole argument.
+// 69 for the doorstep and the load that waits on it (systems/logistics.ts):
+// a serf keeps the spot where he set a load down for DELIVERY_STAND ticks
+// instead of being strolled off it by wander on the tick he delivers, and
+// a load is left on the board for a man already walking to its source
+// rather than dealt to whoever is idle across the valley. Real tick
+// behavior twice over — different hands take different loads, and the
+// random stream moves with them, since both halves change which serfs are
+// idle for wanderSystem to draw for.
+// 70 for the same withholding reaching the whole of a man's errand rather
+// than its last leg: one still walking to the shelf to COLLECT a load is
+// as surely bound for its destination as one already carrying it. Same two
+// axes as 69, and the same reason the stream moves — a withheld load is a
+// man left idle.
+// Still 70 after the digest learned a waiting task's clock (hash.ts) and
+// two logistics comments were corrected: hashWorld is a TEST tool — no
+// tick calls it (only the suite and tools/perf), so nothing a replay
+// re-runs moved. It hashes more of the world now, not differently: an idle
+// serf's `until` gates when wander next draws for him and a gatherer's
+// gates when his swing lands, so two worlds apart only in one of those
+// used to digest as identical and diverge on the following tick. The same
+// reasoning the "Still 33 after the enums moved" entries keep — the hash
+// is over raw bytes, so it moved anyway.
+// 71 for the two arms' clocks: the archer's course at the range, the
+// knight's at the barracks, and the bowstave, the spear and the sword at
+// the Smith. Five durations in defs/buildings.ts and nothing else — no
+// stat, no cost, no rule — but a course and a forge that finish on
+// different ticks re-time every haul, hire and march behind them, which is
+// behavior in the first minute of any log.
+// Still 71 after the spearman's course went back to its printed ten: it
+// was the sixth of those durations for one commit, and 71 is that same
+// commit's own bump, never released, so there is no older log stamped
+// with it to break. The hash is over raw bytes and moved regardless.
+// Still 71 again after two comments in defs/buildings.ts were corrected
+// to that revert (one still called the archer's course nine seconds, one
+// still handed the range's second to both steel arms rather than the
+// knight alone). Prose only — no constant, table or statement moved — and
+// the hash is over raw bytes, which is the whole reason it moved.
+// 72 for the civilians' knives: a serf answers the man cutting him down,
+// fights like a weak melee unit while an A order is on him, and — the part
+// that moves positions rather than hit points — takes up room in the
+// separation pass for as long as that order stands (defs/units.ts MILITIA,
+// units.ts fightOf and takesUpRoom).
+// Still 72 after the AI's last stand (warBehaviorIdEnum `lastStand`,
+// systems/ai.ts #lastStand): a seat with no soldier standing, no roof that
+// could train one and an enemy at its storehouse sends the village in with
+// its knives. All brain, and playback never runs a brain — a replay stores
+// the seats' commands rather than re-deriving them (app/replay.ts), so a
+// seat that would send its serfs today replays as it decided then. The
+// same reasoning every "Still 32/33 after..." entry above records. The
+// hash is over raw bytes, which is why it moved anyway.
+// Still 72 after the review's coverage round: `releaseFromWork` was moved
+// back above orderMove's own JSDoc (it had been inserted between that
+// contract and the function it documents, quietly re-attaching it to the
+// helper), that contract now mentions the A order that can hand a villager
+// an assault, and tests were added for the gestures and the wire — none of
+// which is a statement the sim executes. Prose and tests; the hash is over
+// raw bytes.
+// Still 72 after a second review round closed three more of this same
+// unreleased bump's edges: the last stand now reads an ARMED enemy rather
+// than an enemy soldier (the rival's serfs carry the same knife this build
+// hands out, and a mob of them at the storehouse is exactly the case the
+// stand is for), a plain click on a hostile building stands a raiding
+// villager down instead of leaving him armed, and a man who leaves the
+// separation roster leaves his consecutive-hold count behind — that roster
+// changes from tick to tick now, and the count is only kept honest for the
+// men inside it. Sim behavior, all three, and all of it 72's own.
+// Still 72 after one comment in tick.ts was corrected to what the code
+// does: a right-click on an enemy building has never walked a serf
+// anywhere — the assault branch skips him and returns before any walk is
+// planned — and the comment beside it claimed a plain walk. Prose only,
+// and the hash is over raw bytes.
+// Still 72 after the review round on #294 tightened three of its own
+// edges: a focus order no longer sticks to a civilian who is not under an
+// attack order (tick.ts, units.ts fightOf), an assault on a building
+// releases a villager's job and post the way the walk beside it does, and
+// the last stand counts the soldiers on a wall as soldiers. All three are
+// this same unreleased bump's own behavior — there is no older log stamped
+// 72 to break — and the hash is over raw bytes, which is why it moved.
+// 73 for the knife's price: MILITIA.damage one point to two (defs/units.ts),
+// which is the only statement that moves. 72 set it below the bottom of the
+// scale rather than at it — nine serfs under an A order to put down one
+// knight, and eight dead to leave him standing — so the charge now costs
+// seven with three walking away. MILITIA_BUILDING_MULT reads the same
+// figure, so the mob's siege doubles with it (a camp in a quarter of an
+// hour, not half of one). 72 is on main, so there are logs stamped with it
+// that a two-point knife would replay wrong: a blow that kills a tick
+// earlier moves every draw behind it.
+// Still 73 after the review round on #295 tightened the bump's own tests
+// and prose: the seven-versus-knight tally now pins the three survivors
+// rather than "fewer than seven", the camp test asserts the twenty points
+// a half-minute of chewing takes off (ten at the old price, so it is what
+// tells the two apart), and three comments that gave one threshold for
+// every foe now give the bandit's and the knight's. Tests and prose — no
+// statement the sim executes moves — and the hash is over raw bytes.
+// Still 74 after the review round on this same bump closed the gap it
+// opened: `#marchParty` told the retreat and the wipe lesson who marched,
+// but the flanking legs (systems/ai.ts #followMarch) still ordered the
+// whole roster, so recruits the barracks finished mid-walk were swept out
+// with the column and then left walking at the garrison when the column
+// turned home. The legs order the column now. 74 is unreleased, so there
+// is no log stamped with it to break — and the hash is over raw bytes.
+const EXPECTED_VERSION = 74;
+const EXPECTED_HASH = '7a6e47517351d3f0056cf9f08bab3bc0';
 
 /**
  * Everything a replay's playback depends on, as raw source:

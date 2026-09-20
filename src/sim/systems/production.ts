@@ -6,13 +6,17 @@ import {batchTicks} from '../batchTicks.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {WOOD_MAX_AMT, REGROW_INTERVAL} from '../defs/balance.ts';
 import {
+  BUILDING_DEFS,
+  BUILDING_TYPES,
   OUTPUT_CAP,
   TOOL_GOODS,
   TOOL_OF,
   buildingDef,
   convertRecipeOf,
   gatherOrigin,
+  rationOf,
   type BuildingDef,
+  type BuildingTypeId,
   type Recipe,
 } from '../defs/buildings.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
@@ -183,6 +187,25 @@ function optionUnlocked(
   );
 }
 
+/**
+ * Would convertStep actually light this batch right now? Its two gates, in
+ * its order: a shelf with room for what comes out, and the ingredients for
+ * what goes in. Asked where a batch is being CHOSEN rather than started —
+ * naming one that cannot begin costs a beat of the fire, and the choice is
+ * free to name another.
+ */
+function batchWouldStart(
+  b: Building,
+  recipe: Recipe & {kind: RecipeKind.convert},
+): boolean {
+  const outputs = recipeEntries(recipe.outputs);
+  for (let i = 0; i < outputs.length; i++) {
+    const [good, n] = outputs[i]!;
+    if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return false;
+  }
+  return inputsPresent(b, recipe);
+}
+
 function inputsPresent(
   b: Building,
   recipe: Recipe & {kind: RecipeKind.convert},
@@ -310,6 +333,16 @@ function pickForgeBatch(
  * covered means the fire goes cold — an idle Smith is cheaper than a shelf
  * of surplus axes forged out of scarce iron.
  *
+ * One thing outranks the widest gap: bread. A village with nothing to eat
+ * on any shelf forges the larder's pegs first (LARDER_TOOL) — the scythe,
+ * the cauldron, the rod — whatever else stands open. Not a preference but
+ * the order the chains themselves impose: every mine eats
+ * (MINE_RATION_PER), so ore, and the tools ore pays for, are downstream of
+ * the oven. A tie broken the other way spends the last iron of a bare rack
+ * on an axe and leaves the field, the oven and the shaft all shut — which
+ * is not a hypothetical, it is what a bare-rack commission looks like one
+ * batch before it deadlocks.
+ *
  * Integer counts over world state only — this runs inside the tick and
  * must resolve identically on every client.
  */
@@ -327,7 +360,35 @@ export function autoForgeIndex(
   // is identical to the dictionary version's.
   want.fill(0);
   free.fill(0);
+  larderWant.fill(0);
   const owner = b.owner;
+  // Bread the village can actually eat, which is narrower than bread it
+  // holds. Three terms, and each of the other two is a way a loaf can be
+  // on a shelf and spoken for:
+  //
+  // - every output shelf, MINUS what a hauler has already claimed off it
+  //   (reservedOut) — the same arithmetic the tool count does four lines
+  //   below, and for the same reason: a promised loaf is going somewhere
+  //   already, and where it is going decides whether it still feeds
+  //   anybody;
+  // - the pantry of a post that eats at the face (RATION_OF), because a
+  //   mine's loaf is bread doing its job rather than bread gone missing —
+  //   but NOT every input buffer, which is the same field wearing a
+  //   different hat: a barracks holds its recruit's rations there
+  //   (trains.cost) and nothing ever carries them back out, so counting
+  //   those reads a village whose last loaves are promised to a spearman
+  //   as one that can feed its miners;
+  // - and what is on the road TO such a pantry (inbound), which is the
+  //   other side of the first term: the loaf a hauler took off the oven's
+  //   shelf for a mine is subtracted there and added back here, while the
+  //   one he took for the barracks or a Monument's bill is subtracted and
+  //   stays subtracted.
+  //
+  // Loaves in a hauler's arms for nobody in particular are not counted:
+  // they are between shelves for a few ticks, and a census that walked the
+  // units to find them would cost more than the one batch of hindsight it
+  // saves.
+  let larder = 0;
   for (const ob of world.buildings.values()) {
     if (ob.dead || ob.owner !== owner) continue;
     if (ob.state === BuildingState.site) {
@@ -344,6 +405,11 @@ export function autoForgeIndex(
     if (ob.state !== BuildingState.built) continue;
     const stock = ob.stock;
     const reservedOut = ob.reservedOut;
+    larder +=
+      Math.max(0, (stock[GoodId.food] ?? 0) - (reservedOut[GoodId.food] ?? 0)) +
+      (RATION_OF[ob.type] === GoodId.food
+        ? (ob.inputs[GoodId.food] ?? 0) + (ob.inbound[GoodId.food] ?? 0)
+        : 0);
     for (let i = 0; i < TOOL_COUNT; i++) {
       // Tools on a shelf (minus those already promised to a hauler) can
       // still reach any open post, wherever they sit.
@@ -359,18 +425,43 @@ export function autoForgeIndex(
     if ((ob.inputs[tool] ?? 0) + (ob.inbound[tool] ?? 0) > 0) continue; // already served
     const slot = TOOL_SLOT[tool]!;
     want[slot] = want[slot]! + 1;
+    // ...and whether the post doing the asking is one that feeds anybody.
+    if (LARDER_POST[ob.type]) larderWant[slot] = 1;
   }
   const byTool = forgeIndexByTool(def);
+  const starving = larder === 0;
   let bestIndex = -1;
   let bestGap = 0;
+  // Rank on (feeds the village, gap) rather than gap alone. Only a bare
+  // larder lifts a peg above the arithmetic; with bread on any shelf this
+  // is the same "widest gap, ties on GOODS order" it always was.
+  let bestLarder = 0;
   for (let i = 0; i < TOOL_COUNT; i++) {
     const gap = want[i]! - free[i]!;
-    if (gap > bestGap) {
-      const index = byTool[i]!;
-      if (index < 0 || !optionUnlocked(world, owner, def, index)) continue;
-      bestIndex = index;
-      bestGap = gap;
-    }
+    if (gap <= 0) continue;
+    const index = byTool[i]!;
+    if (index < 0 || !optionUnlocked(world, owner, def, index)) continue;
+    // A peg only jumps the queue if this fire can fill it NOW — both of
+    // convertStep's gates, not just the ingredients: a shelf already
+    // holding five scythes that a hauler has claimed leaves the field's
+    // gap open and the batch unstartable at the same time. Auto is
+    // allowed to name a batch it cannot start — that is how the Smith asks
+    // for what it lacks (walkDemands reads this answer) — but a hungry
+    // village must not spend that on a rod it has no wood for while a
+    // ready axe, the one that puts the woodcutter back to work cutting
+    // that wood, stands untouched. Unready, the peg keeps its gap and
+    // competes on the count like any other.
+    const larderTool =
+      starving &&
+      larderWant[i] === 1 &&
+      batchWouldStart(b, def.recipeOptions![index]!.recipe)
+        ? 1
+        : 0;
+    if (larderTool < bestLarder) continue;
+    if (larderTool === bestLarder && gap <= bestGap) continue;
+    bestIndex = index;
+    bestGap = gap;
+    bestLarder = larderTool;
   }
   return bestIndex < 0 ? undefined : bestIndex;
 }
@@ -383,6 +474,92 @@ const HAMMER_SLOT = TOOL_SLOT[GoodId.hammer]!;
 /** Counts, not sums of measurements: whole tools, so exact as doubles. */
 const want = new Float64Array(TOOL_COUNT);
 const free = new Float64Array(TOOL_COUNT);
+/** Which of those wants came from a post on the bread chain, this census. */
+const larderWant = new Uint8Array(TOOL_COUNT);
+
+/**
+ * What each post feeds its worker at the face, by building type — TOOL_OF's
+ * shape, for the pantry rather than the peg. The census above reads it to
+ * tell a pantry from every other input buffer, which is a distinction the
+ * Building type does not carry: `inputs` is one field holding a mine's
+ * bread, a barracks' recruit rations and an oven's flour alike.
+ *
+ * Derived from the defs once at module load, so a post that starts (or
+ * stops) eating changes this by changing its recipe.
+ */
+const RATION_OF: Partial<Record<BuildingTypeId, GoodId>> = {};
+for (const type of BUILDING_TYPES) {
+  const ration = rationOf(BUILDING_DEFS[type]);
+  if (ration) RATION_OF[type] = ration.good;
+}
+
+/**
+ * Which POSTS stand on the bread chain, by building type — what
+ * autoForgeIndex lifts above the gap counts when every shelf is bare.
+ *
+ * By post and not by peg, because a peg can serve both sides: the oven and
+ * the brewery hang the same cauldron, and a cauldron forged for a village
+ * with no bakery open is a barrel of ale, not a meal. What earns the lift
+ * is an open post on the chain asking, which is a fact about this village
+ * at this tick — so the static half says which roofs are on the chain and
+ * the census below records which of them are actually calling.
+ *
+ * Closed over the defs rather than listed by hand. A GOOD is on the bread
+ * chain if it is food itself, or if a recipe that makes something on the
+ * chain consumes it; a POST is on it when it makes anything on the chain.
+ * Today that reads the field, the mill, the well, the oven and the shore —
+ * two of which hang no tool at all, which is exactly why this is derived.
+ * A new roof between the field and the oven joins by existing.
+ *
+ * Static table data, so it is computed once at module load rather than per
+ * call — the same bargain forgeIndexByTool strikes below.
+ */
+const LARDER_POST = (() => {
+  const recipesOf = (def: BuildingDef): Recipe[] =>
+    def.recipeOptions
+      ? def.recipeOptions.map(o => o.recipe)
+      : def.recipe
+        ? [def.recipe]
+        : [];
+  const makes = (r: Recipe): GoodId[] =>
+    r.kind === RecipeKind.gather
+      ? [r.output]
+      : goodEntries(r.outputs).map(([good]) => good);
+  // A gatherer eats its ration the way a converter eats its ingredients.
+  const eats = (r: Recipe): GoodId[] =>
+    r.kind === RecipeKind.gather
+      ? r.ration
+        ? [r.ration.good]
+        : []
+      : goodEntries(r.inputs).map(([good]) => good);
+  const onChain = (r: Recipe, chain: Set<GoodId>): boolean =>
+    makes(r).some(g => chain.has(g));
+
+  const chain = new Set<GoodId>([GoodId.food]);
+  // Fixpoint over a dozen table entries: it settles in two or three passes
+  // and the loop is what keeps a longer chain (field to mill to oven) from
+  // depending on the order BUILDING_TYPES happens to list its roofs in.
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const type of BUILDING_TYPES) {
+      for (const r of recipesOf(BUILDING_DEFS[type])) {
+        if (!onChain(r, chain)) continue;
+        for (const good of eats(r)) {
+          if (chain.has(good)) continue;
+          chain.add(good);
+          grew = true;
+        }
+      }
+    }
+  }
+
+  const posts: Partial<Record<BuildingTypeId, true>> = {};
+  for (const type of BUILDING_TYPES) {
+    if (recipesOf(BUILDING_DEFS[type]).some(r => onChain(r, chain)))
+      posts[type] = true;
+  }
+  return posts;
+})();
 
 /**
  * Which recipe option forges each tool, by tool slot; -1 for a tool this

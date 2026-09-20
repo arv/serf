@@ -32,6 +32,10 @@ export interface HudActions {
    * Controls owns it because the selection is its, and because sending
    * it has to disarm an A or M still waiting for a target. */
   holdGround(): void;
+  /** Stop: everyone in hand stops walking and stands where he is. Sent on the spot like the hold, and Controls owns it for
+   * the hold's two reasons — the selection is its, and the order has to
+   * disarm an A, M or P still waiting for its click. */
+  stopUnits(): void;
   /** The full save string — the worker's world plus the fog's memory,
    * under the metadata head the saves shelf lists it by. */
   save(): Promise<string>;
@@ -122,6 +126,9 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
         // the order sound, the way a click on the map does — a click
         // sound on top would make the button louder than the key.
         onHold={() => actions.holdGround()}
+        // Silent for the same reason as onHold: the ring and the order
+        // sound are the confirmation, key or button.
+        onStop={() => actions.stopUnits()}
         // No coordinates is the take-the-flag-down spelling; planting one
         // needs a map click and goes through Controls instead.
         onClearRally={buildingId =>

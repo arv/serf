@@ -9,9 +9,16 @@ import {tileCount} from '../../src/shared/grid.ts';
 import {REPLAY_VERSION} from '../../src/shared/replayVersion.ts';
 import {AiSeats} from '../../src/sim/aiSeats.ts';
 import type {SimCommand} from '../../src/sim/commands.ts';
-import {parseStrategyId} from '../../src/sim/defs/aiStrategies.ts';
+import {
+  AI_STRATEGY_KEYS,
+  parseStrategyId,
+} from '../../src/sim/defs/aiStrategies.ts';
 import {TICK_MS} from '../../src/sim/defs/balance.ts';
-import {parseDifficultyId} from '../../src/sim/defs/difficulty.ts';
+import {
+  DIFFICULTY_KEYS,
+  parseDifficultyId,
+} from '../../src/sim/defs/difficulty.ts';
+import * as DifficultyId from '../../src/sim/defs/difficultyEnum.ts';
 import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import {playerKindFromKey} from '../../src/sim/player.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
@@ -64,6 +71,11 @@ export interface Seat {
    * then do its struct frames carry the jobs table. */
   wantsJobs?: boolean;
 }
+
+/** Matches begun since this process booted. Resets with every deploy, so
+ * it is a health-check curiosity; the durable count is the log's
+ * match_start lines. */
+let matchesStarted = 0;
 
 /** Cap on a listing response — the browser has no pagination. */
 const LIST_LIMIT = 20;
@@ -296,6 +308,7 @@ export function matchWorldConfig(room: Room): WorldConfig {
  * room's own sanitized settings: with one simulator there is no
  * cross-engine worldgen risk, and no blob to ship. */
 export function startMatch(room: Room): void {
+  matchesStarted++;
   // The computer seats the host asked for, minus the chairs humans took —
   // AI fills in, it never holds a seat against a person.
   const aiFill = Math.max(
@@ -479,6 +492,7 @@ export function serverStats(): {
   rooms: number;
   running: number;
   seats: number;
+  matchesStarted: number;
   pumpMsAvg: number;
   pumpMsPeak: number;
 } {
@@ -497,8 +511,34 @@ export function serverStats(): {
     rooms: rooms.size,
     running,
     seats,
+    matchesStarted,
     pumpMsAvg: running > 0 ? Number((avg / running).toFixed(3)) : 0,
     pumpMsPeak: Number(peak.toFixed(3)),
+  };
+}
+
+/**
+ * What the match actually plays at, for the log — read back off the built
+ * world rather than off the lobby's config. The two are not the same
+ * string: `sanitizeLobbyConfig` screens shape only, so a client may name a
+ * tier or a playbook that does not exist, and the world builder resolves
+ * the unknown name to `normal` (or, for a seat, to the seed's deal). Logged
+ * from the config, a `match_start` line would report a match nobody played.
+ */
+export function matchSummary(room: Room): {
+  difficulty: string;
+  bots: string[];
+} {
+  const players = room.world?.players ?? [];
+  return {
+    // One tier for the table, so seat 0's is the match's.
+    difficulty:
+      DIFFICULTY_KEYS[players[0]?.difficulty ?? DifficultyId.normal] ??
+      'normal',
+    // The playbook each computer seat is actually running, in seat order.
+    bots: players
+      .filter(p => p.strategy !== undefined)
+      .map(p => AI_STRATEGY_KEYS[p.strategy!] ?? 'unknown'),
   };
 }
 

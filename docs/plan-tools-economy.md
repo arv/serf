@@ -29,6 +29,16 @@
 > lives in `src/ui/buildMenu.ts`; the tab names in §3 (Industry, Village)
 > no longer exist.
 >
+> Later still (2026-09-14, v0.15.0), and noted here because the paragraph
+> above now says otherwise: **the Smith is back on the Village tab**, where
+> §3 wanted it all along. Sorting by what a building's output buys still
+> governs the rest of the ribbon; the forge is the exception, filed by who
+> comes looking for it. It is ungated precisely because it is the village's
+> only source of tools, and the tab a new player opens first is where that
+> has to be. Of §3's two tab names only Industry is gone — the three are
+> Village, Food and Arms — and `buildMenu.test.ts` now pins the placement
+> so a tidy re-sort by output cannot quietly undo it.
+>
 > Later still (2026-08-30, v0.9.0), and noted here because the decisions
 > table and the staffing section below still say otherwise: **tool
 > recovery changed when salvage landed.** "Lost when the worker dies" is

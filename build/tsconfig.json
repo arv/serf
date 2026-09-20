@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Node for the renderer's child_process/fs/zlib and the plugins' file
+    // reads, vite/client because the plugins beside them are vite plugins.
+    "types": ["node", "vite/client"]
+  },
+  "include": ["**/*.ts"]
+}

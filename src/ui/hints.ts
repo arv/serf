@@ -53,7 +53,9 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     {
       text:
         'Select the castle and hire until eleven live here — four silver a ' +
-        'head, and each recruit takes a moment to walk in.',
+        'head, and each recruit takes a moment to walk in. If the purse ' +
+        'runs dry first, there is silver in the hills north-east: a mine ' +
+        'out there pays for the rest of them.',
       objective: 3,
     },
     {

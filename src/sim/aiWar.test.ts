@@ -7,10 +7,25 @@ import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as DifficultyId from './defs/difficultyEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {BANDIT} from './entities.ts';
 import {findPathToAdjacent, tileStepCost} from './path.ts';
-import {AI_INTEL, AI_WAR, AiBrain, cheapestRoad} from './systems/ai.ts';
-import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
+import {
+  AI_INTEL,
+  AI_WAR,
+  ALL_WAR_BEHAVIORS,
+  AiBrain,
+  cheapestRoad,
+} from './systems/ai.ts';
+import {
+  addBuiltHut,
+  addSerf,
+  addStorehouse,
+  bareWorld,
+  cmds,
+} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
 import type {Unit} from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import * as WarBehaviorId from './warBehaviorIdEnum.ts';
 import type {World} from './world.ts';
 import {placeBuiltBuilding, spawnUnit} from './world.ts';
@@ -63,6 +78,54 @@ describe('harassment sorties', () => {
     expect(sortie).toBeDefined();
     expect(sortie!.unitIds).toHaveLength(4);
     expect(brain.warReport().sorties).toBe(1);
+  });
+
+  it("leaves a fallen rival's village alone", () => {
+    // The village a castle fell out from under. Losing the storehouse is
+    // elimination (systems/victory.ts) and what stands afterwards is a
+    // mill grinding for nobody: burning a shed there spends a party, the
+    // harass cooldown and the walk, and buys back nothing. Every other
+    // read of a rival already skips the dead; the sortie was the errand
+    // still walking out to a village with no one left to feel it.
+    const world = village();
+    addBuiltHut(world, BASE + 8, BASE, false, 1);
+    knights(world, 5);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 1300;
+    world.players[1]!.alive = false;
+    expect(moves(brain.decide(world)).find(m => m.attack === 'half')).toBe(
+      undefined,
+    );
+    expect(brain.warReport().sorties).toBe(0);
+  });
+
+  it("turns a sortie home when its target's lord falls mid-walk", () => {
+    // Launched at a living rival and overtaken by somebody else's assault.
+    // Counted a strike rather than a withdrawal: the errand ended because
+    // what it was aimed at stopped mattering, not because the party broke.
+    const world = village();
+    addBuiltHut(world, BASE + 8, BASE, false, 1);
+    knights(world, 5);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 1300;
+    expect(
+      moves(brain.decide(world)).find(m => m.attack === 'half'),
+    ).toBeDefined();
+    world.players[1]!.alive = false;
+    world.tick += 20;
+    const home = moves(brain.decide(world)).find(
+      m => m.attack === undefined && m.unitIds.length === 4,
+    );
+    expect(home).toBeDefined();
+    expect(brain.warReport().sortieStrikes).toBe(1);
   });
 
   it('a personality without harass never harasses', () => {
@@ -229,6 +292,20 @@ describe('the losing march', () => {
     brain.decide(world);
     expect(brain.warReport().marchRetreats).toBe(0);
   });
+
+  it('men in the home yard do not get a vote on a rout in the field', () => {
+    // "Under half the strength it left with" is about the column, and the
+    // barracks keeps working while the column is away. Read off the whole
+    // roster — as this once was — four survivors plus four fresh recruits
+    // read as eight of twelve and the broken march marched on.
+    const {world, brain} = routedMarch(AiStrategyId.steward);
+    knights(world, 4); // the shift that finished while the assault died
+    const survivors = moves(brain.decide(world)).find(
+      m => m.attack === undefined && m.unitIds.length === 4,
+    );
+    expect(survivors).toBeDefined();
+    expect(brain.warReport().marchRetreats).toBe(1);
+  });
 });
 
 describe('the wiped march', () => {
@@ -297,6 +374,39 @@ describe('the wiped march', () => {
       m => m.x === BASE + 1 && m.y === BASE + 9,
     );
     expect(next?.unitIds.length).toBe(6);
+  });
+
+  it('a recruit standing in the yard is not a survivor of the march', () => {
+    // The bug this file exists to keep out. The lesson used to be filed
+    // off the seat's whole ROSTER — "no soldier of mine is alive" — and a
+    // barracks does not stop while the column is away, so one man finishing
+    // his training at home kept the count off zero and a march that lost
+    // every man in the field recorded nothing. Played out on seed 42945388:
+    // the lower-left seat marched six, five died, a spearman came off the
+    // line, and it went back to the same castle with three men. Twice.
+    const world = village();
+    addStorehouse(world, BASE + 8, BASE, {}, 1);
+    const party = knights(world, 6);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.warlord],
+      world.map.size,
+      DifficultyId.hard,
+    );
+    brain.setWarBehaviors([WarBehaviorId.wipedMarch]);
+    world.tick = 1500;
+    expect(marchesOn(brain.decide(world))?.unitIds.length).toBe(6);
+    // Every man who marched is dead — and the yard has a fresh one, who
+    // was never on the march and cannot speak to how it went.
+    for (const u of party) u.dead = true;
+    knights(world, 1, 0, BASE + 1);
+    world.tick += 40;
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
+    expect(brain.warReport().wipes).toBe(1);
+    // ...so six is now a number that has been tried. Six more wait.
+    knights(world, 5);
+    world.tick += 2000;
+    expect(marchesOn(brain.decide(world))).toBeUndefined();
   });
 
   it('on normal the lesson is learned too; on easy it is not', () => {
@@ -381,6 +491,29 @@ describe('the flanking march', () => {
     for (const leg of legs.slice(0, -1))
       expect(towerDist(leg.x, leg.y)).toBeGreaterThan(REACH);
     expect(brain.warReport().flanked).toBe(1);
+  });
+
+  it('walks the column down the next leg, not the yard', () => {
+    // The barracks keeps working while the column is away, and the next
+    // leg is an order to the men who walked out — not to whoever happens
+    // to be standing in the yard when it is given. Sweeping them in left
+    // recruits the retreat rule and the wipe lesson do not count as
+    // marchers walking on at the garrison after the column turned home,
+    // and dragged the column's middle back towards the storehouse, which
+    // is the thing "has it reached the waypoint" is measured on.
+    const {world, brain, army} = towered(DifficultyId.hard);
+    const first = moves(brain.decide(world)).find(m => m.unitIds.length === 8);
+    expect(first).toBeDefined();
+    for (const u of army) {
+      u.x = first!.x + 0.5;
+      u.y = first!.y + 0.5;
+      u.task = {t: UnitTaskKind.idle, until: world.tick};
+    }
+    const yard = knights(world, 3); // the shift that finished behind them
+    world.tick += 40;
+    const next = moves(brain.decide(world)).find(m => m.unitIds.length >= 8);
+    expect(next?.unitIds.length).toBe(8);
+    for (const u of yard) expect(next?.unitIds).not.toContain(u.id);
   });
 
   it("plans in the sim's own metric: with no tower, the sim's road exactly", () => {
@@ -593,5 +726,174 @@ describe('the scout that runs', () => {
     expect(flight).toBeDefined();
     expect(flight!.attack).toBeUndefined();
     expect(brain.warReport().scoutFled).toBe(1);
+  });
+});
+
+describe('the last stand', () => {
+  /**
+   * A seat at the end of its rope: a storehouse, a village of serfs, no
+   * soldier standing, no roof that could train one, and a raider in the
+   * yard. Every gate the verb reads, held at once.
+   */
+  function doomed(serfs = 8): {world: World; brain: AiBrain; raider: Unit} {
+    const world = village();
+    for (let i = 0; i < serfs; i++)
+      addSerf(world, BASE + 2 + (i % 4), BASE + 2);
+    const raider = spawnUnit(world, UnitTypeId.bandit, BANDIT, BASE - 1, BASE);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 8000;
+    return {world, brain, raider};
+  }
+
+  /** The order the stand gives: an attack-move naming villagers. */
+  const standOf = (commands: SimCommand[], world: World): Move | undefined =>
+    moves(commands).find(
+      m =>
+        m.attack === true &&
+        m.unitIds.length > 0 &&
+        m.unitIds.every(id => world.units.get(id)?.kind === UnitTypeId.serf),
+    );
+
+  it('sends the village at the raider when there is nothing else left', () => {
+    const {world, brain, raider} = doomed();
+    const stand = standOf(brain.decide(world), world);
+    expect(stand).toBeDefined();
+    expect(stand!.unitIds).toHaveLength(8);
+    expect(stand!.x).toBe(Math.floor(raider.x));
+    expect(stand!.y).toBe(Math.floor(raider.y));
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
+  it('counts one stand, however many beats it is re-aimed over', () => {
+    const {world, brain} = doomed();
+    const first = standOf(brain.decide(world), world);
+    expect(first).toBeDefined();
+    // Apply it, so the mob is genuinely charging on the next beat.
+    tickWorld(world, cmds(first!));
+    expect(
+      first!.unitIds.every(
+        id => world.units.get(id)!.task.t === UnitTaskKind.attackMove,
+      ),
+    ).toBe(true);
+    world.tick += 200;
+    // Nobody new to send: the men already charging are left to their fight.
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
+  it('holds its hand while one soldier still stands', () => {
+    const {world, brain} = doomed();
+    knights(world, 1, 0, BASE + 3);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand for a soldier the walls just claimed', () => {
+    // #manTowers takes an idle archer for the wall, and the march pool
+    // leaves him out — but a man walking up to a tower is a man the seat
+    // still has. Reading the pool as "no soldier" called the war lost
+    // with an archer standing in the yard.
+    const {world, brain} = doomed();
+    placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, BASE + 4, BASE + 4);
+    spawnUnit(world, UnitTypeId.archer, 0, BASE + 4.5, BASE + 6.5);
+    // The claim is silent — #manTowers adds him to its set and staffing
+    // walks him up on its own — so what this asserts is the outcome: no
+    // stand while he is alive. Against the march pool alone it fires.
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand for the archers already on the wall', () => {
+    // A garrison is a count rather than units (staffing consumes the man),
+    // so no unit scan can see these two at all.
+    const {world, brain} = doomed();
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      BASE + 4,
+      BASE + 4,
+    );
+    tower.garrison = 2;
+    tower.garrisonKind = UnitTypeId.archer;
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('stands anyway for a tower held by the levy — stones are not soldiers', () => {
+    const {world, brain} = doomed();
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      BASE + 4,
+      BASE + 4,
+    );
+    tower.garrison = 2;
+    tower.garrisonKind = UnitTypeId.serf; // the levy the tower falls back on
+    expect(standOf(brain.decide(world), world)).toBeDefined();
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
+  it('holds its hand while a barracks could bring the army back', () => {
+    const {world, brain} = doomed();
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, BASE + 6, BASE + 6);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand with nobody at the gates', () => {
+    const {world, brain, raider} = doomed();
+    raider.dead = true;
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('holds its hand when the village is too small to be a mob', () => {
+    const {world, brain} = doomed(AI_WAR.standMin - 1);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('answers an enemy VILLAGE at the gates, not just enemy soldiers', () => {
+    // The same change that gave this seat a knife gave one to the rival's
+    // serfs. A gate that looked for soldiers would watch a mob of armed
+    // villagers take the storehouse without ever calling the stand.
+    const {world, brain, raider} = doomed();
+    raider.dead = true; // no soldier anywhere near the base
+    const mob = [];
+    for (let i = 0; i < 3; i++) {
+      const u = spawnUnit(world, UnitTypeId.serf, 1, BASE - 1 + i * 0.2, BASE);
+      u.task = {t: UnitTaskKind.attackMove, destX: BASE, destY: BASE};
+      mob.push(u);
+    }
+    const stand = standOf(brain.decide(world), world);
+    expect(stand).toBeDefined();
+    expect(stand!.x).toBe(Math.floor(mob[0]!.x));
+    expect(brain.warReport().lastStands).toBe(1);
+  });
+
+  it('ignores an enemy village that is merely walking past', () => {
+    // Armed is the test, not owned by a rival: a hauler on an errand is
+    // not an attack, whatever else is true of the valley.
+    const {world, brain, raider} = doomed();
+    raider.dead = true;
+    for (let i = 0; i < 3; i++)
+      spawnUnit(world, UnitTypeId.serf, 1, BASE - 1 + i * 0.2, BASE);
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
+  });
+
+  it('is silent for a seat the behavior is ablated on', () => {
+    const {world, brain} = doomed();
+    brain.setWarBehaviors(
+      ALL_WAR_BEHAVIORS.filter(id => id !== WarBehaviorId.lastStand),
+    );
+    expect(standOf(brain.decide(world), world)).toBeUndefined();
+    expect(brain.warReport().lastStands).toBe(0);
   });
 });

@@ -57,6 +57,7 @@ import {
   viewerId,
 } from '../ui/store';
 import {Controls} from './controls';
+import type {BuildingHeights} from './picking';
 import {screenToGround, worldToScreen} from './picking';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -175,6 +176,10 @@ function touchPtr(x: number, y: number): Record<string, unknown> {
 function rightPtr(x: number, y: number): Record<string, unknown> {
   return {...ptr(x, y), button: 2, buttons: 2};
 }
+
+/** Scratch for the test tracer's ray-vs-model math. */
+const RAY = new THREE.Ray();
+const HIT = new THREE.Vector3();
 
 /** A storehouse of yours, as the HUD's card would have it. */
 function building(id: number): BuildingSnap {
@@ -362,11 +367,32 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   );
   // The renderer's measurements, as BuildingSync would answer them: flat
   // ground, so a building's base is 0 and its ceiling is its own height.
-  controls.setBuildingHeights({
+  const measured: BuildingHeights = {
     heightOf: id => tops.get(id) ?? 0,
     baseOf: () => 0,
     ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...tops.values()),
-  });
+  };
+  controls.setBuildingHeights(measured);
+
+  /** id -> the one solid the renderer would actually draw inside that
+   * building's box. Empty until a test stands a model in it. */
+  const models = new Map<number, THREE.Box3>();
+  /**
+   * Hand the pick a tracer as well as a tape measure — the renderer with
+   * its models loaded, against the measure-only stand-in above. A building
+   * with no model here is drawn as nothing at all.
+   */
+  const traceModels = (): void => {
+    controls.setBuildingHeights({
+      ...measured,
+      silhouetteT: (id, origin, dir) => {
+        const box = models.get(id);
+        if (!box) return -1;
+        RAY.set(origin, dir);
+        return RAY.intersectBox(box, HIT) ? HIT.distanceTo(origin) : -1;
+      },
+    });
+  };
 
   /** Drag a band from one screen point to another, the way a mouse does. */
   const band = (
@@ -441,6 +467,8 @@ function harness(opts: {pitched?: {x: number; z: number}} = {}) {
     controls,
     addUnit,
     addBuilding,
+    models,
+    traceModels,
     screenOf,
     band,
     at,
@@ -1143,6 +1171,96 @@ describe('right-click orders', () => {
       x: 11,
       y: 17,
     });
+  });
+});
+
+describe('a pointer on the silhouette', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    vi.stubGlobal('window', {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    vi.unstubAllGlobals();
+  });
+
+  /** The keep: three tiles square, six high, and one tower in the middle
+   * of a walled yard — so its box is mostly sky. */
+  const TOWER = 6;
+
+  /** That keep, with a cottage two tiles behind it — the pair the box pick
+   * gets wrong, since the keep's box hangs over the cottage's roof. */
+  function keepAndCottage(): ReturnType<typeof harness> {
+    const h = harness({pitched: {x: 11.5, z: 11.5}});
+    h.addBuilding(building(7), TOWER);
+    h.models.set(
+      7,
+      new THREE.Box3(
+        new THREE.Vector3(11, 0, 11),
+        new THREE.Vector3(12, TOWER, 12),
+      ),
+    );
+    h.addBuilding({...building(9), x: 8, y: 8, w: 1, h: 1}, 1);
+    h.models.set(
+      9,
+      new THREE.Box3(new THREE.Vector3(8, 0, 8), new THREE.Vector3(9, 1, 9)),
+    );
+    return h;
+  }
+
+  it('lights the cottage behind the keep, not the keep hanging over it', () => {
+    const h = keepAndCottage();
+    controls = h.controls;
+    // The cottage's own roof, with the keep's tower well to the side of
+    // these pixels: what you see there is thatch.
+    const roof = h.at(8.5, 1, 8.5);
+
+    // Measurements alone: the keep's box reaches over the cottage whether
+    // or not anything is drawn in it, and the nearest box takes the pixel.
+    expect(h.hoverAt(roof)).toBe(7);
+
+    h.traceModels();
+    expect(h.hoverAt(roof)).toBe(9);
+  });
+
+  it('leaves the sky over the keep yard to whatever is under it', () => {
+    const h = keepAndCottage();
+    controls = h.controls;
+    // High over the yard's far corner, past the top of the only thing
+    // standing in it — and the ground under those pixels is open grass.
+    const sky = h.at(10.5, 5.9, 10.5);
+    expect(h.hoverAt(sky)).toBe(7);
+
+    h.traceModels();
+    expect(h.hoverAt(sky)).toBe(-1);
+  });
+
+  it('still lights the keep clicked on the tower itself', () => {
+    const h = keepAndCottage();
+    controls = h.controls;
+    h.traceModels();
+    for (const y of [0.5, 3, 5.8]) {
+      expect(h.hoverAt(h.at(11.5, y, 11.5))).toBe(7);
+    }
+    // And its bare yard, which is the keep's ground whatever stands on it.
+    expect(h.hoverAt(h.at(10.2, 0, 10.2))).toBe(7);
   });
 });
 
@@ -2321,5 +2439,174 @@ describe('holding ground', () => {
     h.type('H');
 
     expect(h.commands).toEqual([]);
+  });
+});
+
+describe('stopping', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+    setReplayMode(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('S sends the order on the spot', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.archer);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.type('S');
+
+    // Nothing to aim: the press is the order.
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.stopUnits,
+      unitIds: [1, 2],
+    });
+    expect(orderMode()).toBeNull();
+  });
+
+  it('names the civilians too, where the hold names only fighters', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.serf);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.knight);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+
+    h.type('S');
+
+    expect(h.commands.at(-1)).toEqual({
+      kind: CommandKind.stopUnits,
+      unitIds: [1, 2],
+    });
+  });
+
+  it('does nothing with nobody in hand', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+
+    h.type('S');
+
+    expect(h.commands).toEqual([]);
+  });
+
+  it('disarms an order that was waiting for its click', () => {
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    h.type('A');
+    expect(orderMode()).toBe(OrderMode.attack);
+
+    h.type('S');
+
+    expect(orderMode()).toBeNull();
+    expect(h.commands.at(-1)).toMatchObject({kind: CommandKind.stopUnits});
+  });
+
+  it('gives no orders in a replay', () => {
+    const h = harness();
+    controls = h.controls;
+    setReplayMode(true);
+    h.addUnit(1, 0, 0, ME, UnitTypeId.knight);
+    h.click(h.screenOf(1));
+    expect([...selection()]).toEqual([1]);
+
+    h.type('S');
+
+    expect(h.commands).toEqual([]);
+  });
+});
+
+describe('A over an enemy, with villagers in the band', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
+    });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    setOrderMode(null);
+    vi.unstubAllGlobals();
+  });
+
+  /** A serf and a knight of ours, and a raider of theirs to aim at. */
+  function mixedBandAndRaider(): ReturnType<typeof harness> {
+    const h = harness();
+    h.addUnit(1, 0, 0, ME, UnitTypeId.serf);
+    h.addUnit(2, 2, 0, ME, UnitTypeId.knight);
+    h.addUnit(3, 8, 0, THEM, UnitTypeId.bandit);
+    h.band(...around([h.screenOf(1), h.screenOf(2)]));
+    expect([...selection()].sort((a, b) => a - b)).toEqual([1, 2]);
+    return h;
+  }
+
+  it('A-click on him takes the serf along, move and focus alike', () => {
+    const h = mixedBandAndRaider();
+    controls = h.controls;
+
+    h.type('A');
+    h.click(h.screenOf(3));
+
+    // The pair an attack-click sends: the attack-move first, then the
+    // target it names (see Controls #issueFocus).
+    const move = h.commands.at(-2);
+    const focus = h.commands.at(-1);
+    expect(move).toMatchObject({
+      kind: CommandKind.moveUnits,
+      unitIds: [1, 2],
+      attack: true,
+    });
+    expect(focus).toMatchObject({
+      kind: CommandKind.focusTarget,
+      unitIds: [1, 2],
+      targetId: 3,
+    });
+  });
+
+  it('a right-click on the same man leaves the serf out of it', () => {
+    const h = mixedBandAndRaider();
+    controls = h.controls;
+
+    h.order(h.screenOf(3));
+
+    // No A, no focus for a villager: the gesture is the whole difference,
+    // and an ordinary right-click must never send the village at anybody.
+    const focus = h.commands.filter(c => c.kind === CommandKind.focusTarget);
+    expect(focus).toHaveLength(1);
+    expect((focus[0] as {unitIds: number[]}).unitIds).toEqual([2]);
   });
 });

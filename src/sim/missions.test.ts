@@ -1,11 +1,12 @@
 import {describe, expect, it} from 'vitest';
 import type {Enum} from '../shared/enum.ts';
+import {tileX, tileY} from '../shared/grid.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
-import {firstRaidTickFor} from './defs/balance.ts';
+import {firstRaidTickFor, HIRE_SERF_COST} from './defs/balance.ts';
 import {BUILDING_DEFS, TOOL_GOODS, TOOL_OF} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as DifficultyId from './defs/difficultyEnum.ts';
@@ -18,13 +19,15 @@ import {
   nextMissionId,
   parseMissionId,
 } from './defs/missions.ts';
+import * as ObjectiveKind from './defs/objectiveKindEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import * as GameEventKind from './gameEventKindEnum.ts';
 import {hashWorld} from './hash.ts';
-import {rectClear} from './map.ts';
+import {inPlayArea, rectClear} from './map.ts';
 import {parseMapData} from './mapFile.ts';
 import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
+import {populationOf} from './population.ts';
 import {deserializeWorld, serializeWorld} from './save.ts';
 import {AiBrain} from './systems/ai.ts';
 import {cmds} from './testUtils.ts';
@@ -304,6 +307,115 @@ describe('the campaign missions', () => {
       e => e.kind === GameEventKind.objectiveComplete,
     );
     expect(completions.length).toBe(5);
+  }, 120_000);
+
+  it('mission 1 (The Clearing) is won on hard, where the purse alone cannot', async () => {
+    // The tier scales the human seat's opening (scaleStartStock,
+    // scaleStartSerfs): on `hard` The Clearing opens a hand short and a
+    // third lighter, which is a purse that cannot reach the checklist's
+    // eleven souls — five hands and four hires is nine. A commission has
+    // to be winnable at every tier it is offered at, so the map carries
+    // the way back: the silver seam north-east, and the spare pick and
+    // the loaves that let a village work it. This test is that claim.
+    const world = await createWorldAsync({
+      ...missionWorldConfig(MissionId.clearing),
+      difficulty: DifficultyId.hard,
+    });
+    const keep = [...world.buildings.values()].find(
+      b => b.owner === 0 && b.type === BuildingTypeId.storehouse,
+    )!;
+    // The checklist's own number rather than a copy of it: this test is
+    // about the gap between what the tier grants and what the commission
+    // asks, so it has to ask the commission.
+    const want = MISSION_DEFS[MissionId.clearing].objectives.find(
+      o => o.spec.kind === ObjectiveKind.population,
+    )!.spec;
+    if (want.kind !== ObjectiveKind.population) {
+      throw new Error('the clearing no longer counts souls');
+    }
+    const hands = [...world.units.values()].filter(u => u.owner === 0).length;
+    const purse = keep.stock[GoodId.silver] ?? 0;
+    // The gap this mission's seam exists to cover: what the crown grants
+    // buys fewer souls than the checklist counts.
+    const bought = Math.floor(purse / HIRE_SERF_COST);
+    expect(hands + bought, 'souls the opening purse can reach').toBeLessThan(
+      want.count,
+    );
+
+    const castle = {x: keep.x + 1, y: keep.y + 1};
+    const place = (
+      type: BuildingTypeId,
+      cx = castle.x,
+      cy = castle.y,
+    ): SimCommand => {
+      const spot = findSpot(world, type, cx, cy);
+      return {
+        kind: CommandKind.placeBuilding,
+        building: type,
+        x: spot.x,
+        y: spot.y,
+      };
+    };
+    tickWorld(world, cmds(place(BuildingTypeId.woodcutter)));
+    tickWorld(world, cmds(place(BuildingTypeId.quarry)));
+    tickWorld(world, cmds(place(BuildingTypeId.house)));
+
+    // The shaft, sited by eye at the seam the way a player does — the
+    // mine's own reach rule (canPlace) decides the footprint.
+    const seamAt = world.map.resource.findIndex(
+      (r, i) =>
+        r === TileResource.SilverDep &&
+        inPlayArea(
+          world.map,
+          tileX(i, world.map.size),
+          tileY(i, world.map.size),
+        ),
+    );
+    expect(seamAt, 'silver on the clearing').toBeGreaterThanOrEqual(0);
+    const mine = place(
+      BuildingTypeId.silverMine,
+      tileX(seamAt, world.map.size),
+      tileY(seamAt, world.map.size),
+    );
+
+    let sunk = false;
+    const MAX = 36_000; // the same half-hour budget the printed tier gets
+    for (
+      let t = 0;
+      t < MAX && world.outcome.state === MatchState.playing;
+      t++
+    ) {
+      const orders: SimCommand[] = [];
+      // The mine is 8 wood and 4 stone, and the opening larder is lighter
+      // than that once the three huts are paid for: it goes up when the
+      // axe and the quarry have covered it.
+      if (
+        !sunk &&
+        stockOf(world, GoodId.wood) >= 8 &&
+        stockOf(world, GoodId.stone) >= 4
+      ) {
+        orders.push(mine);
+        sunk = true;
+      }
+      // Hire whenever there is silver for a head and a bed to put it in —
+      // first out of the purse, then out of the hill.
+      if (
+        t % 50 === 0 &&
+        stockOf(world, GoodId.silver) >= HIRE_SERF_COST &&
+        populationOf(world, 0) < want.count
+      ) {
+        orders.push({kind: CommandKind.hireSerf});
+      }
+      tickWorld(world, cmds(...orders));
+    }
+
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
+    expect(world.objectivesDone).toEqual([true, true, true, true, true]);
+    // Won by digging, not by the purse: the seam paid for the last hires.
+    expect(populationOf(world, 0)).toBeGreaterThanOrEqual(want.count);
   }, 120_000);
 
   it('mission 2 (Bread and Water) is winnable', async () => {

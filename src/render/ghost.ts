@@ -5,10 +5,13 @@ import {
   gatherRecipeOf,
   type BuildingTypeId,
 } from '../sim/defs/buildings';
+import type {MapView} from '../sim/map';
+import {waterFacing} from '../sim/world';
 import type {HeightField} from './heightField';
 import {eachMaterial} from './materials';
 import {makeGhostModel} from './models';
 import {verdictBad, verdictGood} from './palette';
+import {fitPier, pierStamp, seatShoal, type PierInfo} from './pierFit';
 import {ReachOutline} from './reachOutline';
 
 const VALID = new THREE.Color(verdictGood);
@@ -21,7 +24,28 @@ const INVALID = new THREE.Color(verdictBad);
 export class GhostPlacement {
   #scene: THREE.Scene;
   #heights: HeightField;
+  #map: MapView;
+  /** The decks already standing, asked for fresh on every aim: the preview
+   * steers its own jetty clear of them, so what the player lines up is what
+   * the yard will build. */
+  #piers: () => readonly PierInfo[];
+  /** Stands where the building would stand, as BuildingSync's root does —
+   * the model hangs under it so the pier fit has the same two levels to
+   * turn that a built fishery gives it. */
   #group: THREE.Group | null = null;
+  #model: THREE.Group | null = null;
+  /** A fishery's deck and the shoal off its end, when this is one. */
+  #pier: THREE.Object3D | null = null;
+  #shoal: THREE.Object3D | null = null;
+  /** The decor's authored rest, to put back before each re-fit: the fit
+   * pulls the deck in and shrinks it, and a cursor crossing the shore
+   * re-fits on every tile, so the moves would compound into a deck ground
+   * down to nothing. */
+  #home: {
+    obj: THREE.Object3D;
+    position: THREE.Vector3;
+    scale: THREE.Vector3;
+  }[] = [];
   #type: BuildingTypeId | null = null;
   /** Seat whose colors the preview wears. */
   #owner: number;
@@ -33,11 +57,24 @@ export class GhostPlacement {
    * re-lay the reach outline's geometry every update. */
   #x = -1;
   #y = -1;
+  /** The standing decks the current aim was fitted against. A neighbour
+   * going up — an ally's fishery, an AI's — changes the answer under a
+   * cursor that has not moved, and a preview that kept the old deck would
+   * be promising a placement the yard no longer makes. */
+  #stamp = 0;
   #reach: ReachOutline;
 
-  constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
+  constructor(
+    scene: THREE.Scene,
+    heights: HeightField,
+    map: MapView,
+    piers: () => readonly PierInfo[] = () => [],
+    owner = 0,
+  ) {
     this.#scene = scene;
     this.#heights = heights;
+    this.#map = map;
+    this.#piers = piers;
     this.#owner = owner;
     this.#reach = new ReachOutline(scene, heights);
   }
@@ -46,8 +83,22 @@ export class GhostPlacement {
     if (this.#type === type) return;
     this.hide();
     this.#type = type;
-    this.#group = makeGhostModel(type, 0.55, this.#owner);
+    const model = makeGhostModel(type, 0.55, this.#owner);
+    this.#model = model;
+    this.#group = new THREE.Group();
+    this.#group.add(model);
     this.#group.visible = false;
+    this.#pier = model.getObjectByName('fisheryPier') ?? null;
+    this.#shoal = model.getObjectByName('fisheryShoal') ?? null;
+    for (const obj of [this.#pier, this.#shoal]) {
+      if (obj) {
+        this.#home.push({
+          obj,
+          position: obj.position.clone(),
+          scale: obj.scale.clone(),
+        });
+      }
+    }
     this.#group.traverse(obj => {
       if (obj instanceof THREE.Mesh) {
         eachMaterial(obj, m => {
@@ -64,21 +115,32 @@ export class GhostPlacement {
   /** Position at footprint origin tile (x,y); tint by validity. */
   moveTo(x: number, y: number, valid: boolean): void {
     if (!this.#group || !this.#type) return;
-    // Same tile, same verdict: the ghost is already exactly this.
+    const def = buildingDef(this.#type);
+    // Asked before the guard below, because it is part of what the guard
+    // has to compare: a fishery's aim is fitted against the decks already
+    // standing, and those can change while the cursor holds still.
+    const piers = def.nearWater ? this.#piers() : null;
+    const stamp = piers === null ? 0 : pierStamp(piers);
+    // Same tile, same verdict, same neighbours: the ghost is already
+    // exactly this.
     if (
       x === this.#x &&
       y === this.#y &&
       valid === this.#valid &&
+      stamp === this.#stamp &&
       this.#group.visible
     )
       return;
     this.#x = x;
     this.#y = y;
-    const def = buildingDef(this.#type);
+    this.#stamp = stamp;
     this.#group.visible = true;
     const cx = x + def.w / 2;
     const cz = y + def.h / 2;
     this.#group.position.set(cx, this.#heights.at(cx, cz), cz);
+    if (def.nearWater) {
+      this.#aimDeck(x, y, def.w, def.h, def.nearWater.radius, piers ?? []);
+    }
     // The worker searches from the footprint's center tile, so the outline
     // is drawn around that tile's center — not the footprint's midpoint,
     // which is half a tile off for even-sized huts.
@@ -103,11 +165,63 @@ export class GhostPlacement {
     });
   }
 
+  /**
+   * Turn the fishery so its jetty ends in the water.
+   *
+   * The preview is a promise about the spot under the cursor, so it is
+   * aimed exactly as the built hut will be: the quarter turn the sim would
+   * hand it (`waterFacing`, which runs on placement), then the same search
+   * for a deck that actually reaches — turning the hut, trimming the planks
+   * — that BuildingSync runs on the site from its first tick and that the
+   * finished hut then keeps (`fitPier`, `layPier`). Without it the ghost
+   * wears the model's authored facing, so the player aims a dock that
+   * swings somewhere else entirely the moment it is placed.
+   *
+   * Both moves are applied to the model, and the cursor re-aims on every
+   * tile it crosses, so the decor goes back to its authored rest first.
+   */
+  #aimDeck(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius: number,
+    piers: readonly PierInfo[],
+  ): void {
+    const model = this.#model;
+    const root = this.#group;
+    if (!this.#pier || !model || !root) return;
+    for (const rest of this.#home) {
+      rest.obj.position.copy(rest.position);
+      rest.obj.scale.copy(rest.scale);
+    }
+    const facing = waterFacing(this.#map, x, y, w, h, radius);
+    model.rotation.y = (facing * Math.PI) / 2;
+    // The fish swim under the water plane, not at the deck height the
+    // template bakes them at — the same re-seat the built fishery gets.
+    if (this.#shoal) seatShoal(this.#shoal, model, root.position.y);
+    fitPier(
+      {
+        root,
+        pier: this.#pier,
+        shoal: this.#shoal ?? undefined,
+        facing,
+      },
+      this.#heights,
+      piers,
+    );
+  }
+
   hide(): void {
     if (this.#group) {
       this.#scene.remove(this.#group);
       this.#group = null;
     }
+    this.#model = null;
+    this.#pier = null;
+    this.#shoal = null;
+    this.#home.length = 0;
+    this.#stamp = 0;
     this.#reach.hide();
     this.#base.clear();
     this.#valid = null;

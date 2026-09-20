@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Serf Valley</title>
+  <!--
+    Source of the stable icons beside this file, and of staging's too:
+    ../staging/icon.html lays its band over this drawing rather than over a
+    baked PNG of it, so `pnpm icons` (../render.ts) re-bakes all six from
+    here and neither channel has to be baked before the other.
+
+    Three things decide the drawing:
+
+    The manifest lists icon-512.png with `purpose: 'maskable'`, so Android
+    may crop to the middle 80% — a circle of radius 205 on this canvas.
+    Nothing lit reaches past 198.
+
+    Nothing load-bearing goes below y=425, which is where staging's band
+    starts (../staging/icon.html).
+
+    And every edge in it is a contrast ratio, because at 48px value is all
+    that is left — the merlons, the window and the eaves have gone. So no
+    boundary that carries the silhouette sits closer than 2.7:1 (sampled
+    off the baked 512):
+
+      wall  vs field   10.4:1      roof lit   vs field    3.8:1
+      door  vs wall    10.2:1      roof shade vs field    2.8:1
+      eave  vs roof     4.1:1      pennant    vs field    7.2:1
+
+    The lit and shaded halves of one wall (1.7:1) and of one roof (1.4:1)
+    sit far closer than that on purpose: those are shading within a
+    surface, not a boundary between two, and pushing them apart reads as
+    two materials rather than one in the light.
+
+    The ratios above are a deliberate step down from a first pass that ran
+    them to 14.2 / 4.7 / 3.4. Legible was never the question past about
+    2.6:1 here, and the louder setting bought nothing the eye wanted.
+
+    Which is what decides the colours. A green roof on a green field is the
+    one thing this cannot do — the old drawing had its shaded roof face at
+    1.11:1 against the ground, which is not a dark roof, it is no roof —
+    so the field drops well below the manifest's theme_color #223526 and
+    the roof parts from it in value rather than hue: it is a softened take
+    on the faction green the game paints this very surface with, since
+    src/render/factionPalette.ts repaints the roof slot #008454 per owner.
+    Roof and wall still only part at 2.5:1, so a dark timber eave is drawn
+    along the join and does the separating there. Walls stay the plaster
+    #efe3cc of src/render/palette.ts, and the gold is the menu's GOLD.
+  -->
+  <defs>
+    <radialGradient id="field" cx="50%" cy="34%" r="78%">
+      <stop offset="0" stop-color="#2d4634"/>
+      <stop offset="1" stop-color="#1b2a21"/>
+    </radialGradient>
+    <linearGradient id="lit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f4ecd9"/>
+      <stop offset="1" stop-color="#e7dbc3"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#field)"/>
+  <ellipse cx="256" cy="399" rx="168" ry="22" fill="#050a07" opacity="0.55"/>
+
+  <!-- side towers: crenellated, and not roofed as well -->
+  <g>
+    <rect x="118" y="252" width="68" height="147" fill="url(#lit)"/>
+    <rect x="159" y="252" width="27" height="147" fill="#c2b094"/>
+    <rect x="118" y="236" width="19" height="22" fill="url(#lit)"/>
+    <rect x="142" y="236" width="19" height="22" fill="url(#lit)"/>
+    <rect x="166" y="236" width="20" height="22" fill="#c2b094"/>
+  </g>
+  <g>
+    <rect x="326" y="252" width="68" height="147" fill="url(#lit)"/>
+    <rect x="367" y="252" width="27" height="147" fill="#c2b094"/>
+    <rect x="326" y="236" width="19" height="22" fill="url(#lit)"/>
+    <rect x="350" y="236" width="19" height="22" fill="url(#lit)"/>
+    <rect x="374" y="236" width="20" height="22" fill="#c2b094"/>
+  </g>
+
+  <!-- the keep -->
+  <rect x="196" y="200" width="120" height="199" fill="url(#lit)"/>
+  <rect x="284" y="200" width="32" height="199" fill="#c2b094"/>
+
+  <!-- roof, in the faction green, over the eave that separates it -->
+  <path d="M256 104 L344 206 L256 206 Z" fill="#3d8a61"/>
+  <path d="M256 104 L168 206 L256 206 Z" fill="#4ca476"/>
+  <rect x="160" y="198" width="192" height="15" rx="4" fill="#443020"/>
+
+  <rect x="252" y="70" width="9" height="42" rx="4" fill="#443020"/>
+  <path d="M261 74 L309 89 L261 104 Z" fill="#eac97b"/>
+
+  <!-- a lit window, in a frame dark enough to hold it off the plaster -->
+  <rect x="238" y="236" width="36" height="42" rx="6" fill="#443020"/>
+  <rect x="246" y="244" width="20" height="26" rx="3" fill="#eac97b"/>
+
+  <path d="M232 399 L232 346 A24 24 0 0 1 280 346 L280 399 Z" fill="#443020"/>
+</svg>

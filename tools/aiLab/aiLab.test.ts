@@ -154,6 +154,58 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * the bound. (8 inverted outright — the advised war ran 5_311 ticks LATER
  * — and 2, 10 and 11 tied.)
  *
+ * ...and to 5 when the man on the doorstep kept it (replay 69): a serf
+ * holds his spot for a few ticks after setting a load down instead of
+ * being strolled off it, and a load is left on the board for the man
+ * already walking to its source rather than dealt to whoever is idle
+ * across the valley. Both re-time every haul, and the first moves the
+ * random stream as well — wander draws once per eligible serf, and this
+ * changes who is eligible on a given tick. On 1 the two runs then came out
+ * IDENTICAL, 14_847 apiece and the same digest, which is the tie in its
+ * purest form: the advice reached the brain and changed nothing at all.
+ * Twelve seeds were re-measured; 5 is picked on the same two counts as
+ * ever, seat 1 winning both ways at 16_645 unadvised and 11_268 marching
+ * at four, which is 5_377 ticks of gap and 5_355 under the bound. (3 and 8
+ * had the wider gaps and neither is usable here: 3 hands the valley to the
+ * other seat when the advice lands, which is a different claim from the
+ * one this test makes, and 8 leaves the control undecided past 30_000.
+ * 4, 9 and 12 tied the way 1 did.)
+ *
+ * ...and back to 1 when the two arms' clocks were re-cut (replay 71): the
+ * archer's course at the range, the knight's at the barracks, and the
+ * bowstave, the spear and the sword at the Smith. Five durations, which
+ * re-time every forge and every course and so every march behind them. On
+ * 5 the advised war INVERTED — the advice ending the same war thousands of
+ * ticks LATER, and handing the valley to the other seat besides — which is
+ * the one reading this fixture cannot carry. Twelve seeds were
+ * re-measured; 1 is picked on the same two counts as ever, seat 1 winning
+ * both ways at 13_030 unadvised and 10_060 marching at four, which is
+ * 2_970 ticks of gap and 8_970 under the bound. (9 is the only other seed
+ * where seat 1 wins both ways, and its gap is 452 ticks — the thin margin
+ * that keeps bringing us back here. 11 hands the valley to the other seat
+ * when the advice lands, which is what 3 was rejected for last time; 4's
+ * control runs past the bound; 3, 7 and 8 inverted the way 5 did, and 2,
+ * 6, 10 and 12 tied.)
+ *
+ * Still 1 when the serfs got their knives (replay 72): a civilian answers
+ * the man cutting him down, fights like a weak melee unit under an A
+ * order, and takes up room in the separation pass while that order stands
+ * — and a seat with nothing left to fight with sends the village in
+ * (systems/ai.ts #lastStand). None of it reaches THIS fixture, which is a
+ * narrower claim than "no seat ever arms a villager" — the stand is a seat
+ * issuing exactly that order, and it fires in seven of ten steward-vs-
+ * warlord matches with bandits on. What it wants is an enemy at the
+ * storehouse of a seat with no soldier anywhere and no roof that could
+ * train one, and two stewards on quiet ground never reach that shape:
+ * this fixture runs with `bandits: false`, and the seat that loses here
+ * loses with an army in the field. Every other way a villager is armed is
+ * the player's, and no player plays this fixture. Re-measured on the merged sim rather than assumed,
+ * since the clocks above moved in the same build: 13_030 and 10_060 again,
+ * to the tick. (13 is the only other seed where seat 1 wins both ways,
+ * at 15_345 and 12_608; 5 and 9 invert, 7's control never decides, and 2,
+ * 4, 6, 10 and 12 tie.)
+ *
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
 const FULL_MATCH_SEED = 1;
@@ -715,6 +767,7 @@ describe('the fingerprints', () => {
     stanceSwitches: 0,
     wipes: 0,
     flanked: 0,
+    lastStands: 0,
     ...over,
   });
 
@@ -1130,13 +1183,14 @@ describe('the mutation space', () => {
   });
 
   it('moves a knob pinned at its boundary instead of wasting the mutation', () => {
-    // Every printed playbook holds marchConfidence at 0, the bottom of its
-    // range. A step "down" from there has to become a step up, or the one
-    // knob the repo most wants searched would never move.
+    // The Mason holds marchConfidence at 0, the bottom of its range — the
+    // gate never speaks for a seat that does not march. A step "down" from
+    // there has to become a step up, or a knob pinned at a bound would
+    // burn every mutation it was dealt.
     const rng = new Rng(2);
     let moved = 0;
     for (let i = 0; i < 60; i++) {
-      const m = mutate(AI_STRATEGIES[AiStrategyId.steward], rng, {
+      const m = mutate(AI_STRATEGIES[AiStrategyId.mason], rng, {
         frozen: MUTABLE_KNOBS.filter(k => k !== 'marchConfidence'),
       });
       expect(m.changes).toHaveLength(1);

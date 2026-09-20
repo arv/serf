@@ -134,7 +134,12 @@ pnpm dev   # then /tools/modelLab/_farm.html
 
 `?t=<0..1>` scrubs the mowing stroke; `?strip=mow|walk|idle` lays one clip
 out left to right instead, scythe in hand, which is how the stroke and the
-carry were tuned. `?marks=1` beads every walk mark to check the circuit
+carry were tuned. The scythe has a hold for each: `?rx=`/`?rz=` aim the haft
+out of the fist, `?ry=` rolls the tool about that haft (which way the blade
+faces), and `?sy=` slides the fist along the snath — the knobs
+`SCYTHE_CARRY` and `SCYTHE_MOW` in `src/render/characters.ts` were read off.
+They override whichever hold the clip on screen wears, so tune the mowing
+one under `?strip=mow` and the carried one under `?strip=walk`. `?marks=1` beads every walk mark to check the circuit
 against the rows; `?rival=1` turns the seat red for the team roof.
 `w`/`h`/`zoom`/`fy` frame the shot as everywhere else.
 
@@ -175,6 +180,33 @@ looked at here and why they lost. `?serf=0` sends the man beside it home,
 everywhere else. The page also prints the model's height and how many of its
 triangles land in the team-colour slot — a monument nobody's colour reaches
 is a monument every seat builds identically.
+
+## The training cue
+
+`_training.html` is where the barracks, the archery range and the castle were
+taught to say they are busy. Like `_pier.html` it drives a real
+`BuildingSync` rather than composing models by hand — here to render the cue
+itself: it stands hand-written `BuildingSnap`s in one and lets it run,
+so what is on the screen is the whole chain a match draws — the panes and
+wall spills `assets.ts` finds in each model's own openings, the rig
+`buildingSync` harvests off it, and the level it eases and flickers. Break
+the wiring and the page goes dark, which is the point of it.
+
+```sh
+pnpm dev   # then /tools/modelLab/_training.html
+```
+
+`?pair=1` stands each building beside a cold copy of itself, which is the only
+comparison that matters: the cue has to read as a *difference*, not as
+decoration. `?cold=1` empties the queues instead. `?t=<seconds>` freezes the
+clock at a moment — stepped at the frame rate, so it is repeatable and a
+series of them cuts together into a clip — and `?warm=<seconds>` runs the
+light up before that freeze, since the level eases and a cold start caught at
+t=0 shows nothing. `?hide=spill|pane` drops one of the glow's two layers,
+which is how an invisible spill was told apart from a misplaced one.
+`?only=barracks|range|castle` blows one up; `?yaw`, `?zoom`, `?fy`, `?w`,
+`?h` and `?gap` frame the shot as everywhere else — and turn the camera
+before judging it, since the windows on the far side are lit too.
 
 ## Publishing the gallery
 

@@ -2,6 +2,7 @@ import type {Enum} from '../../shared/enum.ts';
 import {atBuilding, walkToBuilding} from '../arrival.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {
+  DELIVERY_STAND,
   JOB_BLOCKED_BACKOFF,
   MATCHER_INTERVAL,
   ABBEY_ALE_CAP,
@@ -9,6 +10,7 @@ import {
   EVAC_PRIORITY,
   HAUL_SHARE,
   RATION_STOCK,
+  TICKS_PER_SECOND,
   type HaulPriority,
 } from '../defs/balance.ts';
 import {
@@ -23,7 +25,9 @@ import {
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {GOODS, goodEntries, goodKeys} from '../defs/goods.ts';
+import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import * as TechId from '../defs/techIdEnum.ts';
+import {effectiveSpeed} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import * as DemandKind from '../demandKindEnum.ts';
 import {
@@ -35,6 +39,7 @@ import {
 } from '../entities.ts';
 import * as HaulPhase from '../haulPhaseEnum.ts';
 import {findPathToAdjacent} from '../path.ts';
+import {getModifier} from '../techHelpers.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {
@@ -770,6 +775,51 @@ function deliveryTargetFor(
 const PATH_TRIES = 3;
 
 /**
+ * The walk a hauler still has in front of him before he is standing free
+ * at his job's destination — the one measure the inbound census keeps (see
+ * it, in dispatch, for what it is for). Undefined when the job's buildings
+ * are already gone and reconcile has yet to kill it.
+ *
+ * `stride` converts a WAIT into the tiles the seat's own serfs cover in
+ * that time; dispatch memoizes it per owner, because asking costs a walk
+ * over every researched tech.
+ */
+function reachToDest(
+  world: World,
+  serf: Unit,
+  job: HaulJob,
+  stride: (owner: Owner) => number,
+): number | undefined {
+  const dest = world.buildings.get(job.to);
+  if (!dest || dest.dead) return undefined;
+  const dc = centerOf(dest);
+  // Carrying: it is on his shoulders, so he arrives when he does.
+  if (job.phase === HaulPhase.toDropoff)
+    return Math.abs(serf.x - dc.x) + Math.abs(serf.y - dc.y);
+  // Still fetching: the walk to the shelf he draws from, and then the walk
+  // to the door with what he draws.
+  const src = world.buildings.get(job.from);
+  if (!src || src.dead) return undefined;
+  const sc = centerOf(src);
+  const reach =
+    Math.abs(serf.x - sc.x) +
+    Math.abs(serf.y - sc.y) +
+    Math.abs(sc.x - dc.x) +
+    Math.abs(sc.y - dc.y);
+  // And the windlass, where there is one. A well gives its water up over
+  // drawTicks and `progress` holds the hauler at the shaft for every tick
+  // of it before the return leg starts — six seconds, which is most of ten
+  // tiles of walking. Counted as pure movement he read as the soonest hand
+  // to a door he would not reach for another two minutes, and withheld a
+  // load there for the whole draw.
+  const wait =
+    job.drawUntil !== undefined
+      ? Math.max(0, job.drawUntil - world.tick) // on the windlass now
+      : (buildingDef(src.type).drawTicks ?? 0); // not there yet
+  return wait > 0 ? reach + wait * stride(job.owner) : reach;
+}
+
+/**
  * One key per (destination, good), as `id * PULL_STRIDE + good`.
  *
  * Derived from the goods themselves rather than written down as a number
@@ -981,7 +1031,12 @@ function takeStandingJobs(
       idle.splice(i, 1);
       job.phase = HaulPhase.toPickup;
       job.serfId = serf.id;
-      job.blockedCount = 0; // claimed, so the unreachable tally starts over
+      // Claimed, so the unreachable tally starts over — and the backoff
+      // with it. A man who can walk to this door is the standing answer to
+      // the question the backoff was asking, and leaving the stamp on
+      // would hide the job again if he were ever stood back down.
+      job.blockedCount = 0;
+      job.blockedUntil = undefined;
       serf.jobId = job.id;
       serf.path = path;
       serf.pathIdx = 0;
@@ -992,17 +1047,23 @@ function takeStandingJobs(
 }
 
 function dispatch(world: World): void {
-  // Collect open, unblocked jobs in claim order.
+  // Collect the open jobs, in two lists, because the two claiming routes
+  // below do not mean the same thing by "blocked". The backoff records
+  // that no idle serf could WALK to the source (see the failure path at
+  // the foot of this function) — which is a fact about the ground between
+  // here and there, and says nothing whatever about a man already standing
+  // on the shelf. Hiding the load from him for JOB_BLOCKED_BACKOFF ticks
+  // is how a serf ends up standing on goods doing nothing, which is the
+  // one thing this whole file exists to prevent.
   const open: HaulJob[] = [];
+  const standing: HaulJob[] = [];
   for (const job of world.jobs.values()) {
-    if (
-      job.phase === HaulPhase.open &&
-      (job.blockedUntil === undefined || world.tick >= job.blockedUntil)
-    ) {
+    if (job.phase !== HaulPhase.open) continue;
+    standing.push(job);
+    if (job.blockedUntil === undefined || world.tick >= job.blockedUntil)
       open.push(job);
-    }
   }
-  if (open.length === 0) return;
+  if (standing.length === 0) return;
 
   // Idle serfs, bucketed by faction — a job is only ever offered to serfs of
   // its own owner.
@@ -1030,7 +1091,7 @@ function dispatch(world: World): void {
   if (idleByOwner.size === 0) return;
 
   // The load home, before the board is dealt at all (see takeStandingJobs).
-  takeStandingJobs(world, open, idleByOwner);
+  takeStandingJobs(world, standing, idleByOwner);
   // ...which can have taken the last free hand. The check above no longer
   // covers the sort below, so it is asked again: the buckets survive, but
   // every man in them may have just walked off with a load.
@@ -1042,6 +1103,9 @@ function dispatch(world: World): void {
     }
   }
   if (!anyIdle) return;
+  // Everything left is backed off: the standing route has had its look,
+  // and the board has nothing it may deal this tick.
+  if (open.length === 0) return;
 
   // Sort only once we know somebody can actually claim a job — this runs
   // every tick, and most ticks have no idle serfs. Oldest first; the tier is
@@ -1060,11 +1124,98 @@ function dispatch(world: World): void {
   const pull = repairPull(world);
   const queues = new Map<Owner, [HaulJob[], HaulJob[], HaulJob[]]>();
   const busy = new Map<Owner, [number, number, number]>();
+  /**
+   * Per building, how far off each man is who is already walking there on
+   * another errand and will be free standing at it — a hauler whose load
+   * lands at this very door, and whom `progress` then stands down idle
+   * right there.
+   *
+   * The board could not see them, and that cost the village its cheapest
+   * trip twice over. A serf carries the miners' bread out; while he is
+   * still on the road the matcher raises the mine's silver, and this loop's
+   * own dispatch — which only ever looks at men who are idle NOW — sends
+   * the nearest idle hand across the map for it. The job is claimed by the
+   * time the bread lands, so it is off the open board and out of reach of
+   * the man standing on the shelf (takeStandingJobs deals open jobs only).
+   * He walks home empty and the other man walks out. Two crossings for a
+   * load a man was about to be standing on.
+   *
+   * So the claim goes to whoever has the least walk left to the SOURCE,
+   * counting the men already walking there on another errand (a rank on
+   * Manhattan distance, not a prediction of arrival — see where it is
+   * spent, below). Preventing, not undoing: nobody is
+   * pulled off a job he has claimed — the load is simply left on the board
+   * for the man who is nearly there, and he takes it by the ordinary
+   * standing-job route on the pass after he lands.
+   *
+   * The WHOLE errand counts, not just its last leg. A man still walking to
+   * the storehouse to collect the bread is as surely bound for the mine as
+   * one already carrying it — he just has the shelf to call at first — so
+   * his reach is the walk to that shelf plus the walk here with it.
+   * Counting only the dropoff leg left the window open for exactly as long
+   * as a pickup takes, which is usually the longer half of the errand: the
+   * silver was dealt while he fetched, and he arrived to a reserved shelf
+   * and an empty board.
+   *
+   * What is NOT here is anyone who will not be a free pair of hands at
+   * this door: a man coming to take up a post (UnitTaskKind.staff) stops
+   * being a hand at all, and a plain move order says nothing about intent.
+   * A man whose job DRAWS from this building is no exception to bother
+   * stating — the key is his destination, so he is simply not in it.
+   *
+   * Distances, not the men: the comparison below only ever wanted a
+   * number, and the anchor is the same building either way (this key is
+   * that loop's `job.from`), so `centerOf` agrees and the work is done
+   * once here instead of per job there.
+   *
+   * Gathered in the hands-in-flight pass rather than one of its own: this
+   * runs every tick, and that pass already walks exactly the jobs with a
+   * carrier on them, under exactly the owner filter this wants. Map order
+   * is id order, the tie-break the whole sim reads by, so the census comes
+   * out the same every run.
+   */
+  const inbound = new Map<EntityId, number[]>();
+  /**
+   * Tiles a serf of this seat covers in a tick — the bridge that puts a
+   * WAIT on the same scale as the WALK either side of it, since the census
+   * measures in tiles and one of the things in a hauler's way is a
+   * windlass.
+   *
+   * The seat's own stride, boots and all (ModifierKey.serfSpeed, +15%),
+   * because reading the raw 1.5 converts a wait into too FEW tiles for a
+   * booted village — and too few tiles is too short a reach, which is the
+   * side that withholds a load it should have dealt. Erring there is the
+   * very fault the draw term exists to fix, in miniature.
+   *
+   * Lazily, per seat, and only ever asked where the source actually makes
+   * a man wait: getModifier walks every researched tech (movementSystem
+   * caches it per tick for that same reason), and the well is the only
+   * building in the game with drawTicks, so a village without one never
+   * pays for this at all.
+   */
+  const strides: number[] = [];
+  const strideOf = (owner: Owner): number =>
+    (strides[owner] ??=
+      effectiveSpeed(
+        UnitTypeId.serf,
+        getModifier(world, owner, ModifierKey.serfSpeed),
+      ) / TICKS_PER_SECOND);
   for (const job of world.jobs.values()) {
     if (job.serfId === undefined || !idleByOwner.has(job.owner)) continue;
     let b = busy.get(job.owner);
     if (!b) busy.set(job.owner, (b = [0, 0, 0]));
     b[tierOf(job, pull) - 1]!++;
+    const serf = world.units.get(job.serfId);
+    // Both halves of the link, because reconcile repairs a broken one on
+    // its own pass rather than this one. A serf whose `jobId` has moved on
+    // is no longer walking this errand, and counting him for it would book
+    // a second slot beside the one his real errand already books.
+    if (!serf || serf.dead || serf.jobId !== job.id) continue;
+    const reach = reachToDest(world, serf, job, strideOf);
+    if (reach === undefined) continue; // reconcile will kill the job
+    let hands = inbound.get(job.to);
+    if (!hands) inbound.set(job.to, (hands = []));
+    hands.push(reach);
   }
   for (const job of open) {
     // Taken by takeStandingJobs, which ran above — and counted in `busy`
@@ -1146,13 +1297,14 @@ function dispatch(world: World): void {
       // that no idle serf can reach still lands on the backoff, which is
       // what it was written for.
       const c = centerOf(from);
-      let serf: Unit | undefined;
-      let path: number[] | null = null;
-      let bestIdx = -1;
       // Whoever has already failed to reach THIS source during this pass.
       // A building's jobs come up together and it is the same walk every
       // time, so asking twice only spends the pathfinder.
       let refused = unreachableBy.get(job.from);
+
+      let serf: Unit | undefined;
+      let path: number[] | null = null;
+      let bestIdx = -1;
       for (let tries = 0; tries < PATH_TRIES; tries++) {
         bestIdx = -1;
         let bestDist = Infinity;
@@ -1199,7 +1351,60 @@ function dispatch(world: World): void {
         }
         continue;
       }
+      // Somebody can walk to this door, whatever an older pass concluded.
       job.blockedCount = 0;
+
+      // Is somebody already nearly here on another errand? Then the load
+      // is his: leave it open, and he takes it from the doorstep on the
+      // pass after he lands (takeStandingJobs). See the census above for
+      // what this is worth and why it withholds rather than reassigns.
+      //
+      // Weighed against the man the scan actually settled on, which is why
+      // it is asked down here rather than before the pathfinder. Up there
+      // the only candidate to hand was the NEAREST idle serf, and he may
+      // be sealed into a pocket at the wall — so a load could lose its
+      // withholding to a man who was never going to carry it, and go out
+      // with somebody further off than the carrier already walking here.
+      // Down here the comparison is against the man who would take it.
+      // The cost is a path for a load that ends up withheld, which is
+      // bounded by the census being empty for every building nobody is
+      // walking to.
+      //
+      // Manhattan on both sides, and deliberately nothing cleverer. It is
+      // a rank, not a prediction: the pathfinder walks eight directions
+      // over trails and roads that each carry their own step cost and
+      // speed (path.ts, systems/movement.ts), so neither number is a time
+      // and a man whose route detours or crosses slow ground can read
+      // nearer than he will arrive. What matters is that BOTH sides are
+      // measured the same way, which is the same discipline the candidate
+      // scan below already keeps — it takes the nearest by this measure
+      // and only then asks the pathfinder whether he can get there at all.
+      // Pricing a real route here would cost a search per candidate per
+      // job, which is the very expense PATH_TRIES exists to bound.
+      //
+      // A tie goes to the idle man: he can set off now.
+      //
+      // Bounded by nothing but that comparison, deliberately, and at every
+      // tier: a load waits only while waiting is genuinely the faster way
+      // to move it, and the moment it is not — the man dies, is recruited
+      // off the road, or simply falls behind — the next pass deals it.
+      const waiting = inbound.get(job.from);
+      if (waiting !== undefined && waiting.length > 0) {
+        const taker = Math.abs(serf.x - c.x) + Math.abs(serf.y - c.y);
+        let soonestK = -1;
+        let soonestReach = Infinity;
+        for (let k = 0; k < waiting.length; k++) {
+          const reach = waiting[k]!;
+          if (reach < soonestReach) {
+            soonestReach = reach;
+            soonestK = k;
+          }
+        }
+        if (soonestK >= 0 && soonestReach < taker) {
+          waiting.splice(soonestK, 1); // one man, one load
+          continue; // left on the board for him
+        }
+      }
 
       idle.splice(bestIdx, 1);
       hands[tier]!++;
@@ -1209,6 +1414,18 @@ function dispatch(world: World): void {
       serf.path = path;
       serf.pathIdx = 0;
       serf.task = {t: UnitTaskKind.haul};
+      // And he is bound for this job's destination now, so a load sourced
+      // there LATER IN THIS SAME PASS can wait for him like any other
+      // inbound hand. The census is built once, before the queue is dealt,
+      // so without this the chain the whole mechanism is for — carry a
+      // load in, take the next one out — was broken for any second load
+      // the same pass happened to reach.
+      const bound = reachToDest(world, serf, job, strideOf);
+      if (bound !== undefined) {
+        let hs = inbound.get(job.to);
+        if (!hs) inbound.set(job.to, (hs = []));
+        hs.push(bound);
+      }
     }
   }
 }
@@ -1315,7 +1532,13 @@ function progress(world: World): void {
       deliver(world, to, job.good);
       unit.carrying = undefined;
       unit.jobId = undefined;
-      unit.task = {t: UnitTaskKind.idle, until: world.tick};
+      // Left standing where he set it down, for DELIVERY_STAND ticks: the
+      // doorstep is a claim on this building's own waiting load
+      // (takeStandingJobs), and wander runs later in this very tick and
+      // would otherwise walk him off it. Still idle, so the recruitment
+      // sweep and the board both see him this tick exactly as before —
+      // `until` is read by wanderSystem alone for a serf.
+      unit.task = {t: UnitTaskKind.idle, until: world.tick + DELIVERY_STAND};
       world.jobs.delete(job.id);
     }
   }

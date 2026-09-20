@@ -20,6 +20,292 @@
  * directly.
  */
 /**
+ * 74: the captain looks at who is standing there before he marches.
+ *
+ * `marchConfidence` (defs/aiStrategies.ts) has been 0 on every printed
+ * playbook since combatOdds.ts was written, so the predictor that file
+ * builds was never once consulted in a shipped match: a seat marched on a
+ * headcount and nothing else. Seed 42945388 is what that costs. The
+ * lower-left seat lost six men at a rival castle, then walked three
+ * spearmen at the same ground twice more, the second time into fifteen
+ * archers — a fight the predictor reads at 0% of the party surviving,
+ * against 73% for the seven spearmen it could have waited for. The
+ * playbooks now print 15 to 35, an appetite per lord, and the gate speaks.
+ *
+ * Three repairs in systems/ai.ts went with it, all the same mistake: the
+ * wipe lesson, the retreat rule and the flanking march's legs counted the
+ * seat's whole ROSTER where they meant the party that marched. A barracks
+ * does not stop while the column is away, so one recruit finishing at home
+ * kept the count off zero — and on that seed the lesson was never filed,
+ * which is why the bar never rose and the seat kept going back. All three
+ * read `#marchParty` now. The legs are the subtler one: ordering the whole
+ * army down the next waypoint swept the yard's recruits out with it, men
+ * the other two then read as never having marched, so a rout turned the
+ * survivors home and left the recruits walking at the garrison alone —
+ * and soldiers standing at the storehouse dragged the column's middle back
+ * home, so "the middle has reached the waypoint" stopped being true of
+ * anybody and the flank collapsed into a straight march at the wall.
+ *
+ * And a fallen rival's village is let alone: a harassment sortie no longer
+ * picks a building off an eliminated seat, and one already walking turns
+ * home when its target's lord falls. Losing the storehouse is elimination
+ * and what stands afterwards cannot put the seat back in the game, so the
+ * party, the cooldown and the walk bought nothing.
+ *
+ * All of it is AI decision-making, which reaches the tick as commands —
+ * different orders on different ticks, so every recorded match diverges.
+ *
+ * 73's note follows.
+ *
+ * 73: the knife is re-priced, one point to two.
+ *
+ * 72 gave every civilian a knife and deliberately set it at the bottom of
+ * the scale; a pass over the tally says it landed below the bottom. Nine
+ * serfs under an A order were needed to put down one knight, and eight
+ * died to leave him standing at thirteen hit points — a mob that loses
+ * every man and the fight is not a weak answer, it is no answer, and the
+ * last stand (systems/ai.ts #lastStand) is built on the assumption that
+ * the village going in accomplishes something. At two the charge costs
+ * seven and three walk away from it, four take a bandit, and six take a
+ * marauder.
+ *
+ * One number in defs/units.ts and nothing else: still no class, so the
+ * counter table still prices his blow on neither side, still the longest
+ * cooldown on the field, still not a `combat` block. What he is in the
+ * order of battle does not move — only how hard he swings.
+ *
+ * It is the wall as well as the man. MILITIA_BUILDING_MULT (systems/
+ * combat.ts) multiplies this same figure, so the mob's siege doubles with
+ * it: a lone serf takes a bandit camp down in a quarter of an hour where
+ * he took half of one. He is still the worst siege engine on the map by a
+ * wide margin, and a villager left hacking at a camp for fifteen minutes
+ * is a villager not working either way.
+ *
+ * Sim behavior, and in the plainest way: a blow that lands for two where
+ * it landed for one kills a man on a different tick, and everything
+ * downstream of a body falling early moves with it.
+ *
+ * 72's note follows.
+ *
+ * 72: even the serfs fight, and a fighting serf is in the way.
+ *
+ * Every civilian now carries a knife (defs/units.ts MILITIA): one point of
+ * damage on a thirty-tick cooldown, at a melee arm's reach, landing flat —
+ * no class, so the counter table prices it on neither side. It is
+ * deliberately not a `combat` block, because that field is the engine's
+ * word for "soldier" everywhere else (army counts, formation rank, the
+ * select-army key, the AI's reading of a rival's strength) and none of
+ * that moves: a serf is still a serf.
+ *
+ * He fights in two modes. Unordered — on an errand, a stroll, a plain
+ * move, standing idle — he acquires nobody and only ever answers the man
+ * already striking him, without dropping his load or breaking stride. Under
+ * an attack order (A over the ground, or over an enemy building) he fights
+ * like the weak melee unit he is imitating: he acquires inside four tiles,
+ * closes, chases and strikes, and hacks at a wall at the worst rate on the
+ * map. A plain move disarms him again. A seat issues it in exactly one
+ * situation — the last stand (systems/ai.ts #lastStand), when it has no
+ * soldier left, no roof that could train one and an enemy at the
+ * storehouse it is eliminated by losing — so outside that, in a match
+ * against the seats, this mode is the player's.
+ *
+ * And the separation pass takes him while that order stands (units.ts
+ * takesUpRoom): a serf sent in with A is a body soldiers cannot walk
+ * through, his own side's included, where a hauler is walked straight
+ * through as he always was — even while he is being cut down, because
+ * what makes a man solid is the order, never the fight that found him.
+ * That is the half of this that moves positions rather than hit points,
+ * and it moves them only where a player sent villagers to fight.
+ *
+ * The random stream is not moved directly: a civilian's task is what
+ * decides whether wanderSystem draws for him, and the reflex never touches
+ * his task (the attack order does, but an order is already in the log).
+ * What moves is when men die, and — under an A order — where they stand,
+ * which is enough: everything downstream of a body falling a tick later
+ * moves with it.
+ *
+ * 71's note follows.
+ *
+ * 71: the two arms' clocks, re-cut. Five numbers move and no stat does: the
+ * archer's course at the range 9s -> 10s, the knight's 15s -> 14s at the
+ * barracks, and at the Smith the bowstave 8s -> 9s with the spear 10s -> 9s
+ * and the sword 14s -> 13s beside it. The spearman's course stays at ten:
+ * he is the bow's own counter and the cheaper of the two iron arms, so his
+ * second is spent on the forge's spear and nowhere else.
+ *
+ * What it answers is throughput, not the duel. The bow is the one arm whose
+ * bill carries no iron, and it was also the quickest through both doors it
+ * uses — anvil and butt — so a village on the bow line fielded men at a rate
+ * the steel line could not match however the counters went. Nothing about
+ * who beats whom changes (defs/units.ts is untouched); what changes is how
+ * many of each are standing when the two meet.
+ *
+ * Sim behavior, so a log recorded before this build diverges the moment a
+ * forge or a course finishes on a different tick from the one it finished
+ * on then — which is inside the first weapon either seat orders, and every
+ * haul, hire and march behind it.
+ *
+ * 70's note follows.
+ *
+ * 70: a load waits for the whole of a man's errand, not its last leg.
+ *
+ * 69 left a load on the board for a man already walking to its source,
+ * rather than dealing it to whoever was idle across the valley — but it
+ * counted him only once the bread was on his shoulders. A serf still
+ * walking to the storehouse to COLLECT that bread is as surely bound for
+ * the mine; he just has a shelf to call at first. So the window stayed
+ * open for as long as a pickup takes, which is usually the longer half of
+ * the errand — a serf is dispatched from wherever he happens to be
+ * standing — and the silver went on being dealt while he fetched, leaving
+ * him to arrive at a reserved shelf and an empty board.
+ *
+ * The census now reaches a man in either leg, and his reach is the walk
+ * still in front of him: straight to the door when he is carrying, and the
+ * walk to the shelf plus the walk here with it when he is not. The rule
+ * over it is unchanged and still the only bound — a load is withheld only
+ * while that reach beats the nearest idle man's, at every tier, so waiting
+ * has to be the faster way to move it.
+ *
+ * Sim behavior on both axes again, the same two as 69: which hands take
+ * which loads, and the random stream under them. Withholding is what moves
+ * the stream — a load left on the board is a man left IDLE who would
+ * otherwise have been dealt it, and wanderSystem draws once for every idle
+ * serf it walks. Widening the census widens that, so the draws diverge from
+ * the first load this withholds and every roll after it differs.
+ *
+ * 69's note follows.
+ *
+ * 69: the man on the doorstep keeps it, and the load waits for him.
+ *
+ * Two holes in the same trip, the one takeStandingJobs was written for:
+ * bread out to the mine and silver back, in one crossing rather than two.
+ *
+ * A serf set down at the end of a delivery with `until: world.tick`, and
+ * wander — later in that same tick — reads that as already expired. So a
+ * third of the time the man who had just set the bread down was strolled
+ * off the doorstep before the board looked at him again, lost the standing
+ * claim (it is measured in distance) and went back into the tier lottery,
+ * which sent him home empty past the silver. He now holds the spot for
+ * DELIVERY_STAND ticks, wide enough for one whole matcher-and-dispatch
+ * pass, because the load he is standing on may not have a job yet.
+ *
+ * And the board only ever looked at men idle THAT tick, so while the bread
+ * was still on the road the mine's silver was dealt to the nearest idle
+ * hand wherever he stood — which put the job off the open board and out of
+ * reach of the man who then arrived on top of it. The claim now goes to
+ * whoever can be at the source soonest, counting the men already walking
+ * there on another errand: nobody is pulled off a job, the load is simply
+ * left on the board for the man who is nearly there.
+ *
+ * With them, a load backed off as unreachable stays visible to a serf
+ * standing on it. The backoff records that nobody could WALK to a source,
+ * which is a fact about the ground in between and says nothing about a man
+ * already at the door.
+ *
+ * Sim behavior, and on both axes: the hauls differ, and so does the random
+ * stream — wander draws once per eligible serf, and this changes who is
+ * eligible on a given tick. Every roll after the first delivery differs,
+ * so a replay recorded before this build re-runs into another world.
+ *
+ * 68's note follows.
+ *
+ * 68: a bare larder outranks the widest gap at the forge.
+ *
+ * A Smith on auto picks its next batch from a census of the village's open
+ * pegs — posts standing tool-less, minus tools already free to reach them
+ * — and the widest gap won, ties broken on GOODS order (autoForgeIndex,
+ * systems/production.ts). It now ranks on (feeds the village, gap): with
+ * no bread the village can eat, a peg an open post on the bread chain is
+ * asking for comes first — the field's scythe, the oven's cauldron, the
+ * shore's rod. Which roofs those are is closed over the defs rather than
+ * listed, so a new one between the field and the oven joins by existing;
+ * and it is the asking POST that earns the lift, not the peg, because the
+ * oven and the brewery hang the same cauldron and only one of them feeds
+ * anybody. The lift also wants a batch this fire can start now: auto may
+ * still name one it cannot (that is how a Smith asks for what it lacks),
+ * but a hungry village must not spend that on a rod it has no wood for
+ * while a ready axe stands untouched. With bread on any shelf it is the
+ * same widest-gap rule it always was.
+ *
+ * "Bread the village can eat" is every output shelf plus the pantry of a
+ * post that eats at the face, and deliberately not every input buffer: a
+ * barracks holds its recruit's rations in that same field and nothing ever
+ * carries them back out, so counting them would read a village whose last
+ * loaves are promised to a spearman as one that can feed its miners.
+ *
+ * Sim behavior, so the logs break: a Smith left on auto is a Smith whose
+ * next batch the tick decides, and this changes which batch that is. One
+ * different batch moves every haul, bind and hire after it.
+ *
+ * Why it was worth breaking them: the chains are not symmetric, and the
+ * old tie-break did not know it. Every mine eats (MINE_RATION_PER), so the
+ * ore that pays for the next axe cannot be cut until the oven runs — while
+ * an axe buys timber a village with a full granary can wait for. Where
+ * that bites is a bare rack: a commission whose whole puzzle is the empty
+ * pegs (Hammer and Haft) spends its opening iron one batch at a time, and
+ * a tie broken toward the woods can leave the field, the oven and the
+ * shaft all shut with nothing in the valley to eat. That is the circle the
+ * pickaxe's recipe is written to avoid one chain over ("lose your picks
+ * and no ore ever flows again", defs/buildings.ts) — reached the long way
+ * round, through bread.
+ *
+ * 67's note follows.
+ */
+/**
+ * 67: the clearing keeps a silver seam, and the crown sends the kit for it.
+ *
+ * Mission 1's ground changed — six tiles of silver about twenty-five out
+ * on the north-eastern shoulder (mapAuthor/missions/clearing.ts) — and so
+ * did the commission's opening larder: a third pick and eight loaves
+ * (defs/missions.ts). Both are replay surface twice over. The map file is
+ * the world a mission log re-runs in, and six tiles that used to be bare
+ * grass now carry ore a mine can be placed against; the larder is the
+ * first tick's stock, which every haul, every bind and every hire after
+ * it is timed against. A log recorded before this build re-runs into a
+ * different valley with a different castle in it.
+ *
+ * Why the ground moved at all: the tier scales the human seat's opening
+ * (defs/difficulty.ts), and on `hard` The Clearing opened a hand short
+ * and a third lighter — five hands and a purse that buys four hires
+ * against a checklist counting eleven souls, with no silver in the world
+ * to make up the two. The commission was unwinnable at that tier, not
+ * merely hard. The seam is the way back, far enough out (past
+ * HOME_SEAM_BAND.wide) that the opening view still teaches timber, stone
+ * and beds and nothing else, and the pick and the bread are what let a
+ * village work it — a mine binds a tool like the quarry does and eats
+ * while it digs (MINE_RATION_PER).
+ *
+ * 66's note follows.
+ */
+/**
+ * 66: the stop order.
+ *
+ * A twentieth command kind (`stopUnits`, commands.ts): everyone named
+ * stops walking — a march, an attack-move, an assault on a building, and
+ * the chase or siege the combat system walks for a soldier with a target
+ * — along with the route queued behind it, the pace his squad marched at
+ * and the target he was closing on, and stands where his feet are
+ * (tick.ts applyCommand). S, where every RTS puts it.
+ *
+ * The bump is the one a new kind always earns, for the reason the hold
+ * (44) and the focus order (39) record: an older build's sanitizeCommand
+ * screens out a kind it has never heard of, so a log recorded here
+ * re-runs there with the squad still marching — and every strike from the
+ * tick they were told to stand still lands from different ground. A log
+ * recorded before this plays back unchanged: nothing an older log can say
+ * takes a different branch, because every other order's path through the
+ * tick is untouched.
+ *
+ * It is deliberately NOT the hold's stance. A stopped man is an idle man,
+ * so he answers what walks into his acquire radius; hold is the promise
+ * that he never leaves the tile. And an errand is the one walk it leaves
+ * alone — a serf's haul, a worker's gather loop and a walk to a post to
+ * take it up all survive a stop, as does a hold — so nothing here strands
+ * a good on a shoulder or empties a building of its worker.
+ *
+ * 65's note follows.
+ */
+/**
  * 65: an age lapses with the last demand that was keeping it.
  *
  * A building's FIFO clock lives per (building, good) while its demands do
@@ -1081,4 +1367,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 65;
+export const REPLAY_VERSION = 74;

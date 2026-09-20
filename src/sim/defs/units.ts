@@ -16,12 +16,27 @@ const U = UnitTypeIdNs;
  * path (unitTypeIdEnum.ts) — keep the numbers stable.
  */
 
-export interface CombatStats {
-  class: UnitClass;
+/**
+ * The stat block a unit actually fights by — what target acquisition, the
+ * chase, the strike and the siege all read.
+ *
+ * `class` is where the man stands in the counter triangle, and it is
+ * optional because one fighter stands outside it: a villager with a knife
+ * (see MILITIA). His blows land flat and he scores his targets by plain
+ * distance, because the triangle prices trained arms against each other
+ * and a pitchfork is not one.
+ */
+export interface FightStats {
+  class: UnitClass | undefined;
   damage: number;
   cooldownTicks: number;
   range: number; // tiles
   acquireRadius: number; // tiles
+}
+
+/** A soldier's: the same block with his place in the triangle fixed. */
+export interface CombatStats extends FightStats {
+  class: UnitClass;
 }
 
 export interface UnitDef {
@@ -32,15 +47,73 @@ export interface UnitDef {
    * visibility filter and the renderer's fog, so the two cannot drift. */
   sight: number;
   combat?: CombatStats;
+  /**
+   * The civilians'. A unit has this or `combat`, never both — a soldier's
+   * last resort is his weapon. See MILITIA for what it costs him, and
+   * systems/combat.ts for the two modes it is read in.
+   */
+  militia?: FightStats;
 }
+
+/**
+ * The villager's knife.
+ *
+ * Deliberately NOT spelled as `UnitDef.combat`: that field is the whole
+ * engine's word for "this one is a soldier" — the army count, the
+ * formation rank, the select-army key, the AI's reading of a rival's
+ * strength, the tower's counter-scored pick, who takes up room on the
+ * field — and a serf holding a knife is still a serf in every one of
+ * them. What he gains is a way to strike, not a place in the order of
+ * battle.
+ *
+ * A fifth of a bandit's output and slower than any weapon on the field.
+ *
+ * Two modes, two prices. Cut down one at a time on their errands, a serf
+ * lands about three of these before he falls, so a bandit walks through
+ * some seven of them before the last one's knife finishes him. Sent in
+ * together under an A order they trade better — four take a bandit, seven
+ * take a knight and three of those seven walk away — and still badly
+ * enough that it is never the plan. It is an answer, not an army.
+ *
+ * No class, so no counter table on either side of the blow: he neither
+ * counters nor is countered, and against a wall he is the worst siege
+ * engine on the map (MILITIA_BUILDING_MULT in systems/combat.ts).
+ *
+ * Reach is every melee arm's (1.3) — he fights like the melee unit he is
+ * imitating, and shorter would be no reach at all in the mode where he
+ * never takes a step. The acquire radius is his own: four tiles against a
+ * soldier's six or eight, because a man with a knife notices what is on
+ * top of him, not what is across the field.
+ */
+export const MILITIA: FightStats = {
+  class: undefined,
+  damage: 2,
+  cooldownTicks: 30,
+  range: 1.3,
+  acquireRadius: 4,
+};
 
 /**
  * The military triangle: heavy beats light, light catches ranged, ranged
  * kites heavy. Enemy kinds mirror the classes so counters matter both ways.
  */
 export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
-  [U.serf]: {id: U.serf, speed: 1.5, hp: 25, sight: 6.5},
-  [U.worker]: {id: U.worker, speed: 1.4, hp: 25, sight: 6.5},
+  [U.serf]: {
+    id: U.serf,
+    speed: 1.5,
+    hp: 25,
+    sight: 6.5,
+    militia: MILITIA,
+  },
+  // A worker is a serf who took a post, so he keeps the serf's knife: the
+  // same man does not disarm himself by going to work at the mill.
+  [U.worker]: {
+    id: U.worker,
+    speed: 1.4,
+    hp: 25,
+    sight: 6.5,
+    militia: MILITIA,
+  },
   [U.knight]: {
     id: U.knight,
     speed: 1.6,

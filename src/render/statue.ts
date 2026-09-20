@@ -11,6 +11,7 @@ import {
   makeCharacter,
   playAnimation,
   setWorkTool,
+  updateGrip,
 } from './characters';
 import {makeCarryProp} from './models';
 
@@ -289,6 +290,9 @@ export function makeStatueGeometry(
   if (!action) return null;
   action.time = pose.phase * action.getClip().duration;
   visual.mixer.update(0);
+  // A statue has no frames to ease over: settle a two-hold tool on the
+  // hold this clip wants in one step — a second of dt is past any blend.
+  if (visual.grip) updateGrip(visual, 1);
   // After the mixer, not before: sampling the clip writes every bone the
   // track touches, head included.
   if (pose.lift) {

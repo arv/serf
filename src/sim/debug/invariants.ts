@@ -1,5 +1,6 @@
 import {BUILDING_KEYS} from '../defs/buildings.ts';
 import {GOODS, type GoodAmounts, GOOD_KEYS} from '../defs/goods.ts';
+import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import * as HaulPhase from '../haulPhaseEnum.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
@@ -142,7 +143,18 @@ export function checkInvariants(world: World): InvariantReport {
         `unit ${u.id}: targetIsBuilding=${u.targetIsBuilding} with no targetId`,
       );
     }
-    if (u.task.t === UnitTaskKind.move && u.targetId !== undefined) {
+    // Civilians excepted: a serf's target under a plain move is the man
+    // cutting him down, hung on him by retaliation and cleared by combat's
+    // own last-resort pass the moment that man is out of his reach
+    // (systems/combat.ts lastResortStrike). He is not skipped while he
+    // walks, because he never stops to fight in the first place — and most
+    // of a village IS walking, since an idle serf strolls under a plain
+    // move.
+    if (
+      u.task.t === UnitTaskKind.move &&
+      u.targetId !== undefined &&
+      UNIT_DEFS[u.kind].militia === undefined
+    ) {
       violations.push(
         `unit ${u.id}: holds target ${u.targetId} under a plain move order`,
       );

@@ -47,3 +47,10 @@ export type holdGround = typeof holdGround;
  */
 export const cancelResearch = 19 as const;
 export type cancelResearch = typeof cancelResearch;
+/**
+ * Halt: the named units drop the order they are walking and stand where
+ * they are. Every RTS binds it to S, and it is the one order that names
+ * neither a tile nor a target.
+ */
+export const stopUnits = 20 as const;
+export type stopUnits = typeof stopUnits;

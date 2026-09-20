@@ -75,6 +75,8 @@ describe('command screening', () => {
       {kind: CommandKind.setRallyPoint, buildingId: 7, x: 10, y: 12},
       {kind: CommandKind.setRallyPoint, buildingId: 7},
       {kind: CommandKind.admin, action: AdminAction.grantGoods},
+      {kind: CommandKind.holdGround, unitIds: [1, 2, 3]},
+      {kind: CommandKind.stopUnits, unitIds: [1, 2, 3]},
     ];
     for (const cmd of cases) expect(sanitizeCommand(cmd)).toEqual(cmd);
   });
@@ -137,6 +139,18 @@ describe('command screening', () => {
   });
 
   it('rejects missing and wrong-typed fields', () => {
+    // The bare unit-list orders: no list, not a list, and not ids.
+    expect(sanitizeCommand({kind: CommandKind.stopUnits})).toBeNull();
+    expect(
+      sanitizeCommand({kind: CommandKind.stopUnits, unitIds: 5}),
+    ).toBeNull();
+    expect(
+      sanitizeCommand({kind: CommandKind.stopUnits, unitIds: ['a']}),
+    ).toBeNull();
+    expect(
+      sanitizeCommand({kind: CommandKind.stopUnits, unitIds: [1.5]}),
+    ).toBeNull();
+    expect(sanitizeCommand({kind: CommandKind.holdGround})).toBeNull();
     expect(
       sanitizeCommand({kind: CommandKind.moveUnits, x: 1, y: 1}),
     ).toBeNull();
@@ -343,6 +357,13 @@ describe('command screening', () => {
         x: 1,
         y: 1,
       }),
+    ).toBeNull();
+    // The two orders that are nothing but a unit list are capped the same.
+    expect(
+      sanitizeCommand({kind: CommandKind.holdGround, unitIds: tooMany}),
+    ).toBeNull();
+    expect(
+      sanitizeCommand({kind: CommandKind.stopUnits, unitIds: tooMany}),
     ).toBeNull();
 
     const frame = Array.from({length: 50}, () => ({

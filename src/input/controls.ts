@@ -27,6 +27,7 @@ import {
   PATROL_KEY,
   RALLY_KEY,
   RESEARCH_KEY,
+  STOP_KEY,
   canHire,
   canRally,
   canTrain,
@@ -161,6 +162,18 @@ function keyLetter(e: KeyboardEvent): string {
 const MILITARY_CODES = new Set<number>(
   Object.values(UNIT_DEFS)
     .filter(d => d.combat !== undefined)
+    .map(d => d.id),
+);
+
+/**
+ * Kind codes that can be told to attack something without being army: the
+ * civilians, who carry a knife and use it under an A order (defs/units.ts
+ * MILITIA). Deliberately NOT in MILITARY_CODES — ctrl-A selects an army,
+ * and a village is not one.
+ */
+const MILITIA_CODES = new Set<number>(
+  Object.values(UNIT_DEFS)
+    .filter(d => d.militia !== undefined)
     .map(d => d.id),
 );
 
@@ -629,6 +642,11 @@ export class Controls {
       if (replayMode()) return;
       setBuildChord(true);
       play('uiClick');
+    } else if (letter === STOP_KEY) {
+      // Sent on the spot, like the hold beside it: nothing to aim, so
+      // there is nothing to wait for. Nothing selected — or a replay —
+      // means nothing at all, for the reason the hold gives.
+      this.stopUnits();
     } else if (letter === HOLD_KEY) {
       // Sent, not armed: the order has no target to wait for. Nothing to
       // hold with — no soldier in hand, or a replay — is nothing at all,
@@ -1023,7 +1041,7 @@ export class Controls {
         // — and, with P armed, adds the spot to the beat being walked.
         else if (
           order !== OrderMode.attack ||
-          !this.#issueFocus(e.clientX, e.clientY, e.shiftKey)
+          !this.#issueFocus(e.clientX, e.clientY, e.shiftKey, true)
         )
           this.#issueMove(e.clientX, e.clientY, orderOf(order), e.shiftKey);
         this.armOrder(null);
@@ -1093,6 +1111,23 @@ export class Controls {
   /** Wire in the renderer's model measurements — see #buildingHeights. */
   setBuildingHeights(heights: BuildingHeights): void {
     this.#buildingHeights = heights;
+    // The narrow phase is offered only where something can actually trace
+    // a silhouette. "Missed the model" and "has no model to miss" are
+    // different answers, and a measurer that cannot trace — a stand-in, or
+    // a renderer that grows one later — has to leave the pick on its boxes
+    // rather than have every candidate read as a miss.
+    if (heights.silhouetteT) {
+      this.#probe.silhouetteT = (id, origin, dir) =>
+        this.#buildingHeights?.silhouetteT?.(id, origin, dir) ?? -1;
+      // Its other half, and never without it: what a building is drawn
+      // over from off its own plot is worth a candidate only because
+      // something can then say whether the ray truly meets it.
+      this.#probe.drawnAt = (x, z, out) =>
+        this.#buildingHeights?.drawnAt?.(x, z, out);
+    } else {
+      delete this.#probe.silhouetteT;
+      delete this.#probe.drawnAt;
+    }
   }
 
   /**
@@ -1303,7 +1338,7 @@ export class Controls {
         // has always been.
         else if (
           order !== OrderMode.attack ||
-          !this.#issueFocus(e.clientX, e.clientY)
+          !this.#issueFocus(e.clientX, e.clientY, false, true)
         )
           this.#issueMove(e.clientX, e.clientY, orderOf(order));
         this.armOrder(null);
@@ -2273,17 +2308,22 @@ export class Controls {
    * does. A queued click on a building still becomes the assault on it:
    * the sim reads the building under the tile when the leg comes due.
    */
-  #issueFocus(px: number, py: number, queue = false): boolean {
+  #issueFocus(px: number, py: number, queue = false, armed = false): boolean {
     // The same guard the move order keeps: a click in a finished match
     // must not pretend to command anybody.
     if (replayMode()) return false;
     if (this.#selection.size === 0) return false;
     const me = myPlayerId();
-    // Only soldiers can be told to attack a thing. A selection of serfs
-    // falls through and keeps the move order it meant.
+    // Only soldiers can be told to attack a thing — unless the player
+    // armed the order himself with A, which is the one gesture that sends
+    // civilians at anybody. A right-click (`armed` false) over an enemy
+    // therefore still falls through for a selection of serfs and keeps the
+    // move order it meant, so nobody sends his haulers to their deaths by
+    // aiming a walk badly.
     const fighters = [...this.#selection].filter(id => {
       const kind = this.#sync.kindOf(id);
-      return kind !== null && MILITARY_CODES.has(kind);
+      if (kind === null) return false;
+      return MILITARY_CODES.has(kind) || (armed && MILITIA_CODES.has(kind));
     });
     if (fighters.length === 0) return false;
 
@@ -2377,8 +2417,10 @@ export class Controls {
   /** A ring blooming at the tap/click plus a tick of haptics: order taken.
    * Attack-moves pulse a solid red ring, plain moves a dashed gold one, the
    * half order a dotted red and a patrol a double red — four border styles,
-   * so the shape carries the difference where color vision cannot. (The
-   * rally flag pulses too, through #pulse directly: solid gold.) */
+   * so the shape carries the difference where color vision cannot. (Three
+   * more go through #pulse directly, all gold, since none of them sends
+   * anybody anywhere: the rally flag and the hold solid, the stop
+   * doubled.) */
   #orderPulse(px: number, py: number, attack: MoveOrder): void {
     this.#pulse(
       px,
@@ -2509,6 +2551,56 @@ export class Controls {
     // Solid gold, the rally flag's ring: a thing planted rather than a
     // place walked to.
     if (n > 0) this.#pulse(px / n, py / n, 'solid #e5c469');
+    else play('uiOrder');
+    return true;
+  }
+
+  /**
+   * Stop: everyone in hand stops walking and stands where he is (sim: the
+   * march, the attack-move, the assault and the chase all end, and the
+   * route queued behind them with them; an errand is left alone). The S
+   * key and the card's Stop button both land here.
+   *
+   * An order rather than a mode, exactly as the hold beside it is: there
+   * is no tile to pick, so the press is the order, and sending it disarms
+   * an A, M or P still waiting for its click — the squad they were armed
+   * for has just been told to stand still.
+   *
+   * The whole selection goes out, soldiers and serfs alike, where the
+   * hold sends only its fighters. Two reasons, and they are the same
+   * reason twice: a stop IS an order a civilian can take (he walks like
+   * anyone else), and this layer cannot tell who is walking
+   * anyway — the published byte says what a man is visibly doing, not
+   * which order put him there. So the sim decides who had something to
+   * drop, and the ring here confirms that the order went out rather than
+   * that every man in it had a march to lose.
+   *
+   * The ring blooms over the selection's screen centroid, the hold's
+   * answer to having no click to bloom at. Returns whether the order went
+   * out.
+   */
+  stopUnits(): boolean {
+    if (replayMode()) return false;
+    const ids = [...this.#selection];
+    if (ids.length === 0) return false;
+    this.#host.sendCommands([{kind: CommandKind.stopUnits, unitIds: ids}]);
+    this.armOrder(null);
+    this.#lastMoveTap = null;
+    const at = this.#scratchScreen;
+    let px = 0;
+    let py = 0;
+    let n = 0;
+    const now = performance.now();
+    for (const id of ids) {
+      if (!this.#unitScreenPosInto(id, now, at)) continue;
+      px += at.x;
+      py += at.y;
+      n++;
+    }
+    // Gold like the hold's ring — neither order sends anyone anywhere —
+    // and doubled where the hold's is solid, so the two keys that land on
+    // the same patch of ground do not bloom the same ring.
+    if (n > 0) this.#pulse(px / n, py / n, 'double #e5c469');
     else play('uiOrder');
     return true;
   }

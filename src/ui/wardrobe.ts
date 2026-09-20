@@ -8,6 +8,7 @@ import {
   makeCharacter,
   playAnimation,
   setWorkTool,
+  updateGrip,
   TOOL_STOWED,
   type CharacterVisual,
 } from '../render/characters';
@@ -272,7 +273,13 @@ export async function mountWardrobe(
   const loop = (): void => {
     if (over) return;
     const dt = renderer.frame();
-    for (const {visual} of cast) visual.mixer.update(dt);
+    for (const {visual} of cast) {
+      visual.mixer.update(dt);
+      // A two-hold tool follows the clip, and this screen puts the farmer
+      // on his mowing stroke: without this he would hold the scythe the
+      // way he carries it and swing the clip's own uncorrected arm.
+      if (visual.grip) updateGrip(visual, dt);
+    }
     for (const l of labels) {
       const p = worldToScreen(renderer.rig.camera, canvas, l.x, l.y, l.z);
       l.el.style.left = `${p.x}px`;

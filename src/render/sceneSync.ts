@@ -19,9 +19,11 @@ import {crossedRelease} from './arrows';
 import type {FieldInfo, PierInfo} from './buildingSync';
 import type {ViewBounds} from './cameraRig';
 import {
+  TALLEST_UNIT,
   TARGET_HEIGHT,
   gaitAnimKey,
   updateBow,
+  updateGrip,
   makeCharacter,
   playAnimation,
   setGaitSpeed,
@@ -31,8 +33,15 @@ import {
 } from './characters';
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
+import {type ArmChain, findArm, ikReach} from './ik';
 import {makeCarryProp} from './models';
 import {goldOre} from './palette';
+import {
+  attachXrayOutline,
+  occludedBy,
+  type OccluderBox,
+  type XrayOutline,
+} from './xrayOutline';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -43,6 +52,9 @@ interface UnitVisual {
   carryBox: THREE.Object3D | null;
   /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
+  /** The colored edge this unit wears while a building is between it and
+   * the camera (xrayOutline.ts). Switched on and off per frame. */
+  outline: XrayOutline;
   /** Smoothed visual de-overlap offset — render-only; the sim's positions
    * stay untouched. The sim keeps soldiers apart itself (separation.ts);
    * this is what keeps serfs, who walk through everyone, from being drawn
@@ -108,12 +120,6 @@ interface UnitVisual {
   pierOffLag?: number;
 }
 
-interface ArmChain {
-  upper: THREE.Object3D;
-  lower: THREE.Object3D;
-  hand: THREE.Object3D;
-}
-
 /** A standing well: where it is, the windlass that turns, and the handle a
  * drawing serf's hand is glued to. Fed from buildingSync.wellCranks(). */
 interface Well {
@@ -160,53 +166,7 @@ const PIER_DROP_HOLD = 1400;
  */
 const PIER_LEAVE_LAG = 1.2;
 
-/** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
-function findArm(group: THREE.Group): ArmChain | null {
-  const bone = (n: string): THREE.Object3D | undefined =>
-    group.getObjectByName(n) ?? group.getObjectByName(n.replace(/[^\w-]/g, ''));
-  const upper = bone('upperarm.r');
-  const lower = bone('lowerarm.r');
-  const hand = bone('hand.r');
-  return upper && lower && hand ? {upper, lower, hand} : null;
-}
-
-const IK_B = new THREE.Vector3();
-const IK_E = new THREE.Vector3();
-const IK_D = new THREE.Vector3();
-const IK_Q = new THREE.Quaternion();
-const IK_PQ = new THREE.Quaternion();
-const IK_PQI = new THREE.Quaternion();
 const IK_TARGET = new THREE.Vector3();
-
-/** One CCD step: swing `bone` so `tip` aims at `target` (world space). */
-function aimBone(
-  bone: THREE.Object3D,
-  tip: THREE.Object3D,
-  target: THREE.Vector3,
-): void {
-  bone.updateWorldMatrix(true, false);
-  tip.updateWorldMatrix(true, false);
-  bone.getWorldPosition(IK_B);
-  tip.getWorldPosition(IK_E);
-  IK_E.sub(IK_B);
-  IK_D.copy(target).sub(IK_B);
-  if (IK_E.lengthSq() < 1e-8 || IK_D.lengthSq() < 1e-8) return;
-  IK_Q.setFromUnitVectors(IK_E.normalize(), IK_D.normalize());
-  bone.parent!.getWorldQuaternion(IK_PQ);
-  IK_PQI.copy(IK_PQ).invert();
-  // local' = parent⁻¹ · Δworld · parent · local
-  bone.quaternion.premultiply(IK_PQ).premultiply(IK_Q).premultiply(IK_PQI);
-}
-
-/** CCD from the elbow out: a few passes settle the hand on the target
- * (or at full stretch toward it when out of reach). */
-function ikReach(arm: ArmChain, target: THREE.Vector3): void {
-  aimBone(arm.lower, arm.hand, target);
-  aimBone(arm.upper, arm.hand, target);
-  aimBone(arm.lower, arm.hand, target);
-  aimBone(arm.upper, arm.hand, target);
-  aimBone(arm.lower, arm.hand, target);
-}
 
 /** WORK.* byte → the tool animation to play. */
 function workAnimKey(workKind: number): AnimKey {
@@ -255,10 +215,24 @@ function hpBucket(pct: number): number {
   return Math.max(0, Math.min(4, Math.floor(pct * 5)));
 }
 
-/** White, so the per-instance colour comes through unmultiplied. */
+/**
+ * White, so the per-instance colour comes through unmultiplied.
+ *
+ * Transparent at full opacity, which looks like a contradiction and is
+ * not: it is what queue the bars draw in. Three renders the whole opaque
+ * list before the first transparent object, and renderOrder only sorts
+ * WITHIN a list — so an opaque bar, however high its order, still draws
+ * before every ground decal in the game, and a decal that wins its own
+ * depth test then paints straight over a bar that wrote no depth to
+ * defend itself. That is how a man's boot prints ended up drawn across
+ * his own health bar. In the transparent list, renderOrder 10 puts the
+ * bars last over everything, which is the overlay contract they were
+ * always meant to keep. Opacity 1 means the blend is a copy.
+ */
 const hpBarMaterial = new THREE.MeshBasicMaterial({
   color: 0xffffff,
   depthTest: false,
+  transparent: true,
   userData: {noFog: true},
 });
 
@@ -431,6 +405,8 @@ const HP_SCALE = new THREE.Vector3(1, 1, 1);
 const HP_MATRIX = new THREE.Matrix4();
 /** Stands in for the camera before boot has handed one over. */
 const HP_IDENTITY = new THREE.Quaternion();
+/** Scratch for the direction the camera lies in, recomputed each frame. */
+const TO_CAMERA = new THREE.Vector3();
 
 /**
  * The only module that creates/destroys unit visuals. Reconciles against the
@@ -512,6 +488,16 @@ export class SceneSync {
 
   setFields(fields: FieldInfo[]): void {
     this.#fields = fields;
+  }
+
+  #occluders: readonly OccluderBox[] = [];
+
+  /** The buildings tall enough to hide somebody, as boxes. Read off
+   * buildingSync every frame — a building can start collapsing, or come
+   * out of the fog, without the roster saying so — and a unit whose line
+   * to the camera crosses one of them wears an outline for that frame. */
+  setOccluders(boxes: readonly OccluderBox[]): void {
+    this.#occluders = boxes;
   }
 
   /** Fog test; enemies standing in unlit ground are not drawn at all. */
@@ -924,6 +910,12 @@ export class SceneSync {
     const ringScale = lerp(RING_SCALE_MAX, RING_SCALE_MIN, breath);
     auraRingMaterial.opacity = lerp(RING_OPACITY_MIN, RING_OPACITY_MAX, breath);
     const camQuat = this.cameraQuaternion ?? HP_IDENTITY;
+    // Which way the camera lies from the valley. One vector for every unit
+    // on the map, because the match rig is orthographic — there is no eye
+    // point to aim a ray at, only a direction of view — and (0, 0, 1) in
+    // view space is the one that points back down the lens.
+    const toCamera = TO_CAMERA.set(0, 0, 1).applyQuaternion(camQuat);
+    const occluders = this.#occluders;
     this.#hidden.clear();
     this.#spun.clear();
 
@@ -956,6 +948,7 @@ export class SceneSync {
           carrying: 0,
           carryBox: null,
           char: skinned.visual,
+          outline: attachXrayOutline(skinned.group, owner),
           sepX: 0,
           sepY: 0,
           speedSm: 0,
@@ -1094,7 +1087,35 @@ export class SceneSync {
       // so it would keep the yaw it walked in with and hack at the air beside
       // its enemy. The sim sends the bearing to whatever it is actually
       // hitting; a chaser is still moving, so this only lands once it stands.
-      if (!moving && !dead && action === ACTION.fight) {
+      // The range byte off zero is what says the bearing means anything —
+      // the multiplayer server redacts the pair for an enemy whose point
+      // this seat cannot see, and without that check a redacted fighter
+      // would swing due south (a 0 bearing) instead of keeping his walk.
+      //
+      // A worker at his post is the same story with a building for an enemy:
+      // he walks up from whichever side the path came in, stands, and starts
+      // swinging — and a builder whose road reached his site from behind
+      // hammered the whole house up with his back to it. The sim publishes
+      // the bearing to the work (the frame, the tree, the post) in the same
+      // byte, and the range byte off zero is what says it means anything.
+      //
+      // Not for the three posts the render places itself, though — the
+      // fisherman's pier, the farmer's rows, the well's windlass. Those
+      // branches set a heading on the frames they move a man and let it
+      // stand on the frames they don't: a farmer mid-stroke is turned by
+      // nothing at all, on purpose, because the row he is cutting is the
+      // one he walked in along. A bearing written over that would have him
+      // scything at the farm building for the length of every stroke.
+      const renderTurned =
+        workKind === WORK.fish ||
+        workKind === WORK.mow ||
+        workKind === WORK.draw;
+      if (
+        !moving &&
+        !dead &&
+        latest.aux[a + 8]! > 0 &&
+        (action === ACTION.fight || (action === ACTION.work && !renderTurned))
+      ) {
         visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
       }
       // Drawing at a well with a crank: the serf stands beside the windlass
@@ -1454,6 +1475,9 @@ export class SceneSync {
         visual.char.mixer.update(dt);
         // The archer's string and nocked arrow follow the posed hand.
         if (visual.char.bow) updateBow(visual.char);
+        // A tool held one way and swung another changes hands over the
+        // same blend the clips do (the farmer's scythe).
+        if (visual.char.grip) updateGrip(visual.char, dt);
         // The 'loop' event only covers cycles after the first wrap, so a
         // percussive clip (re)started this frame would play its whole
         // first cycle mute — for Pickaxing that is two silent swings and
@@ -1573,6 +1597,21 @@ export class SceneSync {
               ? Math.max(groundY, field.padY)
               : groundY;
         visual.group.position.set(px, standY + bob, pz);
+        // Behind a wall this frame? Then draw his edge over it. The
+        // tallest body rather than this one's: the sweep is allowed to
+        // over-report and never to miss, and a man's own height is only
+        // ever shorter.
+        //
+        // A man out on his own pier is not behind anything — he is at his
+        // post, with the deck he is standing on and its rails below him.
+        // The farmer's equivalent falls out of occludedBy itself (he mows
+        // inside his farm's own footprint); a pier reaches out past the
+        // fishery's, so it takes saying here.
+        visual.outline.setVisible(
+          occluders.length > 0 &&
+            !onDeck &&
+            occludedBy(occluders, px, standY, pz, TALLEST_UNIT, toCamera),
+        );
         if (barPct >= 0) {
           // Exactly where the child mesh used to land. A unit's facing is a
           // Y rotation, which leaves a point on the Y axis where it was, and
@@ -1607,7 +1646,7 @@ export class SceneSync {
         // Explicitly undefined: ??= assigns on null too, so a rig without
         // the bones re-ran findArm's six name lookups every single frame,
         // which is the one thing the null in the cache is there to stop.
-        if (visual.arm === undefined) visual.arm = findArm(visual.group);
+        if (visual.arm === undefined) visual.arm = findArm(visual.group, 'r');
         if (visual.arm) {
           crankWell.grip.getWorldPosition(IK_TARGET);
           ikReach(visual.arm, IK_TARGET);

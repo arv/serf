@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {DEFAULT_MAP_SIZE, gridFor} from '../shared/grid';
 import {CameraRig, type ViewBounds, type ViewFrame} from './cameraRig';
 import {background, fog, groundBounce, skyLight} from './palette';
+import {setOutlineViewportHeight} from './xrayOutline';
 
 /** How many frames a fence may hold the loop before it is written off as
  * one that will never signal. Four is longer than any real frame and short
@@ -117,6 +118,9 @@ export class GameRenderer {
     this.#webgl = new THREE.WebGLRenderer({
       canvas,
       antialias: !coarse && !soft,
+      // One bit of it is all the x-ray outlines need (xrayOutline.ts), and
+      // three leaves the buffer off unless it is asked for.
+      stencil: true,
     });
     this.#webgl.setPixelRatio(
       soft ? 1 : Math.min(window.devicePixelRatio, coarse ? 1.5 : 2),
@@ -161,6 +165,9 @@ export class GameRenderer {
         appliedW = w;
         appliedH = h;
         this.#webgl.setSize(w, h, false);
+        // The outline pass draws a fixed number of *device* pixels wide,
+        // so it has to be told how many of those the buffer holds.
+        setOutlineViewportHeight(h * this.#webgl.getPixelRatio());
         this.rig.resize();
       }
     };

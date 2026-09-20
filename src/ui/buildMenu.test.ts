@@ -9,6 +9,7 @@ import {
   buildTab,
   buildingForKey,
   playerBuildable,
+  tabForScroll,
 } from './buildMenu';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -52,6 +53,38 @@ describe('the build ribbon', () => {
       return false;
     });
     expect(dupes).toEqual([]);
+  });
+
+  /**
+   * The frame is three columns and two rows deep (Hud.tsx), so six cells is
+   * a tab's worth. A seventh hides nothing — the frame takes its height
+   * from the tallest page and grows a row — but it grows for all three at
+   * once, so the two tabs that did not need the row carry it empty. Arms
+   * stood at seven and that is exactly what it cost.
+   *
+   * Nothing else here can catch that: every other assertion in this file
+   * reads the groups back against themselves, so any arrangement of any
+   * size is self-consistent and green.
+   */
+  it('gives no tab more than the frame holds', () => {
+    const over = BUILD_GROUPS.filter(g => g.types.length > 6).map(g => ({
+      tab: g.label,
+      count: g.types.length,
+    }));
+    expect(over).toEqual([]);
+  });
+
+  /**
+   * The one placement in the ribbon that is filed by who comes looking
+   * rather than by what the building makes (the reasoning is in
+   * buildMenu.ts). Sorting the Smith by its output puts it back on Arms
+   * beside the spears, which reads perfectly sensible in a diff and takes
+   * the village's only tool source off the tab a new player opens first.
+   */
+  it('keeps the Smith on the tab a new village opens', () => {
+    expect(buildTab(BuildingTypeId.weaponsmith)).toBe(
+      BUILD_GROUPS.findIndex(g => g.label === 'Village'),
+    );
   });
 });
 
@@ -105,5 +138,47 @@ describe('the build chord', () => {
       expect(buildingForKey(buildKey(type).toLowerCase())).toBe(type);
     }
     expect(buildingForKey('Z')).toBeNull();
+  });
+});
+
+/**
+ * The swipe, as arithmetic. The gesture itself is the browser's — CSS
+ * scroll snapping moves the pages and decides which one a fling lands on
+ * — and all this has to get right is reading the answer back off the
+ * scroll offset so the tab strip agrees with what the player is looking
+ * at. Getting it wrong is silent in the worst way: the ribbon shows Arms
+ * and the strip says Food, and every tap on the strip from then on is
+ * aimed at the wrong tab.
+ */
+describe('the swiped ribbon', () => {
+  const N = BUILD_GROUPS.length;
+  const W = 300;
+
+  it('names the tab each page is parked on', () => {
+    for (let i = 0; i < N; i++) expect(tabForScroll(i * W, W, N)).toBe(i);
+  });
+
+  it('crosses to the next tab at the halfway mark', () => {
+    // Where a released swipe snaps to, near enough, so this is where the
+    // highlight should move — not at the first pixel and not at the last.
+    expect(tabForScroll(0.49 * W, W, N)).toBe(0);
+    expect(tabForScroll(0.51 * W, W, N)).toBe(1);
+    expect(tabForScroll(1.51 * W, W, N)).toBe(2);
+  });
+
+  it('stays inside the ribbon when the scroller overshoots', () => {
+    // Rubber-band on a touchscreen scrolls past both ends, and the index
+    // it computes there is a tab that does not exist. BUILD_GROUPS[-1] is
+    // undefined and the card renders empty.
+    expect(tabForScroll(-80, W, N)).toBe(0);
+    expect(tabForScroll((N - 1) * W + 80, W, N)).toBe(N - 1);
+  });
+
+  it('answers a ribbon nobody has measured yet with the first tab', () => {
+    // A folded card has no layout, so clientWidth is 0 and the division
+    // is NaN — which would clamp to NaN and index nothing at all.
+    expect(tabForScroll(0, 0, N)).toBe(0);
+    expect(tabForScroll(600, 0, N)).toBe(0);
+    expect(tabForScroll(0, W, 0)).toBe(0);
   });
 });

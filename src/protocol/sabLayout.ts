@@ -135,19 +135,26 @@ export interface UnitSnapshot {
   /** PROFESSION.* workplace flavor (defaults to none). */
   profession?: number;
   /**
-   * Yaw toward the unit's target over a full turn (0..255 = 0..2π), for the
-   * frames where the sim knows which way a unit should look and the renderer
-   * cannot tell: a fighter standing still has no movement delta to face by.
-   * Only meaningful while action is fight.
+   * Yaw toward whatever the unit is turned toward, over a full turn
+   * (0..255 = 0..2π), for the frames where the sim knows which way a unit
+   * should look and the renderer cannot tell: anyone standing still has no
+   * movement delta to face by. The enemy in reach while action is fight,
+   * else the work under his hands while action is work — the site he is
+   * raising, the tree he is felling, the post he is tending. Meaningless
+   * under any other action, and under those two only when `targetDist`
+   * is off zero.
    */
   facing?: number;
   /**
-   * Distance to the engaged target in eighth-tiles (0..255 = 0..31.875),
-   * held off zero while engaged so 0 always reads as "no target". With
-   * `facing` this reconstructs the target *point*, which is what lets the
+   * Distance to that same point in eighth-tiles (0..255 = 0..31.875), held
+   * off zero whenever there is one so 0 always reads as "nothing to face".
+   * With `facing` it reconstructs the point itself, which is what lets the
    * renderer fly an archer's arrow at the enemy the sim actually shot —
-   * the bearing alone says which way, never how far. Only meaningful
-   * while action is fight.
+   * the bearing alone says which way, never how far.
+   *
+   * Which is also why the multiplayer server drops the pair for an enemy
+   * unit whose point the watching seat cannot see (`sendHot`): a bearing
+   * and a range are a location, and that one may stand on dark ground.
    */
   targetDist?: number;
   /** BUFF bits the unit wears; absent reads as none. */

@@ -8,10 +8,14 @@ import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import type {GoodAmounts} from '../sim/defs/goods';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {WATER_LEVEL} from '../sim/map';
+import type {PierInfo} from './buildingSync';
 import type {FogQuery} from './fogOfWar';
 import {HeightField} from './heightField';
+import {eachMaterial} from './materials';
 import {SITE_FRAME_H} from './models';
+import {WALL_RENDER_ORDER} from './xrayOutline';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -85,11 +89,30 @@ vi.mock('./assets', () => ({
       flue.position.y = 2;
       group.add(flue);
     }
+    // The three that train wear the training cue: light in the openings
+    // the model's own geometry gives up. The finder and the harvest here
+    // are the shipping code — only the wall they read is the box above.
+    if (
+      type === BuildingTypeId.barracks ||
+      type === BuildingTypeId.archeryRange ||
+      type === BuildingTypeId.storehouse
+    ) {
+      // One opening, painted from the atlas cell the finder reads.
+      const opening = new THREE.PlaneGeometry(0.2, 0.3);
+      const uv = opening.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.44, 0.1);
+      const wall = new THREE.Mesh(opening, new THREE.MeshLambertMaterial());
+      wall.position.set(0, 0.5, 0.6);
+      group.add(wall);
+      const glows = makeWindowGlows(wall);
+      if (glows) group.add(glows);
+    }
     return group;
   },
 }));
 
 const {makeShoal} = await import('./procParts');
+const {makeWindowGlows} = await import('./procTraining');
 
 const {BuildingSync} = await import('./buildingSync');
 
@@ -201,6 +224,45 @@ describe('a construction site with multi-material meshes', () => {
     }
   });
 
+  it('raises the plane the drawn meshes clip against, every frame', () => {
+    const {sync, scene} = makeSync();
+    /** The constants of the planes the scene's materials actually clip
+     * against — what the pixels obey, as opposed to what the visual holds
+     * on to. The two were the same object until the wall marking cloned
+     * the materials, and three's Material.copy deep-clones clippingPlanes.
+     */
+    const cut = (): number[] => {
+      const out: number[] = [];
+      scene.traverse(o => {
+        if (!(o instanceof THREE.Mesh)) return;
+        eachMaterial(o, m => {
+          for (const p of m.clippingPlanes ?? []) out.push(p.constant);
+        });
+      });
+      return out;
+    };
+
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0, siteNeeds: {}}),
+    ]);
+    const sliver = cut();
+    expect(sliver.length).toBeGreaterThan(0);
+    for (const c of sliver) expect(c).toBeCloseTo(0.08);
+
+    // The mock model is a unit box about its own middle, so it stands 0.5
+    // over the base the site sits on (ground is flat 0 here).
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0.8, siteNeeds: {}}),
+    ]);
+    const raised = cut();
+    expect(raised).toHaveLength(sliver.length);
+    // Handed a frozen copy of the plane, every one of these stayed at the
+    // opening sliver: the frame filled with hauled goods, the hp climbed,
+    // the pick and the occluder boxes all agreed the keep was rising, and
+    // nothing came up out of the ground.
+    for (const c of raised) expect(c).toBeCloseTo(0.08 + 0.5 * 0.8);
+  });
+
   it('a poisoned frame does not orphan later buildings', () => {
     const {sync, scene} = makeSync();
     sync.update([
@@ -271,25 +333,160 @@ describe("the fishery's pier", () => {
     const {sync, scene} = makeSync(shoreHeights(tx => tx === 9));
     sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
-    // 30 degrees about the footprint center — the least intrusive turn
-    // that gets there: the pivot swings the deck's landward end west along
-    // with the hut, which is what buys the reach a base-pivoted turn never
-    // had (pivoted at the deck's own base, the casting spot still hung over
-    // grass at 45 and only 60 got it wet).
-    const turn = Math.PI / 6;
+    // 45 degrees about the footprint center, which is where the water
+    // itself points: the channel is northwest of the hut once the deck's
+    // own reach is taken into account, and a deck laid down it has the
+    // water to both hands rather than a bank along one.
+    const turn = Math.PI / 4;
     expect(p.yaw).toBeCloseTo(Math.PI + turn);
-    expect(p.baseX).toBeCloseTo(11 - 0.85 * Math.sin(turn));
-    expect(p.spotX).toBeCloseTo(11 - 2.95 * Math.sin(turn));
+    expect(p.spotX).toBeLessThan(11);
     expect(p.spotZ).toBeLessThan(p.baseZ);
+    // A channel one tile wide is not long enough to take a deck laid
+    // across it whole, so the planks come in as far as they are allowed.
+    const pier = scene.getObjectByName('fisheryPier')!;
+    expect(pier.scale.x).toBeCloseTo(0.6);
     // The deck itself stays square to the hut — the MODEL carries the turn,
     // house and jetty as one piece...
-    const pier = scene.getObjectByName('fisheryPier')!;
     expect(pier.rotation.y).toBeCloseTo(0);
-    expect(pier.scale.x).toBeCloseTo(1);
     expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + turn);
     // ...and the measurement is cached: asking again must not turn twice.
     expect(sync.fisheryPiers()[0]!.yaw).toBeCloseTo(p.yaw);
     expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + turn);
+  });
+
+  it('aims the site as it will aim the finished hut', () => {
+    // The same west-water shore as above. A fishery going up is drawn on
+    // the same model as the finished one, under a clip plane — and it used
+    // to stand at the sim's bare quarter turn for the whole build, deck on
+    // the grass, then swing 45° and shorten at the last tick. The player
+    // had just been shown the turned deck by the placement preview.
+    const {sync, scene} = makeSync(shoreHeights(tx => tx === 9));
+    const turn = Math.PI / 4;
+    sync.update([
+      snap({
+        type: BuildingTypeId.fishery,
+        facing: 2,
+        state: BuildingState.site,
+        progress01: 0.3,
+        siteNeeds: {},
+      }),
+    ]);
+    const pier = scene.getObjectByName('fisheryPier')!;
+    expect(pier.parent!.rotation.y).toBeCloseTo(Math.PI + turn);
+    expect(pier.scale.x).toBeCloseTo(0.6);
+    // The line is there for the neighbours (and the preview) to keep clear
+    // of; the fisherman's list is for finished huts only.
+    expect(sync.pierLines().length).toBe(1);
+    expect(sync.pierLines()[0]!.yaw).toBeCloseTo(Math.PI + turn);
+    expect(sync.fisheryPiers().length).toBe(0);
+    // A later roster is not a re-aim.
+    sync.update([
+      snap({
+        type: BuildingTypeId.fishery,
+        facing: 2,
+        state: BuildingState.site,
+        progress01: 0.6,
+        siteNeeds: {},
+      }),
+    ]);
+    expect(
+      scene.getObjectByName('fisheryPier')!.parent!.rotation.y,
+    ).toBeCloseTo(Math.PI + turn);
+  });
+
+  it("keeps the site's deck when the hut finishes, even once what it gave way to is gone", () => {
+    // The round pond from the clearance test below, one hut already fishing
+    // on its south shore. A site goes up beside it and gives way — turned
+    // or trimmed off the middle of the water the neighbour already holds.
+    // Then the neighbour is razed during the build. A fresh search on
+    // completion would now take the middle for itself, and the hut would
+    // swing on its last tick: the exact jump this is about. The swap to
+    // the built model lays the site's own line again instead.
+    const heights = shoreHeights(
+      (tx, tz) => (tx - 11) ** 2 + (tz - 7) ** 2 <= 4,
+    );
+    const {sync, scene} = makeSync(heights);
+    const neighbour = snap({
+      id: 2,
+      type: BuildingTypeId.fishery,
+      facing: 2,
+      x: 12,
+      y: 9,
+    });
+    sync.update([neighbour]);
+    const site = snap({
+      id: 1,
+      type: BuildingTypeId.fishery,
+      facing: 2,
+      x: 9,
+      y: 9,
+      state: BuildingState.site,
+      progress01: 0.5,
+      siteNeeds: {},
+    });
+    sync.update([neighbour, site]);
+    const gaveWay = sync.pierLines().find(p => p.bx === 10)!;
+    const pier = (): THREE.Object3D =>
+      scene.children
+        .find(o => o.position.x === 10)!
+        .getObjectByName('fisheryPier')!;
+    const modelYaw = pier().parent!.rotation.y;
+    const deckScale = pier().scale.x;
+
+    // Alone on the pond it would have aimed elsewhere — so a fresh search
+    // once the neighbour is gone would move the deck.
+    const {sync: alone} = makeSync(heights);
+    alone.update([
+      snap({id: 1, type: BuildingTypeId.fishery, facing: 2, x: 9, y: 9}),
+    ]);
+    const free = alone.fisheryPiers()[0]!;
+    expect(
+      Math.hypot(free.spotX - gaveWay.spotX, free.spotZ - gaveWay.spotZ),
+    ).toBeGreaterThan(0.1);
+
+    // The neighbour comes down while the site is still going up...
+    sync.update([site]);
+    expect(sync.pierLines()).toEqual([gaveWay]);
+    // ...and the site finishes: same line, same model turn, same planks.
+    sync.update([
+      snap({id: 1, type: BuildingTypeId.fishery, facing: 2, x: 9, y: 9}),
+    ]);
+    expect(sync.fisheryPiers()).toEqual([gaveWay]);
+    expect(pier().parent!.rotation.y).toBeCloseTo(modelYaw);
+    expect(pier().scale.x).toBeCloseTo(deckScale);
+  });
+
+  it('lays the deck across a bank that runs across the grid', () => {
+    // A shore running northwest to southeast — the shape most of a
+    // generated map's water has, and the one a quarter turn can only ever
+    // approximate. Every aim from due north round to northwest reaches
+    // water here and keeps it on both flanks, so what settles it is which
+    // way the lake opens: the perpendicular, 45 degrees.
+    //
+    // This is the "why is it square to the grid?" case. The deck used to
+    // take the first aim that merely got wet, which was the hut's own
+    // facing, and a jetty standing square on a slanted bank reads as
+    // scenery dropped from above rather than built by the people there.
+    const heights = shoreHeights((tx, tz) => tx + tz <= 19);
+    const {sync, scene} = makeSync(heights);
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
+    const p = sync.fisheryPiers()[0]!;
+    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 4);
+    // Full length: the lake is open enough here that nothing is given up
+    // for the aim.
+    expect(scene.getObjectByName('fisheryPier')!.scale.x).toBeCloseTo(1);
+    // Water to both hands at the fishing spot, which is the rule that
+    // picked this aim over the square one.
+    const left = heights.at(
+      p.spotX + 0.7 * Math.cos(p.yaw),
+      p.spotZ - 0.7 * Math.sin(p.yaw),
+    );
+    const right = heights.at(
+      p.spotX - 0.7 * Math.cos(p.yaw),
+      p.spotZ + 0.7 * Math.sin(p.yaw),
+    );
+    expect(left).toBeLessThan(WATER_LEVEL);
+    expect(right).toBeLessThan(WATER_LEVEL);
   });
 
   it('trims the deck rather than stride over a narrow channel', () => {
@@ -314,19 +511,20 @@ describe("the fishery's pier", () => {
 
   it('settles for touching water where nothing it can reach is deep', () => {
     // A shallow flat at z 8-9: under the water plane, but nowhere near the
-    // plank's depth the fit asks for first. The strict pass finds nothing,
-    // so a trim off the second — which is the only reason this deck moves
-    // at all — pulls the tip back off the far bank and into it. Three
-    // quarter-tile steps of trim, where a turn would cost half again as
-    // much apiece.
+    // plank's depth the fit asks for first. The strict pass finds nothing
+    // at all, so the whole deck is chosen off the second — where the aims
+    // that reach are the ones laid along the flat rather than across it,
+    // because a deck across a two-tile band runs out of water beside it
+    // before it runs out of planks.
     const {sync, scene} = makeSync(
       shoreHeights((_tx, tz) => tz === 8 || tz === 9, -0.4),
     );
     sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
     const p = sync.fisheryPiers()[0]!;
-    expect(p.yaw).toBeCloseTo(Math.PI);
-    expect(p.spotZ).toBeCloseTo(8.8);
-    expect(scene.getObjectByName('fisheryPier')!.scale.x).toBeCloseTo(0.7);
+    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 6);
+    expect(p.spotZ).toBeLessThan(9);
+    expect(p.spotZ).toBeGreaterThan(8);
+    expect(scene.getObjectByName('fisheryPier')!.scale.x).toBeCloseTo(0.8);
   });
 
   it('keeps the authored deck when no fit reaches water at all', () => {
@@ -338,6 +536,62 @@ describe("the fishery's pier", () => {
     const pier = scene.getObjectByName('fisheryPier')!;
     expect(pier.rotation.y).toBeCloseTo(0);
     expect(pier.scale.x).toBeCloseTo(1);
+  });
+
+  it('falls back on the facing where the water is on every side', () => {
+    // A hut on an islet: every direction reads wet, so the votes cancel
+    // and no direction is more the water than another. The sim's facing is
+    // the tiebreak that is supposed to answer here — and the summed vote
+    // only cancels to about 1e-15, which atan2 will happily turn into a
+    // confident bearing if nothing checks its length.
+    const {sync} = makeSync(
+      shoreHeights((tx, tz) => tx < 10 || tx > 11 || tz < 10 || tz > 11),
+    );
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
+    expect(sync.fisheryPiers()[0]!.yaw).toBeCloseTo(Math.PI);
+  });
+
+  it('keeps a second deck clear of the one already standing', () => {
+    // Two huts side by side on an open shore — legal, because placement
+    // only ever guards footprints, while a deck hangs two tiles past its
+    // own. Left to themselves both aim the same way and the planks grow
+    // through one another, which is what the screenshots showed.
+    // A round pond with both huts on its south shore: left alone, each
+    // aims at the middle of the same water and the two decks meet there.
+    const heights = shoreHeights(
+      (tx, tz) => (tx - 11) ** 2 + (tz - 7) ** 2 <= 4,
+    );
+    const {sync} = makeSync(heights);
+    sync.update([
+      snap({id: 1, type: BuildingTypeId.fishery, facing: 2, x: 9, y: 9}),
+      snap({id: 2, type: BuildingTypeId.fishery, facing: 2, x: 12, y: 9}),
+    ]);
+    const piers = sync.fisheryPiers();
+    expect(piers.length).toBe(2);
+    const [a, b] = piers as [PierInfo, PierInfo];
+    // Both still fish — neither was pushed off the water to make room.
+    for (const p of [a, b]) {
+      expect(heights.at(p.spotX, p.spotZ)).toBeLessThan(WATER_LEVEL);
+    }
+    // And the decks stand apart. Sampled along both, because two segments
+    // can end far apart and still cross in the middle.
+    const tipOf = (p: PierInfo): [number, number] => [
+      p.spotX + Math.sin(p.yaw) * 0.4,
+      p.spotZ + Math.cos(p.yaw) * 0.4,
+    ];
+    const [ax, az] = tipOf(a);
+    const [bx, bz] = tipOf(b);
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10;
+      const px = a.baseX + (ax - a.baseX) * t;
+      const pz = a.baseZ + (az - a.baseZ) * t;
+      for (let j = 0; j <= 10; j++) {
+        const u = j / 10;
+        const qx = b.baseX + (bx - b.baseX) * u;
+        const qz = b.baseZ + (bz - b.baseZ) * u;
+        expect(Math.hypot(px - qx, pz - qz)).toBeGreaterThan(0.5);
+      }
+    }
   });
 
   it('is absent while the fishery is still a site', () => {
@@ -622,6 +876,164 @@ describe("the bakery's smoke", () => {
   });
 });
 
+describe('the training cue', () => {
+  const hall = (over: Partial<BuildingSnap> = {}): BuildingSnap =>
+    snap({type: BuildingTypeId.barracks, ...over});
+  /** A knight actually on the fire — the state that lights the cue. */
+  const drilling = (): BuildingSnap =>
+    hall({
+      trainQueue: [{unit: UnitTypeId.knight, started: true, progress01: 0.4}],
+    });
+  const pane = (scene: THREE.Scene): THREE.Mesh =>
+    scene.getObjectByName('windowPane') as THREE.Mesh;
+  const lit = (scene: THREE.Scene): number =>
+    pane(scene).visible
+      ? (pane(scene).material as THREE.MeshBasicMaterial).opacity
+      : 0;
+
+  it('lights the windows while a course runs', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    // Nothing until it is drawn: the level eases up from cold.
+    expect(lit(scene)).toBe(0);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBeGreaterThan(0.5);
+    // ...and so does the light landing on the stone around them.
+    const spill = scene.getObjectByName('windowSpill') as THREE.Mesh;
+    expect(spill.visible).toBe(true);
+    expect((spill.material as THREE.MeshBasicMaterial).opacity).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it('stays cold for an order that has not started', () => {
+    const {sync, scene} = makeSync();
+    // Queued behind a sword nobody has forged: the exact state a player
+    // wants told apart from a course actually running.
+    sync.update([
+      hall({trainQueue: [{unit: UnitTypeId.knight, started: false}]}),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBe(0);
+    expect(scene.getObjectByName('chimneySmoke')).toBeUndefined();
+  });
+
+  it('lights on a high-refresh display, not just at sixty frames', () => {
+    // The dark fast path snapped any sub-threshold level to zero, including
+    // a RISING one — and a rise is dt-sized, so at 120Hz the first step
+    // (0.018) never cleared the threshold (0.02) and the hall was reset to
+    // dark every frame. The windows simply never lit. Sixty frames a second
+    // cleared it by a hair, which is why nothing caught it.
+    for (const hz of [30, 60, 120, 144, 240]) {
+      const {sync, scene} = makeSync();
+      sync.update([drilling()]);
+      for (let i = 0; i < hz * 3; i++) sync.frame(1 / hz);
+      expect(lit(scene), `${hz}Hz`).toBeGreaterThan(0.5);
+    }
+  });
+
+  it('keeps the glow out of the pick: light is not something you click', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    // buildingSync's pick walk skips a subtree marked this way; unmarked,
+    // every lit pane and spill of a castle joins the ray's list.
+    const glow = scene.getObjectByName('windowGlow')!;
+    expect(glow.userData.noPick).toBe(true);
+  });
+
+  it('goes out when the building is paused', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBeGreaterThan(0.5);
+    sync.update([{...drilling(), paused: true}]);
+    for (let i = 0; i < 60; i++) sync.frame(0.1);
+    expect(lit(scene)).toBe(0);
+  });
+
+  it('banks rather than snapping when the last order finishes', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    sync.update([hall()]);
+    // One frame later it is dimmer but still burning: a full queue starts
+    // its next order a tick after the last one ends, and a cue that
+    // snapped would put the banner down between every two soldiers.
+    sync.frame(0.1);
+    const ember = lit(scene);
+    expect(ember).toBeGreaterThan(0.3);
+    expect(ember).toBeLessThan(1);
+    for (let i = 0; i < 100; i++) sync.frame(0.1);
+    expect(lit(scene)).toBe(0);
+  });
+
+  it('lights the castle for a serf hire, which is the course it runs', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.storehouse,
+        hireQueue: 1,
+        hireProgress01: 0.3,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(lit(scene)).toBeGreaterThan(0.5);
+  });
+
+  it('never lights a site: nobody trains in a building not yet built', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      {...drilling(), state: BuildingState.site, siteNeeds: {[GoodId.wood]: 2}},
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    expect(pane(scene).visible).toBe(false);
+  });
+
+  it('keeps the glow out of the x-ray wall marking', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    // A marked mesh is handed an occluder twin of its material and draws
+    // late; the panes must keep the material the level is set on, and the
+    // yard props must not stamp a wall bit over open grass.
+    const pane_ = scene.getObjectByName('windowPane')!;
+    expect(pane_ instanceof THREE.Mesh).toBe(true);
+    expect((pane_ as THREE.Mesh).renderOrder).not.toBe(WALL_RENDER_ORDER);
+    eachMaterial(pane_ as THREE.Mesh, mat =>
+      expect(mat.stencilWrite).toBe(false),
+    );
+  });
+
+  it("burns its own fire, not the shared template's", () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling(), {...hall(), id: 8, x: 20, y: 20}]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const panes = scene
+      .getObjectsByProperty('name', 'windowPane')
+      .map(o => o as THREE.Mesh);
+    expect(panes.length).toBe(2);
+    const opacities = panes.map(
+      p => (p.material as THREE.MeshBasicMaterial).opacity,
+    );
+    // One drilling, one idle — and the idle one is dark, which it cannot
+    // be if the two share the template's material.
+    expect(Math.max(...opacities)).toBeGreaterThan(0.5);
+    expect(panes.some(p => !p.visible)).toBe(true);
+  });
+
+  it('frees the fire it owned when the building comes down', () => {
+    const {sync, scene} = makeSync();
+    sync.update([drilling()]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const mat = pane(scene).material as THREE.MeshBasicMaterial;
+    const freed = vi.spyOn(mat, 'dispose');
+    sync.update([]);
+    // Teardown sinks the model first; run it out.
+    for (let i = 0; i < 40; i++) sync.frame(0.1);
+    expect(freed).toHaveBeenCalled();
+  });
+});
+
 describe("the fishery's shoal", () => {
   it('swims under the waterline, not at the deck height the template bakes', () => {
     const {sync, scene} = makeSync();
@@ -727,6 +1139,270 @@ describe('the measurements the pointer picks against', () => {
     // Nothing standing anywhere: no ceiling to climb to, so a pick is the
     // ground hit it always was.
     expect(sync.ceiling()).toBe(Number.NEGATIVE_INFINITY);
+  });
+});
+
+describe('the silhouette the pointer picks against', () => {
+  /** The mocked model is a unit box centered on its origin, standing in the
+   * middle of a two-by-two footprint — so the box the old pick used covers
+   * half a tile of bare grass on every side of it. */
+  const MODEL_TOP = 0.5;
+  const DOWN = new THREE.Vector3(0, -1, 0);
+  /** The rig's own line of sight: pitched 35°, yawed 30°. */
+  const PITCHED = new THREE.Vector3(
+    Math.cos((35 * Math.PI) / 180) * Math.sin(Math.PI / 6),
+    Math.sin((35 * Math.PI) / 180),
+    Math.cos((35 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  )
+    .normalize()
+    .negate();
+
+  /** A ray that arrives at `aim` from `dir`, starting `back` away from it. */
+  function ray(
+    aim: THREE.Vector3,
+    dir: THREE.Vector3,
+    back = 10,
+  ): [THREE.Vector3, THREE.Vector3] {
+    return [aim.clone().addScaledVector(dir, -back), dir];
+  }
+
+  it('is met on the model and missed in the air the box claims beside it', () => {
+    const {sync} = makeSync();
+    sync.update([snap({state: BuildingState.built})]);
+
+    // Straight down the middle: the roof, where the model is.
+    const [from, dir] = ray(new THREE.Vector3(11, MODEL_TOP, 11), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10);
+
+    // Half a tile out, still inside the footprint and so inside the old
+    // pick box — and nothing is drawn there at any height.
+    const [beside, down] = ray(new THREE.Vector3(10.2, MODEL_TOP, 10.2), DOWN);
+    expect(sync.silhouetteT(7, beside, down)).toBe(-1);
+  });
+
+  it('is met only as high as a site has actually risen', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0.5, siteNeeds: {}}),
+    ]);
+    // Where the reveal plane stands at half progress (#create: a sliver of
+    // lift, then the model's own height by progress).
+    const risen = 0.08 + MODEL_TOP * 0.5;
+
+    // Aimed at the roofline, which the plane has not reached: clipping is a
+    // shader's business and the geometry up there is still in the model, so
+    // without the clip test the ray would meet a roof nobody has laid.
+    const [from, dir] = ray(new THREE.Vector3(11, MODEL_TOP, 11), PITCHED);
+    const t = sync.silhouetteT(7, from, dir);
+    expect(t).toBeGreaterThan(0);
+    // What it meets instead is the far wall's inside, below the plane —
+    // which is exactly what a half-raised building shows the camera.
+    expect(from.y + dir.y * t).toBeLessThan(risen);
+  });
+
+  it('counts the scaffolding a site stands in', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({state: BuildingState.site, progress01: 0, siteNeeds: {}}),
+    ]);
+    // A corner post of the frame: the model is a sliver at this point, and
+    // the posts are all there is to click.
+    const [from, dir] = ray(
+      new THREE.Vector3(11.85, SITE_FRAME_H, 11.85),
+      DOWN,
+    );
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10);
+  });
+
+  it('is the building, never the smoke standing over it', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.bakery,
+        working: true,
+        staffing: StaffingState.staffed,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    expect(smoke.visible).toBe(true);
+
+    // Straight down the column, which the mock parks two units over the
+    // roof: the puffs are in the way and are not the bakery. Picking them
+    // would hand back the very pillar of dead sky the silhouette exists to
+    // give up — a hover that lights the bakery from a storey above it.
+    const [from, dir] = ray(new THREE.Vector3(11, 4, 11), DOWN);
+    // The roof, four units under where the ray was aimed — not the puffs
+    // it fell through on the way.
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10 + 4 - MODEL_TOP);
+  });
+
+  it('has nothing to meet on a road, whose pick is its ground', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.roadSite,
+        w: 1,
+        h: 1,
+        state: BuildingState.site,
+        progress01: 0,
+        siteNeeds: {},
+      }),
+    ]);
+    const [from, dir] = ray(new THREE.Vector3(10.5, 0.3, 10.5), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBe(-1);
+  });
+
+  it('has nothing to meet on ground the fog has not handed back', () => {
+    const {sync} = makeSync();
+    sync.setFog({
+      owner: 0,
+      visibleAt: () => false,
+      exploredAt: () => false,
+      litAt: () => 0,
+    });
+    sync.update([snap({owner: 1, state: BuildingState.built})]);
+    // A rival's camp on unscouted ground is in the scene but not on the
+    // screen. You cannot click what is not drawn.
+    const [from, dir] = ray(new THREE.Vector3(11, MODEL_TOP, 11), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBe(-1);
+  });
+
+  it('knows nothing of a building that never stood', () => {
+    const {sync} = makeSync();
+    const [from, dir] = ray(new THREE.Vector3(11, 1, 11), DOWN);
+    expect(sync.silhouetteT(99, from, dir)).toBe(-1);
+  });
+
+  it('never rays what is not the building, rather than ray it and drop it', () => {
+    const {sync, scene} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.bakery,
+        working: true,
+        staffing: StaffingState.staffed,
+      }),
+    ]);
+    for (let i = 0; i < 30; i++) sync.frame(0.1);
+    const smoke = scene.getObjectByName('chimneySmoke')!;
+    // Count what the raycaster is actually handed. Testing the answer is
+    // not enough: a puff sieved out of the hits was still tested triangle
+    // by triangle, and the roof watch — skinned, and the dearest shape on
+    // any building — is excluded by this same flag.
+    let rayed = 0;
+    for (const puff of smoke.children) {
+      const mesh = puff as THREE.Mesh;
+      const real = mesh.raycast.bind(mesh);
+      mesh.raycast = (r, hits) => {
+        rayed++;
+        real(r, hits);
+      };
+    }
+    const [from, dir] = ray(new THREE.Vector3(11, 4, 11), DOWN);
+    expect(sync.silhouetteT(7, from, dir)).toBeCloseTo(10 + 4 - MODEL_TOP);
+    expect(rayed).toBe(0);
+  });
+});
+
+describe('the ground a building is drawn over but does not stand on', () => {
+  /** Who is drawn over this ground, as the broad phase asks it. */
+  const over = (
+    sync: InstanceType<typeof BuildingSync>,
+    x: number,
+    z: number,
+  ): number[] => {
+    const out: number[] = [];
+    sync.drawnAt(x, z, out);
+    return out;
+  };
+
+  it("claims the water under a fishery's jetty, and gives it back", () => {
+    const {sync} = makeSync();
+    sync.update([snap({type: BuildingTypeId.fishery})]);
+    // The hut stands on the 10..11 square and the mocked deck runs out
+    // along +z to about z 14.35 — two tiles of open water past it.
+    expect(over(sync, 11, 13)).toEqual([7]);
+    expect(over(sync, 11, 14.2)).toEqual([7]);
+    // Its own plot is the map's to answer for, not this.
+    expect(over(sync, 11, 11.5)).toEqual([]);
+    // And ground nothing reaches over is nobody's.
+    expect(over(sync, 11, 15.5)).toEqual([]);
+    expect(over(sync, 20, 20)).toEqual([]);
+
+    sync.update([]);
+    expect(over(sync, 11, 13)).toEqual([]);
+  });
+
+  it('holds every jetty over a tile two of them cross', () => {
+    const {sync} = makeSync();
+    // A second hut three tiles up the shore, its deck running out over the
+    // same water: 2.54 tiles of pier against a one-tile placement ring
+    // means jetties do cross.
+    sync.update([
+      snap({type: BuildingTypeId.fishery}),
+      snap({id: 9, type: BuildingTypeId.fishery, x: 10, y: 12}),
+    ]);
+    const both = over(sync, 11, 14).sort((a, b) => a - b);
+    expect(both).toEqual([7, 9]);
+
+    // And the survivor keeps the ground when its neighbour comes down —
+    // a tile that named one of them would have gone empty here.
+    sync.update([snap({id: 9, type: BuildingTypeId.fishery, x: 10, y: 12})]);
+    expect(over(sync, 11, 14)).toEqual([9]);
+  });
+
+  it('takes in the stock standing at the door, which the walls do not cover', () => {
+    const {sync} = makeSync();
+    // Piles wait a third of a tile OUTSIDE the front wall (#syncPiles), so
+    // a claim read off the model alone leaves them with no candidate and a
+    // click on the goods falls through to the grass they stand on.
+    const stocked = snap({
+      type: BuildingTypeId.storehouse,
+      w: 2,
+      h: 2,
+      stock: {[GoodId.wood]: 6},
+    });
+    sync.update([stocked]);
+    expect(over(sync, 11, 12.2)).toEqual([7]);
+
+    // Hauled away, and the ground goes back to being grass.
+    sync.update([snap({type: BuildingTypeId.storehouse, w: 2, h: 2})]);
+    expect(over(sync, 11, 12.2)).toEqual([]);
+  });
+
+  it('follows the jetty when the fit turns the whole building', () => {
+    // The one wet column is west of the hut (tx 9) while the facing sends
+    // the deck north, so the fit turns hut and jetty together the moment
+    // the visual is made — and the water it is drawn over turns with them,
+    // from the first roster: the claim is read off the turned model, not
+    // the authored one.
+    const {sync} = makeSync(shoreHeights(tx => tx === 9));
+    sync.update([snap({type: BuildingTypeId.fishery, facing: 2})]);
+    // Turned 45° west, the far planks lie over the wet column — ground
+    // the authored (straight north) deck never covered.
+    expect(over(sync, 9.5, 9.5)).toEqual([7]);
+    // And the tiles the authored deck would have reached, straight north
+    // past where the trimmed, turned one ends, are nobody's: the claim is
+    // the box around the jetty as it stands, not as it was authored.
+    expect(over(sync, 11, 8)).toEqual([]);
+    // Past any reach of it, turned or not.
+    expect(over(sync, 12.5, 8)).toEqual([]);
+  });
+
+  it('leaves a road, which is ground, claiming nothing', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({
+        type: BuildingTypeId.roadSite,
+        w: 1,
+        h: 1,
+        state: BuildingState.site,
+        progress01: 0,
+        siteNeeds: {},
+      }),
+    ]);
+    for (let z = 8; z < 13; z++)
+      for (let x = 8; x < 13; x++) expect(over(sync, x, z)).toEqual([]);
   });
 });
 
@@ -881,5 +1557,227 @@ describe('the seat the fog is drawn through', () => {
     sync.setFog(blindFor(0));
     sync.update([snap({owner: 1})]);
     expect(root.visible).toBe(false);
+  });
+});
+
+describe('the wall bit', () => {
+  /** Every material the visual draws with, in traversal order. */
+  function materialsOf(root: THREE.Object3D): THREE.Material[] {
+    const out: THREE.Material[] = [];
+    root.traverse(o => {
+      if (o instanceof THREE.Mesh) eachMaterial(o, m => out.push(m));
+    });
+    return out;
+  }
+
+  it('has the building stamp it where it draws, and nothing else', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({})]);
+    const root = scene.children[0]!;
+    const mats = materialsOf(root);
+    expect(mats.length).toBeGreaterThan(0);
+    for (const m of mats) {
+      expect(m.stencilWrite).toBe(true);
+      expect(m.stencilFunc).toBe(THREE.AlwaysStencilFunc);
+      expect(m.stencilZPass).toBe(THREE.ReplaceStencilOp);
+      // Only where it wins the depth test: a fragment behind something
+      // else is not a wall in front of this pixel.
+      expect(m.stencilFail).toBe(THREE.KeepStencilOp);
+      expect(m.stencilZFail).toBe(THREE.KeepStencilOp);
+      // The wall bit, and the wall bit only. Spelt out rather than read
+      // off the source: a Replace at the default 0xff writes the same ref
+      // and would clobber the body bit the unit mask puts down, so the
+      // mask is the assertion, not an implementation detail of it.
+      expect(m.stencilRef).toBe(0x02);
+      expect(m.stencilWriteMask).toBe(0x02);
+    }
+    // Drawn after everything unmarked in the opaque queue, because the bit
+    // is never cleared.
+    root.traverse(o => {
+      if (o instanceof THREE.Mesh)
+        expect(o.renderOrder).toBe(WALL_RENDER_ORDER);
+    });
+  });
+
+  it('is left alone by what nothing can hide behind', () => {
+    const {sync, scene} = makeSync();
+    // A road's pile of stone is ankle-high and is not in occluderBoxes;
+    // stamping a wall under it would hand every serf walking a road an
+    // outline drawn over the road itself.
+    sync.update([snap({type: BuildingTypeId.roadSite, w: 1, h: 1})]);
+    const mats = materialsOf(scene.children[0]!);
+    expect(mats.length).toBeGreaterThan(0);
+    for (const m of mats) expect(m.stencilWrite).toBe(false);
+  });
+
+  it('leaves the fishery its deck and its fish, which stand outside the box', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({type: BuildingTypeId.fishery, w: 2, h: 2})]);
+    const root = scene.children[0]!;
+    const hut: THREE.Material[] = [];
+    const beyond: THREE.Material[] = [];
+    root.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      // Anything hanging off the named deck or shoal, however deep.
+      let out = false;
+      for (let a: THREE.Object3D | null = o; a; a = a.parent) {
+        if (a.name === 'fisheryPier' || a.name === 'fisheryShoal') out = true;
+      }
+      eachMaterial(o, m => (out ? beyond : hut).push(m));
+    });
+    expect(hut.length).toBeGreaterThan(0);
+    expect(beyond.length).toBeGreaterThan(0);
+    // The deck runs a couple of tiles out over open water and the shoal
+    // swims off the end of it, while the box is the footprint. A bit out
+    // there is one no box vouches for.
+    expect(hut.every(m => m.stencilWrite)).toBe(true);
+    expect(beyond.every(m => !m.stencilWrite)).toBe(true);
+  });
+
+  it('follows a site up: marked exactly when it is boxed, scaffolding never', () => {
+    const {sync, scene} = makeSync();
+    const site = (progress01: number): BuildingSnap =>
+      snap({state: BuildingState.site, hp: 1, progress01});
+    sync.update([site(0.1)]);
+    const root = scene.children[0]!;
+    // The clip plane tells the building rising out of the ground from the
+    // frame standing round it: only the model carries one.
+    const rising = (): THREE.Material[] =>
+      materialsOf(root).filter(m => (m.clippingPlanes?.length ?? 0) > 0);
+    const scaffold = (): THREE.Material[] =>
+      materialsOf(root).filter(m => (m.clippingPlanes?.length ?? 0) === 0);
+    expect(rising().length).toBeGreaterThan(0);
+    expect(scaffold().length).toBeGreaterThan(0);
+
+    /** Where the meshes of the rising building sit in the opaque queue. */
+    const orders = (): number[] => {
+      const out: number[] = [];
+      root.traverse(o => {
+        if (!(o instanceof THREE.Mesh)) return;
+        let clipped = false;
+        eachMaterial(o, m => {
+          if ((m.clippingPlanes?.length ?? 0) > 0) clipped = true;
+        });
+        if (clipped) out.push(o.renderOrder);
+      });
+      return out;
+    };
+
+    // A sliver of wall inside a frame hides nobody: no box, and so no
+    // bits either. A bit the boxes do not vouch for is an edge drawn over
+    // something that is not hiding the man.
+    expect(sync.occluderBoxes()).toHaveLength(0);
+    expect(rising().every(m => !m.stencilWrite)).toBe(true);
+    // ...and it gives up the buildings' slot at the end of the opaque
+    // queue while it is unmarked. Left there it would be a way to inherit
+    // a bit: drawn after a wall (the queue sorts on material id inside a
+    // render order), winning the depth test, and leaving that wall's bit
+    // standing over a pixel it no longer owns.
+    expect(orders().length).toBeGreaterThan(0);
+    expect(orders().every(o => o === 0)).toBe(true);
+
+    // Topped out: boxed, stamping, and back in the buildings' slot.
+    sync.update([site(1)]);
+    expect(sync.occluderBoxes()).toHaveLength(1);
+    expect(rising().every(m => m.stencilWrite)).toBe(true);
+    expect(orders().every(o => o === WALL_RENDER_ORDER)).toBe(true);
+
+    // The frame stamps at no height at all. Its sill lies along the
+    // ground, and ground that stamps is how a green arc ends up under a
+    // man's boots.
+    expect(scaffold().every(m => !m.stencilWrite)).toBe(true);
+  });
+});
+
+describe('occluderBoxes', () => {
+  /** Nothing lit and nothing remembered, and its opposite. */
+  const blind: FogQuery = {
+    owner: 0,
+    visibleAt: () => false,
+    exploredAt: () => false,
+    litAt: () => 0,
+  };
+  const lifted: FogQuery = {
+    owner: 0,
+    visibleAt: () => true,
+    exploredAt: () => true,
+    litAt: () => 1,
+  };
+
+  it('boxes a standing building around its footprint and model', () => {
+    const {sync} = makeSync();
+    sync.update([snap({x: 10, y: 20, w: 2, h: 4})]);
+    const [box] = sync.occluderBoxes();
+    expect(box).toBeDefined();
+    // Centred on the footprint, padded a little for the eaves, and rising
+    // from the ground to the top of the model.
+    expect(box!.minX).toBeLessThan(11);
+    expect(box!.maxX).toBeGreaterThan(12);
+    expect(box!.minZ).toBeLessThan(22);
+    expect(box!.maxZ).toBeGreaterThan(24);
+    expect(box!.topY).toBeGreaterThan(box!.baseY);
+  });
+
+  it('leaves out what nothing can hide behind', () => {
+    const {sync} = makeSync();
+    sync.update([
+      snap({id: 1, type: BuildingTypeId.roadSite, x: 4, y: 4, w: 1, h: 1}),
+      snap({id: 2, type: BuildingTypeId.salvage, x: 6, y: 6, w: 1, h: 1}),
+    ]);
+    expect(sync.occluderBoxes()).toHaveLength(0);
+  });
+
+  it('leaves out a foundation, and boxes the keep that rises off it', () => {
+    const {sync} = makeSync();
+    // Nothing raised: four posts and some rails hide nobody, even though
+    // the pick box floors at the frame so the site can still be clicked.
+    sync.update([snap({state: BuildingState.site, hp: 1})]);
+    expect(sync.occluderBoxes()).toHaveLength(0);
+    expect(sync.heightOf(7)).toBeGreaterThanOrEqual(SITE_FRAME_H);
+
+    // Topped out: a building like any other.
+    sync.update([snap({state: BuildingState.built})]);
+    expect(sync.occluderBoxes()).toHaveLength(1);
+  });
+
+  it('leaves out a building this seat has never seen', () => {
+    const {sync} = makeSync();
+    sync.setFog(blind);
+    sync.update([snap({owner: 1})]);
+    // Standing in unexplored ground: not drawn, so not an occluder — an
+    // outline against it would be a wall nobody knows is there.
+    expect(sync.occluderBoxes()).toHaveLength(0);
+
+    sync.setFog(lifted);
+    sync.update([snap({owner: 1})]);
+    expect(sync.occluderBoxes()).toHaveLength(1);
+  });
+});
+
+describe('the hp bars over the buildings', () => {
+  it('draws after the decals on the ground, not before them', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({hp: 60})]); // hurt, so the bar is shown
+
+    // The bars are the only thing the sync hangs on the scene that
+    // refuses the depth test — which is also why the queue they draw in
+    // is the whole of what keeps them on top. Three runs the entire
+    // opaque list before the first transparent object and renderOrder
+    // only sorts within a list, so an opaque bar draws before every
+    // ground decal in the game and the decal paints over it: the boot
+    // prints across a health bar that started this.
+    const bars: THREE.Mesh[] = [];
+    scene.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      eachMaterial(o, m => {
+        if (m.depthTest === false) bars.push(o);
+      });
+    });
+    expect(bars).toHaveLength(2); // the trough and the fill
+    for (const bar of bars) {
+      eachMaterial(bar, m => expect(m.transparent).toBe(true));
+      // ...and last within that list, over the prints at the default 0.
+      expect(bar.renderOrder).toBeGreaterThan(0);
+    }
   });
 });

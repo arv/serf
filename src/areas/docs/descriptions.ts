@@ -59,9 +59,9 @@ const BAKED = yieldOf(BuildingTypeId.bakery, GoodId.food);
  */
 export const GROUP_DESC: Record<BuildGroupLabel, string> = {
   Village:
-    'Homes, the two trades that raise them, and the Abbey — with the silver mine that pays for its research and for every hand you hire.',
+    'Homes, the two trades that raise them, and the Smith that tools every other — with the Abbey, and the silver mine that pays for its research and for every hand you hire.',
   Food: 'The bread chain end to end, starting at the well that waters it, and the two that stand apart from it: the shore, which needs no chain at all, and the brewery, which bids against the mill for the same wheat.',
-  Arms: 'Iron out of the hillside, into the Smith, onto a soldier. The tower and the deep gold seam come after — when there is something worth defending, and something worth gilding.',
+  Arms: 'Iron out of the hillside, and the two yards that make soldiers of what the Smith forges — swords out of that iron for the hall, bows out of plain wood for the range. The tower and the deep gold seam come after — when there is something worth defending, and something worth gilding.',
 };
 
 export const BUILDING_DESC: Record<BuildingTypeId, string> = {
@@ -97,7 +97,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.barracks]:
     'Turns bread, a forged weapon and a walking serf into a soldier — knights and spearmen, the two arms that fight in reach. The rally flag on its door is where fresh recruits march.',
   [BuildingTypeId.archeryRange]:
-    'The bow’s own roof: butts, a stave rack and the same bread-weapon-serf bill the barracks charges, filled a quarter faster. It is a second building on the military line rather than a stall in the first, so an army of steel and an army of bows are two decisions and two queues instead of one queue and an ordering.',
+    'The bow’s own roof: butts, a stave rack and the same bread-weapon-serf bill the barracks charges, filled a little faster. It is a second building on the military line rather than a stall in the first, so an army of steel and an army of bows are two decisions and two queues instead of one queue and an ordering.',
   [BuildingTypeId.guardTower]: `Stone that shoots back. ${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers on the wall hit harder and further than the same number on the grass — and until archers exist, the levy drops stones.`,
   [BuildingTypeId.roadSite]:
     'A single tile of paving, placed by the Masonry road pass rather than by hand. When it finishes, the trail beneath it is stone for good.',
@@ -109,7 +109,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
 
 export const UNIT_DESC: Record<UnitTypeId, string> = {
   [UnitTypeId.serf]:
-    'The village’s hands: hauls every good, raises every building, and becomes whatever the village needs next. No weapon, no fight.',
+    'The village’s hands: hauls every good, raises every building, and becomes whatever the village needs next. No weapon worth the name — on his errands he answers only the man already cutting him down, and everyone walks straight through him. Order him to attack (A) and he fights like a melee unit at about a fifth of a raider’s output, and becomes a body in the way — blocking and blocked, his own side included — for as long as that order stands. Four of them will kill one bandit, and seven will bring down a knight. It is the worst trade in the valley, and some days it is the only one left.',
   [UnitTypeId.worker]:
     'A serf who took a post. Workers live at their building and work its trade; lose the building and the trade stops.',
   [UnitTypeId.knight]:

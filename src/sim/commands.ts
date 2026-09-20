@@ -90,6 +90,34 @@ export type SimCommand =
    * would only strand the good.
    */
   | {kind: CommandKindNs.holdGround; unitIds: EntityId[]}
+  /**
+   * Halt: the named units drop the order they are walking — a move, an
+   * attack-move, or an assault on a building — along with the route
+   * queued behind it, and stand where their feet are (units.ts,
+   * UnitTaskKind.idle). Stop as every RTS spells it, on S.
+   *
+   * Not the same thing as `holdGround`, which is the neighbouring key and
+   * the neighbouring button: a hold is a stance a soldier keeps until
+   * another order lifts it, and it promises he will never step off that
+   * tile. This drops the order and nothing more — a soldier who stops is
+   * an idle soldier, so he still answers an enemy that walks into his
+   * acquire radius, exactly as one standing where his march ended does.
+   * Stop is how a charge is called off; hold is how a line is drawn.
+   *
+   * Unlike the hold, this takes civilians too — a serf sent across the
+   * valley is walking like anyone else, and "stop" means stop. What it
+   * does not touch is an errand (hauling, a worker's gather loop, a walk
+   * to a post to take it up): those are not walks the man can be halted
+   * in the middle of without stranding a good on a shoulder or leaving a
+   * building unworked, so they are left alone, as a hold is.
+   *
+   * Every other walk is stopped, whoever set it going — the player's
+   * march, a recruit's walk to his rally flag, a serf's stroll, the
+   * chase or the siege the combat system walks for a soldier with a
+   * target. The man was selected and the key was pressed; "stop" is not
+   * a question about where the walk came from.
+   */
+  | {kind: CommandKindNs.stopUnits; unitIds: EntityId[]}
   | {
       kind: CommandKindNs.placeBuilding;
       building: BuildingTypeId;
@@ -272,6 +300,15 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       if (!c.unitIds.every(isId)) return null;
       return {
         kind: CommandKindNs.holdGround,
+        unitIds: [...(c.unitIds as EntityId[])],
+      };
+    }
+    case CommandKindNs.stopUnits: {
+      if (!Array.isArray(c.unitIds)) return null;
+      if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
+      if (!c.unitIds.every(isId)) return null;
+      return {
+        kind: CommandKindNs.stopUnits,
         unitIds: [...(c.unitIds as EntityId[])],
       };
     }

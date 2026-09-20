@@ -126,12 +126,30 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // balance floor doesn't apply.
     // Tools for the two posts this mission teaches, and hammers for its
     // sites — the tool economy itself is mission 4's lesson, not this one's.
+    //
+    // The third pick and the bread are the seam's kit, not a third lesson.
+    // `hard` scales this larder to 70% (scaleStartStock) and takes a hand
+    // out of the yard, which leaves 17 silver against a checklist that
+    // costs 24 — two hires short, with no way in the world to earn the
+    // difference. The map answers that with a silver seam a valley
+    // north-east (mapAuthor/missions/clearing.ts), and a seam is only an
+    // answer if the village can work it: a mine binds a pick like the
+    // quarry does, and a mine eats (MINE_RATION_PER). So the crown sends
+    // a spare pick and a few loaves with the commission, the way it sends
+    // the picks and the bread in mission 3.
+    //
+    // Priced at the tier that needs them rather than the printed game:
+    // 3 picks and 8 food scale to 2 and 6 on `hard` — one pick for the
+    // quarry and one for the shaft, and six loaves against the eight
+    // loads two hires cost. On `normal` the purse still covers the
+    // checklist outright and this is a larder nobody has to touch.
     startStock: {
       [GoodId.wood]: 20,
       [GoodId.stone]: 6,
       [GoodId.silver]: 24,
+      [GoodId.food]: 8,
       [GoodId.axe]: 1,
-      [GoodId.pickaxe]: 1,
+      [GoodId.pickaxe]: 3,
       [GoodId.hammer]: 2,
     },
     objectives: [
@@ -161,7 +179,8 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       },
       // Eleven, one past the castle's ten beds: the house objective is
       // load-bearing (population is beds), not a checkbox. Five hires at
-      // 4 silver each out of the 24 the mission opens with.
+      // 4 silver each out of the 24 the mission opens with — or, at a tier
+      // that opens the purse lighter, the last of them out of the hill.
       {
         spec: {kind: ObjectiveKindNs.population, count: 11},
         label: 'Grow the village to 11',
