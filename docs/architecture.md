@@ -1,7 +1,7 @@
 # Architecture: one pure world, two owners, one wire
 
 > **Status: description, not plan.** This is the shape of the code as of
-> v0.14 (September 2026), drawn in one piece. The `README.md` Architecture
+> v0.15 (September 2026), drawn in one piece. The `README.md` Architecture
 > section and the file-header comments quoted here are the primary record;
 > when they disagree with this page, the code wins and this page is stale.
 
@@ -9,12 +9,12 @@ Serf Valley is built on one idea: the simulation is a pure, deterministic
 `World` that never touches the DOM, three.js, or a socket. Whoever owns the
 World ticks it at 20 Hz and publishes what a seat may see. In single player
 that owner is a Web Worker in the tab; in multiplayer it is a Node process on
-Railway. The renderer, HUD and input layer above cannot tell which one they
-are talking to.
+Railway. The renderer cannot tell which one it is drawing from; the HUD
+knows only enough to show a connection state and open the chat line.
 
 | | |
 | --- | --- |
-| ~115k | TypeScript lines including tests |
+| ~119k | TypeScript lines including tests, at v0.15 |
 | 20 Hz | tick and publish rate (`TICK_MS = 50`) |
 | 18 | steps per tick, in a fixed order |
 | 2 | owners of the World: `simWorker.ts`, `server/src/rooms.ts` |
@@ -29,11 +29,10 @@ cross freely; `sim/combat.test.ts` reaches into `protocol` and
 `defs/difficulty.test.ts` into `ai`.) That is what lets Node load the sim
 straight from source for the server and the Node-side labs, with no build
 step: those files spell out `.ts` on their imports and carry no browser
-types.
-Above that boundary the picture is looser by design: `render` reaches into
-`input` for edge scroll, pointer capture and typing detection, `audio` leans
-on one `render` value, and `ui`, `input` and `app` cross-reference each
-other as the one main-thread shell.
+types. Above that boundary the picture is looser by design: `render` reaches
+into `input` for edge scroll, pointer capture and typing detection, `audio`
+leans on one `render` value, and `ui`, `input` and `app` cross-reference
+each other as the one main-thread shell.
 
 ```mermaid
 flowchart TB
@@ -64,10 +63,11 @@ flowchart TB
   style sim stroke:#b8891a,stroke-width:2px
 ```
 
-Lines per directory, including tests: `sim` 44.9k, `render` 21.0k, `ui`
-16.9k, `editor` + `areas` 8.7k, `input` 7.4k, `app` 6.4k, `audio` 2.6k,
-`protocol` 2.5k, `shared` 2.3k, `ai` 2.0k, `net` 0.7k. The sim is the
-heaviest layer and the only one with no dependency above `shared`. The one
+Rough weight per directory at v0.15, tests included and rounded, since the
+exact figures move with every merge: `sim` 46k, `render` 21k, `ui` 18k,
+`editor` + `areas` 9k, `input` 7k, `app` 7k, `protocol` 3k, `audio` 3k,
+`shared` 2k, `ai` 2k, `net` under 1k. The sim is the heaviest layer and the
+only one with no dependency above `shared`. The one
 cross-cut is the AI brain: `sim/systems/ai.ts` reads a World and emits
 ordinary commands, and `src/ai` shapes the posture it plays.
 
@@ -79,7 +79,7 @@ Directory-level import edges, non-test files, from the code as it stands:
 | `sim` | shared |
 | `ai` | sim, shared |
 | `protocol` | sim, shared |
-| `audio` | shared, render (1) |
+| `audio` | shared, one value from render |
 | `render` | sim, shared, protocol, audio, input (`cameraRig.ts` uses edge scroll, pointer capture, typing detection) |
 | `input` | sim, ui, render, shared, app, protocol, audio |
 | `net` | sim, protocol, ui, shared |
@@ -146,6 +146,7 @@ flowchart TB
     relay["index.ts · chat relay<br/>sanitize again · one line per 250 ms per socket<br/>echo to every seat, sender included, then record under the tick<br/>the World never sees it"]
     rooms --> sync
     rooms --> persist
+    relay -- "records under the tick" --> rooms
   end
   mp <-- "WebSocket, same origin<br/>↓ CMD_SUBMIT · ↑ STATE_HOT binary 20 Hz · STATE_STRUCT JSON, checked every 5 ticks, sooner with map or event news<br/>↕ {t:'chat'} string frames<br/>~10.7 KiB/s per seat" --> srv
 
@@ -168,13 +169,12 @@ goes down the worker protocol as a `chat` message, out of `netWorker.ts` as
 a `{t:'chat'}` string frame, and is relayed by `server/src/index.ts` to
 every connected seat, sender included, so everyone reads the same lines in
 the same order. It never enters a room's `World`: no command, no tick, no
-hash.
-`src/protocol/chat.ts` is the trust boundary, a dependency-free sanitizer
-(one line, control characters collapsed, at most 200 code points) that the
-client runs before sending and the relay runs again regardless. The relay
-drops a second line inside 250 ms silently rather than erroring, since an
-error would cost the seat its socket. The solo worker drops chat on the
-floor, and the same toast card carries the AI heralds' announcements.
+hash. `src/protocol/chat.ts` is the trust boundary, a dependency-free
+sanitizer (one line, control characters collapsed, at most 200 code points)
+that the client runs before sending and the relay runs again regardless.
+The relay drops a second line inside 250 ms silently rather than erroring,
+since an error would cost the seat its socket. The solo worker drops chat on
+the floor, and the same toast card carries the AI heralds' announcements.
 
 A recording keeps what the table said. After echoing a line, the relay
 records it under the room's current tick, and `ReplayData` carries that
@@ -234,7 +234,7 @@ they actually stepped; victory is judged before the dead are removed.
 
 | Directory | Responsibility | Load-bearing files |
 | --- | --- | --- |
-| `src/sim` | The World and everything that changes it. Pure, deterministic, serializable; imports only `defs/` and `shared`. Content is data in `defs/`, never special-cased ids in systems. | `world.ts` · `tick.ts` · `commands.ts` · `path.ts` · `visibility.ts` · `save.ts` / `clone.ts` / `hash.ts` · `aiSeats.ts` · `systems/*` · `defs/*` |
+| `src/sim` | The World and everything that changes it. Pure, deterministic, serializable; imports only `defs/` and `shared`. Content is data in `defs/`; a system names an id only where that id carries a rule of its own. | `world.ts` · `tick.ts` · `commands.ts` · `path.ts` · `visibility.ts` · `save.ts` / `clone.ts` / `hash.ts` · `aiSeats.ts` · `systems/*` · `defs/*` |
 | `src/render` | three.js scene fed only by SAB rows and structural snaps. Interpolates between publishes on its own rAF clock; dresses KayKit rigs at runtime; owns the look of fog, not the rule. | `renderer.ts` · `sceneSync.ts` · `buildingSync.ts` · `characters.ts` · `assets.ts` · `fogOfWar.ts` · `cameraRig.ts` |
 | `src/ui` | Solid.js HUD, start menu, War Council lobby, tech tree, minimap, admin panel. Main-thread state lives in `store.ts` signals that worker updates write into. | `Hud.tsx` · `MenuApp.tsx` · `WarCouncil.tsx` · `store.ts` · `SelectionPanel.tsx` · `TechTreePanel.tsx` · `icons.tsx` |
 | `src/input` | Pointer, keyboard and touch into commands and selection: band select, control groups, edge scroll, order modes, long-press move on touch. | `controls.ts` · `picking.ts` · `keyboard.ts` · `groups.ts` · `edgeScroll.ts` |
@@ -300,9 +300,9 @@ they actually stepped; victory is judged before the dead are removed.
 - **`tools/perf`** — behaviour-preservation digest (world hash every N
   ticks), a per-system profiler, and a late-game stress valley to see where
   the tick budget goes.
-- **`tools/mapAuthor`** — landforms, not seeds: the vocabulary the seven
-  mission recipes are written in, exported to checked-in files under
-  `sim/defs/maps/`.
+- **`tools/mapAuthor`** — landforms, not seeds: the vocabulary the eight
+  mission recipes (seven commissions and the bonus rival) are written in,
+  exported to checked-in files under `sim/defs/maps/`.
 - **`tools/modelLab`** — a sketchpad for building compositions before they
   earn a place in `render/assets.ts`; KayKit models and props framed as the
   game frames them.
