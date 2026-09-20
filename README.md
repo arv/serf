@@ -388,8 +388,9 @@ its button is greyed out — and every refusal names which gate it hit.
 ## Architecture
 
 The whole shape is drawn in one piece in `docs/architecture.md`: the layer
-stack and its import rule, the two owners of the World behind one worker
-protocol, and the order of a tick. What follows is the short version.
+stack and its import rule, the two owners of the World and the one seam on
+the main thread either plugs into, and the order of a tick. What follows is
+the short version.
 
 The simulation is a pure, deterministic, serializable data machine running at
 a fixed 20 Hz in a **Web Worker**; the main thread only renders (three.js)

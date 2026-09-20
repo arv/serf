@@ -119,7 +119,7 @@ flowchart TB
     controls["input · controls<br/>click → SimCommand"]
     host["SimHost + SabReader<br/>the one seam either worker plugs into"]
   end
-  wire["Worker protocol, the same whichever worker is behind it<br/>↑ SAB: unit rows, 20 Hz, 4 rotating slots under a seqlock<br/>↑ postMessage: buildings, players, jobs, map deltas, chat<br/>↓ postMessage: SimCommand[], chat"]
+  wire["Worker protocol, the same whichever worker is behind it<br/>↑ SAB: unit rows, 20 Hz, 4 rotating slots under a seqlock<br/>↑ postMessage: buildings, players, jobs, map deltas, events, chat<br/>↓ postMessage: SimCommand[], chat"]
   main <--> wire
 
   subgraph solo["simWorker.ts · single player · in the tab · frozen while hidden"]
@@ -129,14 +129,14 @@ flowchart TB
     world1 --> snap
     world1 --> save
   end
-  wire <-- "?ai=1 · campaign · saves" --> solo
+  wire <-->|"?ai=1 · campaign · saves"| solo
 
   subgraph mp["netWorker.ts · multiplayer client · no World, no tickWorld"]
     direction LR
     decode["decodeState<br/>frames → same SAB slots"]
     predict["MovePredictor<br/>own units, until the server moves them"]
   end
-  wire <-- "?mp=new · ?mp=CODE" --> mp
+  wire <-->|"?mp=new · ?mp=CODE"| mp
 
   subgraph srv["server/src · Node ≥ 23 · one process, one port · Railway"]
     direction LR
@@ -146,9 +146,9 @@ flowchart TB
     relay["index.ts · chat relay<br/>sanitize again · one line per 250 ms per socket<br/>echo to every seat, sender included, then record under the tick<br/>the World never sees it"]
     rooms --> sync
     rooms --> persist
-    relay -- "records under the tick" --> rooms
+    relay -->|"records under the tick"| rooms
   end
-  mp <-- "WebSocket, same origin<br/>↓ CMD_SUBMIT · ↑ STATE_HOT binary 20 Hz · STATE_STRUCT JSON, checked every 5 ticks, sooner with map or event news<br/>↕ {t:'chat'} string frames<br/>~10.7 KiB/s per seat" --> srv
+  mp <-->|"WebSocket, same origin<br/>↓ CMD_SUBMIT · ↑ STATE_HOT binary 20 Hz · STATE_STRUCT JSON, checked every 5 ticks, sooner with map or event news<br/>↕ {t:'chat'} string frames<br/>~10.7 KiB/s per seat"| srv
 
   style world1 stroke:#b8891a,stroke-width:2px
   style rooms stroke:#b8891a,stroke-width:2px
@@ -157,7 +157,9 @@ flowchart TB
 A client is never given what it may not see. The solo worker publishes a
 full snapshot because the only seat is the player's. The server publishes
 through `sync.ts`: units by current visibility, buildings by exploration
-frozen at last sight. The netWorker's one liberty is `net/predict.ts`, which
+frozen at last sight, and a visible enemy's facing and range blanked when
+the point they aim at lies on ground the seat cannot see, so an arrow never
+points into the fog. The netWorker's one liberty is `net/predict.ts`, which
 walks the player's own units along the path they were sent until the
 server's frames take over, then decays the offset. Both owners run the same
 `sim/` files; AI brains sit beside the World, never in a replica, and there
