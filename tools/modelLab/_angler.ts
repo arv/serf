@@ -44,6 +44,16 @@ const YAWS = Number(params.get('yaws') ?? '4');
  * figure wants turning before it can be judged at all. */
 const SPIN = (Number(params.get('spin') ?? '0') * Math.PI) / 180;
 /**
+ * Show the rod exactly as the pack ships it — no aim, no grip slide, no
+ * stretch, and NO plumb on the line.
+ *
+ * The last of those is easy to lose. `updateRodLine` is what the renderer
+ * runs every frame, so the page runs it too; but run in raw mode it hangs
+ * the authored line upright again and the "before" shot quietly becomes
+ * the after. Raw means raw, so every re-hang on the page is gated on this.
+ */
+const RAW = params.get('raw') === '1';
+/**
  * Which clip to stand him in. The rod does not leave his hand when he stops
  * fishing — he paces the deck and walks the catch to the hut still holding
  * it (sceneSync only stows a tool for full hands) — so the walk and the
@@ -94,7 +104,7 @@ scene.add(ground);
 function tuneRod(tool: THREE.Object3D | undefined): THREE.Object3D | null {
   const wrap = tool?.children[0];
   if (!tool || !wrap) return null;
-  if (params.get('raw') === '1') {
+  if (RAW) {
     tool.rotation.set(0, 0, 0);
     tool.position.set(0, 0, 0);
     wrap.rotation.set(0, 0, 0);
@@ -188,8 +198,9 @@ function angler(x: number, spin: number): void {
   made_.visual.mixer.update(0);
   // Exactly what sceneSync does every frame, and for the same reason: the
   // line answers to gravity, not to the hand. A page that skipped it would
-  // be judging a rod the renderer never draws.
-  updateRodLine(made_.visual);
+  // be judging a rod the renderer never draws. Except in raw mode, where
+  // the authored slant IS the subject.
+  if (!RAW) updateRodLine(made_.visual);
   if (tuned) rehangLine(tuned);
 }
 
@@ -304,7 +315,7 @@ function worstLineLean(made_: {
     for (let i = 0; i < 16; i++) {
       action.time = (i / 16) * duration;
       made_.visual.mixer.update(0);
-      updateRodLine(made_.visual);
+      if (!RAW) updateRodLine(made_.visual);
       made_.group.updateWorldMatrix(true, true);
       made_.group.getObjectByName('fishing_rod_line')!.getWorldPosition(tip);
       made_.group.getObjectByName('fishing_rod_hook')!.getWorldPosition(hook);
@@ -321,7 +332,7 @@ function worstLineLean(made_: {
   }
   made_.visual.current = heldKey;
   made_.visual.mixer.update(0);
-  updateRodLine(made_.visual);
+  if (!RAW) updateRodLine(made_.visual);
   made_.group.updateWorldMatrix(true, true);
   return Math.round(((worst * 180) / Math.PI) * 100) / 100;
 }
