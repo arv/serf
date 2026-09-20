@@ -1532,11 +1532,13 @@ export function generateMap(
     // is what the band would open to if that keep-out ever moved, not a
     // reach this tier has today.
     //
-    // What it replaces is the fall-through inside `spotPref`, which is
-    // any grass at all past the plateau: forty draws is not many when
-    // the ring is a twenty-fifth of the map, so roughly one solo seed in
-    // seven used to put its gold whereever the last dart landed — forty
-    // tiles out on seed 19, which is a seam a solo game never mines.
+    // What it stands in front of is the fall-through inside `spotPref`,
+    // which is any grass at all past the plateau: forty draws is not many
+    // when the ring is a twenty-fifth of the map, so roughly one solo
+    // seed in seven used to put its gold wherever the last dart landed —
+    // forty tiles out on seed 19, which is a seam a solo game never
+    // mines. A tier is still forty more darts and could miss too, so the
+    // band is enumerated below rather than thrown at once they all have.
     // Seeds that find the ring are untouched, draw for draw.
     const nearRing = (x0: number, y0: number): boolean => {
       const dc = centerDist(x0, y0);
@@ -1547,11 +1549,30 @@ export function generateMap(
         // A center inside an existing grove writes nothing — redraw then.
         // Seeds whose first draw lands keep their exact classic worlds.
         for (let tries = 0; tries < 40; tries++) {
-          const [x, y] = spotPref(4, 14, [
+          let [x, y] = spotPref(4, 14, [
             (x0, y0) => onRing(x0, y0) && heightAt(x0, y0) > 1.0,
             onRing,
             nearRing,
           ]);
+          // Darts that all miss still land somewhere, and `spotPref`'s
+          // own last resort is any grass past the keep-out — which is the
+          // forty-tile gold this band exists to prevent. So once the
+          // tiers have had their draws, the band is enumerated and one of
+          // its tiles taken, the way the reserve seam does it: a miss is
+          // then only possible where the band truly holds no ground.
+          if (!nearRing(x, y)) {
+            const band: [number, number][] = [];
+            for (let y0 = p0; y0 < p1; y0++) {
+              for (let x0 = p0; x0 < p1; x0++) {
+                if (!nearRing(x0, y0) || startDist(x0, y0) < 14) continue;
+                if (playEdgeDist(map, x0, y0) < 4) continue;
+                if (map.terrain[tileIdx(x0, y0, size)] !== TerrainNs.Grass)
+                  continue;
+                band.push([x0, y0]);
+              }
+            }
+            if (band.length > 0) [x, y] = band[rng.int(band.length)]!;
+          }
           if (placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1) > 0) break;
         }
       }
@@ -1812,25 +1833,34 @@ export const MIN_LAKE_TILES = 49;
  * for: a pond under the minimum is a poor lake, but a start with no shore
  * at all is a start whose fishery was never buildable.
  *
- * Each clearance is wide enough that the tier's water fits strictly
- * inside it (the dig stays a tile clear of the square's edge, so that
- * outer ring survives as a 4-connected cycle of land and a dug pond can
- * never sever the landmass), with room left over for the shore to wander.
+ * Every tier digs a lake or digs nothing: one that cannot fill hands on
+ * to the next rather than leaving a pool behind. A pond under the
+ * minimum is the very thing the rest of this file exists to keep off the
+ * map, and this dig runs after `settleBasins` — nothing downstream will
+ * judge what it leaves, so the floor is the dig's own to keep.
+ *
+ * Each clearance is wide enough for the lake to sit strictly inside it
+ * (the dig stays a tile clear of the square's edge, so that outer ring
+ * survives as a 4-connected cycle of land and a dug pond can never sever
+ * the landmass), and to still hold MIN_LAKE_TILES after a plateau has
+ * taken its bite: 121 and 81 tiles of room for a lake of 49. The room to
+ * spare is the whole point of the margin. A 4 clearance was tried and
+ * dropped — its interior is 49 tiles exactly, so ANY bite is fatal, and
+ * a bite can come from a rival's plateau at any range, which no choice
+ * of ring can put out of reach. Forced to dig at these two, every one of
+ * 335 sites filled; forced at a 4, 81 of them came up short.
  *
  * The ring is measured to the pond's MIDDLE, which is why a lake is sited
  * further out than the pool was: at the 9.5 the old carve used, water
  * this size would stand against the castle wall and take the town's yard
- * with it. The far end stays inside WATER_ACCESS_RADIUS, since the middle
- * of the pond is water and a fishery only needs to reach the shore.
+ * with it. The narrower tier sits further out still — less room means
+ * less of it can be spared to the plateau. The far end stays inside
+ * WATER_ACCESS_RADIUS, since the middle of the pond is water and a
+ * fishery only needs to reach the shore.
  */
-const POND_TIERS: readonly (readonly [
-  tiles: number,
-  clearance: number,
-  ring: number,
-])[] = [
-  [MIN_LAKE_TILES, 6, 12],
-  [18, 4, 8],
-  [8, 3, 8],
+const POND_TIERS: readonly (readonly [clearance: number, ring: number])[] = [
+  [6, 12],
+  [5, 13],
 ];
 
 /**
@@ -2169,6 +2199,18 @@ function computeTerrain(
     }
   }
 
+  // ...and settle once more, because the carve above is the one pass in
+  // the whole generator that takes water AWAY: a 2-wide cut through a
+  // narrow lake can leave halves that are each short of a lake, and the
+  // floor has to hold on the map a player is given, not on the map as it
+  // stood two passes ago. A no-op on every seed measured — the carve
+  // itself has never yet had cause to run — and it cannot undo the
+  // bridge it follows, since a causeway tile is parked at DRY_LEVEL_T,
+  // which stands above the head any basin is allowed to rise through.
+  // Still ahead of the drowning below, so the connectivity repairs keep
+  // the last word on the shape of the landmass.
+  settleBasins(map, raw, onPlateau);
+
   // One landmass: close off the grass pockets the lakes cut off from home.
   const center = anchorTile(starts[0]!);
   const reached = new Uint8Array(tiles);
@@ -2316,66 +2358,85 @@ function computeTerrain(
       return best;
     };
     // A dug pond is a lake like any other, so it is dug the way the
-    // basins above settle: flood the middle, then the next tile outwards,
-    // over and over, until it holds the tier's water. Ranking the
-    // frontier by distance plus a wandering lobe (rather than carving a
-    // radius) is what makes it a pond rather than a stamped circle, and
-    // it comes out one 4-connected piece by construction whatever the
-    // lobes do.
-    let tier = 0;
-    let center = -1;
-    for (; tier < POND_TIERS.length; tier++) {
-      // A fallback tier is small enough to sit in the ring the pool used
-      // to take, up against the plateau's toe if it must.
-      center = dig(POND_TIERS[tier]![1], POND_TIERS[tier]![2], 15.5);
-      if (center >= 0) break;
-    }
-    if (center < 0) continue; // no meadow at all within reach; live with it
-    const [pondTiles, clearance] = POND_TIERS[tier]!;
-    const cx = center % size;
-    const cy = (center / size) | 0;
-    const reach = clearance - 1; // strictly inside the cleared square
-    const frontier: number[] = [];
-    const offered = new Uint8Array(tiles);
-    const offer = (x: number, y: number): void => {
-      if (Math.abs(x - cx) > reach || Math.abs(y - cy) > reach) return;
-      // A pond sited at the inner edge of the ring can otherwise reach
-      // its whole radius back into the home plateau, and a lake-sized one
-      // reaches far enough to matter: it digs away from home instead.
-      if (onPlateau(x, y)) return;
-      const i = tileIdx(x, y, size);
-      if (offered[i]) return;
-      offered[i] = 1;
-      frontier.push(i);
-    };
-    offer(cx, cy);
-    for (let dug = 0; dug < pondTiles; dug++) {
-      let pick = -1;
-      let pickAt = -1;
-      let nearest = Infinity;
-      for (let k = 0; k < frontier.length; k++) {
-        const i = frontier[k]!;
-        if (i < 0) continue; // already under water
-        const x = i % size;
-        const y = (i / size) | 0;
-        const r =
-          Math.hypot(x - cx, y - cy) +
-          POND_LOBE * valueNoise(seed + 9, x, y, POND_LOBE_SCALE);
-        if (r >= nearest) continue;
-        nearest = r;
-        pick = i;
-        pickAt = k;
+    // basins above settle: flood the middle, then the next tile
+    // outwards, over and over, until it holds a lake's worth. Ranking
+    // the frontier by distance plus a wandering lobe (rather than
+    // carving a radius) is what makes it a pond rather than a stamped
+    // circle, and it comes out one 4-connected piece by construction
+    // whatever the lobes do.
+    /**
+     * The lake a clearing at `center` can hold, as tiles — collected
+     * rather than written, so a clearing that cannot hold a whole one
+     * costs nothing to have tried.
+     */
+    const digLake = (center: number, clearance: number): number[] => {
+      const cx = center % size;
+      const cy = (center / size) | 0;
+      const reach = clearance - 1; // strictly inside the cleared square
+      const frontier: number[] = [];
+      const offered = new Uint8Array(tiles);
+      const offer = (x: number, y: number): void => {
+        if (Math.abs(x - cx) > reach || Math.abs(y - cy) > reach) return;
+        // A pond sited at the inner edge of the ring can otherwise reach
+        // its whole radius back into the home plateau, and a lake-sized
+        // one reaches far enough to matter: it digs away from home
+        // instead, and the tiers are sized to hold a lake without the
+        // ground the plateau keeps.
+        if (onPlateau(x, y)) return;
+        const i = tileIdx(x, y, size);
+        if (offered[i]) return;
+        offered[i] = 1;
+        frontier.push(i);
+      };
+      offer(cx, cy);
+      const lake: number[] = [];
+      while (lake.length < MIN_LAKE_TILES) {
+        let pick = -1;
+        let pickAt = -1;
+        let nearest = Infinity;
+        for (let k = 0; k < frontier.length; k++) {
+          const i = frontier[k]!;
+          if (i < 0) continue; // already under water
+          const x = i % size;
+          const y = (i / size) | 0;
+          const r =
+            Math.hypot(x - cx, y - cy) +
+            POND_LOBE * valueNoise(seed + 9, x, y, POND_LOBE_SCALE);
+          if (r >= nearest) continue;
+          nearest = r;
+          pick = i;
+          pickAt = k;
+        }
+        if (pick < 0) break; // the clearing is full: nothing left to flood
+        frontier[pickAt] = -1;
+        lake.push(pick);
+        const px = pick % size;
+        const py = (pick / size) | 0;
+        offer(px - 1, py);
+        offer(px + 1, py);
+        offer(px, py - 1);
+        offer(px, py + 1);
       }
-      if (pick < 0) break; // the clearing is full: nothing left to flood
-      frontier[pickAt] = -1;
-      map.terrain[pick] = TerrainNs.Water;
-      const px = pick % size;
-      const py = (pick / size) | 0;
-      offer(px - 1, py);
-      offer(px + 1, py);
-      offer(px, py - 1);
-      offer(px, py + 1);
+      return lake;
+    };
+
+    // The widest clearing first, and a lake or nothing from each: a tier
+    // whose clearing cannot hold MIN_LAKE_TILES hands on to the next
+    // rather than leaving a pool behind. This runs after `settleBasins`
+    // and is never judged by it, so the floor is this loop's to keep.
+    let lake: number[] = [];
+    for (const [clearance, ring] of POND_TIERS) {
+      const center = dig(clearance, ring, 15.5);
+      if (center < 0) continue;
+      const cut = digLake(center, clearance);
+      if (cut.length >= MIN_LAKE_TILES) {
+        lake = cut;
+        break;
+      }
     }
+    // An empty lake means no clearing in reach could hold one: the start
+    // keeps the shore it has, which is none, and we live with it.
+    for (const i of lake) map.terrain[i] = TerrainNs.Water;
   }
 
   // 4-neighbor BFS distances (in tiles): to the nearest water tile, for
