@@ -816,8 +816,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // with the column and then left walking at the garrison when the column
 // turned home. The legs order the column now. 74 is unreleased, so there
 // is no log stamped with it to break — and the hash is over raw bytes.
+// Still 74 with the builder's swing: the question "is there bought work at
+// this frame" moved out of systems/staffing.ts into `builderHasWork`
+// (systems/construction.ts) so the snapshot can ask it too. The staffing
+// call site is the same three tests it already ran — the halt it gained is
+// one the recruiting sweep skips on the line above — and construction only
+// gained an export, so no tick executes a different statement. What
+// changed is who the renderer is told is working, which is not the sim.
 const EXPECTED_VERSION = 74;
-const EXPECTED_HASH = '7a6e47517351d3f0056cf9f08bab3bc0';
+const EXPECTED_HASH = 'a9fefd876dd9d830d16e56648ad0dede';
 
 /**
  * Everything a replay's playback depends on, as raw source:
