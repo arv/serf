@@ -1,4 +1,5 @@
 import {render} from 'solid-js/web';
+import {goto} from '../app/router';
 import {saveGameNow} from '../app/saveStore';
 import type {SimHost} from '../app/simHost';
 import {play} from '../audio/audio';
@@ -43,6 +44,12 @@ export interface HudActions {
    * there is nothing to save yet (the match is still undecided) or the
    * browser has no OPFS to write into. */
   saveReplay(): Promise<string | null>;
+  /**
+   * Put the match's replay log in the scratch slot playback's ?rewatch
+   * reads, without filing it on the replays shelf. False when there is
+   * nothing to stage — the same undecided-match answer saveReplay gives.
+   */
+  watchReplay(): Promise<boolean>;
   /** Pan the camera to a tile — clickable toasts' "take me there". Sim
    * tile coords; the rig call maps tile y onto world z. */
   focus(x: number, y: number): void;
@@ -214,6 +221,21 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
               );
             })
             .catch(() => pushToast('Replay could not be saved'));
+        }}
+        onWatchReplay={() => {
+          play('uiClick');
+          // The navigation is this file's rather than the card's because
+          // the recording has to be in the slot before the URL names it:
+          // ?rewatch is nothing but "play what was staged", and routing
+          // there first would land on the fatal card. A failure says so
+          // and leaves the end card standing — nothing has moved.
+          void actions
+            .watchReplay()
+            .then(staged => {
+              if (staged) goto('?rewatch');
+              else pushToast('There is no replay to watch yet');
+            })
+            .catch(() => pushToast('The replay could not be opened'));
         }}
         onAdmin={action => {
           play('uiClick');

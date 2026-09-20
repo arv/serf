@@ -5,6 +5,9 @@
  * fileStore's; what lives here is what makes a file a *replay*: the
  * version stamp a row has to show, and the screening an imported file has
  * to pass.
+ *
+ * At the bottom sits the one replay that is not a saved replay: the
+ * scratch slot the end card's "Watch replay" hands playback through.
  */
 
 import {
@@ -91,4 +94,61 @@ export function readReplayFile(name: string): Promise<string | null> {
 
 export function deleteReplayFile(name: string): Promise<void> {
   return store.remove(name);
+}
+
+/**
+ * The scratch slot behind the end card's "Watch replay": one recording,
+ * off the shelf, kept only until the next match asks for the slot. Its own
+ * directory rather than a reserved name under /replays, because the shelf
+ * lists whatever it finds there and this file is not a saved replay —
+ * nothing the player filed, nothing they have to tidy away.
+ */
+const scratch = createFileStore('replay-scratch');
+
+/** The one name the slot ever uses. */
+const SCRATCH_NAME = 'last match';
+
+/**
+ * The staged recording, also held here. Navigation costs no document
+ * (app/router.ts), so this is what the handoff actually reads back a
+ * moment later — and it is the answer where OPFS is unavailable or
+ * refuses, which would otherwise make "Watch replay" a button that does
+ * nothing. The file is what makes a *reload* of ?rewatch come back into
+ * the same recording.
+ */
+let staged: string | null = null;
+
+/**
+ * The staging in flight, for the next one to queue behind — this tab's
+ * own clicks, ordered. "Watch replay" stays live for the whole of the
+ * worker round trip and the write, so a double-click is two overlapping
+ * stagings, and the one that wins the slot must be the one `staged` above
+ * also holds. The file store's `replace` is what keeps a SECOND TAB out
+ * of the middle of a staging; this keeps one tab's two clicks in order.
+ */
+let staging: Promise<unknown> = Promise.resolve();
+
+/**
+ * Put a replay in the scratch slot, overwriting whatever was there.
+ * Resolves once the recording can be read back.
+ */
+export function stageReplay(data: string): Promise<void> {
+  // The memory copy is the handoff itself (see `staged`), so it lands now
+  // rather than behind whatever write is still finishing.
+  staged = data;
+  // replace, not remove-then-write: clearing the slot and writing it as
+  // two steps leaves a window another tab clears inside, and then one of
+  // the two writes finds the name taken and lands as "last match (2)" —
+  // a file readStagedReplay never looks at and no staging ever removes.
+  const done = staging.then(() => scratch.replace(SCRATCH_NAME, data));
+  // The queue outlives a failed link: what the caller hears about is its
+  // own staging, not the one before it.
+  staging = done.catch(() => undefined);
+  return done.then(() => undefined);
+}
+
+/** The staged replay's JSON, or null when nothing is staged (nor left in
+ * the slot by an earlier visit to this tab's origin). */
+export async function readStagedReplay(): Promise<string | null> {
+  return staged ?? (await scratch.read(SCRATCH_NAME));
 }

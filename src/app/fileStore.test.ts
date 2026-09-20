@@ -51,6 +51,31 @@ describe('a file store', () => {
     expect(await store.write('no:colons', 'x')).toBeNull();
   });
 
+  it('replaces a one-slot document in place, suffixing nothing', async () => {
+    const opfs = installOpfs();
+    const store = createFileStore('things');
+    expect(await store.replace('slot', 'first')).toBe(true);
+    expect(await store.replace('slot', 'second')).toBe(true);
+    // One file, and the newer bytes — the writable starts empty, so a
+    // shorter document cannot leave the tail of a longer one behind.
+    expect(opfs.dump('things')).toEqual({'slot.json': 'second'});
+    expect(await store.replace('slot', 'third!')).toBe(true);
+    expect(await store.replace('slot', 'tiny')).toBe(true);
+    expect(await store.read('slot')).toBe('tiny');
+  });
+
+  it('refuses to replace under a name it could not file', async () => {
+    installOpfs();
+    const store = createFileStore('things');
+    expect(await store.replace('no:colons', 'x')).toBe(false);
+  });
+
+  it('replaces nothing where there is no OPFS', async () => {
+    vi.stubGlobal('navigator', {});
+    const store = createFileStore('things');
+    expect(await store.replace('slot', 'x')).toBe(false);
+  });
+
   it('lists newest first, and ignores anything that is not ours', async () => {
     const opfs = installOpfs();
     const store = createFileStore('things');

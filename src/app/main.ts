@@ -17,7 +17,7 @@ import {muted, resetMatchState, volume} from '../ui/store';
 import {clearFatal, fatal, fatalFrom, showFatal} from './fatalScreen';
 import {configFromUrl, type GameConfig} from './gameConfig';
 import {parseReplay, type ReplayData} from './replay';
-import {readReplayFile} from './replayStore';
+import {readReplayFile, readStagedReplay} from './replayStore';
 import {startRouter} from './router';
 import {readSaveWorldVersion, splitSave} from './saveEnvelope';
 import {migrateLegacySave, readSaveFile} from './saveStore';
@@ -64,6 +64,7 @@ const LAUNCH_PARAMS = [
   'skipMenu',
   'mission',
   'replay',
+  'rewatch',
   'load',
 ];
 
@@ -303,13 +304,30 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
   // ?replay=<name>: watch a saved replay from OPFS. The name is the menu's
   // pick (or a hand-edited URL — readReplayFile screens it); the log itself
   // carries the whole world recipe, so nothing else in the URL matters.
+  //
+  // ?rewatch: the same screen over the scratch slot instead of the shelf —
+  // the end card's "Watch replay", which stages the match just finished and
+  // comes here without filing anything under the player's replays. It has
+  // no name because there is only ever one; ?replay= wins if both are
+  // somehow in the URL, since that one names a file the player kept.
   const replayParam = launchParams.get('replay');
-  if (replayParam !== null) {
-    const raw = await readReplayFile(replayParam);
+  const rewatch = replayParam === null && launchParams.has('rewatch');
+  if (replayParam !== null || rewatch) {
+    const raw = rewatch
+      ? await readStagedReplay()
+      : await readReplayFile(replayParam!);
     const replay = raw !== null ? parseReplay(raw) : null;
+    /** What the failures below call the recording they cannot play. */
+    const what = rewatch
+      ? 'The match you just played'
+      : `The replay "${replayParam}"`;
     if (!replay) {
       fatal(
-        `The replay "${replayParam}" could not be loaded — it may have been deleted.`,
+        rewatch
+          ? `${what} is no longer here — only the last match is kept for ` +
+              'watching back, and clearing this site’s data takes it. ' +
+              '“Save replay” is how one is kept for good.'
+          : `${what} could not be loaded — it may have been deleted.`,
         {
           menu: true,
         },
@@ -318,10 +336,11 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
     // Playback re-runs the sim, and the sim is version-bound: the same
     // commands against a retuned tick produce a different match. Refuse
     // rather than diverge silently — the menu greys these rows out, but
-    // the URL is hand-editable.
+    // the URL is hand-editable. (A staged recording is this build's own,
+    // so this is the shelf's check; it costs nothing to run on both.)
     if (replay.replayVersion !== REPLAY_VERSION) {
       fatal(
-        `The replay "${replayParam}" was recorded under replay version ` +
+        `${what} was recorded under replay version ` +
           `${replay.replayVersion}; this build plays version ${REPLAY_VERSION}, ` +
           `and the match would not come out the way it was played.`,
         {menu: true},

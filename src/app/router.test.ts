@@ -13,14 +13,20 @@ import {describe, expect, it} from 'vitest';
  * and rebuild the moment it learned its own code.
  */
 
+/** A hand-copy of main.ts's list: this file tests the rule, not the
+ * module — importing main.ts would boot the app. Keep the two in step;
+ * a param missing here is a launch the rule below sends to the menu. */
 const LAUNCH_PARAMS = [
   'mp',
   'ai',
   'players',
   'seed',
+  'size',
   'skipMenu',
   'mission',
   'replay',
+  'rewatch',
+  'load',
 ];
 
 /** The rule under test, over a URL rather than `location` — the same
@@ -51,6 +57,17 @@ describe('which screen a URL names', () => {
       screenKey('?mission=the-raid'),
     );
     expect(screenKey('?replay=a.json')).not.toBe(screenKey('?replay=b.json'));
+  });
+
+  it('names the end card’s rewatch a match, not the menu', () => {
+    // ?rewatch carries no value — the scratch slot holds one recording —
+    // so the rule has to read it as a launch by its presence alone, or
+    // "Watch replay" would land back on the start screen.
+    expect(screenKey('?rewatch')).toBe('match:?rewatch');
+    expect(screenKey('?rewatch')).not.toBe(screenKey(''));
+    // And it is its own screen: a rewatch asked for while a replay from
+    // the shelf is playing is a different recording.
+    expect(screenKey('?rewatch')).not.toBe(screenKey('?replay=a.json'));
   });
 
   it('parts a match from the menu', () => {
