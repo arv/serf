@@ -13,6 +13,29 @@ function freshStore(): Promise<typeof import('./replayStore')> {
   return import('./replayStore');
 }
 
+/**
+ * OPFS with a Web Locks stand-in beside it — the browser has one, and it
+ * is what turns two overlapping writes into two files rather than one:
+ * the second takes the lock after the first has already taken the name,
+ * so it sees the name as taken and suffixes. Without it the two writes
+ * race into the same name and the collision this guards never appears.
+ */
+function opfsWithLocks(): ReturnType<typeof installOpfs> {
+  const tail = new Map<string, Promise<unknown>>();
+  return installOpfs({
+    locks: {
+      request(name: string, fn: () => Promise<unknown>) {
+        const queued = (tail.get(name) ?? Promise.resolve()).then(fn, fn);
+        tail.set(
+          name,
+          queued.catch(() => undefined),
+        );
+        return queued;
+      },
+    },
+  });
+}
+
 describe('the scratch replay slot', () => {
   it('hands back what was staged', async () => {
     const opfs = installOpfs();
@@ -35,6 +58,23 @@ describe('the scratch replay slot', () => {
     // clear the slot first — two files would leave the read on the old one.
     expect(Object.values(opfs.dump('replay-scratch'))).toEqual([
       'the second match',
+    ]);
+    expect(await store.readStagedReplay()).toBe('the second match');
+  });
+
+  it('queues overlapping stagings rather than orphaning a file', async () => {
+    const opfs = opfsWithLocks();
+    const store = await freshStore();
+    // Two clicks on "Watch replay" — the button stays live across the
+    // worker round trip. Clearing the slot and writing it are two steps,
+    // so unqueued these land as "last match" and "last match (2)", and
+    // the suffixed one is a file nothing reads and nothing removes.
+    await Promise.all([
+      store.stageReplay('the first match'),
+      store.stageReplay('the second match'),
+    ]);
+    expect(Object.keys(opfs.dump('replay-scratch'))).toEqual([
+      'last match.json',
     ]);
     expect(await store.readStagedReplay()).toBe('the second match');
   });

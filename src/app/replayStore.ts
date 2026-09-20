@@ -119,14 +119,33 @@ const SCRATCH_NAME = 'last match';
 let staged: string | null = null;
 
 /**
+ * The staging in flight, for the next one to queue behind. Clearing the
+ * slot and writing it are two steps, and the store suffixes a taken name:
+ * two stagings that overlap — the button stays live for the whole of the
+ * worker round trip and the write, so a double-click is two of these —
+ * would both clear, then land as "last match" and "last match (2)". The
+ * suffixed one is a file nothing reads and nothing ever removes. Same
+ * guard, same reason, as the dev hot-save loop in app/matchScreen.ts.
+ */
+let staging: Promise<unknown> = Promise.resolve();
+
+/**
  * Put a replay in the scratch slot, replacing whatever was there — the
  * store suffixes rather than overwrites, so the old file goes first.
  * Resolves once the recording can be read back.
  */
-export async function stageReplay(data: string): Promise<void> {
+export function stageReplay(data: string): Promise<void> {
+  // The memory copy is the handoff itself (see `staged`), so it lands now
+  // rather than behind whatever write is still finishing.
   staged = data;
-  await scratch.remove(SCRATCH_NAME);
-  await scratch.write(SCRATCH_NAME, data);
+  const done = staging.then(async () => {
+    await scratch.remove(SCRATCH_NAME);
+    await scratch.write(SCRATCH_NAME, data);
+  });
+  // The queue outlives a failed link: what the caller hears about is its
+  // own staging, not the one before it.
+  staging = done.catch(() => undefined);
+  return done;
 }
 
 /** The staged replay's JSON, or null when nothing is staged (nor left in
