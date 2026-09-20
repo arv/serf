@@ -254,41 +254,52 @@ function measure(made_: {group: THREE.Group}): Record<string, number | string> {
 }
 
 /**
- * The worst the line leans, in degrees, across EVERY clip the fisherman
- * plays — not just the fishing one.
+ * The worst the line leans, in degrees, across every clip he can hold the
+ * rod through — and a couple he cannot, as insurance.
  *
- * Scanning only Fishing_Idle is what let a standing-up line ship. The line
- * used to be corrected by a constant measured in the hand socket's frame,
- * which is true only for the pose it was measured at; inside Fishing_Idle
- * that read 2.7 degrees and looked safe. He walks back down the pier still
- * holding the rod, and on those clips the same constant was 56, 64 and 73
- * degrees out. So the sweep covers the walk, the jog, the carry and the
- * plain idle, and takes the worst of the lot.
+ * Sweeping Fishing_Idle alone is what let a standing-up line ship: the
+ * line was corrected by a constant measured in the hand socket's frame,
+ * true only for the pose it was measured at. Inside Fishing_Idle that read
+ * 2.7 degrees and looked safe; on the walk back down the pier the same
+ * constant was 56 degrees out, and on a plain idle 73.
  *
- * Restores the clip it found, so the rendered frame is the caller's.
+ * What the renderer can actually put a rod in is narrower than it looks.
+ * `sceneSync` stows the tool whenever the man is carrying (`heldCarry ?
+ * TOOL_STOWED : workKind`), so the carry clips never hold one; and the
+ * worker's spec sets no `jog`, so `gaitAnimKey` only ever answers `walk`.
+ * That leaves three. The other two are swept anyway and named for what
+ * they are: the correction should hold for ANY pose, they cost two frames
+ * of scrubbing, and if a fisherman is ever taught to jog or to carry his
+ * rod home they are already covered.
  */
-const LEAN_CLIPS = [
-  AnimKey.fish,
-  AnimKey.walk,
-  AnimKey.jog,
-  AnimKey.idle,
-  AnimKey.carryIdle,
-] as const;
+const FISHERMAN_CLIPS = [AnimKey.fish, AnimKey.walk, AnimKey.idle] as const;
+/** Poses no rod-holding fisherman reaches today — stress cases, not
+ * evidence about the live renderer. */
+const STRESS_CLIPS = [AnimKey.jog, AnimKey.carryIdle] as const;
 
 function worstLineLean(made_: {
   group: THREE.Group;
   visual: CharacterVisual;
 }): number {
-  const held = made_.visual.current;
+  // Put the page back exactly as it was found: the clip, its time, and its
+  // weight. Restoring through playAnimation instead would rewind to zero
+  // and crossfade, so a `?t=0.3` shot would silently render frame zero
+  // blended with whatever the sweep ended on — measuring one frame and
+  // photographing another.
+  const heldKey = made_.visual.current;
+  const heldAction =
+    heldKey !== null ? made_.visual.actions.get(heldKey) : null;
+  const heldTime = heldAction?.time ?? 0;
+  const heldWeight = heldAction?.getEffectiveWeight() ?? 1;
+
   const tip = new THREE.Vector3();
   const hook = new THREE.Vector3();
   let worst = 0;
-  for (const key of LEAN_CLIPS) {
+  for (const key of [...FISHERMAN_CLIPS, ...STRESS_CLIPS]) {
     const action = made_.visual.actions.get(key);
     if (!action) continue;
     for (const other of made_.visual.actions.values()) other.stop();
     action.reset().play();
-    made_.visual.current = key;
     const {duration} = action.getClip();
     for (let i = 0; i < 16; i++) {
       action.time = (i / 16) * duration;
@@ -301,7 +312,14 @@ function worstLineLean(made_: {
       worst = Math.max(worst, Math.atan2(Math.hypot(d.x, d.z), -d.y));
     }
   }
-  if (held !== null) playAnimation(made_.visual, held, 0);
+
+  for (const other of made_.visual.actions.values()) other.stop();
+  if (heldAction) {
+    heldAction.reset().play();
+    heldAction.time = heldTime;
+    heldAction.setEffectiveWeight(heldWeight);
+  }
+  made_.visual.current = heldKey;
   made_.visual.mixer.update(0);
   updateRodLine(made_.visual);
   made_.group.updateWorldMatrix(true, true);
