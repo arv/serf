@@ -172,6 +172,32 @@ export function paidBuildTicks(b: Building, def: BuildingDef): number {
   return Math.floor((def.buildTicks * (total - owed)) / total);
 }
 
+/**
+ * Is there work at this frame for a builder to put his hammer to right now?
+ * The three things constructionSystem checks above before it adds a tick:
+ * the site is not halted, the borrowed tool is in its hands, and the
+ * deliveries have bought more height than has gone up. (Roads pave
+ * themselves and have no builder, so nothing asks this about one.)
+ *
+ * Exported for the reason paidBuildTicks is, and one more. The staffing
+ * system asks it to decide whether a builder is worth recruiting, and the
+ * snapshot asks it to decide whether the builder who came is shown
+ * swinging — the answer that fetches him, the answer that raises the frame
+ * under his hands and the answer that animates him have to be one answer.
+ * They were not: the snapshot kept the older all-or-nothing rule and read
+ * "still owed a good" as "idle", so for the whole part-paid stretch of
+ * every build the sim raised the frame while the renderer stood the man
+ * beside it with his hammer down — and, since the bearing to the work
+ * rides on that same action byte, with his back to the wall.
+ */
+export function builderHasWork(b: Building, def: BuildingDef): boolean {
+  return (
+    !b.paused &&
+    (b.inputs[GoodId.hammer] ?? 0) > 0 &&
+    paidBuildTicks(b, def) > (b.buildProgress ?? 0)
+  );
+}
+
 // --- Repairs ---------------------------------------------------------------
 
 /**

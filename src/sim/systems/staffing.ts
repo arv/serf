@@ -12,7 +12,7 @@ import {findPathToAdjacent} from '../path.ts';
 import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import type {World} from '../world.ts';
-import {paidBuildTicks} from './construction.ts';
+import {builderHasWork} from './construction.ts';
 import {bindWorker, consumePostTool, unbindWorker} from './production.ts';
 import {evictGarrison, releaseSpentTrainingHolds} from './training.ts';
 
@@ -352,8 +352,9 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
 
     // A builder is recruited when there is work the deliveries have already
     // bought and nobody at the frame to do it — the site rises as it is paid
-    // for (constructionSystem), so "bought" is `paidBuildTicks` above what
-    // has been raised, with the borrowed hammer in hand to raise it with.
+    // for (constructionSystem), so "bought" is `builderHasWork`: paid-for
+    // ticks above what has gone up, with the borrowed hammer in hand to
+    // raise it with.
     //
     // The old trigger stays as the second door, and it earns its keep: a
     // site whose last good is already in an assigned hand wants its builder
@@ -376,10 +377,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     const isSite = b.state === BuildingState.site;
     let needsLeft = 0;
     if (isSite) for (const g of GOODS) needsLeft += b.siteNeeds?.[g] ?? 0;
-    const bought =
-      isSite &&
-      (b.inputs[GoodId.hammer] ?? 0) > 0 &&
-      paidBuildTicks(b, def) > (b.buildProgress ?? 0);
+    const bought = isSite && builderHasWork(b, def);
     const wantsBuilder =
       isSite &&
       !liveWorker(world, b) &&

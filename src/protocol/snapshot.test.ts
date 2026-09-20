@@ -13,10 +13,12 @@ import {BANDIT} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {findResourceNear} from '../sim/map.ts';
 import {populationOf} from '../sim/population.ts';
+import {paidBuildTicks} from '../sim/systems/construction.ts';
 import {bindWorker} from '../sim/systems/production.ts';
 import {
   addBuiltHut,
   addResourceTile,
+  addSerf,
   addStorehouse,
   bareWorld,
   cmds,
@@ -731,10 +733,16 @@ describe('unitSnapshots: which way a worker faces', () => {
     throw new Error(`unit ${id} is not in the snapshot`);
   };
 
-  /** A site with its materials in and a builder parked east of the frame. */
+  /**
+   * A site with every load in, its borrowed hammer in hand, and a builder
+   * parked east of the frame. The hammer goes into `inputs` and comes out
+   * of `siteNeeds` together, the way a delivery leaves it
+   * (systems/logistics.ts deliver) — the frame cannot rise without it.
+   */
   const builderEastOfHisSite = (world: World): Unit => {
     const site = placeSite(world, BuildingTypeId.woodcutter, 0, 30, 30);
     site.siteNeeds = {}; // every load delivered: he is hammering, not waiting
+    site.inputs[GoodId.hammer] = 1;
     const builder = spawnUnit(
       world,
       UnitTypeId.worker,
@@ -760,15 +768,92 @@ describe('unitSnapshots: which way a worker faces', () => {
     expect(snap.targetDist).toBeGreaterThan(0);
   });
 
-  it('leaves a builder still waiting on his loads facing where he likes', () => {
+  it('turns a builder raising the part of the frame that is paid for', () => {
+    // A site rises as far as its deliveries have bought (systems/
+    // construction.ts), so a builder with a bill still open is working, not
+    // waiting: the sim is adding ticks to this frame. Reading "a good is
+    // still owed" as "idle" — the all-or-nothing rule from before sites
+    // rose incrementally — stood him at the wall through the whole
+    // part-paid stretch of every build, hammer down and, because the work
+    // bearing rides on this same action, facing whichever way he walked up.
     const world = bareWorld();
     const builder = builderEastOfHisSite(world);
     const site = world.buildings.get(builder.homeId!)!;
-    site.siteNeeds = {[GoodId.wood]: 1}; // one load short
+    const def = BUILDING_DEFS[site.type];
+    site.siteNeeds = {[GoodId.wood]: 1}; // one load short of the bill
+    expect(paidBuildTicks(site, def)).toBeGreaterThan(0); // ...and rising
+    const snap = snapOf(world, builder.id);
+    expect(snap.action).toBe(ACTION.work);
+    expect(snap.workKind).toBe(WORK.hammer);
+    expect(snap.facing).toBe(192);
+    expect(snap.targetDist).toBeGreaterThan(0);
+  });
+
+  it('leaves a builder with nothing bought yet facing where he likes', () => {
+    const world = bareWorld();
+    const builder = builderEastOfHisSite(world);
+    const site = world.buildings.get(builder.homeId!)!;
+    // The whole bill outstanding: the frame has bought no height at all, so
+    // there is nothing for him to raise and he stands as he pleases.
+    site.siteNeeds = {...BUILDING_DEFS[site.type].cost};
     const snap = snapOf(world, builder.id);
     expect(snap.action).not.toBe(ACTION.work);
     expect(snap.facing).toBe(0);
     expect(snap.targetDist).toBe(0);
+  });
+
+  it('leaves a builder at a frame already raised to what it paid for', () => {
+    const world = bareWorld();
+    const builder = builderEastOfHisSite(world);
+    const site = world.buildings.get(builder.homeId!)!;
+    const def = BUILDING_DEFS[site.type];
+    site.siteNeeds = {[GoodId.wood]: 1};
+    // Every bought tick already in the frame: the next one waits on the
+    // next load, and so does he.
+    site.buildProgress = paidBuildTicks(site, def);
+    expect(snapOf(world, builder.id).action).not.toBe(ACTION.work);
+  });
+
+  it('leaves a builder whose hammer has not arrived standing', () => {
+    // The tool is a precondition, not a share of the bill: the sim adds no
+    // tick without it, so neither does the man swing.
+    const world = bareWorld();
+    const builder = builderEastOfHisSite(world);
+    const site = world.buildings.get(builder.homeId!)!;
+    site.inputs[GoodId.hammer] = 0;
+    expect(snapOf(world, builder.id).action).not.toBe(ACTION.work);
+  });
+
+  it('leaves a builder at a halted site standing', () => {
+    const world = bareWorld();
+    const builder = builderEastOfHisSite(world);
+    world.buildings.get(builder.homeId!)!.paused = true;
+    expect(snapOf(world, builder.id).action).not.toBe(ACTION.work);
+  });
+
+  it('shows the man swinging while the sim raises a part-paid frame', () => {
+    // The same rule down the real path, since the cases above set the
+    // site's books by hand: half a woodcutter's planks on the shelf and
+    // the hammer beside them, and nothing else touched. The village hauls
+    // what it has, a builder is recruited to the bought work and the frame
+    // climbs toward half height with three planks still owed — and that is
+    // the stretch the renderer used to stand him through.
+    const world = bareWorld();
+    addStorehouse(world, 34, 30, {[GoodId.wood]: 3, [GoodId.hammer]: 1});
+    addSerf(world, 34, 32);
+    addSerf(world, 35, 32);
+    const site = placeSite(world, BuildingTypeId.woodcutter, 0, 30, 30);
+    const def = BUILDING_DEFS[site.type];
+    let ticks = 0;
+    while ((site.buildProgress ?? 0) === 0 && ticks++ < def.buildTicks * 4) {
+      tickWorld(world, []);
+    }
+    expect(site.buildProgress).toBeGreaterThan(0); // the frame is going up...
+    expect(site.siteNeeds?.[GoodId.wood]).toBeGreaterThan(0); // ...still owed
+    const snap = snapOf(world, site.workerId!);
+    expect(snap.action).toBe(ACTION.work);
+    expect(snap.workKind).toBe(WORK.hammer);
+    expect(snap.targetDist).toBeGreaterThan(0); // turned to the frame, not off it
   });
 
   it('turns a gatherer toward the tile he is working, not his hut', () => {
