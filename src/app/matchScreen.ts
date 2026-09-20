@@ -81,7 +81,7 @@ import {openWithRetry} from './glContext';
 import {HiddenSync} from './hiddenSync';
 import {WorldMirror} from './mirror';
 import type {ReplayData} from './replay';
-import {saveReplayFile} from './replayStore';
+import {saveReplayFile, stageReplay} from './replayStore';
 import {envelopeSave, unpackExplored} from './saveEnvelope';
 import {deleteSaveFile, saveGameFile, saveGameNow} from './saveStore';
 import type {Screen} from './screen';
@@ -1066,6 +1066,18 @@ export async function runMatch(
       // The store may suffix the name ("… (2)") when two saves land in the
       // same second; what it returns is what the file is actually called.
       return saveReplayFile(stampName(new Date()), data);
+    },
+    watchReplay: async () => {
+      // The same recording "Save replay" would file, handed to the scratch
+      // slot instead: watching the match back is not a reason to leave a
+      // file on the player's shelf, and the one that is — the button right
+      // beside it — is still there. Empty means the worker has no
+      // recording to hand out at all (it is playing one back); the solo
+      // match this button belongs to answers at any point.
+      const data = await host.requestReplay(fogSeed);
+      if (data === '') return false;
+      await stageReplay(data);
+      return true;
     },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),

@@ -203,6 +203,9 @@ export function Hud(props: {
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onSave: () => void;
   onSaveReplay: () => void;
+  /** Stage the match just finished and go watch it — the end card's own
+   * button, which takes the page with it (see mount.tsx). */
+  onWatchReplay: () => void;
   onAdmin: (action: AdminAction) => void;
   onFocus: (x: number, y: number) => void;
   onFocusSeat: (seat: number) => void;
@@ -1610,8 +1613,9 @@ export function Hud(props: {
         /* The choices at the foot of a card read as one row, and the
            gutter between them has to be a real number: the tags sit on
            their own source lines, so the markup leaves no space at all
-           between two buttons, and a won campaign card offers four of
-           them — continue, again, observe, save — shoulder to shoulder.
+           between two buttons, and a won campaign card offers five of
+           them — continue, again, observe, save, watch — shoulder to
+           shoulder.
            Side margins rather than a flex row on the card, because the
            buttons are the card's own children beside the copy, and it
            is inline flow that folds them onto a second line when the
@@ -2912,6 +2916,18 @@ export function Hud(props: {
                 its copy — but only for a decided match, which this card
                 is the proof of. */}
             <button onClick={() => props.onSaveReplay()}>Save replay</button>
+            {/* The other thing to do with the recording: watch it, without
+                filing it. The match just played is staged in a scratch slot
+                and playback opens on it — so the whole game is there to
+                watch back from the first tick whether or not the player
+                wants the file. Solo only: multiplayer's own recording is
+                the server's, handed out for saving, and a room winding
+                down is not a screen to walk away from into playback. */}
+            <Show when={!netMode()}>
+              <button onClick={() => props.onWatchReplay()}>
+                Watch replay
+              </button>
+            </Show>
             {/* The way out. No confirmation: the match is decided, so
                 there is nothing left to abandon — the only thing this
                 card holds that the menu doesn't is the unsaved replay,
