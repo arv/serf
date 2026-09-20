@@ -830,7 +830,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // re-run here is a log played on different ground — which is what the
 // builder's swing above, landing beside it, did NOT do.
 const EXPECTED_VERSION = 75;
-const EXPECTED_HASH = 'PENDING';
+const EXPECTED_HASH = 'c92fd4879aa0e0c93738462e9c98a654';
 
 /**
  * Everything a replay's playback depends on, as raw source:
