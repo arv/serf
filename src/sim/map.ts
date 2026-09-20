@@ -1791,7 +1791,7 @@ const PLATEAU_FLAT = 3;
  * dry opens beside a lake rather than beside the puddle a 2.4-tile carve
  * used to leave.
  */
-const MIN_LAKE_TILES = 49;
+export const MIN_LAKE_TILES = 49;
 
 /**
  * What the water-access dig settles for: the tiles of water it digs, the
@@ -2177,12 +2177,22 @@ function computeTerrain(
   // mountain — the single commonest puddle on the map before this, and
   // one the lake pass above could never have reached, since the pocket is
   // still dry ground when it runs.
+  //
+  // A pocket that turns to rock comes up to the rim's own height as well,
+  // or the range keeps a shaft where the hole was: the heightfield below
+  // reads `raw` for how tall a rock tile stands, and a pocket's raw is
+  // meadow-low. Taking the tallest rock touching it closes the ridge over
+  // the hole, and a pocket bigger than a tile closes from its rim inward,
+  // since a tile's own neighbours are settled by the time it is read
+  // (rows run top-left first, and a rock pocket's earlier neighbour is
+  // always rock — the rim's, or one this loop has already raised).
   for (let i = 0; i < tiles; i++) {
     const x = i % size;
     const y = (i / size) | 0;
     if (!inPlayArea(map, x, y)) continue; // margin: scenery, not a pocket
     if (map.terrain[i] !== TerrainNs.Grass || reached[i]) continue;
     let shore: TerrainKind = TerrainNs.Rock;
+    let rimRaw = raw[i]!;
     for (const [nx, ny] of [
       [x - 1, y],
       [x + 1, y],
@@ -2190,10 +2200,13 @@ function computeTerrain(
       [x, y + 1],
     ] as const) {
       if (!inBounds(nx, ny, size)) continue;
-      if (map.terrain[tileIdx(nx, ny, size)] === TerrainNs.Water)
-        shore = TerrainNs.Water;
+      const n = tileIdx(nx, ny, size);
+      if (map.terrain[n] === TerrainNs.Water) shore = TerrainNs.Water;
+      else if (map.terrain[n] === TerrainNs.Rock)
+        rimRaw = Math.max(rimRaw, raw[n]!);
     }
     map.terrain[i] = shore;
+    if (shore === TerrainNs.Rock) raw[i] = rimRaw;
   }
 
   // Every start keeps fishable water within a short walk: a pond, a lake,
