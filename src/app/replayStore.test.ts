@@ -54,21 +54,21 @@ describe('the scratch replay slot', () => {
     const store = await freshStore();
     await store.stageReplay('the first match');
     await store.stageReplay('the second match');
-    // The file store suffixes rather than overwrites, so staging has to
-    // clear the slot first — two files would leave the read on the old one.
+    // Staging overwrites the slot; two files would leave the read on the
+    // old one.
     expect(Object.values(opfs.dump('replay-scratch'))).toEqual([
       'the second match',
     ]);
     expect(await store.readStagedReplay()).toBe('the second match');
   });
 
-  it('queues overlapping stagings rather than orphaning a file', async () => {
+  it('keeps one file when a tab stages twice at once', async () => {
     const opfs = opfsWithLocks();
     const store = await freshStore();
-    // Two clicks on "Watch replay" — the button stays live across the
-    // worker round trip. Clearing the slot and writing it are two steps,
-    // so unqueued these land as "last match" and "last match (2)", and
-    // the suffixed one is a file nothing reads and nothing removes.
+    // Two clicks on "Watch replay": the button stays live across the
+    // worker round trip, so the second staging starts while the first is
+    // still writing. The slot holds one file, and it holds what this tab
+    // last staged — which is what its own `staged` copy hands playback.
     await Promise.all([
       store.stageReplay('the first match'),
       store.stageReplay('the second match'),
@@ -77,6 +77,30 @@ describe('the scratch replay slot', () => {
       'last match.json',
     ]);
     expect(await store.readStagedReplay()).toBe('the second match');
+  });
+
+  it('keeps one file when two tabs stage at once', async () => {
+    const opfs = opfsWithLocks();
+    // Two module instances over one origin's OPFS and one lock manager:
+    // two tabs of the game, each finishing a match. The per-tab queue
+    // cannot see across them, so the slot's single file is the store's
+    // own doing — a clear-then-write pair would leave one of these as
+    // "last match (2).json", which nothing reads and nothing removes.
+    const tabA = await freshStore();
+    vi.resetModules();
+    const tabB = await freshStore();
+    await Promise.all([
+      tabA.stageReplay('tab A’s match'),
+      tabB.stageReplay('tab B’s match'),
+    ]);
+    expect(Object.keys(opfs.dump('replay-scratch'))).toEqual([
+      'last match.json',
+    ]);
+    // Each tab still hands playback the recording it staged: the memory
+    // copy is the handoff, and the file is only what a reload falls back
+    // on (whichever tab wrote last).
+    expect(await tabA.readStagedReplay()).toBe('tab A’s match');
+    expect(await tabB.readStagedReplay()).toBe('tab B’s match');
   });
 
   it('comes back off disk in a tab that has forgotten it', async () => {

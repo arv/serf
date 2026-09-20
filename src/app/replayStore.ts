@@ -119,33 +119,32 @@ const SCRATCH_NAME = 'last match';
 let staged: string | null = null;
 
 /**
- * The staging in flight, for the next one to queue behind. Clearing the
- * slot and writing it are two steps, and the store suffixes a taken name:
- * two stagings that overlap — the button stays live for the whole of the
- * worker round trip and the write, so a double-click is two of these —
- * would both clear, then land as "last match" and "last match (2)". The
- * suffixed one is a file nothing reads and nothing ever removes. Same
- * guard, same reason, as the dev hot-save loop in app/matchScreen.ts.
+ * The staging in flight, for the next one to queue behind — this tab's
+ * own clicks, ordered. "Watch replay" stays live for the whole of the
+ * worker round trip and the write, so a double-click is two overlapping
+ * stagings, and the one that wins the slot must be the one `staged` above
+ * also holds. The file store's `replace` is what keeps a SECOND TAB out
+ * of the middle of a staging; this keeps one tab's two clicks in order.
  */
 let staging: Promise<unknown> = Promise.resolve();
 
 /**
- * Put a replay in the scratch slot, replacing whatever was there — the
- * store suffixes rather than overwrites, so the old file goes first.
+ * Put a replay in the scratch slot, overwriting whatever was there.
  * Resolves once the recording can be read back.
  */
 export function stageReplay(data: string): Promise<void> {
   // The memory copy is the handoff itself (see `staged`), so it lands now
   // rather than behind whatever write is still finishing.
   staged = data;
-  const done = staging.then(async () => {
-    await scratch.remove(SCRATCH_NAME);
-    await scratch.write(SCRATCH_NAME, data);
-  });
+  // replace, not remove-then-write: clearing the slot and writing it as
+  // two steps leaves a window another tab clears inside, and then one of
+  // the two writes finds the name taken and lands as "last match (2)" —
+  // a file readStagedReplay never looks at and no staging ever removes.
+  const done = staging.then(() => scratch.replace(SCRATCH_NAME, data));
   // The queue outlives a failed link: what the caller hears about is its
   // own staging, not the one before it.
   staging = done.catch(() => undefined);
-  return done;
+  return done.then(() => undefined);
 }
 
 /** The staged replay's JSON, or null when nothing is staged (nor left in

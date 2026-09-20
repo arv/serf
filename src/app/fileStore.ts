@@ -42,6 +42,16 @@ export interface FileStore {
    * OPFS is unavailable.
    */
   write(name: string, data: string): Promise<string | null>;
+  /**
+   * Write one document under `name`, overwriting whatever is already
+   * there — the one-slot counterpart of write's suffixing, for a file the
+   * store holds exactly one of (the replay scratch slot). Clearing and
+   * writing as two steps is what a second tab interleaves with, so this
+   * is one step under the same lock: the truncating open and the write
+   * happen with nobody else in the directory. Returns whether it landed;
+   * false where OPFS is unavailable or refused.
+   */
+  replace(name: string, data: string): Promise<boolean>;
   /** Every document in the directory, newest first. */
   list(): Promise<StoredFileInfo[]>;
   /** One document's text, or null when it isn't there. */
@@ -135,6 +145,32 @@ export function createFileStore(dir: string): FileStore {
       // Without Web Locks (older browsers), the check-then-write above is
       // still the best available: unserialized, it is exactly the behavior
       // this lock exists to improve on, not a reason to refuse the write.
+      return navigator.locks
+        ? navigator.locks.request(lock, attempt)
+        : attempt();
+    },
+
+    async replace(name, data) {
+      const fileName = fileNameFor(name);
+      if (!fileName) return false;
+      const handle = await open(true);
+      if (!handle) return false;
+      const attempt = async (): Promise<boolean> => {
+        try {
+          // create: true opens whatever is there, and a writable starts
+          // empty unless asked to keep the old bytes — so this is the
+          // overwrite, with no separate removeEntry for another tab to
+          // slip between. The lock is write's, so the two cannot race
+          // each other either.
+          const entry = await handle.getFileHandle(fileName, {create: true});
+          const writable = await entry.createWritable();
+          await writable.write(data);
+          await writable.close();
+          return true;
+        } catch {
+          return false;
+        }
+      };
       return navigator.locks
         ? navigator.locks.request(lock, attempt)
         : attempt();
