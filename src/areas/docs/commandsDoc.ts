@@ -34,7 +34,7 @@ export const ADMIN_ACTION_NAMES = enumNames(AdminAction);
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:
-      'Send selected units to a tile. Mixed squads form with knights in front and archers behind, then move at the slowest unit’s pace. A fight breaks the formation. A plain move ignores enemies and an attack-move engages them. The third mode, ‘half’, is the mobile tap default: it walks the front half of the route as a plain move and only goes live for the back half, so one gesture can send an army out and bring it home without reengaging. Either attack flag also makes serfs fight until the order is replaced.',
+      'Send selected units to a tile. Mixed squads form with knights in front and archers behind, then move at the slowest unit’s pace. The first fight dissolves both the formation and the shared pace, and every unit runs at its own speed again. A plain move ignores enemies and an attack-move engages them. The third mode, ‘half’, is the mobile tap default: it walks the front half of the route as a plain move and goes live only for the back half, so one gesture can send an army out and let it flee without reengaging. The attack flag is also what arms the villagers. A serf under it acquires, closes and strikes at about a fifth of a raider’s output, and takes up room on the field for as long as the order stands, where a serf on any other order answers only the man already cutting him down and is walked through by everybody, his own army included.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   [CommandKind.placeBuilding]: {
@@ -59,7 +59,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.setBuildingPaused]: {
     summary:
-      'Halt or restart a building. Halting releases its worker or builder, and sends a tower’s levy back to work.',
+      'Halt or restart a building. Halting stops production and stops new deliveries being called for, and it empties the post: the resident, or a site’s builder, rejoins the serf pool, and a tower sends its levy back to work. It is both “stop eating my wood” and “give me the hands back”.',
     payload: 'buildingId, paused',
   },
   [CommandKind.setBuildingRepair]: {
@@ -83,12 +83,12 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.research]: {
     summary:
-      'Order a study at the Abbey. The cost is billed to the Abbey, serfs carry it there, and the study starts when the last load lands.',
+      'Order a study at the Abbey. Nothing is spent up front and the stores are not a gate: like a building site, the cost is billed to the Abbey, serfs carry it there as the village can, and the study starts when the last load lands.',
     payload: 'tech',
   },
   [CommandKind.cancelResearch]: {
     summary:
-      'Call off the study in hand. Loads already carried to the Abbey are spent. A load still in a serf’s hands is offered to whatever else wants that good, and only walks to a storehouse if nothing does.',
+      'Call off the study in hand, which is the way out of a bill the village cannot carry, such as gold ordered with no mine to dig it. Names the tech, for cancelForge’s stale-click reason. Loads already carried to the Abbey are spent. A load still in a serf’s hands is offered to whatever else wants that good, and only walks to a storehouse if nothing does.',
     payload: 'tech',
   },
   [CommandKind.trainUnit]: {
@@ -117,17 +117,17 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.holdGround]: {
     summary:
-      'Hold ground with H. The soldiers named stop where they stand and fight only what comes within weapon reach. They do not chase, and any other order releases them. Civilians are skipped.',
+      'Hold ground, on H. Warcraft’s Hold Position: the soldiers named stop where they stand and fight only what comes within weapon reach. No chasing, no kiting, no walking to a wall, and a target that steps out of reach is let go rather than followed. Any other order releases them. Civilians in the list are skipped.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
   },
   [CommandKind.stopUnits]: {
     summary:
-      'Stop with S. Everyone named stops walking, including units on a march, attack-move or chase. Hauling, gathering and walking to a post continue. A stopped soldier still answers enemies nearby, while Hold prevents pursuit.',
+      'Stop, on S. Everyone named drops the order he is walking and the route queued behind it, and stands where his feet are: a march, an attack-move, an assault on a building, and the chase or siege a soldier walks for a target. Serfs included, because a walk is a walk. An errand is the exception, since it cannot be halted mid-step without stranding what it carries, so hauling, a worker’s gather loop and a walk to a post to take it up all survive a stop, as does a hold. It is not the hold’s quieter cousin. A stopped soldier is an idle soldier, so he still answers an enemy that walks into his acquire radius. Stop calls a charge off, and hold draws a line.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
   },
   [CommandKind.focusTarget]: {
     summary:
-      'Focus the named squad on one enemy. The order lasts until the target dies or outruns the squad.',
+      'Put a squad on one enemy, which is focus fire and the only way a caller names a target at all. Every other order leaves targeting to the sim, which sends each soldier at the nearest enemy it counters. This overrides that for the units named, until the target dies or outruns them. It is worth having because damage here is flat: a soldier at a sliver of health hits exactly as hard as a fresh one, so killing one outright removes its whole output where spreading the same damage over three removes none. A standing enemy building is a legal target too, and means the same thing: hit that one rather than the wall the squad happens to be standing next to.',
     payload:
       'unitIds, targetId (a living enemy unit, or a standing enemy building with building: true)',
   },
