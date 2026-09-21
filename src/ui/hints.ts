@@ -189,9 +189,9 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.gildedValley]: [
     {
       text:
-        'This one does not end at a camp. What gold is for here is the ' +
-        'Monument, and a finished Monument wins outright. The seam is at ' +
-        'the far end of the valley.',
+        'This one does not end at a camp. Gold pays for the Monument and ' +
+        'for Gilded Arms, and a finished Monument wins outright. The seam ' +
+        'is at the far end of the valley.',
     },
     {
       text:

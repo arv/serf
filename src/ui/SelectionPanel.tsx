@@ -743,7 +743,7 @@ export function SelectionPanel(props: {
                           b().state !== BuildingState.built
                             ? 'A site heals as it rises. Nothing separate to mend.'
                             : b().repairNeeds
-                              ? 'Stops the order. Materials already in the walls stay there. A load still in hand goes to whatever else wants it, or to the castle.'
+                              ? 'Stops the order. Materials already delivered are spent, and the mending they bought still lands. A load still in hand goes to whatever else wants it, or to the castle.'
                               : b().repairPending !== undefined
                                 ? 'Materials are all in and the masons are at work. It finishes on its own.'
                                 : unpaid() > 0
@@ -1902,7 +1902,7 @@ export function SelectionPanel(props: {
                   tip={() => (
                     <TextTip
                       title="Hold ground"
-                      body="They stop where they stand and fight only what comes within reach. No chasing, and any other order releases them."
+                      body="They stop where they stand and fight only what comes within reach. No chasing. A move or attack order releases them, but Stop does not."
                     />
                   )}
                 >

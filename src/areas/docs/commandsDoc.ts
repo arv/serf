@@ -117,7 +117,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.holdGround]: {
     summary:
-      'Hold ground, on H. Warcraft’s Hold Position: the soldiers named stop where they stand and fight only what comes within weapon reach. No chasing, no kiting, no walking to a wall, and a target that steps out of reach is let go rather than followed. Any other order releases them. Civilians in the list are skipped.',
+      'Hold ground, on H. Warcraft’s Hold Position: the soldiers named stop where they stand and fight only what comes within weapon reach. No chasing, no kiting, no walking to a wall, and a target that steps out of reach is let go rather than followed. A movement or attack order releases them. Stop does not, so S cannot quietly undo H. Civilians in the list are skipped.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
   },
   [CommandKind.stopUnits]: {
