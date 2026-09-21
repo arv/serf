@@ -388,10 +388,10 @@ export function TechTreePanel(props: {
                     title={`Abandon ${techName(a().tech)}`}
                     body={
                       a().started
-                        ? 'Frees the tree for another study. The goods are already in the books, and nothing comes back.'
+                        ? 'Frees the tree for another study. The goods are already spent.'
                         : `Frees the tree for another study. Loads already carried to the ${buildingName(
                             BuildingTypeId.abbey,
-                          )} are spent. A load still in a serf’s hands is offered to whatever else wants it, and only walks to a storehouse if nothing does.`
+                          )} are spent. A load still in hand goes to whatever else wants it, or to a storehouse.`
                     }
                   />
                 ))}

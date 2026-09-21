@@ -425,38 +425,32 @@ export function CostLine(props: {
  * lives here. */
 const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.water]:
-    'Drawn at the well, which keeps no worker. Fields, ovens and the brew kettle all want it.',
+    'Drawn at the well, which needs no worker. Wheat farms, the bakery and the brewery all use it.',
   [GoodId.wheat]:
-    'The crop. The mill grinds it to flour and the brewery mashes it to ale.',
+    'Grown on wheat farms. Milled into flour, or brewed into ale.',
   [GoodId.wood]:
-    'Felled by woodcutters. Nearly every building is priced in it.',
+    'Cut by woodcutters. Most buildings and most Smith recipes need it.',
   [GoodId.stone]:
-    'Cut at the quarry. The heavier buildings want it, and Masonry pays for roads in it.',
+    'Cut at the quarry. Heavy buildings, and roads once Masonry is researched.',
   [GoodId.iron]:
-    'Out of a mountain seam. The Smith works it into every blade and most tools.',
-  [GoodId.silver]:
-    'The purse, and it comes out of a hill like anything else. Recruits and studies are paid from it.',
-  [GoodId.gold]:
-    'The deep seam, and the one nothing else wants. Two uses in the whole valley: the Monument, and Gilded Arms.',
-  [GoodId.sword]: 'Two iron and a haft. Arms one knight.',
-  [GoodId.spear]: 'Mostly shaft, one iron. Arms one spearman.',
-  [GoodId.bow]: 'Three lengths of wood and no iron at all. Arms one archer.',
+    'Dug at the iron mine. The Smith works it into weapons and tools.',
+  [GoodId.silver]: 'Dug at the silver mine. Pays for recruits and research.',
+  [GoodId.gold]: 'Dug at the gold mine. Pays for the Monument and Gilded Arms.',
+  [GoodId.sword]: 'Arms one knight.',
+  [GoodId.spear]: 'Arms one spearman.',
+  [GoodId.bow]: 'Arms one archer.',
   [GoodId.ale]:
-    'Brewed from wheat and water. Carried to the Abbey it buys a festival, and with Ale Rations the barracks and the range keep casks of their own.',
-  [GoodId.flour]: 'Ground at the mill. Nobody but the bakery has a use for it.',
+    'Brewed from wheat and water. Festivals at the Abbey, and faster training with Ale Rations.',
+  [GoodId.flour]: 'Ground at the mill. Only the bakery uses it.',
   [GoodId.food]:
-    'Bread from the oven, or fish off the shore. Soldiers train on it and miners live on it.',
-  [GoodId.axe]: 'Iron and wood off the Smith. Staffs the woodcutter.',
-  [GoodId.pickaxe]:
-    'Wood and stone, never iron, so a stalled mine can always start itself again. Staffs the quarry and every mine.',
-  [GoodId.scythe]:
-    'A long blade off the Smith. No farmer takes a field without one.',
+    'Baked at the bakery, or caught at the fishery. Soldiers train on it and miners eat it.',
+  [GoodId.axe]: 'Staffs the woodcutter.',
+  [GoodId.pickaxe]: 'Staffs the quarry and every mine. No iron in it.',
+  [GoodId.scythe]: 'Staffs the wheat farm.',
   [GoodId.hammer]:
-    'The builder’s loan. Every site borrows one from the Smith and hands it back when the roof goes on.',
-  [GoodId.cauldron]:
-    'Beaten out at the Smith. The bakery and the brewery both cook out of one.',
-  [GoodId.rod]:
-    'Cut and strung at the Smith, no iron in it. Staffs the fishery.',
+    'Every building site borrows one and returns it when the roof goes on.',
+  [GoodId.cauldron]: 'Staffs the bakery and the brewery.',
+  [GoodId.rod]: 'Staffs the fishery.',
 };
 
 export function GoodTip(props: {good: GoodId}) {
@@ -494,16 +488,15 @@ function recipeText(recipe: Recipe): string {
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.abbey]:
-    'Where research happens, and where delivered ale becomes a festival. Serfs carry a study’s goods here before the books open.',
+    'Runs research, and turns delivered ale into a festival. Serfs carry a study’s goods here before it starts.',
   [BuildingTypeId.barracks]:
     'Trains knights and spearmen from bread and forged weapons. Archers train at the Archery Range.',
   [BuildingTypeId.archeryRange]:
-    'Trains archers from bread and bows, on a queue of its own. Bows and steel can be mustered at the same time.',
-  [BuildingTypeId.guardTower]:
-    'Two archers on the roof shoot harder and further than they do on the ground, and nothing can shoot back at them. With no archer free, villagers man it with stones.',
-  [BuildingTypeId.house]: `Sleeps ${BUILDING_DEFS[BuildingTypeId.house].housing} more villagers, though nobody lives in it. Beds are what let you hire.`,
+    'Trains archers from bread and bows, on a queue of its own.',
+  [BuildingTypeId.guardTower]: `Holds ${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers. They shoot harder and further from the roof, and cannot be shot back at. Villagers man it with stones when no archer is free.`,
+  [BuildingTypeId.house]: `Sleeps ${BUILDING_DEFS[BuildingTypeId.house].housing} more villagers. Nobody lives in it; beds are what let you hire.`,
   [BuildingTypeId.storehouse]:
-    'Your store of every good, and the beds you start with. Lose it and you lose the game.',
+    'Holds every good, and the beds you start with. Lose it and you lose the game.',
 };
 
 export function BuildingTip(props: {type: BuildingTypeId}) {
@@ -536,8 +529,7 @@ export function BuildingTip(props: {type: BuildingTypeId}) {
         {gather => (
           <div class="tip-line">
             Must be built within {gather().radius} tiles of{' '}
-            {RESOURCE_NAMES[gather().resource] ?? gather().resource}. That is as
-            far as its worker will walk.
+            {RESOURCE_NAMES[gather().resource] ?? gather().resource}.
           </div>
         )}
       </Show>
@@ -549,8 +541,7 @@ export function BuildingTip(props: {type: BuildingTypeId}) {
         {ration => (
           <div class="tip-line">
             Its miner eats 1 {goodName(ration().good).toLowerCase()} every{' '}
-            {ration().per} loads, carried out to him like any other delivery.
-            With none waiting, the shaft stands idle.
+            {ration().per} loads. With none waiting, the shaft stands idle.
           </div>
         )}
       </Show>
@@ -595,12 +586,11 @@ const CLASS_INFO: Record<
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
-  [UnitTypeId.serf]:
-    'Carries every good on his back, and raises every building.',
+  [UnitTypeId.serf]: 'Hauls every good, and raises every building.',
   [UnitTypeId.worker]:
-    'A serf who took a post. He lives at his building and works its trade.',
+    'A serf at a post. He lives at his building and works its trade.',
   [UnitTypeId.knight]: 'Slow, armored, and lethal up close.',
-  [UnitTypeId.spearman]: 'Fast peasant spears. They run archers down.',
+  [UnitTypeId.spearman]: 'Fast and cheap. Runs archers down.',
   [UnitTypeId.archer]: 'Keeps its distance and kites heavy armor.',
   // The three the valley meets rather than trains. They reach this card
   // now: an admin parade puts one of each in your own hand, and a replay

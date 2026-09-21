@@ -143,20 +143,20 @@ function reachTip(
   // is spent, selling is not the move, and the hut starts again the moment
   // something opens a way through.
   if (left <= 0 && blocked > 0) {
-    return `${loads(blocked)} still inside the search square, with no way to walk to any of it. Fell whatever is blocking the path, or sell this ${name} and build on open ground.`;
+    return `${loads(blocked)} inside the search square, none of it reachable. Clear the path, or sell this ${name} and rebuild on open ground.`;
   }
   if (left <= 0) {
     return renews
-      ? 'Every tree inside the search square is down. Stumps grow back slowly, so the hut will start again on its own.'
-      : `Nothing workable is left inside the search square, and none of it comes back. Sell this ${name} and build the next one on fresh ground.`;
+      ? 'Every tree inside the search square is down. Stumps regrow, so the hut restarts on its own.'
+      : `Nothing workable is left inside the search square, and none of it regrows. Sell this ${name} and rebuild on fresh ground.`;
   }
   const shut =
     blocked > 0
-      ? ` Another ${loads(blocked)} inside the square ${blocked === 1 ? 'counts' : 'count'} for nothing, with no way to walk there.`
+      ? ` Another ${loads(blocked)} inside the square cannot be reached.`
       : '';
   return renews
-    ? `Loads of wood still standing inside the square its woodcutter searches, and reachable. Felled tiles regrow, so a hut with room around it holds its number.${shut}`
-    : `Loads still in the ground inside the square its worker searches, and reachable. None of it is replaced, so at zero the building is finished where it stands.${shut}`;
+    ? `Reachable loads of wood inside the square its woodcutter searches. Felled tiles regrow.${shut}`
+    : `Reachable loads left inside the square its worker searches. None of it regrows, so at zero the building is finished.${shut}`;
 }
 
 /**
@@ -171,9 +171,9 @@ function reachTip(
 const HAUL_STARVED_AFTER = 10 * TICKS_PER_SECOND;
 
 const HAUL_STARVED_TIP =
-  'A pickup is booked here and no serf is free to come. A post stops the ' +
-  'moment its shelf fills, so hire serfs at the castle or wait for the ' +
-  'sites and workshops ahead of this pile.';
+  'A pickup is booked here and no serf is free to come. A post stops when ' +
+  'its shelf fills. Hire serfs at the castle, or wait for the sites and ' +
+  'workshops ahead of this pile.';
 
 /**
  * Why a post with a worker on it and ground under it still makes nothing:
@@ -196,11 +196,11 @@ function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
     // No article in front of the tool: the names are title-case and some
     // begin with a vowel, and "a Axe" is not a sentence anyone wants on a
     // card. The peg takes the name plainly instead.
-    return `Nobody will take this post until its peg holds the tool it needs, ${named}. The Smith is the only place tools come from, and the post fills itself the moment one arrives.`;
+    return `Needs ${named} on its peg before anyone will take the post. Forge one at the Smith and the post fills itself.`;
   }
   const ration = gatherRecipeOf(def)?.ration;
   if (ration) {
-    return `A mine feeds its miner, and with no ${named} to eat he waits at the shaft head. Bread comes from a well, a field, a mill and an oven, or more cheaply from a fishery on any shore.`;
+    return `Its miner has no ${named} to eat, so he waits at the shaft head. Food comes from the bakery or a fishery.`;
   }
   // Neutral words twice over: this branch is every converter, and most of
   // them have no fire — a field waits on water and a mill on wheat, and
@@ -209,7 +209,7 @@ function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
   // whatever makes the missing good: the well and the mill, which are
   // what a field and an oven wait on, hang no tool and hold no worker at
   // all. "Running" covers every shape of producer there is.
-  return `This post has a standing call out for ${named} and none in hand. Check that something in the valley makes it, that it is running, and that hands are free to carry it here.`;
+  return `Waiting on ${named}, with a standing call out for it. Check that something makes it, that it is running, and that serfs are free to carry it.`;
 }
 
 export function SelectionPanel(props: {
@@ -741,14 +741,14 @@ export function SelectionPanel(props: {
                         }
                         body={
                           b().state !== BuildingState.built
-                            ? 'A site heals as it rises. Every delivery goes straight onto the walls, so there is nothing separate to mend.'
+                            ? 'A site heals as it rises. Nothing separate to mend.'
                             : b().repairNeeds
-                              ? 'Stops the order. Materials already worked into the walls stay there. A load still in a serf’s hands is offered to whatever else wants it, and only walks to a storehouse if nothing does.'
+                              ? 'Stops the order. Materials already in the walls stay there. A load still in hand goes to whatever else wants it, or to a storehouse.'
                               : b().repairPending !== undefined
-                                ? 'The last of the materials are in and the masons are at work. This one finishes on its own.'
+                                ? 'Materials are all in and the masons are at work. It finishes on its own.'
                                 : unpaid() > 0
-                                  ? 'Calls for materials, half the build price scaled by the damage. Serfs carry them over and the masons work them in over the next few seconds.'
-                                  : 'Not a scratch on it. The order will be here when there is.'
+                                  ? 'Calls for materials: half the build price, scaled by the damage.'
+                                  : 'Not a scratch on it.'
                         }
                       />
                     )}
@@ -789,14 +789,14 @@ export function SelectionPanel(props: {
                             b().state !== BuildingState.built
                               ? b().paused
                                 ? 'Resumes the build. Materials flow again and a builder is called back to the frame.'
-                                : 'Halts the site where it stands and sends the builder back to the serf pool. No new deliveries are called for, though a load already on the road still lands, and nothing delivered is lost.'
+                                : 'Halts the site and sends the builder back to the serf pool. No new deliveries are called for, and nothing delivered is lost.'
                               : levy()
                                 ? b().paused
-                                  ? 'Mans the tower. An archer with nothing else to do climbs up, and with none free the villagers answer the levy and hold it with stones until an archer relieves them. Nobody up there can be shot at while the tower stands.'
-                                  : 'Empties the roof. Villagers go back to work, archers walk out as soldiers again, and nobody is called up until you man it.'
+                                  ? 'Mans the tower. A free archer climbs up, or villagers hold it with stones until one is. Nobody up there can be shot at.'
+                                  : 'Empties the roof. Villagers go back to work and archers walk out as soldiers.'
                                 : b().paused
-                                  ? 'Puts the place back to work. It calls for a worker again, and production and deliveries pick up where they left off.'
-                                  : 'Stops production and incoming deliveries, and sends the worker home a serf to haul or build. Finished stock still ships out.'
+                                  ? 'Puts it back to work. Production and deliveries pick up where they left off.'
+                                  : 'Stops production and incoming deliveries, and frees the worker. Finished stock still ships out.'
                           }
                         />
                       )}
@@ -811,7 +811,7 @@ export function SelectionPanel(props: {
                       tip={() => (
                         <TextTip
                           title="Sell building"
-                          body="Tears it down for half its build cost, or half of what was delivered if it is still a site. The worker walks out a serf, and the salvage is piled on the ground for serfs to cart home."
+                          body="Tears it down for half its build cost, or half of what was delivered if it is still a site. The salvage is left on the ground to cart home."
                         />
                       )}
                     >

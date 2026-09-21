@@ -25,41 +25,40 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.clearing]: [
     {
       text:
-        'Arrow keys pan, and so does a finger. Scroll or pinch to zoom, and ' +
-        'in full screen the screen edges pan too. The big roof is your ' +
-        'castle, which holds your stores and your beds and must not fall.',
+        'Arrow keys or a finger pan. Scroll or pinch to zoom. The big roof ' +
+        'is your castle: your stores, your beds, and the building you ' +
+        'cannot lose.',
     },
     {
       text:
-        'Pick the Woodcutter from the build card and set it where its reach ' +
-        'ring covers trees. A hut out of range of every trunk is refused.',
+        'Place a Woodcutter from the build card with trees inside its ' +
+        'reach ring. Out of range of every trunk, it is refused.',
       objective: 0,
     },
     {
-      text: 'The Quarry answers the same rule. Rock in reach, or no deal.',
+      text: 'Same rule for the Quarry. Rock inside the ring, or no deal.',
       objective: 1,
     },
     {
       text:
-        'There are no roads to draw here. Watch your serfs, because the ' +
-        'paths they walk wear into trails, and the trails walk faster.',
+        'There are no roads to draw. The paths your serfs walk wear into ' +
+        'trails on their own, and trails are faster.',
     },
     {
       text:
-        'Everyone needs a bed. The castle sleeps ten and a house sleeps ten ' +
-        'more, so raise one before you hire past the castle.',
+        'Everyone needs a bed. The castle sleeps ten, a house ten more. ' +
+        'Raise one before you hire past ten.',
       objective: 2,
     },
     {
       text:
-        'Select the castle and hire until eleven live here. Each recruit ' +
-        'costs four silver and takes a moment to walk in. If the purse runs ' +
-        'dry first, there is silver in the hills north-east, and a mine out ' +
-        'there pays for the rest of them.',
+        'Select the castle and hire until eleven live here. Four silver a ' +
+        'head, and each recruit walks in. If the purse runs dry, there is ' +
+        'silver in the hills north-east.',
       objective: 3,
     },
     {
-      text: 'Now let the axe work. Thirty wood in the castle fulfills the commission.',
+      text: 'Thirty wood in the castle fulfills the commission.',
       objective: 4,
     },
   ],
@@ -67,16 +66,16 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.breadAndWater]: [
     {
       text:
-        'Bread is a chain: well → wheat farm → mill → bakery. Water goes in ' +
-        'twice, since the bakery drinks too. Select any workshop to watch ' +
+        'Bread is a chain: well → wheat farm → mill → bakery. Water goes ' +
+        'in twice, at the farm and the bakery. Select any workshop to see ' +
         'its buffers.',
     },
     {
-      text: 'Raise a Well. Nobody staffs it, and whoever needs water draws it.',
+      text: 'Raise a Well. Nobody staffs it; whoever needs water draws it.',
       objective: 0,
     },
     {
-      text: 'A Wheat Farm next. Flat grass near the castle serves fine.',
+      text: 'A Wheat Farm next, on flat grass near the castle.',
       objective: 1,
     },
     {
@@ -89,9 +88,8 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
     {
       text:
-        'Waiting on an oven is what fast forward is for, and the speed ' +
-        'buttons sit top right. A fishery is the cheaper larder if you need ' +
-        'one: any shore, one hut, one hand, and nothing going in.',
+        'The speed buttons sit top right. A fishery is the cheaper larder ' +
+        'if you need one: any shore, one hut, one hand, nothing going in.',
       objective: 4,
     },
   ],
@@ -99,33 +97,33 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.ledger]: [
     {
       text:
-        'Learning happens at the Abbey, paid in goods your serfs carry there. ' +
-        'The study starts when the last load arrives, and only one runs at a ' +
+        'Research happens at the Abbey, paid in goods your serfs carry ' +
+        'there. The study starts when the last load arrives. One at a ' +
         'time. Raise it near the castle.',
       objective: 0,
     },
     {
       text:
-        'Mines stand on grass against the mountainside, their seam in reach. ' +
-        'Dig silver first, because research and hiring drain the same purse.',
+        'Mines stand on grass against the mountainside, seam in reach. ' +
+        'Dig silver first: research and hiring share one purse.',
       objective: 1,
     },
     {
       text:
-        'Open the tech tree and study Ironworking. It is a root of the Craft ' +
-        'branch, and it opens every iron recipe at the Smith.',
+        'Open the tech tree and study Ironworking. It opens every iron ' +
+        'recipe at the Smith.',
       objective: 2,
     },
     {text: 'Iron next. Another mine, another seam.', objective: 3},
     {
       text:
-        'The Smith turns wood and iron into arms and tools alike. Left to ' +
-        'itself it forges whatever tool the village lacks, so click a recipe ' +
-        'to queue an order ahead of that. Spears are one iron, swords two.',
+        'The Smith forges arms and tools from wood and iron. Left alone it ' +
+        'makes whatever tool the village lacks; click a recipe to queue an ' +
+        'order ahead of that. Spears are one iron, swords two.',
       objective: 4,
     },
     {
-      text: 'Let the forge run. Four spears in the castle settles the ledger.',
+      text: 'Four spears in the castle settles the ledger.',
       objective: 5,
     },
   ],
@@ -133,15 +131,15 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.hammerAndHaft]: [
     {
       text:
-        'Every hut here is empty because its tool is gone. No axe, no post. ' +
-        'The Smith is where tools come from, and the one post that needs ' +
-        'none. Raise it with the hammer you brought.',
+        'Every hut here is empty because its tool is gone. No axe, no ' +
+        'post. The Smith makes tools and needs none itself. Raise it with ' +
+        'the hammer you brought.',
       objective: 0,
     },
     {
       text:
-        'A pickaxe costs wood and stone and no iron at all. Forge that ' +
-        'first, put it in the mine, and the hill pays for every tool after it.',
+        'A pickaxe costs wood and stone, no iron. Forge that first and put ' +
+        'it in the mine.',
       objective: 1,
     },
     {
@@ -153,18 +151,16 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
     {
       text:
-        'Two tools stand between you and bread: a scythe for the field and a ' +
-        'cauldron for the oven. The well and the mill keep nobody, so they ' +
-        'never wanted one.',
+        'Two tools stand between you and bread: a scythe for the field, a ' +
+        'cauldron for the oven. The well and the mill staff nobody.',
       objective: 3,
     },
     {
       text:
-        'A hammer is lent, not spent. Every site borrows one and gives it ' +
-        'back when the roof goes on, which is why yours could raise only ' +
-        'one thing at a time and why it is on the shelf again now. With no ' +
-        'site standing, no post wants a hammer and the Smith will never ' +
-        'think of it. Select it and queue the other two yourself.',
+        'A hammer is lent, not spent: every site borrows one and returns ' +
+        'it when the roof goes on, so one hammer means one site at a time. ' +
+        'With no site standing, the Smith will not forge more on its own. ' +
+        'Select it and queue the other two yourself.',
       objective: 4,
     },
   ],
@@ -173,8 +169,7 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     {
       text:
         'The barracks turns bread, a weapon and a villager into a soldier. ' +
-        'Raise it now. The pass is not quiet, and the raid warning will ' +
-        'name what is coming.',
+        'Raise it now. The raid warning will name what is coming.',
       objective: 0,
     },
     {
@@ -185,8 +180,8 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
     {
       text:
-        'March everyone at once, since the camp guards do not chase far. ' +
-        'Right-click the camp itself and your soldiers will raze it.',
+        'March everyone at once; the camp guards do not chase far. ' +
+        'Right-click the camp and your soldiers will raze it.',
       objective: 2,
     },
   ],
@@ -194,30 +189,28 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.gildedValley]: [
     {
       text:
-        'This one does not end at a camp. Gold feeds nobody and arms ' +
-        'nobody you have here, and what it is for is the Monument. A ' +
-        'finished Monument wins outright. The seam is at the far end of ' +
-        'the valley, and everything else you need is close to home.',
+        'This one does not end at a camp. What gold is for here is the ' +
+        'Monument, and a finished Monument wins outright. The seam is at ' +
+        'the far end of the valley.',
     },
     {
       text:
-        'Deep Mining opens the Gold Mine. Select the abbey and study it. ' +
-        'Iron and silver are the price, and both are in the near hills.',
+        'Deep Mining opens the Gold Mine. Study it at the abbey. Iron and ' +
+        'silver are the price, both in the near hills.',
       objective: 0,
     },
     {
       text:
-        'Cut the mine on the knap. Mines eat, so keep bread walking out ' +
-        'there or the pick stops, and bring a spare pickaxe. An unstaffed ' +
-        'mine looks exactly like a working one.',
+        'Cut the mine on the knap. Keep bread walking out there or the ' +
+        'pick stops, and bring a spare pickaxe. An unstaffed mine looks ' +
+        'exactly like a working one.',
       objective: 1,
     },
     {
       text:
         'Now the Monument, on the levelled shelf beside the seam. The ' +
         'bandits learn of it the moment the first cartload lands, and a ' +
-        'frame stands at a fifth of its finished hit points. The raising is ' +
-        'what you have to defend.',
+        'frame stands at a fifth of its finished hit points.',
       objective: 2,
     },
   ],
