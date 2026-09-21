@@ -425,37 +425,38 @@ export function CostLine(props: {
  * lives here. */
 const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.water]:
-    'Drawn at the well. Farms, the bakery and the brewery all drink it.',
+    'Drawn at the well, which keeps no worker. Fields, ovens and the brew kettle all want it.',
   [GoodId.wheat]:
-    'Grown on wheat farms. The mill takes it for flour, the brewery for ale.',
-  [GoodId.wood]: 'Cut by woodcutters. Most buildings are priced in it.',
+    'The crop. The mill grinds it to flour and the brewery mashes it to ale.',
+  [GoodId.wood]:
+    'Felled by woodcutters. Nearly every building is priced in it.',
   [GoodId.stone]:
-    'Cut at the quarry. Heavier buildings need it, and roads are paved with it.',
+    'Cut at the quarry. The heavier buildings want it, and Masonry pays for roads in it.',
   [GoodId.iron]:
-    'Dug at the iron mine. The Smith works it into weapons and tools.',
+    'Out of a mountain seam. The Smith works it into every blade and most tools.',
   [GoodId.silver]:
-    'Dug at the silver mine. Pays for new serfs and for every research.',
+    'The purse, and it comes out of a hill like anything else. Recruits and studies are paid from it.',
   [GoodId.gold]:
-    'Dug at the gold mine. Its only uses are the Monument and Gilded Arms.',
-  [GoodId.sword]: 'Forged at the Smith from iron and wood. Arms one knight.',
-  [GoodId.spear]: 'Forged at the Smith from iron and wood. Arms one spearman.',
-  [GoodId.bow]: 'Cut at the Smith from wood alone. Arms one archer.',
+    'The deep seam, and the one nothing else wants. Two uses in the whole valley: the Monument, and Gilded Arms.',
+  [GoodId.sword]: 'Two iron and a haft. Arms one knight.',
+  [GoodId.spear]: 'Mostly shaft, one iron. Arms one spearman.',
+  [GoodId.bow]: 'Three lengths of wood and no iron at all. Arms one archer.',
   [GoodId.ale]:
-    'Brewed from wheat and water. The Abbey holds festivals with it, and with Ale Rations the barracks and the range drink it too.',
-  [GoodId.flour]: 'Ground at the mill. Only the bakery has a use for it.',
+    'Brewed from wheat and water. Carried to the Abbey it buys a festival, and with Ale Rations the barracks and the range keep casks of their own.',
+  [GoodId.flour]: 'Ground at the mill. Nobody but the bakery has a use for it.',
   [GoodId.food]:
-    'Baked at the bakery or landed at the fishery. Soldiers train on it and miners eat it.',
-  [GoodId.axe]:
-    'Forged at the Smith from iron and wood. Staffs the woodcutter.',
+    'Bread from the oven, or fish off the shore. Soldiers train on it and miners live on it.',
+  [GoodId.axe]: 'Iron and wood off the Smith. Staffs the woodcutter.',
   [GoodId.pickaxe]:
-    'Forged at the Smith from wood and stone, never iron. Staffs the quarry and every mine.',
+    'Wood and stone, never iron, so a stalled mine can always start itself again. Staffs the quarry and every mine.',
   [GoodId.scythe]:
-    'Forged at the Smith from iron and wood. Staffs the wheat farm.',
+    'A long blade off the Smith. No farmer takes a field without one.',
   [GoodId.hammer]:
-    'Forged at the Smith from iron and wood. Every building site borrows one and gives it back when the roof goes on.',
+    'The builder’s loan. Every site borrows one from the Smith and hands it back when the roof goes on.',
   [GoodId.cauldron]:
-    'Forged at the Smith from iron and wood. Staffs the bakery and the brewery.',
-  [GoodId.rod]: 'Cut at the Smith from wood alone. Staffs the fishery.',
+    'Beaten out at the Smith. The bakery and the brewery both cook out of one.',
+  [GoodId.rod]:
+    'Cut and strung at the Smith, no iron in it. Staffs the fishery.',
 };
 
 export function GoodTip(props: {good: GoodId}) {

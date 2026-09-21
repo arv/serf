@@ -59,100 +59,102 @@ const BAKED = yieldOf(BuildingTypeId.bakery, GoodId.food);
  */
 export const GROUP_DESC: Record<BuildGroupLabel, string> = {
   Village:
-    'Homes, housing, the Smith, the Abbey and the silver mine. These buildings support the village and its research.',
-  Food: 'The bread chain starts at the well and ends at the bakery. The fishery and brewery provide two other ways to use the shore and the wheat supply.',
-  Arms: 'Iron mines and military buildings. The Smith makes the weapons, while the barracks and Archery Range train soldiers.',
+    'Homes, the two trades that raise them, and the Smith that tools every other. With them go the Abbey and the silver mine that pays for its research and for every hand you hire.',
+  Food: 'The bread chain end to end, from the well that waters it to the oven. Two stand outside it: the fishery, which needs no chain at all, and the brewery, which bids against the mill for the same wheat.',
+  Arms: 'Iron out of the hillside, and the two yards that make soldiers of what the Smith forges. The tower and the deep gold seam come later, when there is something worth defending and something worth gilding.',
 };
 
 export const BUILDING_DESC: Record<BuildingTypeId, string> = {
-  [BuildingTypeId.storehouse]: `Your castle stores every good and provides ${BUILDING_DEFS[BuildingTypeId.storehouse].housing} beds. Lose it and you lose the game. It costs nothing to build, but stone is needed to repair it.`,
+  [BuildingTypeId.storehouse]: `Your castle. It holds every good, sleeps ${BUILDING_DEFS[BuildingTypeId.storehouse].housing}, and losing it loses the game. Nothing to raise, and real stone to mend.`,
   [BuildingTypeId.banditCamp]:
-    'The bandits’ base. It is placed by the map and cannot be built by a player. Destroy it to stop the raids.',
+    'Where the raids muster. The map places it and no player can. Burn it down and the raids stop coming from it.',
   [BuildingTypeId.woodcutter]:
-    'A worker cuts nearby trees and carries the wood home. Place it beside a forest.',
+    'Its resident walks to nearby trees and carries the timber home, so site it against a forest rather than a view.',
   [BuildingTypeId.quarry]:
-    'A worker cuts nearby rock into building stone. Place it where the worker can reach an outcrop.',
-  [BuildingTypeId.house]: `Provides ${BUILDING_DEFS[BuildingTypeId.house].housing} beds. Build houses when the village needs room for more serfs.`,
+    'Works exposed rock into building stone. Like every gatherer, it needs something already in reach before it will go up.',
+  [BuildingTypeId.house]: `${BUILDING_DEFS[BuildingTypeId.house].housing} more beds. Cheap on purpose, so the question is when rather than whether.`,
   [BuildingTypeId.well]:
-    'Serfs draw water here when a farm, bakery or brewery needs it. The well has no worker.',
+    'A shaft and a windlass, with nobody posted to it. Whoever needs water comes and draws it.',
   [BuildingTypeId.wheatFarm]:
-    'Uses water to grow wheat. Wheat goes to the mill and the brewery.',
+    'Water in, standing wheat out. The mill and the brewery both draw on it, so one farm rarely stays enough.',
   [BuildingTypeId.mill]:
-    'Grinds wheat into flour without a worker. One mill can serve two farms.',
-  [BuildingTypeId.bakery]: `Uses flour and water to make ${BAKED} food. It completes the bread chain.`,
+    'Grinds wheat into flour, and keeps no resident. It is slower than the farm feeding it by design, so one mill serves two.',
+  [BuildingTypeId.bakery]: `Flour and water in, ${BAKED} food out. The far end of the bread chain, and the best food rate in the game once the chain stands.`,
   [BuildingTypeId.fishery]:
-    'A worker catches food directly from the shore. The pier must touch water, and the fishery needs no input.',
+    'One hut, one hand, and a pier that has to touch water. Nothing goes in, and food comes out slowly.',
   [BuildingTypeId.brewery]:
-    'Uses wheat and water to make ale for Abbey festivals and military training. Brewing is required, and the building costs stone instead of wood.',
+    'Wheat and water into ale, for the Abbey’s festivals and for the casks at the barracks and the range. It wants Brewing studied first, and it is priced in stone rather than wood.',
   [BuildingTypeId.ironMine]:
-    'A worker digs iron from a nearby seam. Ironworking is required to build it.',
+    'Cut into the hillside over an iron seam. Ironworking gates it, because every weapon and most tools start here.',
   [BuildingTypeId.silverMine]:
-    'A worker digs silver from a nearby seam. Silver pays for recruits and research, and the mine is available from the start.',
+    'The treasury. Silver pays for recruits and for every study, and nothing gates the mine, so a village can dig for coin from the first minute.',
   [BuildingTypeId.goldMine]:
-    'A worker digs gold from a deep seam. Deep Mining is required. Gold pays for the Monument and Gilded Arms.',
+    'The deep seam, opened by Deep Mining. Its gold has two buyers and no others: the Monument, and Gilded Arms.',
   [BuildingTypeId.weaponsmith]:
-    'The village’s source of tools and weapons. The Smith is available from the start, but research unlocks its recipes.',
+    'The only place tools and weapons come from. The roof is ungated so no village can lock itself out of tools, and the recipes are gated one at a time instead.',
   [BuildingTypeId.abbey]:
-    'Research happens here, and ale delivered here starts a festival. Serfs carry research goods to the Abbey before the study begins. It has no resident.',
+    'Where research happens, and where delivered ale becomes a festival. A study’s goods are carried here before the books open, so keep it within reach of your serfs. No resident.',
   [BuildingTypeId.barracks]:
-    'Trains knights and spearmen from food, weapons and serfs. Soldiers finishing training march to the rally flag.',
+    'Bread, a forged weapon and a walking serf make a knight or a spearman. The rally flag on its door is where the finished ones march.',
   [BuildingTypeId.archeryRange]:
-    'Trains archers from food, bows and serfs. It has its own queue, so archers and melee soldiers can train at the same time.',
-  [BuildingTypeId.guardTower]: `Holds ${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers. Archers on the wall shoot harder and farther. Villagers can man it with stones until archers are available.`,
+    'Bread, a bow and a serf make an archer, on a queue of its own. Bows and steel muster side by side rather than one behind the other.',
+  [BuildingTypeId.guardTower]: `${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers on the roof, hitting harder and farther than the same number on the grass. Until one is free, the levy holds it with stones.`,
   [BuildingTypeId.roadSite]:
-    'A single paved tile placed with the Masonry road tool. When it finishes, the trail beneath it becomes a permanent stone road.',
+    'A single tile of paving, placed by the Masonry road pass rather than by hand. When it finishes, the trail beneath it is stone for good.',
   [BuildingTypeId.monument]:
-    'Finish the Monument to win without destroying the bandit camp. It must stand near a gold seam. Everyone learns about it when the first stone arrives, and the unfinished building is easy to destroy.',
+    'The other way to win: finish it and the valley is yours without razing a thing. It stands by the gold seam, every rival is told the moment the first load lands, and a half-built one has a fifth of its finished hit points.',
   [BuildingTypeId.salvage]:
-    'A demolished building leaves half its materials and everything it held on the ground. Serfs can carry the goods to the castle or to a nearby site.',
+    'What a demolition leaves behind: half the materials and everything the building held, piled where it stood. Serfs cart it to the stores, or a nearby site draws on it directly.',
 };
 
 export const UNIT_DESC: Record<UnitTypeId, string> = {
   [UnitTypeId.serf]:
-    'Hauls goods, builds structures and takes the next job the village needs. A serf can attack on the A command, but is much weaker than a soldier and blocks movement while attacking.',
+    'Hauls every good, raises every building, and takes whatever post the village needs next. Order him to attack (A) and he fights far worse than any soldier, and takes up room on the field for as long as that order stands.',
   [UnitTypeId.worker]:
-    'A serf assigned to a building. Workers stay at their post and stop working if the building is lost.',
+    'A serf who took a post. He lives at his building and works its trade, and the trade stops with the building.',
   [UnitTypeId.knight]:
-    'A slow, heavily armored soldier. Knights are strong against spearmen.',
+    'The heavy line. Slow, armored, and the unit that walks through spearmen.',
   [UnitTypeId.spearman]:
-    'A fast, cheap soldier. Spearmen are strong against archers and weak against knights.',
-  [UnitTypeId.archer]: `Has a range of ${UNIT_DEFS[UnitTypeId.archer].combat?.range ?? 0} and can serve in a tower garrison. Strong against knights, but fragile up close.`,
+    'Fast and cheap, first to any fight, and the counter to archers. Melts against knights.',
+  [UnitTypeId.archer]: `Range ${UNIT_DEFS[UnitTypeId.archer].combat?.range ?? 0}, and the pick of a tower garrison. Kites knights, and dies to anything light that reaches it.`,
   [UnitTypeId.bandit]:
-    'Light raider infantry. Bandits move quickly and attack buildings.',
+    'The raiders’ line infantry. Light, quick, and fond of buildings that cannot fight back.',
   [UnitTypeId.banditArcher]:
-    'A raider archer. A group of them can outrange an unprepared village.',
+    'The raiders’ bow. Softer than yours, but a wave of them still outranges a village with no answer.',
   [UnitTypeId.marauder]:
-    'A heavily armored raider, close to a knight in strength. Use archers and walls against it.',
+    'The raiders’ heavy, near enough a knight, and the sign a late wave means it. Bring bows and walls, because spears are the wrong answer to armor.',
 };
 
 export const GOOD_DESC: Record<GoodId, string> = {
-  [GoodId.water]:
-    'Drawn at the well. Farms, the bakery and the brewery use it.',
-  [GoodId.wheat]:
-    'Grown on wheat farms. The mill uses it for flour, and the brewery uses it for ale.',
+  [GoodId.water]: 'Drawn at the well. Bread, ale and the farm all start here.',
+  [GoodId.wheat]: 'The crop. It grinds into flour and it brews into ale.',
   [GoodId.wood]:
-    'Cut by woodcutters. Most buildings and several Smith recipes need it.',
-  [GoodId.stone]:
-    'Quarried rock used for buildings, towers, millstones and roads.',
+    'Timber from the woodcutter. The first cost of nearly every roof, and the whole of a bow.',
+  [GoodId.stone]: 'Quarried rock. Walls, towers, millstones and roads.',
   [GoodId.iron]:
-    'Dug at the iron mine. The Smith uses it for weapons and tools.',
-  [GoodId.silver]: 'Dug at the silver mine. Pays for serfs and research.',
-  [GoodId.gold]: 'Dug at the gold mine. Pays for the Monument and Gilded Arms.',
-  [GoodId.sword]: `The knight’s weapon, forged from ${forgeCost(GoodId.sword, GoodId.iron)} iron.`,
-  [GoodId.spear]: 'The spearman’s weapon, forged from iron and wood.',
-  [GoodId.bow]: `${forgeCost(GoodId.bow, GoodId.wood)} wood and no iron. The Smith makes it after Archery is researched.`,
+    'Ore out of the iron mine. The Smith turns it into every serious weapon and most tools.',
+  [GoodId.silver]:
+    'The coin. It hires serfs and funds every study, and it is the one good every plan runs short of.',
+  [GoodId.gold]:
+    'The deep metal. It pays for the Monument and for Gilded Arms, and for nothing else.',
+  [GoodId.sword]: `The knight’s weapon, ${forgeCost(GoodId.sword, GoodId.iron)} iron to a haft. No sword, no knight.`,
+  [GoodId.spear]:
+    'The spearman’s arm. Iron and wood, and the cheapest way to put a soldier in the field.',
+  [GoodId.bow]: `${forgeCost(GoodId.bow, GoodId.wood)} wood and no iron, once Archery is read. The weapon a poor village can still field.`,
   [GoodId.ale]:
-    'Brewed from wheat and water. The Abbey uses it for festivals, and military buildings use it for faster training after Ale Rations.',
-  [GoodId.flour]: 'Milled wheat used by the bakery.',
+    'Brewed from wheat and water. The Abbey drinks it as festivals, and with Ale Rations the barracks and the range drink it as faster training.',
+  [GoodId.flour]: 'Milled wheat, halfway to bread. Only the bakery wants it.',
   [GoodId.food]:
-    'Made at the bakery or fishery. Soldiers train on it, and miners eat it.',
-  [GoodId.axe]: 'The woodcutter’s tool. A woodcutter needs one to work.',
+    'What soldiers train on and the village fights for. Baked at the oven, or pulled off the shore.',
+  [GoodId.axe]:
+    'The woodcutter’s tool. No axe in store, no new woodcutter staffed.',
   [GoodId.pickaxe]:
-    'The quarry and miner’s tool. Forged from wood and stone, so mines can always be restarted.',
-  [GoodId.scythe]: 'The wheat farmer’s tool. One farm needs one scythe.',
+    'The digging tool, for the quarry and every mine. Wood and stone, never iron, so losing every pick can never lock the mines shut for good.',
+  [GoodId.scythe]:
+    'The farmer’s tool. One per farm, handed back if the post is ever dismissed.',
   [GoodId.hammer]:
-    'A construction tool. Each building site borrows one until construction is complete.',
-  [GoodId.cauldron]: 'The bakery and brewery use this tool.',
+    'The builder’s tool, loaned rather than owned. Every site borrows one and returns it at the topping-out, so hammers cap how many roofs rise at once.',
+  [GoodId.cauldron]: 'The tool of the bakery and the brewery both.',
   [GoodId.rod]:
-    'The fishery’s tool. Forged from wood alone, so fishing remains available without iron.',
+    'The fisher’s rod. Wood only, so the shore stays reachable for a village with no ore.',
 };
