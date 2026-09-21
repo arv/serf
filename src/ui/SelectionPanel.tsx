@@ -743,7 +743,7 @@ export function SelectionPanel(props: {
                           b().state !== BuildingState.built
                             ? 'A site heals as it rises. Nothing separate to mend.'
                             : b().repairNeeds
-                              ? 'Stops the order. Materials already in the walls stay there. A load still in hand goes to whatever else wants it, or to a storehouse.'
+                              ? 'Stops the order. Materials already in the walls stay there. A load still in hand goes to whatever else wants it, or to the castle.'
                               : b().repairPending !== undefined
                                 ? 'Materials are all in and the masons are at work. It finishes on its own.'
                                 : unpaid() > 0
@@ -796,7 +796,7 @@ export function SelectionPanel(props: {
                                   : 'Empties the roof. Villagers go back to work and archers walk out as soldiers.'
                                 : b().paused
                                   ? 'Puts it back to work. Production and deliveries pick up where they left off.'
-                                  : 'Stops production and incoming deliveries, and frees the worker. Finished stock still ships out.'
+                                  : 'Stops production and the deliveries that feed it, and frees the worker. Finished stock still ships out, and an ordered repair or study still gets its materials.'
                           }
                         />
                       )}

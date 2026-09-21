@@ -59,7 +59,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.setBuildingPaused]: {
     summary:
-      'Halt or restart a building. Halting stops production and stops new deliveries being called for, and it empties the post: the resident, or a site’s builder, rejoins the serf pool, and a tower sends its levy back to work. It is both “stop eating my wood” and “give me the hands back”.',
+      'Halt or restart a building. Halting stops production and the deliveries that feed it, and it empties the post: the resident, or a site’s builder, rejoins the serf pool, and a tower sends its levy back to work. A paused site stops calling for its materials too, but an ordered repair and a study already paid for sit outside the pause gate and keep calling for theirs. It is both “stop eating my wood” and “give me the hands back”.',
     payload: 'buildingId, paused',
   },
   [CommandKind.setBuildingRepair]: {
@@ -88,7 +88,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.cancelResearch]: {
     summary:
-      'Call off the study in hand, which is the way out of a bill the village cannot carry, such as gold ordered with no mine to dig it. Names the tech, for cancelForge’s stale-click reason. Loads already carried to the Abbey are spent. A load still in a serf’s hands is offered to whatever else wants that good, and only walks to a storehouse if nothing does.',
+      'Call off the study in hand, which is the way out of a bill the village cannot carry, such as gold ordered with no mine to dig it. Names the tech, for cancelForge’s stale-click reason. Loads already carried to the Abbey are spent. A load still in a serf’s hands is offered to whatever else wants that good, and only walks to the castle if nothing does.',
     payload: 'tech',
   },
   [CommandKind.trainUnit]: {

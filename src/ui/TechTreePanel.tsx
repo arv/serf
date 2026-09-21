@@ -391,7 +391,7 @@ export function TechTreePanel(props: {
                         ? 'Frees the tree for another study. The goods are already spent.'
                         : `Frees the tree for another study. Loads already carried to the ${buildingName(
                             BuildingTypeId.abbey,
-                          )} are spent. A load still in hand goes to whatever else wants it, or to a storehouse.`
+                          )} are spent. A load still in hand goes to whatever else wants it, or to the castle.`
                     }
                   />
                 ))}
