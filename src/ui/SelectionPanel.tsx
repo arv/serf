@@ -811,7 +811,7 @@ export function SelectionPanel(props: {
                       tip={() => (
                         <TextTip
                           title="Sell building"
-                          body="Tears it down for half its build cost, or half of what was delivered if it is still a site. The salvage is left on the ground to cart home."
+                          body="Tears it down for half its build cost, floored per good, or half of what was delivered if it is still a site. The salvage is left on the ground to cart home."
                         />
                       )}
                     >
@@ -964,7 +964,9 @@ export function SelectionPanel(props: {
                   <Show
                     when={b().recipeIndex !== undefined}
                     fallback={
-                      <span>between orders it forges the scarcest tool</span>
+                      <span>
+                        between orders it forges the scarcest tool, or rests
+                      </span>
                     }
                   >
                     <span>

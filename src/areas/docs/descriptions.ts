@@ -109,7 +109,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
 
 export const UNIT_DESC: Record<UnitTypeId, string> = {
   [UnitTypeId.serf]:
-    'Hauls every good, raises every building, and takes whatever post the village needs next. Order him to attack (A) and he fights far worse than any soldier, and takes up room on the field for as long as that order stands.',
+    'Hauls every good, raises every building, and takes whatever post the village needs next. Order him to attack (A) and he fights at about a fifth of a raider’s output, and takes up room on the field for as long as that order stands.',
   [UnitTypeId.worker]:
     'A serf who took a post. He lives at his building and works its trade, and the trade stops with the building.',
   [UnitTypeId.knight]:
