@@ -295,7 +295,7 @@ export function DifficultyPage(): JSX.Element {
       <Section title="What it never does">
         <ul class="refs">
           <li>
-            <strong>It does not hand the computer anything.</strong> Every seat
+            <strong>It does not hand the computer anything.</strong> Every seat,
             yours and theirs, opens a skirmish with the same larder, the same
             hands and the same castle at every setting. A hard opponent is one
             that plays its own resources better, not one that was given more of

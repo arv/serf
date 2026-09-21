@@ -2422,8 +2422,8 @@ export function Hud(props: {
             </Show>
             <Show when={invariantViolations().length > 0}>
               <div class="hud-violations panel">
-                {invariantViolations().length} invariant violation(s), see
-                console
+                {invariantViolations().length} invariant violation(s). See
+                console.
               </div>
             </Show>
           </div>

@@ -34,7 +34,7 @@ export const ADMIN_ACTION_NAMES = enumNames(AdminAction);
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:
-      'Send selected units to a tile. Mixed squads form with knights in front and archers behind, then move at the slowest unit’s pace. A fight breaks the formation. Plain movement ignores enemies, while attack-move engages them. The attack flag also makes serfs fight until the order is replaced.',
+      'Send selected units to a tile. Mixed squads form with knights in front and archers behind, then move at the slowest unit’s pace. A fight breaks the formation. A plain move ignores enemies and an attack-move engages them. The third mode, ‘half’, is the mobile tap default: it walks the front half of the route as a plain move and only goes live for the back half, so one gesture can send an army out and bring it home without reengaging. Either attack flag also makes serfs fight until the order is replaced.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   [CommandKind.placeBuilding]: {
@@ -88,7 +88,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.cancelResearch]: {
     summary:
-      'Call off the study in hand. Loads already carried to the Abbey are spent, and loads still on the road return to storage.',
+      'Call off the study in hand. Loads already carried to the Abbey are spent. A load still in a serf’s hands is offered to whatever else wants that good, and only walks to a storehouse if nothing does.',
     payload: 'tech',
   },
   [CommandKind.trainUnit]: {

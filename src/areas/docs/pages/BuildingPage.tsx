@@ -249,8 +249,8 @@ export function BuildingPage(props: {id: BuildingTypeId}): JSX.Element {
           <p class="lede">
             Never offered on the build ribbon.{' '}
             {def.isRoad
-              ? 'the Masonry road pass places it'
-              : 'the world places it'}
+              ? 'The Masonry road pass places it'
+              : 'The world places it'}
             .
           </p>
         </Section>

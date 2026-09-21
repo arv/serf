@@ -194,10 +194,10 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   [MissionId.gildedValley]: [
     {
       text:
-        'This one does not end at a camp. Gold buys nothing you can eat or ' +
-        'fight with, only the Monument, and a finished Monument wins ' +
-        'outright. The seam is at the far end of the valley, and everything ' +
-        'else you need is close to home.',
+        'This one does not end at a camp. Gold feeds nobody and arms ' +
+        'nobody you have here, and what it is for is the Monument. A ' +
+        'finished Monument wins outright. The seam is at the far end of ' +
+        'the valley, and everything else you need is close to home.',
     },
     {
       text:

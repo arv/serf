@@ -391,7 +391,7 @@ export function TechTreePanel(props: {
                         ? 'Frees the tree for another study. The goods are already in the books, and nothing comes back.'
                         : `Frees the tree for another study. Loads already carried to the ${buildingName(
                             BuildingTypeId.abbey,
-                          )} are spent, and the ones still on the road are carried home.`
+                          )} are spent. A load still in a serf’s hands is offered to whatever else wants it, and only walks to a storehouse if nothing does.`
                     }
                   />
                 ))}

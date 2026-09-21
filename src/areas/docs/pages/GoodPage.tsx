@@ -119,11 +119,11 @@ function ConsumerLine(props: {entry: ConsumerRef}): JSX.Element {
           <DocLink href={buildingHref(BuildingTypeId.archeryRange)}>
             {buildingName(BuildingTypeId.archeryRange)}
           </DocLink>{' '}
-          With{' '}
+          once{' '}
           <DocLink href={techHref(TechId.aleRations)}>
             {techName(TechId.aleRations)}
           </DocLink>{' '}
-          each recruit drinks one and trains faster
+          is researched, and each recruit drinks one and trains faster
         </li>
       );
     case 'hire':

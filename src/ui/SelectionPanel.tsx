@@ -137,12 +137,13 @@ function reachTip(
 ): string {
   const renews = resource === TileResource.Wood;
   const name = buildingName(type).toLowerCase();
+  const loads = (n: number): string => `${n} load${n === 1 ? '' : 's'}`;
   // Shut in: the ground is there and the walk is not. Said first, because
   // every word of the worked-out case below would be wrong here — nothing
   // is spent, selling is not the move, and the hut starts again the moment
   // something opens a way through.
   if (left <= 0 && blocked > 0) {
-    return `${blocked} loads still inside the search square, with no way to walk to any of it. Fell whatever is blocking the path, or sell this ${name} and build on open ground.`;
+    return `${loads(blocked)} still inside the search square, with no way to walk to any of it. Fell whatever is blocking the path, or sell this ${name} and build on open ground.`;
   }
   if (left <= 0) {
     return renews
@@ -151,7 +152,7 @@ function reachTip(
   }
   const shut =
     blocked > 0
-      ? ` Another ${blocked} stands inside the square with no way to walk to it, and counts for nothing.`
+      ? ` Another ${loads(blocked)} inside the square ${blocked === 1 ? 'counts' : 'count'} for nothing, with no way to walk there.`
       : '';
   return renews
     ? `Loads of wood still standing inside the square its woodcutter searches, and reachable. Felled tiles regrow, so a hut with room around it holds its number.${shut}`
@@ -742,7 +743,7 @@ export function SelectionPanel(props: {
                           b().state !== BuildingState.built
                             ? 'A site heals as it rises. Every delivery goes straight onto the walls, so there is nothing separate to mend.'
                             : b().repairNeeds
-                              ? 'Stops the order. Materials already worked into the walls stay there, and the ones still on the road go back into the stores.'
+                              ? 'Stops the order. Materials already worked into the walls stay there. A load still in a serf’s hands is offered to whatever else wants it, and only walks to a storehouse if nothing does.'
                               : b().repairPending !== undefined
                                 ? 'The last of the materials are in and the masons are at work. This one finishes on its own.'
                                 : unpaid() > 0

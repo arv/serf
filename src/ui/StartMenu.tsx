@@ -706,7 +706,7 @@ export function StartMenu(props: StartMenuProps) {
       setImportNote(
         filed.length === 0
           ? results.some(r => !r.ok && r.reason === 'storage')
-            ? `Import failed, ${spec.noun} storage is unavailable here`
+            ? `Import failed: ${spec.noun} storage is unavailable here`
             : files.length === 1
               ? `That file is not ${spec.article}`
               : `None of those files are ${spec.plural}`
