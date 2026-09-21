@@ -203,7 +203,7 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
             .then(name => {
               pushToast(
                 name !== null
-                  ? `Village saved — ${name}`
+                  ? `Village saved as ${name}`
                   : 'The village could not be saved',
               );
             })
@@ -216,7 +216,7 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
             .then(name => {
               pushToast(
                 name !== null
-                  ? `Replay saved — ${name}`
+                  ? `Replay saved as ${name}`
                   : 'Replay could not be saved',
               );
             })

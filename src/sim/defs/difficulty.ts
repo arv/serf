@@ -507,7 +507,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   [DifficultyIdNs.normal]: {
     id: DifficultyIdNs.normal,
     name: 'Normal',
-    blurb: 'The printed game: every playbook and every commission as written.',
+    blurb: 'The printed game. Every playbook and every commission as written.',
     armyAttackSize: 0,
     attackCooldownPct: 100,
     barracksQueueDepth: 0,

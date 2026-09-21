@@ -285,7 +285,7 @@ export async function runMatch(
     const counted = stashSet('session', 'serf-gl-fails', String(fails));
     if (counted && fails <= 1) setTimeout(() => location.reload(), 1500);
     fatal(
-      'The browser refused a WebGL context — this usually passes in a moment. ' +
+      'The browser refused a WebGL context. This usually passes in a moment. ' +
         `(${err instanceof Error ? err.message : String(err)})`,
       {retry: true},
     );
@@ -751,7 +751,7 @@ export async function runMatch(
     host.setSpeed(0);
     reportFailure(
       `The simulation stopped: ${message}. The village on screen is no ` +
-        'longer being updated — what you are looking at is the last frame ' +
+        'longer being updated, so what you are looking at is the last frame ' +
         'that arrived.',
     );
   });
@@ -950,7 +950,7 @@ export async function runMatch(
         const name = seatName(event.attacker, playersMeta());
         const words =
           event.note === HeraldNote.retribution
-            ? 'For the raid on our lands — we are coming!'
+            ? 'For the raid on our lands. We are coming!'
             : event.note === HeraldNote.finalAssault
               ? `${event.count ?? 'Many'} strong, and your walls will not hold!`
               : 'Our banners march on your gates!';

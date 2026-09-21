@@ -101,13 +101,13 @@ export function TechTreePanel(props: {
     const a = techs().active;
     if (!a) return '';
     if (!a.started) {
-      return `${techName(a.tech)} — ${hauledIn(a)} of ${hauledTotal(
+      return `${techName(a.tech)}: ${hauledIn(a)} of ${hauledTotal(
         a.tech,
       )} loads carried to the ${buildingName(BuildingTypeId.abbey)}.`;
     }
     // The same number the node's bar is drawing — the whole order, not
     // the reading on its own, so the words and the fill never disagree.
-    return `${techName(a.tech)} — goods all in; ${Math.round(
+    return `${techName(a.tech)}: goods all in, ${Math.round(
       studyProgress01(a) * 100,
     )}% done.`;
   };
@@ -339,8 +339,8 @@ export function TechTreePanel(props: {
                 when={replayMode()}
                 fallback={
                   <Show when={!techs().hasAbbey}>
-                    The {buildingName(BuildingTypeId.abbey)} opens this tree —
-                    build one to begin.
+                    The {buildingName(BuildingTypeId.abbey)} opens this tree.
+                    Build one to begin.
                   </Show>
                 }
               >
@@ -349,7 +349,7 @@ export function TechTreePanel(props: {
                   : `${seatName(viewerId(), playersMeta())}'s studies`}
                 {techs().hasAbbey
                   ? ''
-                  : ` — no ${buildingName(BuildingTypeId.abbey)} standing yet`}
+                  : `, with no ${buildingName(BuildingTypeId.abbey)} standing yet`}
                 . A recording takes no orders.
               </Show>
             </div>
@@ -388,10 +388,10 @@ export function TechTreePanel(props: {
                     title={`Abandon ${techName(a().tech)}`}
                     body={
                       a().started
-                        ? 'Frees the tree for another study. The goods are already in the books — nothing comes back.'
+                        ? 'Frees the tree for another study. The goods are already in the books, and nothing comes back.'
                         : `Frees the tree for another study. Loads already carried to the ${buildingName(
                             BuildingTypeId.abbey,
-                          )} are spent; the ones still on the road are carried home instead.`
+                          )} are spent, and the ones still on the road are carried home.`
                     }
                   />
                 ))}

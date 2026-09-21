@@ -30,8 +30,8 @@ export function CommandsPage(): JSX.Element {
     <>
       <h1>Commands</h1>
       <p class="lede">
-        Every order the sim takes — the same list whether it comes from a click,
-        a hotkey, the AI or the far end of a multiplayer socket. The sim
+        Every order the sim takes. The list is the same whether it comes from a
+        click, a hotkey, the AI or the far end of a multiplayer socket. The sim
         revalidates everything; the UI’s checks are advisory.
       </p>
       <Section title="Orders">
@@ -92,7 +92,7 @@ export function CommandsPage(): JSX.Element {
       </Section>
       <Section title="Build chord">
         <p class="lede">
-          Press <b>B</b>, then the building’s letter — the same letter the
+          Press <b>B</b>, then the building’s letter. It is the same letter the
           ribbon bolds in its name. The ribbon turns to that building’s tab
           either way: if the research is missing, nothing is armed, but the
           button is in front of you with the lock on it. Short stores stop

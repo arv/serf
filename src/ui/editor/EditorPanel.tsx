@@ -82,7 +82,7 @@ function EditorUi(props: {actions: EditorActions}) {
         // open before.
         props.actions.replaceState(state, null);
         setDialog(null);
-        showNotice(`Opened "${state.name}" — Save to keep it in the browser`);
+        showNotice(`Opened "${state.name}". Save to keep it in the browser`);
       })
       .catch((err: unknown) => {
         showNotice(
@@ -130,7 +130,7 @@ function EditorUi(props: {actions: EditorActions}) {
         <input
           class="ed-name"
           aria-label="Map name"
-          title="The map’s name — rename it and the next Save asks where to keep it"
+          title="The map’s name. Rename it and the next Save asks where to keep it"
           value={mapName()}
           maxLength={40}
           onInput={e => {
@@ -167,7 +167,7 @@ function EditorUi(props: {actions: EditorActions}) {
         <div class="ed-kaleido">
           <button
             classList={{active: kaleido()}}
-            title="Kaleidoscope (K): every stroke paints once per fold, rotated around the map's center"
+            title="Kaleidoscope (K). Every stroke paints once per fold, rotated around the map's center"
             onClick={() => setKaleido(!kaleido())}
           >
             ❋ Kaleidoscope
@@ -180,7 +180,7 @@ function EditorUi(props: {actions: EditorActions}) {
                   classList={{active: folds() === n}}
                   title={
                     n === mapPlayers()
-                      ? `${String(n)}× — matches this map's seats`
+                      ? `${String(n)}×, matching this map's seats`
                       : `${String(n)}×`
                   }
                   onClick={() => setFolds(n)}
@@ -192,14 +192,14 @@ function EditorUi(props: {actions: EditorActions}) {
           </Show>
         </div>
         <button
-          title="Toggle perspective (V): straight-down plan view or the game's own camera"
+          title="Toggle perspective (V). Straight-down plan view or the game's own camera"
           onClick={() => props.actions.toggleView()}
         >
           {viewMode() === ViewMode.topDown ? 'View: top-down' : 'View: game'}
         </button>
         <button
           classList={{active: showBounds()}}
-          title="Play area (B): outline the playable square and press the scenery ring back"
+          title="Play area (B). Outlines the playable square and presses the scenery ring back"
           onClick={() => setShowBounds(!showBounds())}
         >
           ⬚ Play area
@@ -209,7 +209,7 @@ function EditorUi(props: {actions: EditorActions}) {
       {/* ——— right: files & play ——— */}
       <div class="ed-files panel">
         <button
-          title="Start a blank map — unsaved changes are confirmed first"
+          title="Start a blank map. Unsaved changes are confirmed first"
           onClick={() => {
             if (confirmDiscard()) setDialog('new');
           }}
@@ -226,7 +226,7 @@ function EditorUi(props: {actions: EditorActions}) {
           title={
             savesStraightBack()
               ? `Save over “${savedName() ?? ''}” (Ctrl+S)`
-              : 'Save this map in the browser — asks for a name (Ctrl+S)'
+              : 'Save this map in the browser, asking for a name (Ctrl+S)'
           }
           onClick={() => props.actions.save()}
         >
@@ -251,7 +251,7 @@ function EditorUi(props: {actions: EditorActions}) {
           Export…
         </button>
         <button
-          title="Re-derive heights from the painted terrain the way worldgen shapes its own maps: lake beds shelve, meadows ease toward shores, gentle hills roll in. One undoable step."
+          title="Re-derive heights from the painted terrain the way worldgen shapes its own maps. Lake beds shelve, meadows ease toward shores and gentle hills roll in, all in one undoable step."
           onClick={() => props.actions.naturalize()}
         >
           ✦ Naturalize
@@ -329,8 +329,8 @@ function NewMapDialog(props: {actions: EditorActions}) {
         />
       </label>
       <div class="ed-dim">
-        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable,
-        unwalkable.
+        A scenery ring {marginFor(size())} tiles deep surrounds it. Paintable,
+        but unwalkable.
       </div>
       <div class="ed-row">
         Players
@@ -373,7 +373,7 @@ function OpenDialog(props: {
     <Dialog title="Open a map">
       <Show when={names().length === 0}>
         <div class="ed-dim">
-          Nothing saved in this browser yet — “Save” keeps a map here.
+          Nothing saved in this browser yet. “Save” keeps a map here.
         </div>
       </Show>
       <For each={names()}>
@@ -484,7 +484,7 @@ function SaveAsDialog(props: {actions: EditorActions}) {
       </label>
       <Show when={taken()}>
         <div class="ed-dim">
-          “{name().trim()}” already exists — saving replaces it.
+          “{name().trim()}” already exists, and saving replaces it.
         </div>
       </Show>
       <Show when={existing.length > 0}>

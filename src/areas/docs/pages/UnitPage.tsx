@@ -163,7 +163,7 @@ export function UnitPage(props: {id: UnitTypeId}): JSX.Element {
               </li>
               <Show when={weapon !== undefined}>
                 <li>
-                  Marches with a <GoodChip good={weapon!} /> — no weapon in
+                  Marches with a <GoodChip good={weapon!} />. No weapon in
                   store, no recruit
                 </li>
               </Show>
@@ -187,8 +187,8 @@ export function UnitPage(props: {id: UnitTypeId}): JSX.Element {
           <p class="lede">
             <Prose
               text={
-                `Hired at the castle for ${HIRE_SERF_COST} silver; the recruit walks in ` +
-                `after ${fmtSecs(HIRE_SERF_TICKS)}. Every serf needs a bed — the castle ` +
+                `Hired at the castle for ${HIRE_SERF_COST} silver. The recruit walks in ` +
+                `after ${fmtSecs(HIRE_SERF_TICKS)}. Every serf needs a bed. The castle ` +
                 `sleeps ${BUILDING_DEFS[BuildingTypeId.storehouse].housing}, houses add the rest.`
               }
               self={unitHref(props.id)}

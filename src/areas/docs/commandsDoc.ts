@@ -34,7 +34,7 @@ export const ADMIN_ACTION_NAMES = enumNames(AdminAction);
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:
-      'Send selected units to a tile. A mixed squad forms up — knights front, archers rear — and marches at its slowest member’s pace; the first fight dissolves both the formation and the shared pace, and every unit runs at its own speed again. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live. The attack flag is also what arms the villagers: a serf under it fights like a very weak melee unit — acquiring, closing and striking — and takes up room on the field for as long as the order stands, where a serf on any other order fights only what strikes him first and is walked through by everybody, his own army included.',
+      'Send selected units to a tile. Mixed squads form with knights in front and archers behind, then move at the slowest unit’s pace. A fight breaks the formation. Plain movement ignores enemies, while attack-move engages them. The attack flag also makes serfs fight until the order is replaced.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   [CommandKind.placeBuilding]: {
@@ -49,17 +49,17 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.cancelHire]: {
     summary:
-      'Call a paid-for recruit back off the road. The silver is refunded in full; striking the man already walking costs the next one a fresh walk.',
+      'Call a paid-for recruit back off the road. The silver is refunded in full, and the next recruit starts a fresh walk.',
     payload: 'index',
   },
   [CommandKind.sellBuilding]: {
     summary:
-      'Tear a building down; half its materials and everything it held are left as a salvage pile to cart home.',
+      'Tear a building down. Half its materials and everything it held become a salvage pile.',
     payload: 'buildingId',
   },
   [CommandKind.setBuildingPaused]: {
     summary:
-      'Halt or restart a building. Halting also empties the post — the resident (or a site’s builder) rejoins the serf pool, and a tower sends its levy back to work — so it is both “stop eating my wood” and “give me the hands back”.',
+      'Halt or restart a building. Halting releases its worker or builder, and sends a tower’s levy back to work.',
     payload: 'buildingId, paused',
   },
   [CommandKind.setBuildingRepair]: {
@@ -69,7 +69,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.setBuildingRecipe]: {
     summary:
-      'Give the Smith a standing order from its forge menu — or index −1 for auto, forging whatever tool the village most lacks.',
+      'Give the Smith a standing order from its forge menu. Index −1 enables auto-forging for the tool the village most lacks.',
     payload: 'buildingId, index',
   },
   [CommandKind.enqueueForge]: {
@@ -78,17 +78,17 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.cancelForge]: {
     summary:
-      'Cancel a queued forge order. Names both the slot and the recipe so a stale click misses rather than cancels a neighbour.',
+      'Cancel a queued forge order. Names both the slot and the recipe, so a stale click misses and leaves the neighboring order alone.',
     payload: 'buildingId, index, recipeIndex',
   },
   [CommandKind.research]: {
     summary:
-      'Order a study at the Abbey. Nothing is spent up front and the stores are not a gate — like a building site, the cost is billed to the Abbey, serfs carry it there as the village can, and the study starts when the last load lands.',
+      'Order a study at the Abbey. The cost is billed to the Abbey, serfs carry it there, and the study starts when the last load lands.',
     payload: 'tech',
   },
   [CommandKind.cancelResearch]: {
     summary:
-      'Call off the study in hand — the way out of a bill the village cannot carry (gold ordered with no mine to dig it). Names the tech, for cancelForge’s stale-click reason. Loads already carried to the Abbey are spent; loads still on the road are re-aimed, good in hand.',
+      'Call off the study in hand. Loads already carried to the Abbey are spent, and loads still on the road return to storage.',
     payload: 'tech',
   },
   [CommandKind.trainUnit]: {
@@ -103,7 +103,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.setRallyPoint]: {
     summary:
-      'Plant the barracks’ rally flag — fresh soldiers march there — or take it down by sending no coordinates.',
+      'Plant the barracks’ rally flag so fresh soldiers march there. Send no coordinates to take it down.',
     payload: 'buildingId, x?, y?',
   },
   [CommandKind.admin]: {
@@ -117,17 +117,17 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.holdGround]: {
     summary:
-      'Hold ground — Warcraft’s Hold Position, on H. The soldiers named stop where they stand and fight only what comes within weapon reach: no chasing, no kiting, no walking to a wall, and a target that steps out of reach is let go rather than followed. Any other order releases them. Civilians in the list are skipped.',
+      'Hold ground with H. The soldiers named stop where they stand and fight only what comes within weapon reach. They do not chase, and any other order releases them. Civilians are skipped.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
   },
   [CommandKind.stopUnits]: {
     summary:
-      'Stop, on S. Everyone named stops walking and stands where his feet are — a march, an attack-move, an assault on a building, the chase or siege a soldier walks for a target, and the route queued behind any of them. Serfs included: a walk is a walk. An errand is the exception, since it cannot be halted mid-step without stranding what it carries — hauling, a worker’s gather loop and a walk to a post to take it up all survive a stop, as does a hold. Not the hold’s quieter cousin: a stopped soldier is an idle soldier, so he still answers an enemy that comes within his acquire radius — stop calls a charge off, hold draws a line.',
+      'Stop with S. Everyone named stops walking, including units on a march, attack-move or chase. Hauling, gathering and walking to a post continue. A stopped soldier still answers enemies nearby, while Hold prevents pursuit.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER})`,
   },
   [CommandKind.focusTarget]: {
     summary:
-      'Put a squad on one enemy — focus fire, sent with the attack-move behind an A-click. Every other order leaves targeting to the sim, which sends each soldier at the nearest enemy it counters; this overrides that for the units named, until the target dies or outruns them. Worth having because damage is flat: a soldier at a sliver of health hits as hard as a fresh one, so killing one outright removes its whole output where spreading the same damage over three removes none.',
+      'Focus the named squad on one enemy. The order lasts until the target dies or outruns the squad.',
     payload:
       'unitIds, targetId (a living enemy unit, or a standing enemy building with building: true)',
   },
@@ -140,6 +140,6 @@ export const ADMIN_DOCS: Record<AdminAction, string> = {
   [AdminAction.toggleInstantBuild]:
     'Construction completes the moment materials land.',
   [AdminAction.finishResearch]:
-    'Complete the research in progress — settling any goods still on the road to the Abbey.',
+    'Complete the research in progress. Goods still on the road to the Abbey are settled.',
   [AdminAction.spawnParade]: 'March one of every unit past the castle.',
 };

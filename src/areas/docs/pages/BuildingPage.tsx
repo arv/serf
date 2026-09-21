@@ -76,7 +76,7 @@ export function BuildingPage(props: {id: BuildingTypeId}): JSX.Element {
           </Show>
           <Show when={def.mine}>
             <Stat label="Ground">
-              dug into the hillside — exempt from flat ground
+              dug into the hillside, so flat ground is not required
             </Stat>
           </Show>
           <Show when={hotkey !== ''}>
@@ -247,7 +247,7 @@ export function BuildingPage(props: {id: BuildingTypeId}): JSX.Element {
       <Show when={def.systemOnly}>
         <Section title="Placement">
           <p class="lede">
-            Never offered on the build ribbon —{' '}
+            Never offered on the build ribbon.{' '}
             {def.isRoad
               ? 'the Masonry road pass places it'
               : 'the world places it'}

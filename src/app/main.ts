@@ -324,10 +324,10 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
     if (!replay) {
       fatal(
         rewatch
-          ? `${what} is no longer here — only the last match is kept for ` +
+          ? `${what} is no longer here. Only the last match is kept for ` +
               'watching back, and clearing this site’s data takes it. ' +
-              '“Save replay” is how one is kept for good.'
-          : `${what} could not be loaded — it may have been deleted.`,
+              'Use “Save replay” to keep one for good.'
+          : `${what} could not be loaded, and may have been deleted.`,
         {
           menu: true,
         },
@@ -341,8 +341,8 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
     if (replay.replayVersion !== REPLAY_VERSION) {
       fatal(
         `${what} was recorded under replay version ` +
-          `${replay.replayVersion}; this build plays version ${REPLAY_VERSION}, ` +
-          `and the match would not come out the way it was played.`,
+          `${replay.replayVersion}. This build plays version ${REPLAY_VERSION}, ` +
+          `so the match would not come out the way it was played.`,
         {menu: true},
       );
     }
@@ -389,7 +389,7 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
       raw = await readSaveFile(loadName);
       if (raw === null) {
         fatal(
-          `The saved game "${loadName}" could not be loaded — it may have been deleted.`,
+          `The saved game "${loadName}" could not be loaded, and may have been deleted.`,
           {
             menu: true,
           },
@@ -414,7 +414,7 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
     if (written !== undefined && !canReadSave(written)) {
       fatal(
         `${loadName !== null ? `The saved game "${loadName}"` : 'That saved game'} was ` +
-          `written in save format ${written}; this build reads format ` +
+          `written in save format ${written}. This build reads format ` +
           `${WORLD_SAVE_VERSION} and cannot open that village.`,
         {menu: true},
       );

@@ -34,7 +34,7 @@ export function AdminPanel(props: {onAdmin: (action: AdminAction) => void}) {
         {...tooltip(() => (
           <TextTip
             title="Raids"
-            body="Turn bandit waves on or off. Off = peaceful sandbox."
+            body="Turn bandit waves on or off. Off makes a peaceful sandbox."
           />
         ))}
         onClick={() => props.onAdmin(AdminAction.toggleRaids)}
@@ -59,7 +59,7 @@ export function AdminPanel(props: {onAdmin: (action: AdminAction) => void}) {
         {...tooltip(() => (
           <TextTip
             title="Grant goods"
-            body="+25 of every good into the storehouse."
+            body="+25 of every good into the castle."
           />
         ))}
         onClick={() => props.onAdmin(AdminAction.grantGoods)}
@@ -84,7 +84,7 @@ export function AdminPanel(props: {onAdmin: (action: AdminAction) => void}) {
         {...tooltip(() => (
           <TextTip
             title="Fog of war"
-            body="Off reveals the whole map. Render-only — what you have explored is remembered while it is off."
+            body="Off reveals the whole map. Render only, and what you have explored is remembered while it is off."
           />
         ))}
         onClick={() => setFogEnabled(!fogEnabled())}
@@ -110,7 +110,7 @@ export function AdminPanel(props: {onAdmin: (action: AdminAction) => void}) {
         {...tooltip(() => (
           <TextTip
             title="Spawn parade"
-            body="One of each unit kind by the storehouse — for eyeballing models and animations."
+            body="One of each unit kind by the castle, for eyeballing models and animations."
           />
         ))}
         onClick={() => props.onAdmin(AdminAction.spawnParade)}

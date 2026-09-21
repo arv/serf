@@ -230,7 +230,7 @@ function connect(net: NetInfo, attempt: number): void {
           gone = true;
           postStatus({
             state: NetState.gone,
-            message: 'The room has wound down — the match is over.',
+            message: 'The room has wound down. The match is over.',
           });
           ws.close();
         } else if (msg.t === 'replay') {
