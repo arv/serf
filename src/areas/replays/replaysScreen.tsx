@@ -5,7 +5,7 @@ import {
   fetchUploadedReplays,
   type UploadedReplay,
 } from '../../app/replayUpload';
-import {goto} from '../../app/router';
+import {routeClick} from '../../app/router';
 import {REPLAY_VERSION} from '../../shared/replayVersion';
 import {TICK_MS} from '../../sim/defs/balance';
 import {SHELF_STYLE} from './styles';
@@ -138,22 +138,7 @@ function Row(props: {row: UploadedReplay; key: string | null}): JSX.Element {
             </span>
           }
         >
-          <a
-            class="watch"
-            href={href()}
-            onClick={e => {
-              if (
-                e.button !== 0 ||
-                e.metaKey ||
-                e.ctrlKey ||
-                e.shiftKey ||
-                e.altKey
-              )
-                return;
-              e.preventDefault();
-              goto(href());
-            }}
-          >
+          <a class="watch" href={href()} onClick={e => routeClick(e, href())}>
             Watch
           </a>
         </Show>
@@ -193,22 +178,7 @@ function ShelfApp(props: {key: string | null}): JSX.Element {
         >
           Refresh
         </button>
-        <a
-          class="back"
-          href="/"
-          onClick={e => {
-            if (
-              e.button !== 0 ||
-              e.metaKey ||
-              e.ctrlKey ||
-              e.shiftKey ||
-              e.altKey
-            )
-              return;
-            e.preventDefault();
-            goto('/');
-          }}
-        >
+        <a class="back" href="/" onClick={e => routeClick(e, '/')}>
           ← Back to the game
         </a>
       </header>

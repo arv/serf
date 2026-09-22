@@ -1,5 +1,5 @@
 import {For, Show, type JSX} from 'solid-js';
-import {goto} from '../../app/router';
+import {routeClick} from '../../app/router';
 import type {Recipe} from '../../sim/defs/buildings';
 import {type GoodAmounts, type GoodId, goodEntries} from '../../sim/defs/goods';
 import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
@@ -27,12 +27,7 @@ export function DocLink(props: {
       href={props.href}
       class={props.class}
       aria-current={props.current === true ? 'location' : undefined}
-      onClick={e => {
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
-          return;
-        e.preventDefault();
-        goto(props.href);
-      }}
+      onClick={e => routeClick(e, props.href)}
     >
       {props.children}
     </a>

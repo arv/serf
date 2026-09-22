@@ -9,7 +9,7 @@ import {
   listReplayFiles,
   type ReplayFileInfo,
 } from '../app/replayStore';
-import {goto} from '../app/router';
+import {goto, routeClick} from '../app/router';
 import {
   deleteSaveFile,
   importSaveFile,
@@ -1712,19 +1712,7 @@ export function StartMenu(props: StartMenuProps) {
                 copy-link work, a plain click stays in the document. */}
             <a
               href="/docs/credits"
-              onClick={e => {
-                if (
-                  e.button !== 0 ||
-                  e.metaKey ||
-                  e.ctrlKey ||
-                  e.shiftKey ||
-                  e.altKey
-                )
-                  return;
-                e.preventDefault();
-                releaseMenuBackdrop();
-                goto('/docs/credits');
-              }}
+              onClick={e => routeClick(e, '/docs/credits', releaseMenuBackdrop)}
             >
               Credits
             </a>{' '}
@@ -1734,19 +1722,7 @@ export function StartMenu(props: StartMenuProps) {
                 to the server, and a notice nobody can reach is not one. */}
             <a
               href="/docs/license"
-              onClick={e => {
-                if (
-                  e.button !== 0 ||
-                  e.metaKey ||
-                  e.ctrlKey ||
-                  e.shiftKey ||
-                  e.altKey
-                )
-                  return;
-                e.preventDefault();
-                releaseMenuBackdrop();
-                goto('/docs/license');
-              }}
+              onClick={e => routeClick(e, '/docs/license', releaseMenuBackdrop)}
             >
               License
             </a>
