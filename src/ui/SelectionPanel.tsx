@@ -143,20 +143,17 @@ function reachTip(
   // is spent, selling is not the move, and the hut starts again the moment
   // something opens a way through.
   if (left <= 0 && blocked > 0) {
-    return `${loads(blocked)} inside the search square, none of it reachable. Clear the path, or sell this ${name} and rebuild on open ground.`;
+    return `${loads(blocked)} in the search square, none reachable. Clear the path or rebuild this ${name} on open ground.`;
   }
   if (left <= 0) {
     return renews
-      ? 'Every tree inside the search square is down. Stumps regrow, so the hut restarts on its own.'
-      : `Nothing workable is left inside the search square, and none of it regrows. Sell this ${name} and rebuild on fresh ground.`;
+      ? 'No trees left in the search square. Stumps regrow.'
+      : `Nothing workable left in the search square, and none regrows. Rebuild this ${name} on fresh ground.`;
   }
-  const shut =
-    blocked > 0
-      ? ` Another ${loads(blocked)} inside the square cannot be reached.`
-      : '';
+  const shut = blocked > 0 ? ` ${loads(blocked)} more unreachable.` : '';
   return renews
-    ? `Reachable loads of wood inside the square its woodcutter searches. Felled tiles regrow.${shut}`
-    : `Reachable loads left inside the square its worker searches. None of it regrows, so at zero the building is finished.${shut}`;
+    ? `Reachable wood in the search square. Felled tiles regrow.${shut}`
+    : `Reachable loads in the search square. None regrows; at zero the building is finished.${shut}`;
 }
 
 /**
@@ -171,9 +168,7 @@ function reachTip(
 const HAUL_STARVED_AFTER = 10 * TICKS_PER_SECOND;
 
 const HAUL_STARVED_TIP =
-  'A pickup is booked here and no serf is free to come. A post stops when ' +
-  'its shelf fills. Hire serfs at the castle, or wait for the sites and ' +
-  'workshops ahead of this pile.';
+  'Pickup booked, no serf free to come. A post stops when its shelf fills.';
 
 /**
  * Why a post with a worker on it and ground under it still makes nothing:
@@ -196,11 +191,11 @@ function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
     // No article in front of the tool: the names are title-case and some
     // begin with a vowel, and "a Axe" is not a sentence anyone wants on a
     // card. The peg takes the name plainly instead.
-    return `Needs ${named} on its peg before anyone will take the post. Forge one at the Smith and the post fills itself.`;
+    return `Unstaffed: needs ${named} on its peg. Forge one at the Smith.`;
   }
   const ration = gatherRecipeOf(def)?.ration;
   if (ration) {
-    return `Its miner has no ${named} to eat, so he waits at the shaft head. Food comes from the bakery or a fishery.`;
+    return `Idle: no ${named} for its miner.`;
   }
   // Neutral words twice over: this branch is every converter, and most of
   // them have no fire — a field waits on water and a mill on wheat, and
@@ -209,7 +204,7 @@ function shortTip(b: BuildingSnap, goods: readonly GoodId[]): string {
   // whatever makes the missing good: the well and the mill, which are
   // what a field and an oven wait on, hang no tool and hold no worker at
   // all. "Running" covers every shape of producer there is.
-  return `Waiting on ${named}, with a standing call out for it. Check that something makes it, that it is running, and that serfs are free to carry it.`;
+  return `Waiting on ${named}, with a standing call out for it.`;
 }
 
 export function SelectionPanel(props: {
@@ -741,11 +736,11 @@ export function SelectionPanel(props: {
                         }
                         body={
                           b().state !== BuildingState.built
-                            ? 'A site heals as it rises. Nothing separate to mend.'
+                            ? 'A site heals as it rises.'
                             : b().repairNeeds
-                              ? 'Stops the order. Materials already delivered are spent, and the mending they bought still lands. A load still in hand goes to whatever else wants it, or to the castle.'
+                              ? 'Stops the order. Delivered materials are spent and still mend. A load in hand goes elsewhere, or to the castle.'
                               : b().repairPending !== undefined
-                                ? 'Materials are all in and the masons are at work. It finishes on its own.'
+                                ? 'Materials all in. Finishes on its own.'
                                 : unpaid() > 0
                                   ? 'Calls for materials: half the build price, scaled by the damage.'
                                   : 'Not a scratch on it.'
@@ -788,15 +783,15 @@ export function SelectionPanel(props: {
                           body={
                             b().state !== BuildingState.built
                               ? b().paused
-                                ? 'Resumes the build. Materials flow again and a builder is called back to the frame.'
-                                : 'Halts the site and sends the builder back to the serf pool. No new deliveries are called for, and nothing delivered is lost.'
+                                ? 'Resumes the build. Materials and a builder return.'
+                                : 'Halts the site, frees the builder, stops new deliveries. Nothing delivered is lost.'
                               : levy()
                                 ? b().paused
-                                  ? 'Mans the tower. A free archer climbs up, or villagers hold it with stones until one is. Nobody up there can be shot at.'
-                                  : 'Empties the roof. Villagers go back to work and archers walk out as soldiers.'
+                                  ? 'Mans the tower with a free archer, or villagers until one is. Cannot be shot at.'
+                                  : 'Empties the roof. Archers leave as soldiers, villagers as serfs.'
                                 : b().paused
-                                  ? 'Puts it back to work. Production and deliveries pick up where they left off.'
-                                  : 'Stops production and the deliveries that feed it, and frees the worker. Finished stock still ships out, and an ordered repair or study still gets its materials.'
+                                  ? 'Resumes production and deliveries.'
+                                  : 'Stops production and its deliveries, frees the worker. Finished stock still ships; an ordered repair or study still gets materials.'
                           }
                         />
                       )}
@@ -811,7 +806,7 @@ export function SelectionPanel(props: {
                       tip={() => (
                         <TextTip
                           title="Sell building"
-                          body="Tears it down for half its build cost, floored per good, or half of what was delivered if it is still a site. Everything it held comes back with that, the worker walks out a serf, and a tower sends its roof down. The salvage is left on the ground to cart home."
+                          body="Half the build cost, floored per good, or half of what a site was delivered, plus everything it held. Dropped as salvage. Frees the worker and any garrison."
                         />
                       )}
                     >
@@ -860,7 +855,7 @@ export function SelectionPanel(props: {
                               body={
                                 locked()
                                   ? `Locked. Needs ${techName(opt.requiresTech!)}.`
-                                  : 'One batch, ahead of the standing work. Ingredients are called for when it reaches the fire.'
+                                  : 'One batch, ahead of the standing order. Ingredients called at the fire.'
                               }
                             />
                           )}
@@ -914,8 +909,8 @@ export function SelectionPanel(props: {
                                   }
                                   body={
                                     item().started
-                                      ? 'The batch on the fire still finishes. Striking the order only keeps it from being queued again.'
-                                      : 'Nothing is spent until the batch reaches the fire, so ingredients already delivered stay for the next order.'
+                                      ? 'The batch on the fire still finishes.'
+                                      : 'Nothing spent until the fire. Delivered ingredients stay.'
                                   }
                                 />
                               )}
@@ -1014,7 +1009,7 @@ export function SelectionPanel(props: {
                         title="Hire Serf"
                         body={
                           noRoom(b().hireQueue ?? 0)
-                            ? `Every bed in the village is taken, counting the recruits already on the road. Build a house for ${BUILDING_DEFS[BuildingTypeId.house].housing} more.`
+                            ? `Every bed taken, recruits on the road included. A house adds ${BUILDING_DEFS[BuildingTypeId.house].housing}.`
                             : `Word goes out to the next village, and the recruit walks in after about ${Math.round(
                                 HIRE_SERF_TICKS / TICKS_PER_SECOND,
                               )} seconds. He costs ${HIRE_SERF_COST} silver, paid on order and refunded in full if you call him back.`
@@ -1065,8 +1060,8 @@ export function SelectionPanel(props: {
                               }
                               body={
                                 i === 0
-                                  ? `He turns around wherever he is on the road, and the ${HIRE_SERF_COST} silver comes back to the castle. Only the walk is lost.`
-                                  : `Word never goes out for this one, and the ${HIRE_SERF_COST} silver comes back to the castle. The man already walking is not disturbed.`
+                                  ? `Turns back on the road. ${HIRE_SERF_COST} silver refunded; the walk is lost.`
+                                  : `Never sent for. ${HIRE_SERF_COST} silver refunded; the man walking is undisturbed.`
                               }
                             />
                           )}
@@ -1217,7 +1212,7 @@ export function SelectionPanel(props: {
                     tip={() => (
                       <TextTip
                         title="Rally point"
-                        body="Then click a spot. Every soldier that finishes training marches there, and clicking the barracks takes the flag down."
+                        body="Then click a spot. Finished soldiers march there. Click the barracks to remove it."
                       />
                     )}
                   >
@@ -1304,8 +1299,8 @@ export function SelectionPanel(props: {
                                 }
                                 body={
                                   item().started
-                                    ? 'Stops the recruit mid-drill. The ingredients go back into the barracks stores, he walks out a serf, and the time trained is lost.'
-                                    : 'Waiting on ingredients and a recruit. Nothing is spent until training starts, so what has been delivered stays for the next order.'
+                                    ? 'Stops the drill. Ingredients return to the barracks, he leaves a serf, training time is lost.'
+                                    : 'Waiting on ingredients and a recruit. Nothing spent until training starts.'
                                 }
                               />
                             )}
@@ -1620,7 +1615,7 @@ export function SelectionPanel(props: {
                      them apart. */
                   <TextTip
                     title={roster().length > 0 ? 'A mixed band' : 'In hand'}
-                    body="Every tile below is one of them, with what it is and how much of it is left."
+                    body="Each tile below, with its resource and what is left."
                   />
                 )
               }
@@ -1726,7 +1721,7 @@ export function SelectionPanel(props: {
             <div
               class="sel-roster"
               role="group"
-              aria-label="The band in hand. Click a face to take that man on his own, or shift-click to leave him behind."
+              aria-label="The band in hand. Click a face to select that man alone, or shift-click to drop him."
             >
               <Index each={shown()}>
                 {unit => (
@@ -1734,7 +1729,7 @@ export function SelectionPanel(props: {
                     tip={() => (
                       <TextTip
                         title={`${unitName(unit().kind)} · ${unit().hp} of ${unit().maxHp} hitpoints`}
-                        body="Click to take him on his own, or shift-click to leave him behind. A click on the man himself does the same."
+                        body="Click to select him alone, or shift-click to drop him."
                       />
                     )}
                   >
@@ -1780,7 +1775,7 @@ export function SelectionPanel(props: {
                   tip={() => (
                     <TextTip
                       title={`${roster().length - shown().length} more`}
-                      body="Only so many tiles fit. The wounded are drawn first, so the ones left out are still whole."
+                      body="Limited tiles. The wounded are drawn first."
                     />
                   )}
                 >
@@ -1809,7 +1804,7 @@ export function SelectionPanel(props: {
                 tip={() => (
                   <TextTip
                     title="Attack-move"
-                    body="Then click a spot. They advance on it and engage anything they meet on the way."
+                    body="Then click a spot. They advance and engage what they meet."
                   />
                 )}
               >
@@ -1830,7 +1825,7 @@ export function SelectionPanel(props: {
                 tip={() => (
                   <TextTip
                     title="Move"
-                    body="Then click a spot. They walk there and ignore every fight on the way. Use it to retreat."
+                    body="Then click a spot. They walk there, ignoring every fight."
                   />
                 )}
               >
@@ -1854,7 +1849,7 @@ export function SelectionPanel(props: {
                   tip={() => (
                     <TextTip
                       title="Patrol"
-                      body="Then click a spot. They walk there and back until you give another order, fighting whatever they meet. Shift-click adds a spot to the beat."
+                      body="Then click a spot. They walk there and back until ordered otherwise, fighting what they meet. Shift-click extends the beat."
                     />
                   )}
                 >
@@ -1882,7 +1877,7 @@ export function SelectionPanel(props: {
                 tip={() => (
                   <TextTip
                     title="Stop"
-                    body="They stop walking and stand where they are: a march, an attack-move, an assault, or a chase. An errand in hand is left alone, and so is a hold. Soldiers still answer an enemy that comes to them, so Hold is the order that never gives ground."
+                    body="Cancels marches, attack-moves, assaults and chases. Errands and holds continue. Stopped soldiers still answer an enemy in reach."
                   />
                 )}
               >
@@ -1902,7 +1897,7 @@ export function SelectionPanel(props: {
                   tip={() => (
                     <TextTip
                       title="Hold ground"
-                      body="They stop where they stand and fight only what comes within reach. No chasing. A move or attack order releases them, but Stop does not."
+                      body="Fight only what comes within reach. No chasing. Released by a move or attack order, not by Stop."
                     />
                   )}
                 >

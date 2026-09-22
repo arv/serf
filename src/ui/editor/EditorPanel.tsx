@@ -251,7 +251,7 @@ function EditorUi(props: {actions: EditorActions}) {
           Export…
         </button>
         <button
-          title="Re-derive heights from the painted terrain the way worldgen shapes its own maps. Lake beds shelve, meadows ease toward shores and gentle hills roll in, all in one undoable step."
+          title="Re-derive heights from the painted terrain, the way worldgen does. One undoable step."
           onClick={() => props.actions.naturalize()}
         >
           ✦ Naturalize
