@@ -66,12 +66,14 @@ function billing(row: UploadedReplay): string {
 }
 
 /** The opponents, as the strategies they were dealt. An AI seat with no
- * strategy on the record is one the deal never named. */
+ * strategy on the record is one the deal never named; a table with no AI
+ * seat at all says so in a word, rather than in a dash the row's own copy
+ * rules would not allow anyway. */
 function opponents(row: UploadedReplay): string {
   const named = row.seats
     .filter(s => s.kind === 'ai')
     .map(s => s.strategy ?? 'dealt');
-  return named.length > 0 ? named.join(', ') : '—';
+  return named.length > 0 ? named.join(', ') : 'nobody';
 }
 
 function Row(props: {row: UploadedReplay; key: string | null}): JSX.Element {
@@ -219,7 +221,7 @@ function ShelfApp(props: {key: string | null}): JSX.Element {
             when={rows() !== null && rows() !== undefined}
             fallback={
               <p class="note">
-                The shelf could not be read. The server may be unreachable — or,
+                The shelf could not be read. The server may be unreachable. Or,
                 where it was started with <code>SERF_REPLAY_KEY</code>, this
                 page needs the matching <code>?key=</code> in its own URL.
               </p>
@@ -236,8 +238,8 @@ function ShelfApp(props: {key: string | null}): JSX.Element {
               when={total() > 0}
               fallback={
                 <p class="note">
-                  Nothing yet. A match uploads when it ends — played out to a
-                  winner, or quit after the first half-minute.
+                  Nothing yet. A match uploads when it ends, played out to a
+                  winner or quit after the first half-minute.
                 </p>
               }
             >

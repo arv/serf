@@ -420,10 +420,14 @@ holds, newest first — when it arrived, whether it was played out or quit,
 how long it ran, who sat at the table, how many orders were given — with
 **Watch** on each row opening it in the ordinary replay screen
 (`?uploaded=<id>`, screened through the same `parseReplay` gate as any
-file off the player's own shelf). Nothing in the
-game links there; it is a URL you type. That is the difference between
-knowing the page was opened and knowing the game was played, and it is
-also the corpus the AI gets trained against.
+file off the player's own shelf). Nothing in the game links there; it is a
+URL you type. That is the difference between knowing the page was opened
+and knowing the game was played, and it is also the corpus the AI gets
+trained against — which the guide's License page says to the player in so
+many words, including the part that does not come undone: the shelf drops
+its oldest rows as new ones arrive, but that is housekeeping on one
+listing, not deletion, and a game a model has already learned from cannot
+be unlearned.
 
 A recording is a match with the orders taken out, so the archive is not a
 place anything private ends up — but a multiplayer one carries what was

@@ -79,6 +79,31 @@ describe('the work that is not ours to license', () => {
   });
 });
 
+describe('the guide’s house style', () => {
+  /** A .tsx file with its comments taken out, which is roughly its copy.
+   * Block comments carry the design notes, JSX comments the asides inside
+   * the markup, and the em-dash rule governs neither. */
+  const copyOf = (path: string): string =>
+    read(path)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+
+  it('keeps em dashes out of the copy these pages put on screen', () => {
+    // The repo has already run this pass twice over the older guide
+    // pages. These two are the newest copy in it, and the rule is the
+    // same: the dash becomes a full stop where the clause stands alone, a
+    // comma where it was an aside, a colon where what follows explains
+    // what came before. Code comments keep theirs; they are not copy.
+    for (const path of [
+      'src/areas/docs/pages/LicensePage.tsx',
+      'src/areas/replays/replaysScreen.tsx',
+    ]) {
+      expect(copyOf(path)).not.toContain('\u2014');
+    }
+  });
+});
+
 describe('what the page promises about recording a match', () => {
   it('states the floor an abandoned match has to clear', () => {
     // The page promises "quit after the first half-minute". If the floor
@@ -93,6 +118,32 @@ describe('what the page promises about recording a match', () => {
     // There is no opt-out switch, so the page's answer has to be the true
     // one: solo play is a local sim and works with the network off.
     expect(read(PAGE)).toContain('play with the network off');
+  });
+
+  it('says matches may be kept and used as training data', () => {
+    // The reason the shelf exists at all, and the one a player would most
+    // want stated rather than left to infer from a listing they cannot
+    // see. Checked as a claim, not as a turn of phrase: the words may be
+    // rewritten, the disclosure may not quietly go missing.
+    const page = read(PAGE);
+    expect(page).toContain('training');
+    expect(page).toContain('training data');
+    expect(page).toContain('computer players');
+  });
+
+  it('keeps the shelf’s pruning from reading as a promise of deletion', () => {
+    // The server drops the oldest recordings as new ones arrive
+    // (replayUploads.ts), which is housekeeping on one listing — not
+    // deletion, and no undoing of a model that has already learned from a
+    // game. A page implying otherwise would be worse than no page, so the
+    // caveat is checked as carefully as the promise.
+    const page = read(PAGE);
+    expect(page).toContain('not a promise of deletion');
+    expect(page).toContain('cannot be untaught');
+    // And the pruning it is describing is really there.
+    const store = read('server/src/replayUploads.ts');
+    expect(store).toContain('MAX_STORED_REPLAYS');
+    expect(store).toContain('pruneStoredReplays');
   });
 
   it('admits that multiplayer chat rides along', () => {
