@@ -1144,13 +1144,13 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
      */
     /**
      * The economic win, as a playbook. Everything here follows from one
-     * fact: a Monument costs twelve gold, thirty stone and twenty BREAD,
-     * and finishing it ends the match.
+     * fact: a Monument costs twelve gold, thirty stone and ten BREAD, and
+     * finishing it ends the match.
      *
      * The bread is why this is not the Steward with two steps bolted on.
      * Every other plan treats the ovens as the barracks' supply line and
-     * runs them at the edge of demand; this one has to BANK twenty loaves
-     * while three mines eat a ration apiece. So it builds the chain twice
+     * runs them at the edge of demand; this one has to BANK the plinth's
+     * loaves while three mines eat a ration apiece. So it builds the chain twice
      * over — two farms, two mills, two bakeries — and stops recruiting once
      * its garrison is full (`holdsGround`, and garrisonIsEnough in
      * economyRules.ts). Measured with one chain and no cap, on the seat this

@@ -296,6 +296,22 @@ describe('the map grids', () => {
     );
   });
 
+  it('are refused when they are a 9, which may name ground this build cannot', () => {
+    // The tailings code a worked-out gold seam used to leave in map.resource
+    // (TileResource 6) is gone with the Monument's seam rule, and nothing
+    // in a save says which tiles hold one. A 9 whose gold was ever mined
+    // out therefore carries a byte this build has no name for — it would
+    // read as ore no mine can work and no building may stand on — so the
+    // gate turns the whole file away rather than load a valley it cannot
+    // explain. The 5 above is the same rule at an older boundary; this one
+    // is the boundary this build moved.
+    const doc = JSON.parse(serializeWorld(savedWorld())) as {version: number};
+    doc.version = 9;
+    expect(() => deserializeWorld(JSON.stringify(doc))).toThrow(
+      /older version/,
+    );
+  });
+
   it('are refused when they are garbage or the wrong length', () => {
     const doc = JSON.parse(serializeWorld(savedWorld())) as {
       world: {map: Record<string, unknown>};

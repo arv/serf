@@ -115,7 +115,8 @@ describe('the Mason', () => {
   });
 
   it('doubles the bread chain, because the Monument is bought in loaves', () => {
-    // Twenty bread, banked, while three mines each eat a ration. With one
+    // The plinth's loaves, banked, while three mines each eat a ration.
+    // With one
     // chain the castle shelf sat at two to four loaves for forty thousand
     // ticks and the seat stood at the monument step every beat with the
     // gold and the stone already banked behind it.
