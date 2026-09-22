@@ -82,6 +82,12 @@ import {HiddenSync} from './hiddenSync';
 import {WorldMirror} from './mirror';
 import type {ReplayData} from './replay';
 import {saveReplayFile, stageReplay} from './replayStore';
+import {
+  apiOrigin,
+  uploadReplay,
+  worthUploading,
+  type ReplayEnding,
+} from './replayUpload';
 import {envelopeSave, unpackExplored} from './saveEnvelope';
 import {deleteSaveFile, saveGameFile, saveGameNow} from './saveStore';
 import type {Screen} from './screen';
@@ -109,6 +115,16 @@ import {createWakeLock, domWakeLockPort} from './wakeLock';
  * is the half that says anything.
  */
 const GL_REASON_MAX = 160;
+
+/**
+ * How long the worker's terminate waits on an abandoned match's recording.
+ *
+ * It is one postMessage round trip — the worker serializes what it already
+ * holds — so this is not a budget, it is the point at which a worker that
+ * has not answered is taken to be one that will not. A hung reply would
+ * otherwise leak a worker for every match walked out of.
+ */
+const QUIT_GRACE_MS = 2_000;
 
 /**
  * A blank canvas, in the place of one that has been asked and refused.
@@ -177,6 +193,15 @@ export async function runMatch(
   key: string,
 ): Promise<Screen> {
   const {loadData, fogSeed, net, replay} = opts;
+  /**
+   * Where this match's recording goes, read now rather than when it is
+   * sent. A quit uploads from the teardown, and the router has already
+   * moved the address bar by the time the teardown runs — so asking the
+   * URL at that point would read whatever screen the player left for, and
+   * a match played against a ?relay= would file itself with the default
+   * server instead.
+   */
+  const uploadOrigin = apiOrigin();
   // Run in reverse at teardown, so each entry can assume everything pushed
   // before it is still standing.
   const teardown: (() => void)[] = [];
@@ -188,9 +213,29 @@ export async function runMatch(
    * longer exists.
    */
   let over = false;
+  /**
+   * Asked for the recording of a match being walked out of, before a
+   * single teardown step runs — see reportMatch below for why it has to
+   * be first, and the worker's own teardown step for what waits on it.
+   *
+   * A field set later rather than a call in dispose(), because dispose()
+   * is also the cleanup path for a match that never finished being built
+   * (the renderer's catch calls it), and at that point there is no worker
+   * to ask and nothing that was played.
+   */
+  let reportOnQuit: (() => void) | null = null;
+  /** The recording round trip reportMatch started, for the worker's
+   * teardown step to wait on; null when nothing was worth uploading, or
+   * when the answer is already in hand. */
+  let quitReport: Promise<void> | null = null;
   const screen: Screen = {
     key,
     dispose: () => {
+      // Ahead of `over`, and ahead of everything below: the recording
+      // lives in the worker, and every step after this is taking the
+      // match apart around it.
+      reportOnQuit?.();
+      reportOnQuit = null;
       over = true;
       while (teardown.length > 0) {
         try {
@@ -351,7 +396,28 @@ export async function runMatch(
   // renders what the server sends. Both speak the same worker protocol, so
   // nothing below this line knows the difference.
   const host = new WorkerSimHost(net ? 'net' : 'sim');
-  teardown.push(() => host.dispose());
+  teardown.push(() => {
+    // Ordinarily the worker goes now, with everything else. The one
+    // exception is a match being walked out of, where dispose() has just
+    // asked it for the recording (reportMatch below) and terminating here
+    // would kill the answer on its way back. So the terminate waits on
+    // that one postMessage round trip — and on nothing longer: a worker
+    // that never answers is one that cannot, and the grace below is what
+    // stops a hung reply leaking a worker per abandoned match.
+    //
+    // Everything else on this screen is already gone by the time the
+    // wait begins; what is left ticking is a sim nobody can see, which
+    // the pause makes cheap.
+    const pending = quitReport;
+    quitReport = null;
+    if (pending === null) {
+      host.dispose();
+      return;
+    }
+    host.setSpeed(0);
+    const grace = new Promise(resolve => setTimeout(resolve, QUIT_GRACE_MS));
+    void Promise.race([pending, grace]).then(() => host.dispose());
+  });
   // Switching apps (or the screen going dark) freezes the solo sim: the
   // worker's timers are deliberately unthrottled, so without this a
   // backgrounded phone keeps simulating — and draining — a valley nobody
@@ -788,6 +854,24 @@ export async function runMatch(
       console.error('[match] could not take the gear off the throttle', err);
     }
   }
+  /**
+   * Whether this match has already been handed up to the server. The
+   * "over" outcome rides every structural frame after the last blow, so
+   * without a latch the end card would upload the same recording twenty
+   * times a second — and a match decided and then quit out of would file
+   * itself twice, once under each ending.
+   *
+   * Declared above onStructural, not beside reportMatch: registering the
+   * callback replays every frame that arrived before it (simHost's
+   * pendingStructural), and applyStructural touches both of these — a
+   * `let` still in its dead zone would throw out of the very first frame.
+   */
+  let reported = false;
+
+  /** The tick the last structural frame carried: how far the match got,
+   * which is the one thing a quit needs to know about it. */
+  let lastTick = 0;
+
   // Every structural frame the screen takes in — and the one place a throw
   // out of one can be caught.
   //
@@ -806,6 +890,17 @@ export async function runMatch(
   /** One card is enough: a screen that fails once fails every frame. */
   let screenBroken = false;
   host.onStructural(msg => {
+    // Nothing that arrives after dispose() has begun belongs to a screen
+    // that still exists. The worker outlives the teardown by design now —
+    // an abandoned match is asked for its recording first and the
+    // terminate waits on the reply — and a networked worker cannot even
+    // be paused (netWorker ignores setSpeed, since a shared world runs at
+    // one rate whoever looks away), so frames really do keep arriving
+    // through that window. By then the HUD is unmounted and the renderer
+    // has given its context back, so applying one would write into a
+    // screen that is gone, and the guard below would draw its failure
+    // card over whatever screen came next.
+    if (over) return;
     try {
       applyStructural(msg);
     } catch (err) {
@@ -835,6 +930,75 @@ export async function runMatch(
     }
   });
 
+  /**
+   * Hand the match to the server, quietly.
+   *
+   * Nothing here is told to the player and nothing here can fail loudly —
+   * see app/replayUpload.ts for why the whole path is silent. Never for a
+   * replay being watched: that recording is already on the shelf it came
+   * from, and re-uploading it would fill the server with copies of the
+   * games it already has.
+   *
+   * Both endings come through here. A decided match reports from the
+   * structural frame that says so, with the page still open behind the
+   * end card; an abandoned one reports from dispose(), which is the last
+   * moment the worker still holds the log. A match quit after it was
+   * decided is already filed, and the latch is what keeps it to one row.
+   *
+   * What it leaves behind in quitReport is the WORKER's half alone — the
+   * round trip that fetches the log — and not the upload that follows it.
+   * Those are the two things a teardown has to tell apart: the worker
+   * cannot be terminated until the log is in hand, and the upload does
+   * not need the worker at all once it is, so holding the sim open for
+   * the length of a POST would be paying for nothing.
+   *
+   * Left behind for BOTH endings, not just the quit that asks from
+   * dispose(): a decided match asks from the end card, and the player may
+   * take the menu before the round trip answers — terminating the worker
+   * under an unanswered request loses the recording silently.
+   *
+   * Networked matches upload from every seat that saw the end, so a
+   * four-player game arrives as four recordings of the same match, each
+   * through its own fog. That is the honest record — a seat's replay is
+   * only what that seat could see — and the shelf makes no attempt to
+   * fold them back together: the seed and the tick count are what say two
+   * rows were the same game. A networked match quit before the end files
+   * nothing at all: the relay will not hand out a live room's log, since
+   * it is a full-information view of a fogged world, and that rule is
+   * worth more than the recording.
+   */
+  function reportMatch(ending: ReplayEnding): void {
+    if (reported || replay) return;
+    // Asked and answered before it is asked: the relay refuses a live
+    // room's log, so a quit networked match would spend a round trip —
+    // and hold its socket open through the teardown — to be told nothing.
+    if (ending === 'abandoned' && net) return;
+    // What counts as worth filing is upload policy, not this screen's
+    // business — see worthUploading. All this knows is how far it got.
+    if (!worthUploading(ending, lastTick)) return;
+    reported = true;
+    const recording = host.requestReplay(fogSeed);
+    void recording
+      .then(data =>
+        uploadReplay(data, {
+          source: net ? 'net' : 'solo',
+          ending,
+          origin: uploadOrigin,
+        }),
+      )
+      .catch(() => undefined);
+    quitReport = recording.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  // Armed now that there is a worker to ask and a tick count to judge by.
+  // Everything before this point in the build is a match nobody played.
+  reportOnQuit = () => {
+    reportMatch('abandoned');
+  };
+
   function applyStructural(msg: StructuralUpdate): void {
     // A reconnect resync carries the seat's ever-seen grid afresh.
     if (msg.explored) fog.seedExplored(msg.explored);
@@ -854,6 +1018,10 @@ export async function runMatch(
     // Rosters are optional: a frame that carries only map news leaves the
     // HUD's signals (and their subscribers) untouched.
     setSimTick(msg.tick);
+    // Beside the HUD's own copy, and for a different reader: this one is
+    // what a quit consults to decide whether the match got far enough to
+    // be worth filing (reportMatch).
+    lastTick = msg.tick;
     if (msg.players) {
       // The readouts are the VIEWED seat's, which is this client's own in
       // a match and whichever seat the pointer last picked in a replay.
@@ -877,6 +1045,10 @@ export async function runMatch(
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
+    // A decided match is a played match, and a played match is worth
+    // recording somewhere the author can see it. Latched, so the frames
+    // that keep saying "over" while the end card sits there upload once.
+    if (msg.outcome.state === MatchState.over) reportMatch('decided');
     setAdminState(msg.admin);
     // The worker, not the URL, says which mission this is: a loaded save
     // reboots on ?seed=…, but the world remembers. Synced both ways — a

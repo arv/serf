@@ -60,6 +60,57 @@ Deploy the repo root as a single service:
 WebSockets are not subject to COEP/CORP, so no extra headers or services
 are needed.
 
+Behind any other proxy, set **`SERF_TRUST_PROXY=1`** so the forwarded
+headers are credited (Railway is recognised by its own variables, so it
+needs nothing). Exposed directly, leave it alone: an uncredited
+`X-Forwarded-For` is a string the caller chose, and the per-address upload
+budget is only a budget if the address is one this process observed.
+
+## Uploaded replays
+
+Every match a client plays to a decision posts its own recording here,
+silently — see the archive section in the root README for why, and
+`src/app/replayUpload.ts` for the client half. Three routes, in
+`src/replayApi.ts`:
+
+| route | what |
+| --- | --- |
+| `POST /api/all-replays?source=…&ending=…` | file a match's recording |
+| `GET /api/all-replays` | the shelf, newest first, as summaries |
+| `GET /api/all-replays/<id>` | one recording, as playback reads it |
+
+`source` is `solo` or `net`, `ending` is `decided` or `abandoned` — a
+match played to a winner, or one walked out of. Both are stored and both
+show on the shelf; a garbled label defaults rather than refusing the
+recording, since these are columns on a listing. Networked matches are
+`decided` by construction: the relay will not hand out a live room's log,
+so a seat that quits mid-match files nothing.
+
+The game never looks at the answer, so every limit is free to refuse: a
+refused upload costs an observation, never a game. The body is screened
+with the same `parseReplay` the client uses before a byte lands, and what
+is written is that parse re-serialized — so the shelf holds nothing but
+replay-shaped documents, and a field a client smuggled in never reaches
+the disk. Uploads are capped at 8 MB, budgeted at 20 an hour per address
+(in memory; a deploy resets it), held to a playback horizon of a day of
+sim time, and the shelf is pruned oldest-first past 500 recordings or
+256 MB. "Per address" means the address this process can actually see:
+see `SERF_TRUST_PROXY` under the log section, because behind no proxy a
+forwarded header is a claim rather than an address.
+
+Recordings live under `<state dir>/replays` — the same volume as the room
+snapshot, so they survive deploys only if one is attached (see below).
+Two files per recording: `<id>.json` is the replay, `<id>.meta.json` the
+summary the listing reads, which is why listing five hundred matches never
+opens a megabyte. Ids are `YYYYMMDD-HHMMSSsss-<rand>` in UTC, so the sort
+that orders the shelf is the sort that orders the prune.
+
+The reading half can be shut: set **`SERF_REPLAY_KEY`** and both `GET`s
+want a matching `?key=`. Uploading cannot be — every copy of the game
+would have to carry the secret, which is no secret at all. Left unset the
+shelf is open to anyone who knows the path. The page that reads it is
+`/all-replays`, which nothing in the game links to.
+
 ## Logs: who connected, which matches started
 
 Beyond the human-readable `[serf] ...` lines, the server writes one JSON
@@ -80,18 +131,27 @@ Every field each event carries, in full:
 | `room_join` | a human took a seat | `conn`, `ip`, `room`, `playerId`, `humans` |
 | `rejoin` | a token came back | `conn`, `ip`, `found`, `room`, `playerId` |
 | `match_start` | the host started a match | `conn`, `ip`, `room`, `visibility`, `humans`, `ai`, `seats`, `seed`, `size`, `bandits`, `difficulty`, `bots`, `matchesStarted`, `runningRooms` |
+| `replay_upload` | a client handed up a match's recording | `ip`, `ok`, and on success `id`, `source`, `ending`, `replayVersion`, `endTick`, `bytes`, `commands`, `seats`, `mission`, `difficulty` — on a refusal `reason` and `bytes` |
 
-`page_view` and `connect` also carry `forwardedFor` when the request
-crossed more than one proxy. Every line additionally has the fixed
-`level`, `time`, `message` and `event` keys, which an event's own fields
-can never overwrite.
+`page_view` and `connect` also carry `forwardedFor` whenever it says
+something the `ip` does not: a chain of more than one hop, or a forwarded
+address that was disbelieved (see below). Every line additionally has the
+fixed `level`, `time`, `message` and `event` keys, which an event's own
+fields can never overwrite.
 
 `conn` is a per-process socket number that ties one connection's lines
-together. `ip` is the rightmost `X-Forwarded-For` entry — the hop
-Railway's edge appended, which is the one worth believing because a
-client can prepend to that header but cannot append after the proxy —
-falling back to `X-Real-IP` and then the socket peer when nothing was
-forwarded. `difficulty` and `bots` are read back off the world the match
+together. `ip` is the rightmost `X-Forwarded-For` entry **when there is a
+proxy in front to have written it** — the hop Railway's edge appended,
+which is the one worth believing because a client can prepend to that
+header but cannot append after the proxy — falling back to `X-Real-IP`
+and then the socket peer. Run with nothing in front, none of that holds:
+the header is whatever the caller typed, so it is logged but not believed,
+and `ip` is the socket peer. Which case this is is decided by
+**`SERF_TRUST_PROXY`** (`1` to believe forwarded headers, `0` not to); left
+unset, a Railway deployment is credited by its own `RAILWAY_*` variables
+and anything else is not. It is not only a logging question: the upload
+budget is per address, so a forwarded header taken on trust from a
+directly exposed server is a fresh budget for the asking. `difficulty` and `bots` are read back off the world the match
 was actually built from, not off the lobby's config: the config screens
 shape only, so a client may name a tier or a playbook that does not
 exist, and the line says what is being played. `matchesStarted` counts

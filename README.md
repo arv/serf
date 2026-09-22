@@ -385,6 +385,60 @@ safe because a building selection and a unit selection cannot both stand. The ga
 key (`ui/commands.ts`, `ui/buildMenu.ts`), so a shortcut can never fire where
 its button is greyed out — and every refusal names which gate it hit.
 
+### The replay archive
+
+Every match uploads its own recording to the server, silently, and it is
+allowed to fail. Nobody is told it happened — no toast, no spinner,
+nothing on the end card — and a player with no network, or a relay that is
+down, plays exactly the game they would have played anyway
+(`src/app/replayUpload.ts` swallows every error where it happens). Solo
+play is a local sim that never opens a socket, so without this the only
+trace of a game played start to finish is the page view that fetched the
+bundle.
+
+Both endings are filed, and the shelf keeps them apart. A match played to
+a winner reports from the frame that says so, with the page still open
+behind the end card. A match walked out of — Quit to menu, Back, a launch
+into another screen — reports from the screen's teardown, which is the
+last moment the worker still holds the log: the recording is asked for
+before a single teardown step runs, and the worker's own terminate waits
+on that one round trip (up to two seconds) rather than killing the answer
+on its way back. A game people leave is not the lesser record — it is the
+commoner event, and the one that says where the game loses someone.
+
+Two things do not get filed. A quit inside the first thirty seconds of
+play, because a launch bounced off in three seconds is not a game and a
+finite shelf should not fill with them; and a networked match quit before
+it was decided, because the relay hands out a room's log only once the
+outcome has nothing left to hide, and that rule is worth more than the
+recording. A tab closed outright is not caught either: the recording lives
+in a worker, and neither the round trip that fetches it nor the request
+that would carry it survives an unload.
+
+The other end is `/all-replays`: a page listing every recording the server
+holds, newest first — when it arrived, whether it was played out or quit,
+how long it ran, who sat at the table, how many orders were given — with
+**Watch** on each row opening it in the ordinary replay screen
+(`?uploaded=<id>`, screened through the same `parseReplay` gate as any
+file off the player's own shelf). Nothing in the game links there; it is a
+URL you type. That is the difference between knowing the page was opened
+and knowing the game was played, and it is also the corpus the AI gets
+trained against — which the guide's License page says to the player in so
+many words, including the part that does not come undone: the shelf drops
+its oldest rows as new ones arrive, but that is housekeeping on one
+listing, not deletion, and a game a model has already learned from cannot
+be unlearned.
+
+A recording is a match with the person taken out, so the archive is not a
+place anything private ends up — but a multiplayer one carries what was
+said at the table, and every upload is anonymous only in the sense that
+nothing beyond the game itself is stored with it. `SERF_REPLAY_KEY` shuts
+the reading half behind a `?key=` if the shelf should not be public;
+uploading stays open either way, since every copy of the game would have
+to carry the secret to do it. The rest of the mechanics — the size cap,
+the per-address budget, what falls off the end — are in
+`server/README.md`.
+
 ## Architecture
 
 The whole shape is drawn in one piece in `docs/architecture.md`: the layer
@@ -510,6 +564,21 @@ lands mid-block unless a **blank line** separates it from the imports. The
 two workers (`src/app/simWorker.ts`, `src/app/netWorker.ts`) need theirs —
 a `<reference>` TypeScript no longer reads is a silent one.
 
+## License
+
+Serf Valley is licensed under the [Apache License, Version
+2.0](https://www.apache.org/licenses/LICENSE-2.0) — `LICENSE` at the repo
+root, with `NOTICE` naming what travels with it. The bundled models,
+audio and typefaces are not ours to license and keep their own terms (CC0
+and OFL; see Credits below).
+
+The game carries the same thing in player's words at `/docs/license` in
+the field guide, linked from the start screen's footer beside Credits.
+That page is also where the replay recording is disclosed — the archive
+above is silent by design, and a notice nobody can reach is not one.
+`build/licensing.test.ts` checks the page's claims against what the
+repository actually ships.
+
 ## Credits
 
 The game carries its own credits page — `/docs/credits` in the field guide,
@@ -524,5 +593,6 @@ also linked from the start screen's footer — with logos and links.
   fallback, so the samples only ever improve what is already audible
 - Renderer: [three.js](https://threejs.org) (MIT)
 - UI runtime: [SolidJS](https://www.solidjs.com) (MIT)
-- Typeface: [Space Grotesk](https://github.com/floriankarsten/space-grotesk)
-  by Florian Karsten (OFL 1.1) — `public/fonts/`
+- Typefaces: [Space Grotesk](https://github.com/floriankarsten/space-grotesk)
+  by Florian Karsten and Marcellus by Brian J. Bonislawsky (both OFL 1.1) —
+  `public/fonts/`, one licence file each

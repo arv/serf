@@ -1,4 +1,5 @@
 import {For, type JSX} from 'solid-js';
+import {DocLink} from '../components';
 
 /**
  * Who the valley is built on. Everything here ships inside the game —
@@ -237,14 +238,16 @@ const CREDITS: Credit[] = [
     art: TypeGlyph,
     name: 'Space Grotesk — Florian Karsten',
     what:
-      'The typeface. Every word in the game — this one included — is set ' +
-      'in Space Grotesk.',
+      'The typeface. Nearly every word in the game — this one included — ' +
+      'is set in Space Grotesk; the menu’s wordmark and the ledger heads ' +
+      'behind it are Marcellus, by Brian J. Bonislawsky.',
     license: {label: 'OFL 1.1', href: 'https://openfontlicense.org'},
     links: [
       {
         label: 'github.com/floriankarsten',
         href: 'https://github.com/floriankarsten/space-grotesk',
       },
+      {label: 'astigmatic.com', href: 'https://www.astigmatic.com'},
     ],
   },
 ];
@@ -287,7 +290,9 @@ export function CreditsPage(): JSX.Element {
         travel with the assets themselves:{' '}
         <Ext href="/models/kaykit/LICENSE.txt">models</Ext>,{' '}
         <Ext href="/audio/LICENSE.txt">audio</Ext>,{' '}
-        <Ext href="/fonts/OFL.txt">typeface</Ext>.
+        <Ext href="/fonts/OFL-SpaceGrotesk.txt">Space Grotesk</Ext>,{' '}
+        <Ext href="/fonts/OFL-Marcellus.txt">Marcellus</Ext>. The game’s own
+        terms are on the <DocLink href="/docs/license">License</DocLink> page.
       </p>
     </>
   );

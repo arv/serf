@@ -51,6 +51,12 @@ export function IndexPage(): JSX.Element {
             The models, sounds and code the valley is built on
           </span>
         </DocLink>
+        <DocLink href="/docs/license" class="tile">
+          <span class="t-name">License</span>
+          <span class="t-sub">
+            What you may do with the game, and what it records of your play
+          </span>
+        </DocLink>
       </div>
     </>
   );

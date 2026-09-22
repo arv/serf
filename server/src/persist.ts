@@ -75,7 +75,10 @@ interface Snapshot {
 
 const SNAPSHOT_FILE = 'rooms.json';
 
-function stateDir(): string {
+/** Where this process keeps the state that must outlive its image: the
+ * room snapshot beside this comment, and the uploaded replays in
+ * replayUploads.ts. */
+export function stateDir(): string {
   return (
     process.env.SERF_STATE_DIR ??
     process.env.RAILWAY_VOLUME_MOUNT_PATH ??
