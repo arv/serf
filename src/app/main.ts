@@ -124,7 +124,15 @@ function screenKey(): string {
   // ahead of everything else, so a ?key= (or anything else left in the
   // query) cannot turn it into a match. Nothing in the game links here;
   // it is a place the author types in. See areas/replays.
-  if (location.pathname === '/all-replays') return 'all-replays';
+  //
+  // The query is part of the key, unlike the field guide's: ?key= decides
+  // which shelf may be read at all and ?relay= decides whose shelf it is,
+  // and the page reads both once when it mounts. Keyed on the path alone,
+  // a back gesture between two of those URLs would be a same-key
+  // navigation — nothing would remount, and the rows on screen would
+  // belong to the address the player just left.
+  if (location.pathname === '/all-replays')
+    return `all-replays:${location.search}`;
   const params = new URLSearchParams(location.search);
   // The map editor is its own screen kind — and the check comes before
   // gameChosen, because a stale load-pending handoff (or a ?seed left in
@@ -242,7 +250,7 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
     );
     return;
   }
-  if (key === 'all-replays') {
+  if (key.startsWith('all-replays:')) {
     // Every match clients have uploaded, listed. Its own chunk, like the
     // other screens off the main path: nobody reaches the shelf by
     // playing, so nothing on the way to a match should carry it.

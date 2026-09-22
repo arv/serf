@@ -39,7 +39,7 @@ function screenKey(
   pathname = '/',
 ): string {
   if (pathname === '/docs' || pathname.startsWith('/docs/')) return 'docs';
-  if (pathname === '/all-replays') return 'all-replays';
+  if (pathname === '/all-replays') return `all-replays:${search}`;
   const params = new URLSearchParams(search);
   const chosen = LAUNCH_PARAMS.some(k => params.has(k)) || loadPending;
   if (!chosen || params.get('mp') !== null) return 'menu';
@@ -96,10 +96,28 @@ describe('which screen a URL names', () => {
     // The shelf and the field guide are places a link points at. A launch
     // param left in the query — or the ?key= the shelf itself carries —
     // must not turn either of them into a match.
-    expect(screenKey('', false, '/all-replays')).toBe('all-replays');
-    expect(screenKey('?key=s3cret', false, '/all-replays')).toBe('all-replays');
-    expect(screenKey('?ai=2', false, '/all-replays')).toBe('all-replays');
+    expect(screenKey('', false, '/all-replays')).toBe('all-replays:');
+    expect(screenKey('?ai=2', false, '/all-replays')).toBe('all-replays:?ai=2');
     expect(screenKey('?ai=2', true, '/docs')).toBe('docs');
+  });
+
+  it('parts one shelf from another', () => {
+    // Unlike the field guide, the shelf's query is not decoration: ?key=
+    // decides whether it can be read and ?relay= decides whose it is, and
+    // the page reads both once as it mounts. Keyed on the path alone, a
+    // back gesture between two of these would remount nothing and leave
+    // the previous address's rows on screen.
+    expect(screenKey('?key=a', false, '/all-replays')).not.toBe(
+      screenKey('?key=b', false, '/all-replays'),
+    );
+    expect(
+      screenKey('?relay=ws://127.0.0.1:1', false, '/all-replays'),
+    ).not.toBe(screenKey('?relay=ws://127.0.0.1:2', false, '/all-replays'));
+    // ...but the guide's is: page turns there are same-key navigations on
+    // purpose, so one preview renderer survives twenty clicks.
+    expect(screenKey('?x=1', false, '/docs')).toBe(
+      screenKey('?x=2', false, '/docs'),
+    );
   });
 
   it('parts a match from the menu', () => {

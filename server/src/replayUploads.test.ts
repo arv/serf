@@ -293,6 +293,29 @@ describe('pruning', () => {
     );
   });
 
+  it('sweeps a record whose summary is present but unreadable', async () => {
+    // The nastiest of the three shapes, because from the directory alone
+    // it looks whole: the listing skips it on the parse, the prune sizes
+    // it at zero, and a sweep that only looked for a MISSING summary
+    // would walk straight past the megabytes beside it.
+    const ids = await fileSome(1);
+    const torn = mintReplayId(new Date(3));
+    await writeFile(join(replayDir(), `${torn}.json`), 'x'.repeat(4096));
+    // What a process killed mid-write leaves: the first half of a JSON
+    // document.
+    await writeFile(join(replayDir(), `${torn}.meta.json`), '{"id":"20260');
+
+    expect(
+      await pruneStoredReplays({
+        count: 50,
+        nowMs: Date.now() + DEBRIS_GRACE_MS + 60_000,
+      }),
+    ).toBe(1);
+    expect((await readdir(replayDir())).sort()).toEqual(
+      [`${ids[0]!}.json`, `${ids[0]!}.meta.json`].sort(),
+    );
+  });
+
   it('leaves a half-written record alone while it may still be in flight', async () => {
     // A store passes through both debris shapes on its way to finishing.
     // Sweeping on sight would delete the upload that is mid-write.

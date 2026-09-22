@@ -250,6 +250,7 @@ export async function storeReplay(
   const tmp = join(dir, `${id}${REPLAY_SUFFIX}.tmp`);
   const file = join(dir, `${id}${REPLAY_SUFFIX}`);
   const meta = join(dir, `${id}${META_SUFFIX}`);
+  const metaTmp = `${meta}.tmp`;
   // Which of the two final names this call has actually put something
   // under, so the failure path below takes away what it left and nothing
   // else. A rename that threw has not touched the destination, and
@@ -260,7 +261,14 @@ export async function storeReplay(
     await writeFile(tmp, screened);
     await rename(tmp, file);
     renamed = true;
-    await writeFile(meta, JSON.stringify(summary));
+    // The summary lands the same way the replay does, and for a sharper
+    // reason: a process killed part-way through writing it leaves a
+    // meta that PARSES AS NOTHING while still being present, and a
+    // present-but-broken summary is the one state the sweep below cannot
+    // read off the directory listing. Written aside and renamed, the file
+    // is either the old one or the whole new one, never half of either.
+    await writeFile(metaTmp, JSON.stringify(summary));
+    await rename(metaTmp, meta);
   } catch {
     // Everything this call created, gone again.
     //
@@ -278,6 +286,7 @@ export async function storeReplay(
     // nobody can list to a volume that is already out of room.
     await Promise.allSettled([
       rm(tmp, {force: true}),
+      rm(metaTmp, {force: true}),
       ...(renamed ? [rm(file, {force: true}), rm(meta, {force: true})] : []),
     ]);
     return {ok: false, reason: 'storage'};
@@ -343,18 +352,21 @@ export async function readStoredReplay(id: string): Promise<string | null> {
 /**
  * Take away what a killed process left half-written.
  *
- * Two shapes, and the retention loop below is blind to both. A scratch
- * file (`<id>.json.tmp`) ends in neither suffix storedIds knows, so it is
- * never listed and never counted. A replay whose summary never landed IS
- * listed, but its size is read from that missing summary — so it counts
- * as zero bytes however many megabytes it really is, and the byte cap can
- * be walked straight past by debris. Either way the loop stops as soon as
- * the shelf looks to be inside its limits, and anything it miscounts
- * stays for good.
+ * Three shapes, and the retention loop below is blind to all of them. A
+ * scratch file (`<id>.json.tmp`, and the summary's own) ends in neither
+ * suffix storedIds knows, so it is never listed and never counted. A
+ * replay whose summary never landed IS listed, but its size is read from
+ * that missing summary, so it counts as zero bytes however many megabytes
+ * it really is. And a summary that is PRESENT but unreadable is the worst
+ * of the three, because it looks like a whole record from the directory
+ * alone: the listing skips it on the parse, the prune sizes it at zero,
+ * and nothing anywhere would ever have taken it away. Either way the loop
+ * stops as soon as the shelf looks to be inside its limits, and anything
+ * it miscounts stays for good.
  *
- * So both are swept here instead, by age rather than by budget: this is
- * not retention, it is a failed write being finished. The grace period is
- * what keeps it off an upload that is merely in progress.
+ * So all three are swept here instead, by age rather than by budget: this
+ * is not retention, it is a failed write being finished. The grace period
+ * is what keeps it off an upload that is merely in progress.
  *
  * Returns how many records it removed.
  */
@@ -374,17 +386,37 @@ async function sweepDebris(dir: string, nowMs: number): Promise<number> {
       return false; // gone already, or not ours to judge
     }
   };
+  /** Is this id's summary there AND readable as one? */
+  const described = async (id: string): Promise<boolean> => {
+    if (!present.has(`${id}${META_SUFFIX}`)) return false;
+    try {
+      const parsed = JSON.parse(
+        await readFile(join(dir, `${id}${META_SUFFIX}`), 'utf8'),
+      ) as ReplaySummary;
+      return typeof parsed.bytes === 'number' && Number.isFinite(parsed.bytes);
+    } catch {
+      return false;
+    }
+  };
   let dropped = 0;
   for (const entry of entries) {
-    const scratch = entry.endsWith(`${REPLAY_SUFFIX}.tmp`);
-    const orphan =
-      entry.endsWith(REPLAY_SUFFIX) &&
-      !entry.endsWith(META_SUFFIX) &&
-      isReplayId(entry.slice(0, -REPLAY_SUFFIX.length)) &&
-      !present.has(`${entry.slice(0, -REPLAY_SUFFIX.length)}${META_SUFFIX}`);
-    if (!scratch && !orphan) continue;
+    // Either scratch name: `<id>.json.tmp` and `<id>.meta.json.tmp` both
+    // end this way, and neither is ever listed.
+    if (entry.endsWith(`${REPLAY_SUFFIX}.tmp`)) {
+      if (!(await stale(entry))) continue;
+      await rm(join(dir, entry), {force: true});
+      dropped++;
+      continue;
+    }
+    if (!entry.endsWith(REPLAY_SUFFIX) || entry.endsWith(META_SUFFIX)) continue;
+    const id = entry.slice(0, -REPLAY_SUFFIX.length);
+    if (!isReplayId(id)) continue;
+    if (await described(id)) continue;
     if (!(await stale(entry))) continue;
+    // The pair is the record, so an undescribed replay takes its unusable
+    // summary with it rather than leaving half of one behind.
     await rm(join(dir, entry), {force: true});
+    await rm(join(dir, `${id}${META_SUFFIX}`), {force: true});
     dropped++;
   }
   return dropped;

@@ -111,6 +111,7 @@ describe('uploading a finished match', () => {
     await uploadReplay('{"format":"serf-replay"}', {
       source: 'net',
       ending: 'decided',
+      origin: 'http://localhost:8787',
     });
     expect(calls).toHaveLength(1);
     const [url, init] = calls[0]!;
@@ -131,7 +132,11 @@ describe('uploading a finished match', () => {
     // Empty is what the worker answers while it is playing a replay back,
     // and what the relay answers while a room's outcome is undecided.
     stubFetch(() => jsonResponse({}));
-    await uploadReplay('', {source: 'solo', ending: 'decided'});
+    await uploadReplay('', {
+      source: 'solo',
+      ending: 'decided',
+      origin: 'http://localhost:8787',
+    });
     expect(calls).toEqual([]);
   });
 
@@ -139,7 +144,11 @@ describe('uploading a finished match', () => {
     // The shelf keeps the two apart: a game someone quit is different
     // evidence from a game they played to a winner.
     stubFetch(() => jsonResponse({id: 'x'}));
-    await uploadReplay('{"a":1}', {source: 'solo', ending: 'abandoned'});
+    await uploadReplay('{"a":1}', {
+      source: 'solo',
+      ending: 'abandoned',
+      origin: 'http://localhost:8787',
+    });
     expect(calls[0]![0]).toBe(
       'http://localhost:8787/api/all-replays?source=solo&ending=abandoned',
     );
@@ -150,14 +159,22 @@ describe('uploading a finished match', () => {
     // would have played anyway, and hears nothing about this.
     stubFetch(() => Promise.reject(new Error('offline')));
     await expect(
-      uploadReplay('{"a":1}', {source: 'solo', ending: 'decided'}),
+      uploadReplay('{"a":1}', {
+        source: 'solo',
+        ending: 'decided',
+        origin: 'http://localhost:8787',
+      }),
     ).resolves.toBeUndefined();
   });
 
   it('swallows a server that refuses', async () => {
     stubFetch(() => jsonResponse({error: 'too many uploads'}, false));
     await expect(
-      uploadReplay('{"a":1}', {source: 'solo', ending: 'decided'}),
+      uploadReplay('{"a":1}', {
+        source: 'solo',
+        ending: 'decided',
+        origin: 'http://localhost:8787',
+      }),
     ).resolves.toBeUndefined();
   });
 });

@@ -253,6 +253,13 @@ async function handleUpload(
     sendJson(res, stored.reason === 'unreadable' ? 400 : 500, {
       error: stored.reason,
     });
+    // A full volume is the one failure that feeds on itself. Pruning used
+    // to sit behind a SUCCESSFUL store, so once the disk filled there was
+    // no successful store left to reach it: the oldest recordings stayed,
+    // the next upload failed for the same reason, and the shelf was stuck
+    // at full for good. Reclaiming here breaks that, and it is exactly
+    // when reclaiming is worth most.
+    if (stored.reason === 'storage') await prune();
     return;
   }
   const {summary} = stored;
@@ -278,6 +285,13 @@ async function handleUpload(
   sendJson(res, 201, {id: summary.id});
   // After the answer: the client is not waiting on it, and a prune that
   // walks five hundred summaries has no business holding the socket.
+  await prune();
+}
+
+/** Bring the shelf back inside its limits, and never let that be the
+ * thing that fails a request: the answer has already gone out by the time
+ * either caller reaches here. */
+async function prune(): Promise<void> {
   try {
     const dropped = await pruneStoredReplays();
     if (dropped > 0) console.log(`[serf] pruned ${dropped} uploaded replay(s)`);

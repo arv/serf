@@ -82,7 +82,12 @@ import {HiddenSync} from './hiddenSync';
 import {WorldMirror} from './mirror';
 import type {ReplayData} from './replay';
 import {saveReplayFile, stageReplay} from './replayStore';
-import {uploadReplay, worthUploading, type ReplayEnding} from './replayUpload';
+import {
+  apiOrigin,
+  uploadReplay,
+  worthUploading,
+  type ReplayEnding,
+} from './replayUpload';
 import {envelopeSave, unpackExplored} from './saveEnvelope';
 import {deleteSaveFile, saveGameFile, saveGameNow} from './saveStore';
 import type {Screen} from './screen';
@@ -188,6 +193,15 @@ export async function runMatch(
   key: string,
 ): Promise<Screen> {
   const {loadData, fogSeed, net, replay} = opts;
+  /**
+   * Where this match's recording goes, read now rather than when it is
+   * sent. A quit uploads from the teardown, and the router has already
+   * moved the address bar by the time the teardown runs — so asking the
+   * URL at that point would read whatever screen the player left for, and
+   * a match played against a ?relay= would file itself with the default
+   * server instead.
+   */
+  const uploadOrigin = apiOrigin();
   // Run in reverse at teardown, so each entry can assume everything pushed
   // before it is still standing.
   const teardown: (() => void)[] = [];
@@ -876,6 +890,17 @@ export async function runMatch(
   /** One card is enough: a screen that fails once fails every frame. */
   let screenBroken = false;
   host.onStructural(msg => {
+    // Nothing that arrives after dispose() has begun belongs to a screen
+    // that still exists. The worker outlives the teardown by design now —
+    // an abandoned match is asked for its recording first and the
+    // terminate waits on the reply — and a networked worker cannot even
+    // be paused (netWorker ignores setSpeed, since a shared world runs at
+    // one rate whoever looks away), so frames really do keep arriving
+    // through that window. By then the HUD is unmounted and the renderer
+    // has given its context back, so applying one would write into a
+    // screen that is gone, and the guard below would draw its failure
+    // card over whatever screen came next.
+    if (over) return;
     try {
       applyStructural(msg);
     } catch (err) {
@@ -954,7 +979,13 @@ export async function runMatch(
     reported = true;
     const recording = host.requestReplay(fogSeed);
     void recording
-      .then(data => uploadReplay(data, {source: net ? 'net' : 'solo', ending}))
+      .then(data =>
+        uploadReplay(data, {
+          source: net ? 'net' : 'solo',
+          ending,
+          origin: uploadOrigin,
+        }),
+      )
       .catch(() => undefined);
     quitReport = recording.then(
       () => undefined,

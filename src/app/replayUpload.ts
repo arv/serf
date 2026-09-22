@@ -120,6 +120,13 @@ function withKey(url: string, key: string | null): string {
  * another) costs no preflight round trip. The body is the replay document
  * either way, and the server parses it as one.
  *
+ * `origin` is passed in rather than read here, and that is the whole
+ * point of it being a parameter: an abandoned match uploads from the
+ * screen's teardown, and by then the router has ALREADY moved the address
+ * bar to wherever the player went. Reading the relay off the URL at that
+ * moment would aim a match played on one server at another one. The
+ * caller takes it while the match's own URL is still current.
+ *
  * Not `keepalive`: that caps a body at 64 KB and a replay is megabytes.
  * Which means an upload fired as the page is going away may not finish —
  * acceptable, because the call that matters is the one at the end card,
@@ -127,7 +134,7 @@ function withKey(url: string, key: string | null): string {
  */
 export async function uploadReplay(
   data: string,
-  opts: {source: ReplaySource; ending: ReplayEnding},
+  opts: {source: ReplaySource; ending: ReplayEnding; origin: string},
 ): Promise<void> {
   // Empty is what the worker answers when it has no recording to hand out
   // (it is playing one back) and what the server answers while a room's
@@ -135,7 +142,7 @@ export async function uploadReplay(
   if (data === '') return;
   try {
     const query = `?source=${opts.source}&ending=${opts.ending}`;
-    await fetch(`${apiOrigin()}/api/all-replays${query}`, {
+    await fetch(`${opts.origin}/api/all-replays${query}`, {
       method: 'POST',
       headers: {'content-type': 'text/plain;charset=UTF-8'},
       body: data,
