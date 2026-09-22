@@ -236,17 +236,17 @@ export function DifficultyPage(): JSX.Element {
     <>
       <h1>Difficulty</h1>
       <p class="lede">
-        One setting doing two jobs: how well the computer opponents play, and —
-        in the campaign only — how generous the commission you are given is. Set
-        it on the start screen, or in the war council for a multiplayer room.
+        One setting controls two things: how well the computer opponents play,
+        and, in the campaign only, how generous the commission is. Set it on the
+        start screen, or in the war council for a multiplayer room.
       </p>
 
       <Section title="How the computer plays">
         <p class="lede">
-          The numbers below are the Steward’s line, since it is the one every
+          The numbers below use the Steward’s line, since it is the one every
           other playbook was balanced against. The other lords start from
           different numbers and move by the same rule, so read the columns
-          against each other rather than as absolutes.
+          against each other, not as absolutes.
         </p>
         <Grid rows={WAR} />
       </Section>
@@ -257,12 +257,11 @@ export function DifficultyPage(): JSX.Element {
 
       <Section title="What a commission grants you">
         <p class="lede">
-          The campaign half, and the only place the setting touches anything but
-          the computer’s own decisions. Each commission has its own authored
-          opening; the tier scales it. The valley, the objectives and any
-          village already standing are the same at every setting — a commission
-          teaches the same lesson however hard it is set, it just leaves you
-          less room to learn it in.
+          The campaign half is the only place the setting changes more than the
+          computer’s decisions. Each commission has its own authored opening,
+          and the tier scales it. The valley, objectives and starting village
+          stay the same at every setting. The lesson is the same, with less room
+          to learn it on harder settings.
         </p>
         <div class="scroll-x">
           <table>
@@ -296,8 +295,8 @@ export function DifficultyPage(): JSX.Element {
       <Section title="What it never does">
         <ul class="refs">
           <li>
-            <strong>It does not hand the computer anything.</strong> Every seat
-            — yours and theirs — opens a skirmish with the same larder, the same
+            <strong>It does not hand the computer anything.</strong> Every seat,
+            yours and theirs, opens a skirmish with the same larder, the same
             hands and the same castle at every setting. A hard opponent is one
             that plays its own resources better, not one that was given more of
             them.
@@ -310,8 +309,8 @@ export function DifficultyPage(): JSX.Element {
           </li>
           <li>
             <strong>It does not flatten the four lords into one.</strong> Half
-            of what a playbook is is what it refuses to do — the Abbot never
-            raids, the Steward turns a losing march for home — so the hardest
+            of what a playbook is is what it refuses to do. The Abbot never
+            raids, and the Steward turns a losing march for home, so the hardest
             setting sharpens what a lord already does and is never allowed to
             grant it somebody else’s habits: at Hard every opponent keeps its
             own arms, its own refusals and its own cascade, and only the

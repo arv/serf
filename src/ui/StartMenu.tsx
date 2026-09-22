@@ -336,8 +336,8 @@ const SHELVES: Record<ShelfKind, ShelfSpec> = {
     ctaIdle: 'Pick a replay',
     emptyTitle: 'No replays saved yet',
     emptyBody:
-      'Choose “Save replay” from a match’s menu — any time in single player, once the ' +
-      'match is decided in multiplayer — and it is filed here under the date it was saved.',
+      'Choose “Save replay” from a match’s menu and it is filed here under the date ' +
+      'it was saved. Single player allows it any time, multiplayer once the match is decided.',
     hint:
       'A replay re-runs the match exactly as it was played, with an extra speed beyond ' +
       'fast forward.',
@@ -357,8 +357,7 @@ const SHELVES: Record<ShelfKind, ShelfSpec> = {
     emptyTitle: 'No villages saved yet',
     emptyBody:
       'Choose “Save village” from a match’s menu and it is filed here under the date it ' +
-      'was saved. Saving again files another one — the last save no longer paves over ' +
-      'the one before it.',
+      'was saved. Saving again files another one, and never paves over the one before it.',
     hint: 'Loading a save comes back into that village exactly as it stood, fog and all.',
     dropHint:
       ' Drag one out of the list to keep it as a file, or drop a saved game here to add it.',
@@ -707,7 +706,7 @@ export function StartMenu(props: StartMenuProps) {
       setImportNote(
         filed.length === 0
           ? results.some(r => !r.ok && r.reason === 'storage')
-            ? `Import failed — ${spec.noun} storage is unavailable here`
+            ? `Import failed: ${spec.noun} storage is unavailable here`
             : files.length === 1
               ? `That file is not ${spec.article}`
               : `None of those files are ${spec.plural}`
@@ -715,7 +714,7 @@ export function StartMenu(props: StartMenuProps) {
             ? filed.length === 1
               ? `Filed as “${last}”`
               : `Filed ${filed.length} ${spec.plural}`
-            : `Filed ${filed.length} — the other ` +
+            : `Filed ${filed.length}, and the other ` +
               (bad === 1
                 ? `file is not ${spec.article}`
                 : `${bad} are not ${spec.plural}`),
@@ -765,8 +764,8 @@ export function StartMenu(props: StartMenuProps) {
         ? {}
         : {
             why:
-              `Recorded under replay version ${r.replayVersion ?? 'unknown'} — ` +
-              `this build plays version ${REPLAY_VERSION} and cannot play it back`,
+              `Recorded under replay version ${r.replayVersion ?? 'unknown'}. ` +
+              `This build plays version ${REPLAY_VERSION} and cannot play it back`,
           }),
       meta: fmtSize(r.size) + (ok ? '' : ' · from an older build'),
     };
@@ -800,7 +799,7 @@ export function StartMenu(props: StartMenuProps) {
         ? {}
         : {
             why:
-              `Written in save format ${f.world ?? 'unknown'} — this build reads ` +
+              `Written in save format ${f.world ?? 'unknown'}. This build reads ` +
               `format ${WORLD_SAVE_VERSION} and cannot open that village`,
           }),
       meta: [what, fmtSize(f.size), ok ? undefined : 'from an older build']
@@ -1057,8 +1056,9 @@ export function StartMenu(props: StartMenuProps) {
                   <div>
                     <div class="row-label">Offline</div>
                     <div class="row-hint">
-                      The valley runs on this device — skirmishes and saves are
-                      unaffected. Multiplayer comes back with the connection.
+                      The valley runs on this device, so skirmishes and saves
+                      are unaffected. Multiplayer comes back with the
+                      connection.
                     </div>
                   </div>
                 </div>
@@ -1227,7 +1227,7 @@ export function StartMenu(props: StartMenuProps) {
                     </button>
                     <button
                       class={vis() === 'private' ? 'on' : ''}
-                      title="Code only — unlisted"
+                      title="Code only, unlisted"
                       onClick={() => setVis('private')}
                     >
                       Private
@@ -1615,7 +1615,7 @@ export function StartMenu(props: StartMenuProps) {
                 saves().length > 0
                   ? 'Resume a saved village'
                   : DRAG_OFFERED
-                    ? 'No saves on this device — a dropped save file is filed here'
+                    ? 'No saves on this device. Drop a save file here to file it'
                     : 'No saves on this device'
               }
               onClick={() => openShelf('saves')}
@@ -1641,7 +1641,7 @@ export function StartMenu(props: StartMenuProps) {
                 replays().length > 0
                   ? 'Watch a recorded match'
                   : DRAG_OFFERED
-                    ? 'No replays saved — a dropped replay file is filed here'
+                    ? 'No replays saved. Drop a replay file here to file it'
                     : 'No replays on this device'
               }
               onClick={() => openShelf('replays')}
@@ -1650,7 +1650,7 @@ export function StartMenu(props: StartMenuProps) {
               Replays{replays().length > 0 ? ` (${replays().length})` : ''}
             </button>
             <button
-              title="Author a map of your own — kaleidoscope brushes, then play it"
+              title="Author a map of your own with kaleidoscope brushes, then play it"
               onClick={() => {
                 releaseMenuBackdrop();
                 goto('?editor');

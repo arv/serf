@@ -20,6 +20,7 @@ import type {Enum} from '../shared/enum.ts';
 import type {AdminAction} from '../sim/commands';
 import {TICKS_PER_SECOND} from '../sim/defs/balance';
 import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
+import * as BuildingType from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {goodEntries} from '../sim/defs/goods';
 import type {TechId} from '../sim/defs/techs';
@@ -160,7 +161,7 @@ const REPLAY_SPEED = {
   value: REPLAY_GEAR,
   icon: FastestIcon,
   label: 'Full gallop',
-  hint: 'Replay only — runs the recording at 8× speed.',
+  hint: 'Replay only. Runs the recording at 8× speed.',
 };
 
 /** A gear's tooltip body: what it does, then the keys that get to it. The
@@ -359,7 +360,7 @@ export function Hud(props: {
       {...tooltip(() => (
         <TextTip
           title="Deselect"
-          body="Lets the current selection go — taps stop being move orders."
+          body="Lets the current selection go, so taps stop being move orders."
         />
       ))}
       onClick={() => props.onDeselect()}
@@ -907,10 +908,10 @@ export function Hud(props: {
    * tab, a room plays on, a recording loses nothing at all. */
   const quitStakes = (): string =>
     replayMode()
-      ? 'The recording stays on the menu — you can watch it again.'
+      ? 'The recording stays on the menu, so you can watch it again.'
       : netMode()
         ? 'The room plays on without you, and your seat is held if you come back.'
-        : 'The village ends here — anything unsaved is gone.';
+        : 'The village ends here, and anything unsaved is gone.';
 
   return (
     <>
@@ -2166,8 +2167,8 @@ export function Hud(props: {
                   title="Population"
                   body={
                     population().pop >= population().cap
-                      ? 'Every bed is taken — build a house before you hire again. Workers and soldiers are counted too: each one was a serf.'
-                      : 'Everyone you own: idle serfs, the workers inside your buildings, and your soldiers. The castle sleeps 10; each house adds 10 more.'
+                      ? 'Every bed is taken. Build a house before you hire again. Workers and soldiers take beds too: each one was a serf.'
+                      : `Everyone you own, from idle serfs to the workers inside your buildings and your soldiers. The castle sleeps ${BUILDING_DEFS[BuildingType.storehouse].housing} and each house adds ${BUILDING_DEFS[BuildingType.house].housing} more.`
                   }
                 />
               ))}
@@ -2184,7 +2185,7 @@ export function Hud(props: {
               {...tooltip(() => (
                 <TextTip
                   title="The Ledger"
-                  body="Every good the village owns, grouped — arms, tools, and all. The strip keeps only the handful you watch constantly."
+                  body="Every good the village owns, grouped by kind. The strip above keeps only the handful you watch constantly."
                 />
               ))}
               onClick={() => setEconomyPanelOpen(!economyPanelOpen())}
@@ -2224,7 +2225,7 @@ export function Hud(props: {
                     {...tooltip(() => (
                       <TextTip
                         title="Replay"
-                        body="Watching a recording — orders have no effect."
+                        body="Watching a recording. Orders have no effect."
                       />
                     ))}
                   >
@@ -2239,7 +2240,7 @@ export function Hud(props: {
                     {...tooltip(() => (
                       <TextTip
                         title="Watching as"
-                        body="Whose village the goods strip, the wants, the tech tree and the warnings are about — and whose fog the valley is drawn through, so you see the match as that seat saw it. Click a seat's people or buildings to turn the HUD to them, or click here for the next seat along and its keep."
+                        body="Whose village the goods strip, the tech tree and the warnings are about, and whose fog the valley is drawn through. Click a seat's people or buildings to follow them, or click here for the next seat along."
                       />
                     ))}
                     onClick={cycleSeat}
@@ -2260,7 +2261,7 @@ export function Hud(props: {
                         body={
                           (fogEnabled()
                             ? 'Turns fog of war off to watch the whole map, rivals and all.'
-                            : 'Turns fog of war back on — see only what this seat saw.') +
+                            : 'Turns fog of war back on, so you see only what this seat saw.') +
                           (hasKeyboard() ? ' (F)' : '')
                         }
                       />
@@ -2383,8 +2384,8 @@ export function Hud(props: {
             </Show>
             <Show when={techs().festivalTicksLeft > 0}>
               <div class="hud-festival panel">
-                Festival! Everyone works and fights faster —{' '}
-                {Math.ceil(techs().festivalTicksLeft / TICKS_PER_SECOND)}s
+                Festival! Everyone works and fights faster,{' '}
+                {Math.ceil(techs().festivalTicksLeft / TICKS_PER_SECOND)}s left
               </div>
             </Show>
             {/* Posts standing open for tools. In the rail, not the strip,
@@ -2396,7 +2397,7 @@ export function Hud(props: {
                 {...tooltip(() => (
                   <TextTip
                     title="Posts want tools"
-                    body="Buildings standing open until the Smith forges (or a hauler brings) the tool their worker needs. Sites count too — each borrows a hammer while it rises."
+                    body="Buildings standing open until the Smith forges the tool their worker needs, or a hauler brings one. Sites count too, since each borrows a hammer while it rises."
                   />
                 ))}
                 onClick={() => setEconomyPanelOpen(true)}
@@ -2415,14 +2416,14 @@ export function Hud(props: {
               when={netMode() && netStatus()?.state === NetState.disconnected}
             >
               <div class="hud-nettrouble panel">
-                Connection to the server lost. Reconnecting… — your seat is
-                held, and the match rides out even a server restart.
+                Connection to the server lost. Reconnecting, and your seat is
+                held even through a server restart.
               </div>
             </Show>
             <Show when={invariantViolations().length > 0}>
               <div class="hud-violations panel">
-                {invariantViolations().length} invariant violation(s) — see
-                console
+                {invariantViolations().length} invariant violation(s). See
+                console.
               </div>
             </Show>
           </div>
@@ -2822,8 +2823,8 @@ export function Hud(props: {
             <h1>The match is gone</h1>
             <p>
               The server no longer knows this match. A room stands for a few
-              minutes after its last player leaves, then winds down — and this
-              one wound down. It can't be resumed.
+              minutes after its last player leaves and then winds down, and this
+              one has. It can't be resumed.
             </p>
             <button onClick={() => goto(location.pathname)}>
               Back to the menu
@@ -2837,8 +2838,8 @@ export function Hud(props: {
           <div class="panel end-card">
             <h1>Defeat</h1>
             <p>
-              Your castle has fallen and the village scatters — but the battle
-              for the valley rages on without you.
+              Your castle has fallen and the village scatters. The battle for
+              the valley goes on without you.
             </p>
             <button onClick={() => setSpectating(true)}>Watch the rest</button>
             <button onClick={() => setQuitConfirm(true)}>Quit to menu</button>
@@ -2857,7 +2858,7 @@ export function Hud(props: {
                   : soloMode()
                     ? 'The bandit camp lies in ruins. The valley is yours.'
                     : 'The last rival banner has fallen. The valley is yours.'
-                : 'The storehouse has fallen. The village scatters to the winds.'}
+                : 'The castle has fallen. The village scatters to the winds.'}
             </p>
             <Show when={won() ? continueTarget() : undefined}>
               {next => (

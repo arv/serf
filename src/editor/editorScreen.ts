@@ -509,7 +509,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
    */
   function saveToSlot(name: string): boolean {
     if (!saveMapAs(name, currentState())) {
-      showNotice('Saving failed — browser storage is full');
+      showNotice('Saving failed, browser storage is full');
       return false;
     }
     setMapName(name);
@@ -561,7 +561,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       applyHistoryResult({tiles, starts: false});
       showNotice(
         tiles.length > 0
-          ? 'Naturalized: shores shelve, meadows roll — undo to compare'
+          ? 'Naturalized. Shores shelve and meadows roll, so undo to compare'
           : 'Nothing to naturalize',
       );
     },

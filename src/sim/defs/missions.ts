@@ -109,7 +109,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     title: 'The Clearing',
     briefing:
       'The crown grants you a valley and six hands. Wood for the axe, ' +
-      'stone for the hearth, beds for the hands you hire — put a roof ' +
+      'stone for the hearth, and beds for the hands you hire. Put a roof ' +
       'over them, reeve, and lay in timber for what comes next.',
     tagline: 'Raise a camp: wood, stone, and beds.',
     // Nothing about the valley any more — see `seed` above. The ground is
@@ -258,7 +258,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     title: "The Abbey's Ledger",
     briefing:
       'Learning costs silver, and silver comes out of a hill. The abbot ' +
-      'will sell you his letters; the hill will sell you nothing — start ' +
+      'will sell you his letters. The hill will sell you nothing, so start ' +
       'digging. The crown expects spears it did not pay the smiths for.',
     tagline: 'Silver, scholarship, iron, and a working forge.',
     seed: 303,
@@ -342,12 +342,12 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     title: 'Hammer and Haft',
     briefing:
       'The last reeve’s people left in the night and took every axe and ' +
-      'pick with them. The huts still stand — woodcutter, quarry, field, ' +
-      'oven, and a mine cut into the eastern hill — and not one of them ' +
-      'will draw a soul until there is a tool on its peg. Raise a Smith and ' +
-      'put the valley back to work. You have one hammer of your own; mind ' +
-      'who you lend it to.',
-    tagline: 'Bare racks: forge the tools the valley works with.',
+      'pick with them. The huts still stand, woodcutter and quarry and ' +
+      'field and oven, and a mine cut into the eastern hill. Not one of ' +
+      'them will draw a soul until there is a tool on its peg. Raise a ' +
+      'Smith and put the valley back to work. You have one hammer of your ' +
+      'own, so mind who you lend it to.',
+    tagline: 'Bare racks. Forge the tools the valley works with.',
     // The ground is authored (mapAuthor/missions/hammerAndHaft.ts): a
     // closed bowl with the whole abandoned village on its floor, timber
     // and rock inside the opening sight, and the ore a short walk east in
@@ -500,9 +500,9 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     title: 'Hold the Valley',
     briefing:
       'No more letters from the crown, and no more lessons. The valley is ' +
-      'yours to keep — or lose. The bandits will come in waves until their ' +
-      'camp is ash; see that your castle outlives it.',
-    tagline: 'The full game: no help, no headstart.',
+      'yours to keep or lose. The bandits will come in waves until their ' +
+      'camp is ash, so see that your castle outlives it.',
+    tagline: 'The full game, with no help and no headstart.',
     // The campaign's signature valley, and the only authored map that has
     // to hold a long game rather than teach one lesson: a firth west,
     // hill country east, and the beck with its two fords between the
@@ -523,8 +523,8 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'There is gold at the far end of this valley, and the crown has ' +
       'tired of being told about camps. Dig it, gild a monument on the ' +
       'knap above the seam, and finish it. The bandits will hear the first ' +
-      'cartload land — everyone will. Raze them or outwork them, reeve; ' +
-      'the commission is the stone, not the corpses.',
+      'cartload land, and so will everyone else. Raze them or outwork ' +
+      'them, reeve. The commission is the stone.',
     tagline: 'Win by finishing a Monument, not by razing a camp.',
     // The ground is the argument (mapAuthor/missions/gildedValley.ts): the
     // town's own trades are all within a dozen tiles, and the gold knap is
@@ -630,7 +630,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     id: MissionIdNs.rivalBanner,
     title: 'The Rival Banner',
     briefing:
-      'A rival reeve claims the far end of the valley — two banners, one ' +
+      'A rival reeve claims the far end of the valley. Two banners, one ' +
       'charter, and the crown does not care which of you it honors. The ' +
       'bandits in the middle care even less. Last banner standing.',
     tagline: 'Bonus: your first rival. Last banner standing.',

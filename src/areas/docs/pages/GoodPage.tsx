@@ -100,8 +100,8 @@ function ConsumerLine(props: {entry: ConsumerRef}): JSX.Element {
           <DocLink href={buildingHref(BuildingTypeId.abbey)}>
             {buildingName(BuildingTypeId.abbey)}
           </DocLink>{' '}
-          to hold a festival — everyone works, and every soldier and tower
-          fights, ×{FESTIVAL_SPEEDUP} faster while it runs — once{' '}
+          to hold a festival. Everyone works, and every soldier and tower fights
+          ×{FESTIVAL_SPEEDUP} faster while it runs, once{' '}
           <DocLink href={techHref(TechId.festivals)}>
             {techName(TechId.festivals)}
           </DocLink>{' '}
@@ -119,11 +119,11 @@ function ConsumerLine(props: {entry: ConsumerRef}): JSX.Element {
           <DocLink href={buildingHref(BuildingTypeId.archeryRange)}>
             {buildingName(BuildingTypeId.archeryRange)}
           </DocLink>{' '}
-          — with{' '}
+          once{' '}
           <DocLink href={techHref(TechId.aleRations)}>
             {techName(TechId.aleRations)}
           </DocLink>{' '}
-          each recruit drinks one and trains faster
+          is researched, and each recruit drinks one and trains faster
         </li>
       );
     case 'hire':

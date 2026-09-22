@@ -46,9 +46,9 @@ export function BasicsPage(): JSX.Element {
     <>
       <h1>Basics</h1>
       <p class="lede">
-        The cross-cutting numbers — what a village opens with, what people cost,
-        and when the raiders come. Per-building and per-unit figures live on
-        their own pages.
+        The core numbers: what a village opens with, what people cost, and when
+        the raiders come. Per-building and per-unit figures live on their own
+        pages.
       </p>
       <Section title="Opening">
         <Stats>
@@ -79,7 +79,7 @@ export function BasicsPage(): JSX.Element {
       <Section title="Building">
         <Stats>
           <Stat label="Placing a site costs">
-            nothing — every building goes up on credit
+            nothing. Every building goes up on credit
           </Stat>
           <Stat label="The price in the build menu">
             is what finishes the building, hauled to the site as it is produced
@@ -146,7 +146,7 @@ export function BasicsPage(): JSX.Element {
       </Section>
       <Section title="Time">
         <p class="lede">
-          The game keeps time in ticks — {TICKS_PER_SECOND} to the second. Every
+          The game keeps time in ticks, {TICKS_PER_SECOND} to the second. Every
           duration in this guide is given in seconds.
         </p>
       </Section>

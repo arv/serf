@@ -829,8 +829,18 @@ import {REPLAY_VERSION} from './replayVersion';
 // size. Every tile of every generated map moves, so a skirmish log
 // re-run here is a log played on different ground — which is what the
 // builder's swing above, landing beside it, did NOT do.
+// Still 75 after the player-facing copy pass: four files in the surface
+// carry player-facing strings — a playbook's blurb (defs/aiStrategies.ts),
+// a difficulty's blurb (defs/difficulty.ts), a commission's briefing and
+// tagline (defs/missions.ts) and a tech's desc (defs/techs.ts) — and the
+// pass rewrote those strings and nothing else. No number, no effect, no
+// table and no ordering moved, and nothing in a tick reads any of them, so
+// every log plays back exactly as it did. The hash is over raw bytes,
+// which is why it moved anyway. The review round moved it a second time,
+// rewriting Ironworking's desc to name the recipes it actually gates —
+// same file, same kind of string, same nothing behind it.
 const EXPECTED_VERSION = 75;
-const EXPECTED_HASH = '5ca3394d0c658ba1cb3fa97bc9a2a311';
+const EXPECTED_HASH = 'a25b2848c516ded368c165e18c1843bf';
 
 /**
  * Everything a replay's playback depends on, as raw source:

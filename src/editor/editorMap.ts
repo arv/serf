@@ -161,7 +161,7 @@ export function validateForPlay(state: EditorMapState): string[] {
     starts.forEach((s, p) => {
       if (p > 0 && !seen[tileIdx(s.x + 1, s.y + 1, size)]) {
         problems.push(
-          `player ${p + 1}'s start is cut off from player 1 — bridge the land`,
+          `player ${p + 1}'s start is cut off from player 1. Bridge the land`,
         );
       }
     });

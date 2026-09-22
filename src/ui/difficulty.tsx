@@ -54,11 +54,11 @@ export function difficultyHint(
     case 'campaign':
       return 'Scales the opening the crown grants you, and the peace before the first raid';
     case 'sandbox':
-      return 'Nothing to set: a sandbox has no opponents';
+      return 'Nothing to set, since a sandbox has no opponents';
     case 'guest':
       return 'Set by the host';
     case 'skirmish':
-      return 'How well the computer plays — never what it is given';
+      return 'How well the computer plays, never what it is given';
   }
 }
 

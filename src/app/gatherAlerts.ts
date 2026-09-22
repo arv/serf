@@ -131,7 +131,7 @@ export class GatherAlerts {
     if (trouble === 'walledIn') {
       const shut = b.resourceBlocked ?? 0;
       this.#toast(
-        `${name} is walled in — ${shut} load${shut === 1 ? '' : 's'} in its square with no way to walk to any of it.`,
+        `${name} is walled in. ${shut} load${shut === 1 ? '' : 's'} in its square with no way to walk to any of it.`,
         focus,
       );
       return;
@@ -143,7 +143,7 @@ export class GatherAlerts {
     this.#toast(
       renews
         ? `${name} has felled everything in reach.`
-        : `${name} has worked out its ground — nothing left in reach.`,
+        : `${name} has worked out its ground. Nothing left in reach.`,
       focus,
     );
   }

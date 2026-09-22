@@ -82,7 +82,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
         multiplier: 1.3,
       },
     ],
-    desc: 'Field channels: farms grow wheat 30% faster.',
+    desc: 'Field channels. Farms grow wheat 30% faster.',
   },
   [T.millstones]: {
     id: T.millstones,
@@ -103,7 +103,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
         multiplier: 1.3,
       },
     ],
-    desc: 'Dressed millstones: the mill and the bakery work 30% faster.',
+    desc: 'Dressed millstones. The mill and the bakery work 30% faster.',
   },
   [T.brewing]: {
     id: T.brewing,
@@ -130,7 +130,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // mechanic rather than a modifier effect, because the buff comes and
     // goes with the barrels rather than with the research.
     effects: [],
-    desc: 'Ale delivered to the Abbey holds festivals: everyone works, and every soldier and tower fights, 25% faster for a while.',
+    desc: 'Ale delivered to the Abbey holds a festival. Everyone works and every soldier and tower fights 25% faster for a while.',
   },
   [T.aleRations]: {
     id: T.aleRations,
@@ -147,7 +147,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // at training start for a faster course (staffing.ts). No ale never
     // blocks training — the drink is an accelerant, not an ingredient.
     effects: [],
-    desc: 'The barracks and the archery range keep a cask: each soldier drinks 1 ale and trains 25% faster.',
+    desc: 'The barracks and the archery range keep a cask. Each soldier drinks 1 ale and trains 25% faster.',
   },
 
   // — Craft —
@@ -187,7 +187,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
         building: BuildingTypeId.ironMine,
       },
     ],
-    desc: 'Unlocks the Iron Mine, and ironwork at the Smith: weapons and tools.',
+    desc: 'Unlocks the Iron Mine, and every Smith recipe but the bow and the fishing rod.',
   },
   [T.deepMining]: {
     id: T.deepMining,
@@ -207,7 +207,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
         building: BuildingTypeId.goldMine,
       },
     ],
-    desc: 'Mines work 30% faster; unlocks the Gold Mine.',
+    desc: 'Mines work 30% faster. Unlocks the Gold Mine.',
   },
   [T.bellows]: {
     id: T.bellows,
@@ -226,7 +226,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
         multiplier: 1.3,
       },
     ],
-    desc: 'Forced draft at the forge: the Smith works 30% faster.',
+    desc: 'Forced draft at the forge. The Smith works 30% faster.',
   },
   [T.masonry]: {
     id: T.masonry,
@@ -236,7 +236,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     cost: {[GoodId.stone]: 8, [GoodId.silver]: 4},
     durationTicks: 18 * S,
     effects: [{kind: TechEffectKindNs.unlockPaving}],
-    desc: 'Heavily-trodden trails are paved into stone roads (+35% speed, permanent).',
+    desc: 'Heavily-trodden trails are paved into stone roads for good, worth 35% more speed.',
   },
 
   // — Warfare —
@@ -320,7 +320,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
         multiplier: 1.2,
       },
     ],
-    desc: 'Gilded arms: military units train with a further 20% more health.',
+    desc: 'Military units train with a further 20% more health.',
   },
 };
 

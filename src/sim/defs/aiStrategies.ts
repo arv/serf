@@ -435,7 +435,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     id: AiStrategyIdNs.warlord,
     name: 'The Warlord',
     blurb:
-      'Forges nothing but swords, comes early — and gilds them in gold if the war runs long.',
+      'Forges nothing but swords and comes early, then gilds them in gold if the war runs long.',
     build: [
       {
         type: BuildingTypeId.woodcutter,
@@ -647,7 +647,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     id: AiStrategyIdNs.abbot,
     name: 'The Abbot',
     blurb:
-      'Builds wide, hires deep, mans two towers — and still marches at ten.',
+      'Builds wide, hires deep, mans two towers, and still marches at ten.',
     build: [
       {
         type: BuildingTypeId.woodcutter,
@@ -875,7 +875,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     id: AiStrategyIdNs.fletcher,
     name: 'The Fletcher',
     blurb:
-      'Skips the iron chain: bows are wood, so the archers come cheap and early.',
+      'Skips the iron chain. Bows are wood, so the archers come cheap and early.',
     build: [
       {
         type: BuildingTypeId.woodcutter,
@@ -1128,7 +1128,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     id: AiStrategyIdNs.mason,
     name: 'The Mason',
     blurb:
-      'Digs the gold nobody else wants and gilds a Monument with it. Never marches — it only has to finish.',
+      'Digs the gold nobody else wants and gilds a Monument with it. It never marches, and only has to finish.',
     /**
      * Measured on two ranges, 32 campaigns each: 27 of 32 from seed 101 and
      * 26 of 32 from seed 1000, every single win a finished Monument with the
