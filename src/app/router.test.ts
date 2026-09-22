@@ -86,7 +86,9 @@ describe('which screen a URL names', () => {
       'match:?uploaded=20260101-000000000-abcdef',
     );
     expect(screenKey('?uploaded=a')).not.toBe(screenKey('?uploaded=b'));
-    // The key that may ride along names no different match.
+    // A match's key is its whole query string, so the shelf's ?key= riding
+    // along makes a screen of its own — harmless, since the two URLs are
+    // only ever arrived at one at a time.
     expect(screenKey('?uploaded=a&key=s')).not.toBe(screenKey('?uploaded=a'));
   });
 

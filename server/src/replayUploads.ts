@@ -232,16 +232,26 @@ export async function storeReplay(
     ending: opts.ending,
   });
   const dir = replayDir();
+  // Whole file, then rename, the way the room snapshot is written: a
+  // half-written replay under its real name would be listed and then
+  // fail to parse on the one click that opened it.
+  const tmp = join(dir, `${id}${REPLAY_SUFFIX}.tmp`);
   try {
     await mkdir(dir, {recursive: true});
-    // Whole file, then rename, the way the room snapshot is written: a
-    // half-written replay under its real name would be listed and then
-    // fail to parse on the one click that opened it.
-    const tmp = join(dir, `${id}${REPLAY_SUFFIX}.tmp`);
     await writeFile(tmp, screened);
     await rename(tmp, join(dir, `${id}${REPLAY_SUFFIX}`));
     await writeFile(join(dir, `${id}${META_SUFFIX}`), JSON.stringify(summary));
   } catch {
+    // The scratch file is named for an id nothing will mint again, and it
+    // ends in neither suffix the shelf knows — so a leftover is invisible
+    // to the listing AND to the prune, and would sit on the volume for
+    // good. Taken away here; only a process killed between the write and
+    // the rename can still leave one.
+    try {
+      await rm(tmp, {force: true});
+    } catch {
+      // Nothing to be done, and the upload already failed.
+    }
     return {ok: false, reason: 'storage'};
   }
   return {ok: true, summary};

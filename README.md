@@ -429,7 +429,7 @@ its oldest rows as new ones arrive, but that is housekeeping on one
 listing, not deletion, and a game a model has already learned from cannot
 be unlearned.
 
-A recording is a match with the orders taken out, so the archive is not a
+A recording is a match with the person taken out, so the archive is not a
 place anything private ends up — but a multiplayer one carries what was
 said at the table, and every upload is anonymous only in the sense that
 nothing beyond the game itself is stored with it. `SERF_REPLAY_KEY` shuts
