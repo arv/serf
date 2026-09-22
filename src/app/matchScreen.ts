@@ -82,6 +82,7 @@ import {HiddenSync} from './hiddenSync';
 import {WorldMirror} from './mirror';
 import type {ReplayData} from './replay';
 import {saveReplayFile, stageReplay} from './replayStore';
+import {uploadReplay} from './replayUpload';
 import {envelopeSave, unpackExplored} from './saveEnvelope';
 import {deleteSaveFile, saveGameFile, saveGameNow} from './saveStore';
 import type {Screen} from './screen';
@@ -835,6 +836,39 @@ export async function runMatch(
     }
   });
 
+  /**
+   * Whether this match has already been handed up to the server. The
+   * "over" outcome rides every structural frame after the last blow, so
+   * without a latch the end card would upload the same recording twenty
+   * times a second.
+   */
+  let reported = false;
+
+  /**
+   * Hand the finished match to the server, quietly.
+   *
+   * Nothing here is told to the player and nothing here can fail loudly —
+   * see app/replayUpload.ts for why the whole path is silent. Never for a
+   * replay being watched: that recording is already on the shelf it came
+   * from, and re-uploading it would fill the server with copies of the
+   * games it already has.
+   *
+   * Networked matches upload from every seat that saw the end, so a
+   * four-player game arrives as four recordings of the same match, each
+   * through its own fog. That is the honest record — a seat's replay is
+   * only what that seat could see — and the shelf makes no attempt to
+   * fold them back together: the seed and the tick count are what say two
+   * rows were the same game.
+   */
+  function reportMatch(): void {
+    if (reported || replay) return;
+    reported = true;
+    void host
+      .requestReplay(fogSeed)
+      .then(data => uploadReplay(data, net ? 'net' : 'solo'))
+      .catch(() => undefined);
+  }
+
   function applyStructural(msg: StructuralUpdate): void {
     // A reconnect resync carries the seat's ever-seen grid afresh.
     if (msg.explored) fog.seedExplored(msg.explored);
@@ -877,6 +911,10 @@ export async function runMatch(
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
+    // A decided match is a played match, and a played match is worth
+    // recording somewhere the author can see it. Latched, so the frames
+    // that keep saying "over" while the end card sits there upload once.
+    if (msg.outcome.state === MatchState.over) reportMatch();
     setAdminState(msg.admin);
     // The worker, not the URL, says which mission this is: a loaded save
     // reboots on ?seed=…, but the world remembers. Synced both ways — a

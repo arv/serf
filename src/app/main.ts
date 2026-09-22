@@ -18,6 +18,7 @@ import {clearFatal, fatal, fatalFrom, showFatal} from './fatalScreen';
 import {configFromUrl, type GameConfig} from './gameConfig';
 import {parseReplay, type ReplayData} from './replay';
 import {readReplayFile, readStagedReplay} from './replayStore';
+import {fetchUploadedReplay} from './replayUpload';
 import {startRouter} from './router';
 import {readSaveWorldVersion, splitSave} from './saveEnvelope';
 import {migrateLegacySave, readSaveFile} from './saveStore';
@@ -65,6 +66,7 @@ const LAUNCH_PARAMS = [
   'mission',
   'replay',
   'rewatch',
+  'uploaded',
   'load',
 ];
 
@@ -118,6 +120,11 @@ function screenKey(): string {
   // caches across twenty clicks instead of rebuilding per page.
   if (location.pathname === '/docs' || location.pathname.startsWith('/docs/'))
     return 'docs';
+  // The uploaded-replay shelf, likewise named by its path — and likewise
+  // ahead of everything else, so a ?key= (or anything else left in the
+  // query) cannot turn it into a match. Nothing in the game links here;
+  // it is a place the author types in. See areas/replays.
+  if (location.pathname === '/all-replays') return 'all-replays';
   const params = new URLSearchParams(location.search);
   // The map editor is its own screen kind — and the check comes before
   // gameChosen, because a stale load-pending handoff (or a ?seed left in
@@ -235,6 +242,16 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
     );
     return;
   }
+  if (key === 'all-replays') {
+    // Every match clients have uploaded, listed. Its own chunk, like the
+    // other screens off the main path: nobody reaches the shelf by
+    // playing, so nothing on the way to a match should carry it.
+    const {mountUploadedReplays} =
+      await import('../areas/replays/replaysScreen');
+    const shelf = mountUploadedReplays();
+    present({key, dispose: () => shelf.dispose()});
+    return;
+  }
   if (key === 'docs') {
     // The field guide: every def in the game, cross-linked and read from
     // the same tables the sim plays by. Its chunk (and the three.js preview
@@ -310,24 +327,43 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
   // comes here without filing anything under the player's replays. It has
   // no name because there is only ever one; ?replay= wins if both are
   // somehow in the URL, since that one names a file the player kept.
+  //
+  // ?uploaded=<id>: the same screen over a recording the server holds —
+  // one of the matches clients file when they end (app/replayUpload.ts),
+  // which the shelf at /all-replays lists. ?key= rides along where the server
+  // was started with one. Ranked below ?replay= for the same reason
+  // ?rewatch is: a file the player kept is the more deliberate ask.
   const replayParam = launchParams.get('replay');
-  const rewatch = replayParam === null && launchParams.has('rewatch');
-  if (replayParam !== null || rewatch) {
+  const uploadedParam =
+    replayParam === null ? launchParams.get('uploaded') : null;
+  const rewatch =
+    replayParam === null &&
+    uploadedParam === null &&
+    launchParams.has('rewatch');
+  if (replayParam !== null || uploadedParam !== null || rewatch) {
     const raw = rewatch
       ? await readStagedReplay()
-      : await readReplayFile(replayParam!);
+      : uploadedParam !== null
+        ? await fetchUploadedReplay(uploadedParam, launchParams.get('key'))
+        : await readReplayFile(replayParam!);
     const replay = raw !== null ? parseReplay(raw) : null;
     /** What the failures below call the recording they cannot play. */
     const what = rewatch
       ? 'The match you just played'
-      : `The replay "${replayParam}"`;
+      : uploadedParam !== null
+        ? `The uploaded replay "${uploadedParam}"`
+        : `The replay "${replayParam}"`;
     if (!replay) {
       fatal(
         rewatch
           ? `${what} is no longer here. Only the last match is kept for ` +
               'watching back, and clearing this site’s data takes it. ' +
               'Use “Save replay” to keep one for good.'
-          : `${what} could not be loaded, and may have been deleted.`,
+          : uploadedParam !== null
+            ? `${what} could not be fetched. The server may be unreachable, ` +
+              'the recording may have aged off the shelf, or the shelf may ' +
+              'be closed to this browser.'
+            : `${what} could not be loaded, and may have been deleted.`,
         {
           menu: true,
         },

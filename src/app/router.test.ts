@@ -26,12 +26,20 @@ const LAUNCH_PARAMS = [
   'mission',
   'replay',
   'rewatch',
+  'uploaded',
   'load',
 ];
 
 /** The rule under test, over a URL rather than `location` — the same
- * expression main.ts routes on. */
-function screenKey(search: string, loadPending = false): string {
+ * expression main.ts routes on. The path comes first there for the two
+ * screens named by one, so it comes first here. */
+function screenKey(
+  search: string,
+  loadPending = false,
+  pathname = '/',
+): string {
+  if (pathname === '/docs' || pathname.startsWith('/docs/')) return 'docs';
+  if (pathname === '/all-replays') return 'all-replays';
   const params = new URLSearchParams(search);
   const chosen = LAUNCH_PARAMS.some(k => params.has(k)) || loadPending;
   if (!chosen || params.get('mp') !== null) return 'menu';
@@ -68,6 +76,28 @@ describe('which screen a URL names', () => {
     // And it is its own screen: a rewatch asked for while a replay from
     // the shelf is playing is a different recording.
     expect(screenKey('?rewatch')).not.toBe(screenKey('?replay=a.json'));
+  });
+
+  it('names an uploaded replay a match of its own', () => {
+    // A recording fetched from the server is a launch like any other, and
+    // one id is not another: without the param in the list, a link to the
+    // shelf's "Watch" would land on the start screen.
+    expect(screenKey('?uploaded=20260101-000000000-abcdef')).toBe(
+      'match:?uploaded=20260101-000000000-abcdef',
+    );
+    expect(screenKey('?uploaded=a')).not.toBe(screenKey('?uploaded=b'));
+    // The key that may ride along names no different match.
+    expect(screenKey('?uploaded=a&key=s')).not.toBe(screenKey('?uploaded=a'));
+  });
+
+  it('lets the two path-named screens win over the query', () => {
+    // The shelf and the field guide are places a link points at. A launch
+    // param left in the query — or the ?key= the shelf itself carries —
+    // must not turn either of them into a match.
+    expect(screenKey('', false, '/all-replays')).toBe('all-replays');
+    expect(screenKey('?key=s3cret', false, '/all-replays')).toBe('all-replays');
+    expect(screenKey('?ai=2', false, '/all-replays')).toBe('all-replays');
+    expect(screenKey('?ai=2', true, '/docs')).toBe('docs');
   });
 
   it('parts a match from the menu', () => {

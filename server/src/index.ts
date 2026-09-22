@@ -12,6 +12,7 @@ import {decodeState, encodePong} from '../../src/protocol/state.ts';
 import {sanitizeCommands} from '../../src/sim/commands.ts';
 import {clientFields, logEvent, type ClientFields} from './log.ts';
 import {persistRooms, restorePersistedRooms} from './persist.ts';
+import {REPLAY_API_PREFIX, handleReplayApi} from './replayApi.ts';
 import {
   MAX_COMMANDS_PER_FRAME,
   MAX_SEATS,
@@ -110,6 +111,21 @@ const http = createServer((req, res) => {
     // question is how close to full it is.
     res.writeHead(200, {'content-type': 'application/json'});
     res.end(JSON.stringify({ok: true, ...serverStats()}));
+    return;
+  }
+  // The replay shelf, ahead of the static tree: /api/ names no file of
+  // ours, so the SPA fallback below would otherwise answer every one of
+  // these with the game's document. It is also the one route here that
+  // takes a POST, and the only one that answers when SERVES_GAME is
+  // false — a relay running without a dist/ still collects recordings.
+  // Its own rejections are its business; a throw on the request path takes
+  // the process and every live room with it.
+  if ((req.url ?? '').split('?')[0]!.startsWith(REPLAY_API_PREFIX)) {
+    void handleReplayApi(req, res).catch((err: unknown) => {
+      console.error('[serf] replay api failed:', err);
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    });
     return;
   }
   if (!SERVES_GAME || (req.method !== 'GET' && req.method !== 'HEAD')) {

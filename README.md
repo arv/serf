@@ -385,6 +385,36 @@ safe because a building selection and a unit selection cannot both stand. The ga
 key (`ui/commands.ts`, `ui/buildMenu.ts`), so a shortcut can never fire where
 its button is greyed out — and every refusal names which gate it hit.
 
+### The replay archive
+
+Every match that plays out to a decision uploads its own recording to the
+server, silently, and it is allowed to fail. Nobody is told it happened —
+no toast, no spinner, nothing on the end card — and a player with no
+network, or a relay that is down, plays exactly the game they would have
+played anyway (`src/app/replayUpload.ts` swallows every error where it
+happens). Solo play is a local sim that never opens a socket, so without
+this the only trace of a game played start to finish is the page view that
+fetched the bundle.
+
+The other end is `/all-replays`: a page listing every recording the server
+holds, newest first — when it arrived, how long it ran, who sat at the
+table, how many orders were given — with **Watch** on each row opening it
+in the ordinary replay screen (`?uploaded=<id>`, screened through the same
+`parseReplay` gate as any file off the player's own shelf). Nothing in the
+game links there; it is a URL you type. That is the difference between
+knowing the page was opened and knowing the game was played, and it is
+also the corpus the AI gets trained against.
+
+A recording is a match with the orders taken out, so the archive is not a
+place anything private ends up — but a multiplayer one carries what was
+said at the table, and every upload is anonymous only in the sense that
+nothing beyond the game itself is stored with it. `SERF_REPLAY_KEY` shuts
+the reading half behind a `?key=` if the shelf should not be public;
+uploading stays open either way, since every copy of the game would have
+to carry the secret to do it. The rest of the mechanics — the size cap,
+the per-address budget, what falls off the end — are in
+`server/README.md`.
+
 ## Architecture
 
 The whole shape is drawn in one piece in `docs/architecture.md`: the layer

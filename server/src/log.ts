@@ -23,7 +23,11 @@ export type LogEvent =
   | 'room_join'
   | 'rejoin'
   /** A multiplayer match began. Count these to count games. */
-  | 'match_start';
+  | 'match_start'
+  /** A client handed up a finished match's recording — filed, or refused.
+   * Solo play's only line in this log besides its page view, and the one
+   * that says a game was actually played. */
+  | 'replay_upload';
 
 export type LogFields = Record<string, unknown>;
 
