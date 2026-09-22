@@ -96,7 +96,7 @@ export function CommandsPage(): JSX.Element {
           ribbon bolds in its name. The ribbon turns to that building’s tab
           either way: if the research is missing, nothing is armed, but the
           button is in front of you with the lock on it. Short stores stop
-          nothing — everything is built on credit, and the cost under the button
+          nothing. Everything is built on credit, and the cost under the button
           is what finishes the building, not what you must be holding to peg it
           out.
         </p>
@@ -164,7 +164,9 @@ export function CommandsPage(): JSX.Element {
                   <b>{RALLY_KEY}</b>
                 </td>
                 <td>Barracks</td>
-                <td>Arm the rally flag — the next map click plants it</td>
+                <td>
+                  Arm the rally flag, then plant it with the next map click
+                </td>
               </tr>
               <tr>
                 <td>

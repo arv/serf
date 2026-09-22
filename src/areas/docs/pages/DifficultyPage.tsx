@@ -65,7 +65,7 @@ const WAR: Row[] = [
     value: s =>
       s.marchConfidence > 0
         ? `${s.marchConfidence}%`
-        : 'any — it marches on headcount',
+        : 'any: it marches on headcount',
   },
   {
     label: 'Raids your economy',
@@ -79,7 +79,7 @@ const WAR: Row[] = [
     label: 'Guards its own gate within',
     note: 'An army this close to home is recalled instead of pressing an attack.',
     value: s =>
-      s.homeGuard > 0 ? `${s.homeGuard} tiles` : 'nothing — it stays out',
+      s.homeGuard > 0 ? `${s.homeGuard} tiles` : 'nothing: it stays out',
   },
   {
     label: 'Re-reads your yard every',
@@ -106,7 +106,7 @@ const WAR: Row[] = [
   },
   {
     label: 'Trusts a sighting for',
-    note: 'How long what a scout saw still counts. It never changes what a lord can SEE — only how long it remembers, and a lord that forgets stops re-arming against what you field.',
+    note: 'How long what a scout saw still counts. It never changes what a lord can SEE, only how long it remembers, and a lord that forgets stops re-arming against what you field.',
     value: (_s, _d, id) => fmtSecs(scaleIntelTrust(AI_INTEL.trustFor, id)),
   },
   {
@@ -122,7 +122,7 @@ const WAR: Row[] = [
   },
   {
     label: 'Thinks every',
-    note: 'One decision beat. A slower lord is not worse at the game — it is late to it.',
+    note: 'One decision beat. A slower lord is not worse at the game, only late to it.',
     value: (_s, _d, id) =>
       fmtSecs(scaleDecisionInterval(AI_PACING.decisionInterval, id)),
   },
