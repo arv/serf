@@ -836,9 +836,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // pass rewrote those strings and nothing else. No number, no effect, no
 // table and no ordering moved, and nothing in a tick reads any of them, so
 // every log plays back exactly as it did. The hash is over raw bytes,
-// which is why it moved anyway.
+// which is why it moved anyway. The review round moved it a second time,
+// rewriting Ironworking's desc to name the recipes it actually gates —
+// same file, same kind of string, same nothing behind it.
 const EXPECTED_VERSION = 75;
-const EXPECTED_HASH = '9dca2349dd25253f1171c1f32fbbb4d9';
+const EXPECTED_HASH = 'a25b2848c516ded368c165e18c1843bf';
 
 /**
  * Everything a replay's playback depends on, as raw source:

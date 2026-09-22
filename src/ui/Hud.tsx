@@ -2167,7 +2167,7 @@ export function Hud(props: {
                   title="Population"
                   body={
                     population().pop >= population().cap
-                      ? 'Every bed is taken. Build a house before you hire again, and count on workers and soldiers filling beds too.'
+                      ? 'Every bed is taken. Build a house before you hire again. Workers and soldiers take beds too: each one was a serf.'
                       : `Everyone you own, from idle serfs to the workers inside your buildings and your soldiers. The castle sleeps ${BUILDING_DEFS[BuildingType.storehouse].housing} and each house adds ${BUILDING_DEFS[BuildingType.house].housing} more.`
                   }
                 />

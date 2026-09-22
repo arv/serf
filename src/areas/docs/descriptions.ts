@@ -79,9 +79,9 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
     'Water in, standing wheat out. The mill and the brewery both draw on it, so one farm rarely stays enough.',
   [BuildingTypeId.mill]:
     'Grinds wheat into flour, and keeps no resident. It is slower than the farm feeding it by design, so one mill serves two.',
-  [BuildingTypeId.bakery]: `Flour and water in, ${BAKED} food out. The far end of the bread chain, and the best food rate in the game once the chain stands.`,
+  [BuildingTypeId.bakery]: `Flour and water in, ${BAKED} loaves out. The far end of the bread chain, and the best food rate in the game once the chain stands.`,
   [BuildingTypeId.fishery]:
-    'One hut, one hand, and a pier that has to touch water. Nothing goes in, and food comes out slowly.',
+    'One hut, one hand, and a pier that has to touch water. Nothing goes in, and the food comes out slowly.',
   [BuildingTypeId.brewery]:
     'Wheat and water into ale, for the Abbey’s festivals and for the casks at the barracks and the range. It wants Brewing studied first, and it is priced in stone rather than wood.',
   [BuildingTypeId.ironMine]:

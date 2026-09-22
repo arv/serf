@@ -1882,7 +1882,7 @@ export function SelectionPanel(props: {
                 tip={() => (
                   <TextTip
                     title="Stop"
-                    body="They stop walking and stand where they are, whatever order they were on. An errand in hand is left alone, and soldiers still answer an enemy that comes to them."
+                    body="They stop walking and stand where they are: a march, an attack-move, an assault, or a chase. An errand in hand is left alone, and so is a hold. Soldiers still answer an enemy that comes to them, so Hold is the order that never gives ground."
                   />
                 )}
               >
@@ -1941,7 +1941,7 @@ export function SelectionPanel(props: {
                   : orderMode() === OrderMode.patrol
                     ? 'click the far end of the beat'
                     : fighters().length > 0 && fighters().every(u => u.holding)
-                      ? 'holding ground, any order releases them'
+                      ? 'holding ground, a move or attack order releases them'
                       : matchMedia('(pointer: coarse)').matches
                         ? 'tap the ground to send them'
                         : 'right-click to send them'}

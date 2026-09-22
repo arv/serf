@@ -187,7 +187,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
         building: BuildingTypeId.ironMine,
       },
     ],
-    desc: 'Unlocks the Iron Mine, and iron weapons and tools at the Smith.',
+    desc: 'Unlocks the Iron Mine, and every Smith recipe but the bow and the fishing rod.',
   },
   [T.deepMining]: {
     id: T.deepMining,
