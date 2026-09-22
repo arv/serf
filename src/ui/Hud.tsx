@@ -2834,10 +2834,7 @@ export function Hud(props: {
         <div class="hud-end">
           <div class="panel end-card">
             <h1>Defeat</h1>
-            <p>
-              Your castle has fallen and the village scatters. The battle for
-              the valley goes on without you.
-            </p>
+            <p>Your castle has fallen. The valley fights on without you.</p>
             <button onClick={() => setSpectating(true)}>Watch the rest</button>
             <button onClick={() => setQuitConfirm(true)}>Quit to menu</button>
           </div>
@@ -2851,11 +2848,11 @@ export function Hud(props: {
             <p>
               {won()
                 ? mission()
-                  ? 'The commission is fulfilled. The crown takes note, reeve.'
+                  ? 'Word goes to the crown.'
                   : soloMode()
-                    ? 'The bandit camp lies in ruins. The valley is yours.'
-                    : 'The last rival banner has fallen. The valley is yours.'
-                : 'The castle has fallen. The village scatters to the winds.'}
+                    ? 'The fields are yours to work.'
+                    : 'Every other seat is beaten.'
+                : 'The valley is lost.'}
             </p>
             <Show when={won() ? continueTarget() : undefined}>
               {next => (
