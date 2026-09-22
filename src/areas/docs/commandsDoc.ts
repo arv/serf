@@ -59,7 +59,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.setBuildingPaused]: {
     summary:
-      'Halt or restart a building. Halting stops production and the deliveries that feed it, and it empties the post: the resident, or a site’s builder, rejoins the serf pool, and a tower empties its roof, sending trained archers back out as soldiers and a villager levy back to work. A paused site stops calling for its materials too, but an ordered repair and a study already paid for sit outside the pause gate and keep calling for theirs. It is both “stop eating my wood” and “give me the hands back”.',
+      'Halt or restart a building. Halting stops production and the deliveries that feed it, and it empties the post: the resident, or a site’s builder, rejoins the serf pool, and a tower empties its roof, sending trained archers back out as soldiers and a villager levy back to work. A paused site stops calling for its materials too, but an ordered repair and a study in hand sit outside the pause gate and keep calling for the rest of their bill. It is both “stop eating my wood” and “give me the hands back”.',
     payload: 'buildingId, paused',
   },
   [CommandKind.setBuildingRepair]: {

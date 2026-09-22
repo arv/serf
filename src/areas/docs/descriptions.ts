@@ -85,7 +85,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.brewery]:
     'Wheat and water into ale, for the Abbey’s festivals and for the casks at the barracks and the range. It wants Brewing studied first, and it is priced in stone rather than wood.',
   [BuildingTypeId.ironMine]:
-    'Cut into the hillside over an iron seam. Ironworking gates it, because every weapon and most tools start here.',
+    'Cut into the hillside over an iron seam. Ironworking gates it, and every Smith recipe but the bow and the fishing rod starts here.',
   [BuildingTypeId.silverMine]:
     'The treasury. Silver pays for recruits and for every study, and nothing gates the mine, so a village can dig for coin from the first minute.',
   [BuildingTypeId.goldMine]:
