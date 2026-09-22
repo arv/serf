@@ -2851,7 +2851,7 @@ export function Hud(props: {
                   ? 'The commission stands fulfilled. Word goes to the crown.'
                   : soloMode()
                     ? 'The camp is razed. Nothing comes down that road again.'
-                    : 'The last rival banner is down. You hold the valley alone.'
+                    : 'The last rival banner is down.'
                 : 'Your castle is taken, and the village with it.'}
             </p>
             <Show when={won() ? continueTarget() : undefined}>
