@@ -971,15 +971,17 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // No ground rule: it stands wherever its owner can find nine flat
     // tiles. It used to be pinned within four tiles of a gold seam, on the
     // reasoning that a monument ought to be a claim on contested ground —
-    // but the contest is already in the price. Worldgen deals exactly one
-    // gold cluster, in the middle of the map, with the bandit camp over it
-    // (map.ts, mapFairness.test.ts), so the twelve gold in `cost` cannot be
-    // had anywhere else: every monument is paid for out of the one seam
-    // every seat wants. Pinning the SITE there as well only decided where
-    // the plinth stood, and it decided it the one way that made the win
-    // unplayable — a 240-hp building, raised over ninety seconds, announced
-    // to every rival on its first delivery (visibility.ts), standing on the
-    // ground furthest from anyone's soldiers.
+    // but the contest is already in the price. Worldgen deals gold once and
+    // never at home — in a rival valley it is the middle, under the bandit
+    // camp, equidistant from every start (map.ts, mapFairness.test.ts); in
+    // solo it is the classic ring twelve to eighteen tiles off a base that
+    // sits at the centre itself — so the twelve gold in `cost` are a haul
+    // wherever the plinth goes up. Pinning the SITE to the seam as well
+    // only decided where the plinth stood, and on a rival map it decided it
+    // the one way that made the win unplayable — a 240-hp building, raised
+    // over ninety seconds, announced to every rival on its first delivery
+    // (visibility.ts), standing on the ground furthest from anyone's
+    // soldiers.
   },
   [B.roadSite]: {
     id: B.roadSite,

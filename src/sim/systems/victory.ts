@@ -27,7 +27,7 @@ import {latchObjectives} from './objectives.ts';
  * contest belongs BEFORE the last stone and not after. Every rival is told
  * the moment a monument site takes its first delivery (visibility.ts), so
  * what they get is the whole raising — the hauling of sixty-odd goods,
- * twelve of them gold that only the middle of the map holds, and ninety
+ * twelve of them gold, which no map ever deals at home, and ninety
  * seconds of masonry — to march on a frame standing at a fifth of its hit
  * points. A hold instead put the contest after completion, which is the
  * worst of both: the builder had the entire raising unobserved to garrison

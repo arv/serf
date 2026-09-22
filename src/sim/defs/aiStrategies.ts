@@ -1248,13 +1248,16 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       {
         // Home ground, not the seam. The Monument has no placement rule of
         // its own any more (defs/buildings.ts), and the gold anchor was
-        // siting the one building this playbook exists for out at the
-        // middle of the map — the furthest point from the garrison that
-        // `holdsGround` keeps standing at the keep. It goes up inside the
-        // town now, where the soldiers already are and where the stone and
-        // the bread are already stacked; the gold still has to be carted
-        // home from the middle, which is the haul the plan was always
-        // about.
+        // siting the one building this playbook exists for out at the seam
+        // — the `gold` anchor's own note above says what that means: a
+        // dozen-odd tiles out on a solo map whose base IS the centre, and
+        // roughly twice that in a rival valley, where the seam is the
+        // contested middle under the bandit camp. Either way it is ground
+        // the garrison `holdsGround` keeps at the keep never reaches. It
+        // goes up inside the town now, where the soldiers already are and
+        // where the stone and the bread are already stacked; the gold
+        // still has to be carted home from the seam, which is the haul the
+        // plan was always about.
         type: BuildingTypeId.monument,
         count: 1,
         anchor: BuildAnchorNs.base,

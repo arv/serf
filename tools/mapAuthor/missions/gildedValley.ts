@@ -17,9 +17,10 @@
  * gold walk home, and the player picks which.
  *
  * The camp sits north-east, off the town-to-knap diagonal rather than on
- * it, and the same forty-four tiles from the keep as from the shelf. So it threatens both the town and the haul and gates neither: a
- * player who wants to raze it may, and a player who would rather out-build
- * it may do that instead. That choice is the commission. (The distance is
+ * it, and the same forty-four tiles from the keep as from the shelf. So it
+ * threatens both the town and the haul and gates neither: a player who
+ * wants to raze it may, and a player who would rather out-build it may do
+ * that instead. That choice is the commission. (The distance is
  * not decoration — the shipped bandit missions both march about forty-four,
  * and a camp at twenty-five has guards whose reach covers ground the town
  * wants to work. Serfs walk into it and die by the dozen, which reads as a

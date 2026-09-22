@@ -102,7 +102,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.roadSite]:
     'A single tile of paving, placed by the Masonry road pass rather than by hand. When it finishes, the trail beneath it is stone for good.',
   [BuildingTypeId.monument]:
-    'The other way to win: finish it and the valley is yours without razing a thing. Raise it wherever you like — the gold in its price comes from the one seam in the middle of the map either way. Every rival is told the moment the first load lands, and a half-built one has a fifth of its finished hit points.',
+    'The other way to win: finish it and the valley is yours without razing a thing. Raise it wherever you like — the gold in its price is dug and carted from the seam either way. Every rival is told the moment the first load lands, and a half-built one has a fifth of its finished hit points.',
   [BuildingTypeId.salvage]:
     'What a demolition leaves behind: half the materials and everything the building held, piled where it stood. Serfs cart it to the stores, or a nearby site draws on it directly.',
 };

@@ -23,14 +23,15 @@
  * 76: the Monument stands where its owner likes.
  *
  * It had a placement rule no other building has — a gold seam within four
- * tiles of the footprint — and worldgen deals exactly one gold cluster,
- * dead centre, with the bandit camp over it (sim/map.ts). So the one
- * building the economy can win with could only be raised on the ground
- * furthest from anybody's soldiers: 240 hit points, ninety seconds of
+ * tiles of the footprint — and worldgen deals gold once and never at home:
+ * dead centre with the bandit camp over it in a rival valley, and the
+ * classic ring a dozen-odd tiles out in solo, where the base is the centre
+ * (sim/map.ts). So the one building the economy can win with could only be
+ * raised out where nobody's soldiers are: 240 hit points, ninety seconds of
  * masonry, and a site that tells every rival about itself on its first
  * delivery (visibility.ts). The contest that rule was for is already in
- * the price — the twelve gold come out of that same middle wherever the
- * plinth goes up — so the rule is gone and the ground is free.
+ * the price — the twelve gold come off that same seam wherever the plinth
+ * goes up — so the rule is gone and the ground is free.
  *
  * Three things move in the sim with it, and WORLD_SAVE_VERSION moves to 10
  * with them: a 9 written before this build may carry the tailings byte in
