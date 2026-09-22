@@ -106,7 +106,7 @@ const WAR: Row[] = [
   },
   {
     label: 'Trusts a sighting for',
-    note: 'How long what a scout saw still counts. It never changes what a lord can SEE, only how long it remembers, and a lord that forgets stops re-arming against what you field.',
+    note: 'How long what a scout saw still counts. It never changes what a lord can see, only how long it remembers, and a lord that forgets stops re-arming against what you field.',
     value: (_s, _d, id) => fmtSecs(scaleIntelTrust(AI_INTEL.trustFor, id)),
   },
   {
