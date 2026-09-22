@@ -11,6 +11,7 @@ import {DifficultyPage} from './pages/DifficultyPage';
 import {GoodPage} from './pages/GoodPage';
 import {GoodsPage} from './pages/GoodsPage';
 import {IndexPage} from './pages/IndexPage';
+import {LicensePage} from './pages/LicensePage';
 import {TechsPage} from './pages/TechsPage';
 import {UnitPage} from './pages/UnitPage';
 import {UnitsPage} from './pages/UnitsPage';
@@ -45,6 +46,7 @@ const NAV: {href: string; label: string; section: DocsRoute['page'][]}[] = [
     section: ['difficulty'],
   },
   {href: '/docs/credits', label: 'Credits', section: ['credits']},
+  {href: '/docs/license', label: 'License', section: ['license']},
 ];
 
 function pageTitle(route: DocsRoute): string {
@@ -73,6 +75,8 @@ function pageTitle(route: DocsRoute): string {
       return 'Difficulty';
     case 'credits':
       return 'Credits';
+    case 'license':
+      return 'License';
     case 'missing':
       return 'Not found';
   }
@@ -173,6 +177,9 @@ function DocsApp(props: {route: Accessor<DocsRoute>}): JSX.Element {
             </Match>
             <Match when={props.route().page === 'credits'}>
               <CreditsPage />
+            </Match>
+            <Match when={props.route().page === 'license'}>
+              <LicensePage />
             </Match>
             <Match
               when={(() => {

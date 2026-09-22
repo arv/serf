@@ -125,6 +125,7 @@ describe('the docs router', () => {
     expect(parseDocsPath('/docs/basics')).toEqual({page: 'basics'});
     expect(parseDocsPath('/docs/difficulty')).toEqual({page: 'difficulty'});
     expect(parseDocsPath('/docs/credits')).toEqual({page: 'credits'});
+    expect(parseDocsPath('/docs/license')).toEqual({page: 'license'});
   });
 
   it('turns typos into the missing page, not a throw', () => {
@@ -133,5 +134,6 @@ describe('the docs router', () => {
     expect(parseDocsPath('/docs/nothing').page).toBe('missing');
     expect(parseDocsPath('/docs/buildings/bakery/extra').page).toBe('missing');
     expect(parseDocsPath('/docs/difficulty/hard').page).toBe('missing');
+    expect(parseDocsPath('/docs/license/apache').page).toBe('missing');
   });
 });

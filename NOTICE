@@ -1,0 +1,18 @@
+Serf Valley
+Copyright 2026 Erik Arvidsson
+
+Licensed under the Apache License, Version 2.0 (the "License"); see the
+LICENSE file in this directory, or http://www.apache.org/licenses/LICENSE-2.0
+
+This product bundles third-party work that is NOT covered by the Apache
+License above and keeps its own terms:
+
+  - KayKit models (Kay Lousberg) — CC0 1.0; see public/models/kaykit/LICENSE.txt
+  - Audio samples (Kenney) — CC0 1.0; see public/audio/LICENSE.txt
+  - Space Grotesk (The Space Grotesk Project Authors) — SIL Open Font
+    License 1.1; see public/fonts/OFL-SpaceGrotesk.txt
+  - Marcellus (Brian J. Bonislawsky, Astigmatic) — SIL Open Font
+    License 1.1; see public/fonts/OFL-Marcellus.txt
+
+three.js (MIT) and SolidJS (MIT) are dependencies rather than bundled
+source; their licenses travel with the packages.

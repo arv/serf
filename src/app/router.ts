@@ -155,6 +155,36 @@ export function goto(url: string, opts: {force?: boolean} = {}): void {
   void run();
 }
 
+/**
+ * Hand a plain left click on an anchor to the router, and leave every
+ * other click to the browser.
+ *
+ * An in-document link is a real `<a href>` on purpose: middle-click opens
+ * a tab, right-click copies the address, and a modified click does
+ * whatever that modifier means on this platform. Only the unmodified
+ * primary click is ours to take, and taking it is what makes the
+ * navigation cost no document under the pushState fallback, which
+ * intercepts nothing on its own.
+ *
+ * `before` runs between the preventDefault and the navigation, for the
+ * callers that have something to hand back first — the start menu
+ * releases its live backdrop, which the next screen wants the GPU for.
+ *
+ * The url is passed per call rather than captured when the handler is
+ * built: an anchor's href is a prop, and props move.
+ */
+export function routeClick(
+  e: MouseEvent,
+  url: string,
+  before?: () => void,
+): void {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    return;
+  e.preventDefault();
+  before?.();
+  goto(url);
+}
+
 /** True where a screen change costs no document. Only for telling the
  * player what to expect — every path works either way. */
 export function inDocumentNavigation(): boolean {

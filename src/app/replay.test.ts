@@ -3,11 +3,13 @@ import {REPLAY_VERSION} from '../shared/replayVersion';
 import {AiSeats} from '../sim/aiSeats';
 import * as CommandKind from '../sim/commandKindEnum.ts';
 import type {SimCommand} from '../sim/commands';
+import {TICKS_PER_SECOND} from '../sim/defs/balance';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import {tickWorld, type PlayerCommand} from '../sim/tick';
 import {createWorld, type World, type WorldConfig} from '../sim/world';
 import {
+  MAX_REPLAY_TICKS,
   parseReplay,
   readReplayVersion,
   serializeReplay,
@@ -72,6 +74,32 @@ describe('replay format', () => {
         }),
       ),
     ).toBeNull(); // players missing
+  });
+
+  it('refuses a recording that claims to run for ever', () => {
+    // endTick is where playback stops, and it is a number in a file that
+    // may have been written by anyone: since the shelf takes uploads from
+    // strangers, a ten-line replay claiming the end of time is a row that
+    // looks ordinary and then never stops playing. Refused at the same
+    // gate as any other malformed field, so it is refused for the upload
+    // and for the hand-edited local file alike.
+    const forever = {...sample(), endTick: Number.MAX_SAFE_INTEGER};
+    expect(parseReplay(JSON.stringify(forever))).toBeNull();
+    expect(
+      parseReplay(JSON.stringify({...sample(), endTick: MAX_REPLAY_TICKS + 1})),
+    ).toBeNull();
+    // And the horizon itself still parses: the screen is a ceiling, not an
+    // off-by-one that clips the longest honest match.
+    expect(
+      parseReplay(JSON.stringify({...sample(), endTick: MAX_REPLAY_TICKS}))
+        ?.endTick,
+    ).toBe(MAX_REPLAY_TICKS);
+  });
+
+  it('puts that horizon a day of sim time out', () => {
+    // Stated in hours rather than ticks, so a change to the tick rate
+    // moves the constant rather than the rule.
+    expect(MAX_REPLAY_TICKS / TICKS_PER_SECOND / 3600).toBe(24);
   });
 
   it('screens garbled commands and keeps the rest', () => {
