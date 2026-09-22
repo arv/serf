@@ -76,13 +76,39 @@ function opponents(row: UploadedReplay): string {
   return named.length > 0 ? named.join(', ') : 'nobody';
 }
 
-function Row(props: {row: UploadedReplay; key: string | null}): JSX.Element {
+/**
+ * The parts of the shelf's own address that have to survive the hop into
+ * playback.
+ *
+ * `key` because the recording is fetched over the same guarded route the
+ * listing came from, and `relay` because it is what chose the server in
+ * the first place: a shelf opened at /all-replays?relay=… lists that
+ * relay's recordings, and a Watch link without it would send playback to
+ * the default one to ask for an id only the other server has.
+ *
+ * Rebuilt rather than forwarded whole: the rest of the shelf's query is
+ * the shelf's own business, and a launch parameter left in it would make
+ * the next screen something other than the replay that was clicked.
+ */
+function carriedParams(search: string): string {
+  const from = new URLSearchParams(search);
+  const out = new URLSearchParams();
+  for (const name of ['key', 'relay']) {
+    const value = from.get(name);
+    if (value !== null && value !== '') out.set(name, value);
+  }
+  return out.toString();
+}
+
+function Row(props: {
+  row: UploadedReplay;
+  key: string | null;
+  carry: string;
+}): JSX.Element {
   const playable = (): boolean => props.row.replayVersion === REPLAY_VERSION;
   const href = (): string =>
     `/?uploaded=${encodeURIComponent(props.row.id)}` +
-    (props.key !== null && props.key !== ''
-      ? `&key=${encodeURIComponent(props.key)}`
-      : '');
+    (props.carry !== '' ? `&${props.carry}` : '');
   return (
     <div
       class="row"
@@ -158,7 +184,7 @@ function Row(props: {row: UploadedReplay; key: string | null}): JSX.Element {
   );
 }
 
-function ShelfApp(props: {key: string | null}): JSX.Element {
+function ShelfApp(props: {key: string | null; carry: string}): JSX.Element {
   // A counter the resource refetches on, so "Refresh" is one signal write
   // rather than a second copy of the fetch.
   const [nonce, setNonce] = createSignal(0);
@@ -215,7 +241,7 @@ function ShelfApp(props: {key: string | null}): JSX.Element {
             >
               <div class="table">
                 <For each={rows()!}>
-                  {row => <Row row={row} key={props.key} />}
+                  {row => <Row row={row} key={props.key} carry={props.carry} />}
                 </For>
               </div>
             </Show>
@@ -236,7 +262,8 @@ export function mountUploadedReplays(): {dispose(): void} {
   const priorTitle = document.title;
   document.title = 'Uploaded replays · Serf Valley';
   const key = new URLSearchParams(location.search).get('key');
-  const disposeApp = render(() => <ShelfApp key={key} />, root);
+  const carry = carriedParams(location.search);
+  const disposeApp = render(() => <ShelfApp key={key} carry={carry} />, root);
   return {
     dispose(): void {
       disposeApp();

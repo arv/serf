@@ -36,6 +36,7 @@ import {
   readdir,
   rename,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import {join} from 'node:path';
@@ -68,6 +69,17 @@ export const MAX_STORED_BYTES = 256 * 1024 * 1024;
 /** Uploads one address may land in an hour. A match takes minutes, so this
  * is far above honest play and far below anything worth storing. */
 export const MAX_UPLOADS_PER_HOUR = 20;
+
+/**
+ * How old a half-finished record has to look before the sweep takes it
+ * for debris rather than for an upload still in flight.
+ *
+ * A store passes through both of the states the sweep hunts for — a
+ * scratch file before the rename, a replay with no summary between the
+ * rename and the meta write — and holds each for microseconds. Five
+ * minutes is far past any of that and far short of mattering to a disk.
+ */
+export const DEBRIS_GRACE_MS = 5 * 60 * 1000;
 
 /** How a recording reached the server: a local sim's own log, or a seat's
  * copy of a relayed match. The client says which — the two are otherwise
@@ -329,8 +341,58 @@ export async function readStoredReplay(id: string): Promise<string | null> {
 }
 
 /**
+ * Take away what a killed process left half-written.
+ *
+ * Two shapes, and the retention loop below is blind to both. A scratch
+ * file (`<id>.json.tmp`) ends in neither suffix storedIds knows, so it is
+ * never listed and never counted. A replay whose summary never landed IS
+ * listed, but its size is read from that missing summary — so it counts
+ * as zero bytes however many megabytes it really is, and the byte cap can
+ * be walked straight past by debris. Either way the loop stops as soon as
+ * the shelf looks to be inside its limits, and anything it miscounts
+ * stays for good.
+ *
+ * So both are swept here instead, by age rather than by budget: this is
+ * not retention, it is a failed write being finished. The grace period is
+ * what keeps it off an upload that is merely in progress.
+ *
+ * Returns how many records it removed.
+ */
+async function sweepDebris(dir: string, nowMs: number): Promise<number> {
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return 0; // nothing uploaded here yet
+  }
+  const present = new Set(entries);
+  const stale = async (name: string): Promise<boolean> => {
+    try {
+      const {mtimeMs} = await stat(join(dir, name));
+      return nowMs - mtimeMs > DEBRIS_GRACE_MS;
+    } catch {
+      return false; // gone already, or not ours to judge
+    }
+  };
+  let dropped = 0;
+  for (const entry of entries) {
+    const scratch = entry.endsWith(`${REPLAY_SUFFIX}.tmp`);
+    const orphan =
+      entry.endsWith(REPLAY_SUFFIX) &&
+      !entry.endsWith(META_SUFFIX) &&
+      isReplayId(entry.slice(0, -REPLAY_SUFFIX.length)) &&
+      !present.has(`${entry.slice(0, -REPLAY_SUFFIX.length)}${META_SUFFIX}`);
+    if (!scratch && !orphan) continue;
+    if (!(await stale(entry))) continue;
+    await rm(join(dir, entry), {force: true});
+    dropped++;
+  }
+  return dropped;
+}
+
+/**
  * Bring the shelf back inside its limits, oldest first. Returns how many
- * recordings were dropped.
+ * recordings were dropped, debris included.
  *
  * Both halves of a record go, and a record missing its meta counts as
  * zero bytes and is dropped like any other — which is how the debris of
@@ -342,11 +404,15 @@ export async function readStoredReplay(id: string): Promise<string | null> {
  * off the end would not be a test anyone runs.
  */
 export async function pruneStoredReplays(
-  limits: {count?: number; bytes?: number} = {},
+  limits: {count?: number; bytes?: number; nowMs?: number} = {},
 ): Promise<number> {
   const maxCount = limits.count ?? MAX_STORED_REPLAYS;
   const maxBytes = limits.bytes ?? MAX_STORED_BYTES;
   const dir = replayDir();
+  // Debris first, and unconditionally: the retention loop below stops the
+  // moment the shelf is inside its limits, so anything it does not count
+  // honestly would sit there forever behind that break.
+  let dropped = await sweepDebris(dir, limits.nowMs ?? Date.now());
   const ids = await storedIds(dir);
   const sizes = new Map<string, number>();
   let total = 0;
@@ -363,7 +429,6 @@ export async function pruneStoredReplays(
     total += bytes;
   }
   let count = ids.length;
-  let dropped = 0;
   for (const id of ids) {
     if (count <= maxCount && total <= maxBytes) break;
     await rm(join(dir, `${id}${REPLAY_SUFFIX}`), {force: true});

@@ -94,7 +94,11 @@ export function LicensePage(): JSX.Element {
       </p>
       <p>
         It happens quietly and it is allowed to fail: there is no prompt, and a
-        match played with the network off is simply never sent.
+        match played with the network off is simply never sent. Nor is a
+        multiplayer match you leave before it is decided. The recording of a
+        shared game is the server’s rather than yours, and it will not hand one
+        out while the outcome is still hidden from the people still playing, so
+        there is nothing to send.
       </p>
 
       <h2>What the recordings are for</h2>

@@ -114,6 +114,17 @@ describe('what the page promises about recording a match', () => {
     expect(read(PAGE)).toContain('half-minute');
   });
 
+  it('names the one match it says nothing about sending', () => {
+    // reportMatch() returns early for an abandoned networked match: the
+    // relay will not hand out a live room's log. Saying "quit after the
+    // first half-minute" and stopping there tells a player their
+    // multiplayer walk-outs are sent, which is false.
+    expect(read('src/app/matchScreen.ts')).toContain(
+      "if (ending === 'abandoned' && net) return;",
+    );
+    expect(read(PAGE)).toContain('multiplayer match you leave');
+  });
+
   it('tells the reader the one way to send nothing', () => {
     // There is no opt-out switch, so the page's answer has to be the true
     // one: solo play is a local sim and works with the network off.

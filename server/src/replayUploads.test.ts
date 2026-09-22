@@ -13,6 +13,7 @@ import {REPLAY_VERSION} from '../../src/shared/replayVersion.ts';
 import * as CommandKind from '../../src/sim/commandKindEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 import {
+  DEBRIS_GRACE_MS,
   MAX_UPLOADS_PER_HOUR,
   claimUploadSlot,
   isReplayId,
@@ -265,6 +266,44 @@ describe('pruning', () => {
     await writeFile(join(replayDir(), `${orphan}.json`), '{}');
     expect(await pruneStoredReplays({count: 2})).toBe(1);
     expect(await readStoredReplay(orphan)).toBeNull();
+  });
+
+  it('sweeps crash debris even while the shelf is inside its limits', async () => {
+    // The retention loop stops the moment the shelf looks to be within
+    // its limits, and it cannot see either of these honestly: a scratch
+    // file is not listed at all, and a replay with no summary is listed
+    // at zero bytes however many megabytes it really is. Left to the
+    // loop, both sit on the volume for good and the byte cap is a number
+    // the disk does not obey.
+    const ids = await fileSome(1);
+    const killed = mintReplayId(new Date(1));
+    await writeFile(join(replayDir(), `${killed}.json`), 'x'.repeat(4096));
+    await writeFile(join(replayDir(), `${killed}.json.tmp`), 'y'.repeat(4096));
+
+    // Far enough past the grace that neither reads as an upload still in
+    // flight. The shelf is well inside both limits, so the retention loop
+    // will not run at all.
+    const dropped = await pruneStoredReplays({
+      count: 50,
+      nowMs: Date.now() + DEBRIS_GRACE_MS + 60_000,
+    });
+    expect(dropped).toBe(2);
+    expect((await readdir(replayDir())).sort()).toEqual(
+      [`${ids[0]!}.json`, `${ids[0]!}.meta.json`].sort(),
+    );
+  });
+
+  it('leaves a half-written record alone while it may still be in flight', async () => {
+    // A store passes through both debris shapes on its way to finishing.
+    // Sweeping on sight would delete the upload that is mid-write.
+    const ids = await fileSome(1);
+    const live = mintReplayId(new Date(2));
+    await writeFile(join(replayDir(), `${live}.json`), 'x');
+    await writeFile(join(replayDir(), `${live}.json.tmp`), 'y');
+
+    expect(await pruneStoredReplays({count: 50})).toBe(0);
+    expect((await readdir(replayDir())).length).toBe(4);
+    void ids;
   });
 
   it('does nothing while the shelf is inside its limits', async () => {
