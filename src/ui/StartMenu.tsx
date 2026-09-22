@@ -336,13 +336,9 @@ const SHELVES: Record<ShelfKind, ShelfSpec> = {
     ctaIdle: 'Pick a replay',
     emptyTitle: 'No replays saved yet',
     emptyBody:
-      'Choose “Save replay” from a match’s menu and it is filed here under the date ' +
-      'it was saved. Single player allows it any time, multiplayer once the match is decided.',
-    hint:
-      'A replay re-runs the match exactly as it was played, with an extra speed beyond ' +
-      'fast forward.',
-    dropHint:
-      ' Drag one out of the list to save it as a file, or drop a replay file here to add it.',
+      'Saved from a match’s menu, filed by date. Single player any time, multiplayer once the match is decided.',
+    hint: 'Re-runs the match exactly as played, with an extra speed beyond fast forward.',
+    dropHint: ' Drag one out to save it as a file, or drop a replay file here.',
     import: importReplayFile,
     remove: deleteReplayFile,
     url: name => '?replay=' + encodeURIComponent(name),
@@ -356,11 +352,9 @@ const SHELVES: Record<ShelfKind, ShelfSpec> = {
     ctaIdle: 'Pick a save',
     emptyTitle: 'No villages saved yet',
     emptyBody:
-      'Choose “Save village” from a match’s menu and it is filed here under the date it ' +
-      'was saved. Saving again files another one, and never paves over the one before it.',
-    hint: 'Loading a save comes back into that village exactly as it stood, fog and all.',
-    dropHint:
-      ' Drag one out of the list to keep it as a file, or drop a saved game here to add it.',
+      'Saved from a match’s menu, filed by date. Saving again adds another, never overwrites.',
+    hint: 'Restores the village exactly as it stood, fog included.',
+    dropHint: ' Drag one out to keep it as a file, or drop a saved game here.',
     import: importSaveFile,
     remove: deleteSaveFile,
     url: name => '?load=' + encodeURIComponent(name),
@@ -1447,8 +1441,7 @@ export function StartMenu(props: StartMenuProps) {
                       <div class="s">
                         {shelfSpec()?.emptyBody}
                         {DRAG_OFFERED
-                          ? ` A ${shelfSpec()?.noun} someone shared with you can be dropped ` +
-                            'anywhere on this panel.'
+                          ? ` A shared ${shelfSpec()?.noun} can be dropped anywhere on this panel.`
                           : ''}
                       </div>
                     </div>
@@ -1464,7 +1457,7 @@ export function StartMenu(props: StartMenuProps) {
                     {shelfSpec()?.hint}
                     {DRAG_OFFERED ? shelfSpec()?.dropHint : ''}
                     {SHARE_OFFERED
-                      ? ` The share button hands a ${shelfSpec()?.noun} to another app or device.`
+                      ? ` Share hands a ${shelfSpec()?.noun} to another app or device.`
                       : ''}
                   </div>
                 </div>

@@ -358,10 +358,7 @@ export function Hud(props: {
       aria-hidden={nothingSelected()}
       tabindex={nothingSelected() ? -1 : undefined}
       {...tooltip(() => (
-        <TextTip
-          title="Deselect"
-          body="Lets the current selection go, so taps stop being move orders."
-        />
+        <TextTip title="Deselect" body="Clears the selection." />
       ))}
       onClick={() => props.onDeselect()}
     >
@@ -447,7 +444,7 @@ export function Hud(props: {
               {...tooltip(() => (
                 <TextTip
                   title="Map"
-                  body="The whole valley at a glance. Tap a spot to look there, or hold and drag to steer the camera."
+                  body="Tap a spot to look there, or hold and drag to steer the camera."
                 />
               ))}
               onClick={() => setMinimapOpen(!minimapOpen())}
@@ -467,7 +464,7 @@ export function Hud(props: {
               {...tooltip(() => (
                 <TextTip
                   title="Band select"
-                  body="Arm it, then drag a box over your people. The camera holds still for that one drag."
+                  body="Arm it, then drag a box over your people. The camera holds still."
                 />
               ))}
               onClick={() => setBandArm(!bandArm())}
@@ -479,7 +476,7 @@ export function Hud(props: {
             {...tooltip(() => (
               <TextTip
                 title="Muster the army"
-                body="Selects every soldier you own, wherever they are."
+                body="Selects your soldiers in the field."
               />
             ))}
             onClick={() => props.onSelectArmy()}
@@ -908,10 +905,10 @@ export function Hud(props: {
    * tab, a room plays on, a recording loses nothing at all. */
   const quitStakes = (): string =>
     replayMode()
-      ? 'The recording stays on the menu, so you can watch it again.'
+      ? 'The recording stays on the menu.'
       : netMode()
-        ? 'The room plays on without you, and your seat is held if you come back.'
-        : 'The village ends here, and anything unsaved is gone.';
+        ? 'The room plays on. Your seat is held.'
+        : 'The village ends here. Anything unsaved is lost.';
 
   return (
     <>
@@ -2167,8 +2164,8 @@ export function Hud(props: {
                   title="Population"
                   body={
                     population().pop >= population().cap
-                      ? 'Every bed is taken. Build a house before you hire again. Workers and soldiers take beds too: each one was a serf.'
-                      : `Everyone you own, from idle serfs to the workers inside your buildings and your soldiers. The castle sleeps ${BUILDING_DEFS[BuildingType.storehouse].housing} and each house adds ${BUILDING_DEFS[BuildingType.house].housing} more.`
+                      ? 'Every bed taken. Workers and soldiers occupy beds too.'
+                      : `Serfs, workers and soldiers. The castle sleeps ${BUILDING_DEFS[BuildingType.storehouse].housing}, each house adds ${BUILDING_DEFS[BuildingType.house].housing}.`
                   }
                 />
               ))}
@@ -2185,7 +2182,7 @@ export function Hud(props: {
               {...tooltip(() => (
                 <TextTip
                   title="The Ledger"
-                  body="Every good the village owns, grouped by kind. The strip above keeps only the handful you watch constantly."
+                  body="Every good the village owns, grouped by kind."
                 />
               ))}
               onClick={() => setEconomyPanelOpen(!economyPanelOpen())}
@@ -2240,7 +2237,7 @@ export function Hud(props: {
                     {...tooltip(() => (
                       <TextTip
                         title="Watching as"
-                        body="Whose village the goods strip, the tech tree and the warnings are about, and whose fog the valley is drawn through. Click a seat's people or buildings to follow them, or click here for the next seat along."
+                        body="The seat the goods strip, tech tree, warnings and fog follow. Click here for the next seat."
                       />
                     ))}
                     onClick={cycleSeat}
@@ -2260,8 +2257,8 @@ export function Hud(props: {
                         }
                         body={
                           (fogEnabled()
-                            ? 'Turns fog of war off to watch the whole map, rivals and all.'
-                            : 'Turns fog of war back on, so you see only what this seat saw.') +
+                            ? 'Fog of war off: the whole map, rivals and all.'
+                            : 'Fog of war on: only what this seat has seen.') +
                           (hasKeyboard() ? ' (F)' : '')
                         }
                       />
@@ -2397,7 +2394,7 @@ export function Hud(props: {
                 {...tooltip(() => (
                   <TextTip
                     title="Posts want tools"
-                    body="Buildings standing open until the Smith forges the tool their worker needs, or a hauler brings one. Sites count too, since each borrows a hammer while it rises."
+                    body="Posts waiting on a tool, and sites waiting on a hammer."
                   />
                 ))}
                 onClick={() => setEconomyPanelOpen(true)}
