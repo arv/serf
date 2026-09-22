@@ -1,5 +1,6 @@
 import {mkdtempSync, rmSync} from 'node:fs';
 import {createServer, type Server} from 'node:http';
+import {connect} from 'node:net';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
@@ -139,6 +140,70 @@ describe('uploading', () => {
     const huge = sampleReplay({savedAt: 'x'.repeat(MAX_UPLOAD_BYTES + 1024)});
     expect((await post(huge)).status).toBe(413);
   });
+
+  it('takes the connection with it when it refuses an oversized body', async () => {
+    // Stopping the read leaves the rest of the body unread on the socket,
+    // and node will not drain a body the handler has already touched. The
+    // 413 used to go out under keep-alive on a connection whose parser
+    // was still sitting on the abandoned body: the next request on it was
+    // never answered, and a client repeating the trick tied up one
+    // connection apiece.
+    //
+    // Driven down a raw socket rather than through fetch, because what is
+    // under test is the connection itself: the header a proxy would read,
+    // and whether the server actually hangs up.
+    const port = Number(new URL(base).port);
+    const sock = connect(port, '127.0.0.1');
+    await new Promise<void>(r => void sock.once('connect', () => r()));
+    let seen = '';
+    sock.on('data', d => {
+      seen += d.toString();
+    });
+    // The hang-up under test arrives mid-write, so the pump below is
+    // resetting a socket the server has already destroyed. That ECONNRESET
+    // is the behaviour being asserted, not a failure.
+    sock.on('error', () => undefined);
+    const claimed = MAX_UPLOAD_BYTES * 2;
+    sock.write(
+      `POST ${REPLAY_API_PREFIX}?source=solo HTTP/1.1\r\n` +
+        `Host: x\r\nContent-Type: text/plain\r\n` +
+        `Content-Length: ${claimed}\r\n\r\n`,
+    );
+    // Dribbled, so the cap trips long before the body is finished.
+    const chunk = Buffer.alloc(256 * 1024, 0x61);
+    let sent = 0;
+    const pump = setInterval(() => {
+      if (sent >= claimed || sock.destroyed || sock.writableEnded) {
+        clearInterval(pump);
+        return;
+      }
+      sock.write(chunk);
+      sent += chunk.length;
+    }, 1);
+    // Wait for the refusal, then for the hang-up that must follow it.
+    await new Promise<void>(resolve => {
+      const done = (): void => {
+        clearInterval(pump);
+        resolve();
+      };
+      sock.once('close', done);
+      setTimeout(done, 5_000);
+    });
+    clearInterval(pump);
+
+    // The hang-up is the assertion. Under keep-alive this socket stayed
+    // open with its parser stuck on the abandoned body, and a second
+    // request on it was never answered; `destroyed` was false here.
+    //
+    // Deliberately NOT asserting the 413 reached this client: closing
+    // while bytes are still arriving is answered by an RST, which
+    // discards whatever was in flight, so a client mid-body may see the
+    // hang-up and nothing else. The test above covers the status for a
+    // client that finished sending, which is the case a person debugging
+    // with curl is in.
+    expect(sock.destroyed).toBe(true);
+    sock.destroy();
+  }, 15_000);
 
   it('stops an address that will not stop', async () => {
     // The budget is per address and the loopback is one address, so the

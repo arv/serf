@@ -236,22 +236,38 @@ export async function storeReplay(
   // half-written replay under its real name would be listed and then
   // fail to parse on the one click that opened it.
   const tmp = join(dir, `${id}${REPLAY_SUFFIX}.tmp`);
+  const file = join(dir, `${id}${REPLAY_SUFFIX}`);
+  const meta = join(dir, `${id}${META_SUFFIX}`);
+  // Which of the two final names this call has actually put something
+  // under, so the failure path below takes away what it left and nothing
+  // else. A rename that threw has not touched the destination, and
+  // whatever may be standing there is not ours to remove.
+  let renamed = false;
   try {
     await mkdir(dir, {recursive: true});
     await writeFile(tmp, screened);
-    await rename(tmp, join(dir, `${id}${REPLAY_SUFFIX}`));
-    await writeFile(join(dir, `${id}${META_SUFFIX}`), JSON.stringify(summary));
+    await rename(tmp, file);
+    renamed = true;
+    await writeFile(meta, JSON.stringify(summary));
   } catch {
-    // The scratch file is named for an id nothing will mint again, and it
-    // ends in neither suffix the shelf knows — so a leftover is invisible
-    // to the listing AND to the prune, and would sit on the volume for
-    // good. Taken away here; only a process killed between the write and
-    // the rename can still leave one.
-    try {
-      await rm(tmp, {force: true});
-    } catch {
-      // Nothing to be done, and the upload already failed.
-    }
+    // Everything this call created, gone again.
+    //
+    // The scratch file is the easy half: it is named for an id nothing
+    // will mint twice and ends in neither suffix the shelf knows, so a
+    // leftover would sit on the volume unlisted for good.
+    //
+    // The replay under its real name is the half that matters, because
+    // the write most likely to fail here is the summary's, and by then
+    // the megabytes are already on disk. The prune does see such an
+    // orphan — storedIds matches any `<id>.json`, and a test covers it —
+    // but the prune only runs behind a SUCCESSFUL upload, and the
+    // failure that strands these is a full disk, where no upload
+    // succeeds. Left alone, every attempt would add another recording
+    // nobody can list to a volume that is already out of room.
+    await Promise.allSettled([
+      rm(tmp, {force: true}),
+      ...(renamed ? [rm(file, {force: true}), rm(meta, {force: true})] : []),
+    ]);
     return {ok: false, reason: 'storage'};
   }
   return {ok: true, summary};

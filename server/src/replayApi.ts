@@ -69,18 +69,28 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 }
 
 /**
+ * How a body ended, because the two ways it can fail want different
+ * answers: one client is still there and owed a status, the other is
+ * already gone and owed nothing.
+ */
+type BodyResult =
+  | {ok: true; body: string}
+  | {ok: false; reason: 'too-large' | 'aborted'};
+
+/**
  * The request body, up to the cap.
  *
- * Resolves null the moment the cap is passed rather than after the whole
- * thing has arrived: the point of a limit is not to read what it refuses.
- * The socket is left for the caller to answer on and close.
+ * Stops the moment the cap is passed rather than waiting for the whole
+ * thing to arrive: the point of a limit is not to read what it refuses.
+ * What is left on the socket is then the caller's problem, and the answer
+ * is to close rather than to drain — see refuseOversized.
  */
-function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
+function readBody(req: IncomingMessage, limit: number): Promise<BodyResult> {
   return new Promise(resolve => {
     const chunks: Buffer[] = [];
     let size = 0;
     let done = false;
-    const finish = (value: string | null): void => {
+    const finish = (value: BodyResult): void => {
       if (done) return;
       done = true;
       resolve(value);
@@ -90,17 +100,48 @@ function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
       size += chunk.length;
       if (size > limit) {
         req.pause();
-        finish(null);
+        finish({ok: false, reason: 'too-large'});
         return;
       }
       chunks.push(chunk);
     });
-    req.on('end', () => finish(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () =>
+      finish({ok: true, body: Buffer.concat(chunks).toString('utf8')}),
+    );
     // A connection that dies mid-body is an upload that never happened;
     // the promise must still settle or the handler leaks.
-    req.on('error', () => finish(null));
-    req.on('aborted', () => finish(null));
+    req.on('error', () => finish({ok: false, reason: 'aborted'}));
+    req.on('aborted', () => finish({ok: false, reason: 'aborted'}));
   });
+}
+
+/**
+ * Refuse a body past the cap, and take the connection with it.
+ *
+ * Stopping the read leaves the rest of the body unread on the socket, and
+ * node only drains a body by itself for a handler that never touched it
+ * (`req._dump()` in _http_server's resOnFinish, skipped once the request
+ * has been consumed). So the 413 used to go out under `keep-alive` on a
+ * connection whose parser was still sitting on the abandoned body: the
+ * next request on it was never answered, and a client repeating the trick
+ * tied up one connection per attempt. Measured, not reasoned about.
+ *
+ * Draining instead would mean reading the very bytes the cap exists to
+ * refuse, which is the wrong way round when the cap is 8 MB and the body
+ * claims a gigabyte. So the refusal is the connection's last word, and
+ * the header is all it takes to make it one: node closes the socket
+ * itself once a response goes out under `close`, whether or not the
+ * client had finished sending. Measured both ways round.
+ *
+ * The cost is that a client still mid-body may never read the 413 — a
+ * close with unread bytes still arriving is answered by an RST, and an
+ * RST discards whatever was in flight. Acceptable, and not really a cost
+ * at all here: the game never looks at the answer (replayUpload.ts), and
+ * a client that finished sending does get it.
+ */
+function refuseOversized(res: ServerResponse): void {
+  res.setHeader('connection', 'close');
+  sendJson(res, 413, {error: 'too large'});
 }
 
 /**
@@ -185,11 +226,15 @@ async function handleUpload(
     sendJson(res, 429, {error: 'too many uploads'});
     return;
   }
-  const body = await readBody(req, MAX_UPLOAD_BYTES);
-  if (body === null) {
-    sendJson(res, 413, {error: 'too large'});
+  const read = await readBody(req, MAX_UPLOAD_BYTES);
+  if (!read.ok) {
+    // A client that vanished mid-body is owed nothing and cannot be told
+    // anything; only the one still on the socket gets a status.
+    if (read.reason === 'too-large') refuseOversized(res);
+    else res.end();
     return;
   }
+  const {body} = read;
   const stored = await storeReplay(body, {
     source: sourceFrom(params),
     ending: endingFrom(params),
