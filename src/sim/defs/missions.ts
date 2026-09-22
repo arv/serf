@@ -521,15 +521,19 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     title: 'The Gilded Valley',
     briefing:
       'There is gold at the far end of this valley, and the crown has ' +
-      'tired of being told about camps. Dig it, gild a monument on the ' +
-      'knap above the seam, and finish it. The bandits will hear the first ' +
-      'cartload land, and so will everyone else. Raze them or outwork ' +
-      'them, reeve. The commission is the stone.',
+      'tired of being told about camps. Dig it, gild a monument with it, ' +
+      'and finish it — raise it where you please. The bandits will hear ' +
+      'the first cartload land, and so will everyone else. Raze them or ' +
+      'outwork them, reeve. The commission is the stone.',
     tagline: 'Win by finishing a Monument, not by razing a camp.',
     // The ground is the argument (mapAuthor/missions/gildedValley.ts): the
     // town's own trades are all within a dozen tiles, and the gold knap is
     // out at the far south-east with a levelled shelf beside it. The only
-    // long haul on the map is the one this mission is about.
+    // long haul on the map is the one this mission is about — the gold
+    // itself, whichever end of that road the plinth goes up on. The shelf
+    // is an offer now rather than the rule it was drawn for: the Monument
+    // has no ground rule any more (defs/buildings.ts), so raising it out
+    // there trades the carts' road for the soldiers'.
     seed: 507,
     players: [{kind: PlayerKind.human}],
     bandits: true,
@@ -539,8 +543,8 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     //
     // Forty-four tiles out, the same march the Levy and Hold the Valley
     // ask for, and deliberately equidistant from the keep (43.9) and the
-    // Monument's shelf (44.0) — the raiders threaten the haul and the town
-    // alike. A nearer camp is not a harder mission but a broken one: the
+    // shelf above the seam (44.0) — the raiders threaten the haul and the
+    // town alike. A nearer camp is not a harder mission but a broken one: the
     // guards' reach covers the ground the town wants to work, and serfs
     // walk into it and die by the dozen long before the first wave.
     campSpot: {x: 112, y: 52},

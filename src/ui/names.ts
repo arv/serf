@@ -129,9 +129,9 @@ export function seatName(
  * reaches for one is talking about ground rather than a single tile ("no
  * iron seams within 4 tiles").
  *
- * Here rather than beside its first caller because it has two now: the
- * build tooltip, which says what a gatherer needs to reach, and the
- * refusal a placement gives when a monument is put down off the gold.
+ * Here rather than beside its caller because it is the build tooltip's
+ * word for what a gatherer has to reach, and a tooltip is not the only
+ * place that will ever want it.
  */
 export const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
   [TileResource.Wood]: 'woods',
@@ -139,7 +139,4 @@ export const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
   [TileResource.IronDep]: 'iron seams',
   [TileResource.SilverDep]: 'silver seams',
   [TileResource.GoldDep]: 'gold seams',
-  // Tailings — a gold seam that has been worked out. Named because the
-  // Monument still stands on it (TileResource.GoldSpoil).
-  [TileResource.GoldSpoil]: 'worked-out gold seams',
 };

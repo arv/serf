@@ -846,8 +846,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // field rather than a change to what the field means. A version bump
 // would be the wrong answer even for the crafted file it does refuse,
 // since bumping stops EVERY old replay rather than that one.
-const EXPECTED_VERSION = 75;
-const EXPECTED_HASH = '5ba070c7c06c31340b2709ed5233bbc3';
+// 76 for the Monument losing its ground rule: a spot the placement pass
+// used to refuse now takes the building, so a command an old log had
+// dropped is executed, and the tailings a worked-out gold seam left behind
+// are gone with the one rule that read them (replayVersion.ts at length).
+const EXPECTED_VERSION = 76;
+const EXPECTED_HASH = '8c6be4a730b11797a1958efb36585df0';
 
 /**
  * Everything a replay's playback depends on, as raw source:

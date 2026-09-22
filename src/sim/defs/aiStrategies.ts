@@ -1246,10 +1246,18 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         after: TechId.deepMining,
       },
       {
+        // Home ground, not the seam. The Monument has no placement rule of
+        // its own any more (defs/buildings.ts), and the gold anchor was
+        // siting the one building this playbook exists for out at the
+        // middle of the map — the furthest point from the garrison that
+        // `holdsGround` keeps standing at the keep. It goes up inside the
+        // town now, where the soldiers already are and where the stone and
+        // the bread are already stacked; the gold still has to be carted
+        // home from the middle, which is the haul the plan was always
+        // about.
         type: BuildingTypeId.monument,
         count: 1,
-        anchor: BuildAnchorNs.gold,
-        radius: 6,
+        anchor: BuildAnchorNs.base,
         after: TechId.deepMining,
         // The mine before the plinth. The Monument is the one building
         // raised on credit (see the build loop in systems/ai.ts), which

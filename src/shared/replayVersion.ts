@@ -20,6 +20,36 @@
  * directly.
  */
 /**
+ * 76: the Monument stands where its owner likes.
+ *
+ * It had a placement rule no other building has — a gold seam within four
+ * tiles of the footprint — and worldgen deals exactly one gold cluster,
+ * dead centre, with the bandit camp over it (sim/map.ts). So the one
+ * building the economy can win with could only be raised on the ground
+ * furthest from anybody's soldiers: 240 hit points, ninety seconds of
+ * masonry, and a site that tells every rival about itself on its first
+ * delivery (visibility.ts). The contest that rule was for is already in
+ * the price — the twelve gold come out of that same middle wherever the
+ * plinth goes up — so the rule is gone and the ground is free.
+ *
+ * Three things move in the sim with it, and WORLD_SAVE_VERSION moves to 10
+ * with them: a 9 written before this build may carry the tailings byte in
+ * map.resource, and this build has no name for it. A spot that used to refuse a
+ * monument now takes one, so a command that was dropped is executed.
+ * `nearResource` and its refusal are gone from the placement pass with
+ * nothing left that uses them. And the tailings a worked-out gold seam
+ * left behind go with it: gold clears to bare ground like every other
+ * seam now (depleteResourceTile), which is a byte in map.resource that no
+ * longer appears, a tile that is no longer skipped by the scatter's
+ * removal pass, and one less exception in `resourceOccupies`.
+ *
+ * The Mason's build order re-anchors from the seam to its own keep
+ * (defs/aiStrategies.ts) — brain-side, and playback never runs a brain,
+ * but the placement rule below it is sim, so the version moves for the
+ * rule regardless.
+ *
+ * 75's note follows.
+ *
  * 75: a lake, or nothing — the puddles are gone from the valley.
  *
  * The heightfield floods whatever basin it draws, and left to itself it
@@ -1411,4 +1441,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 75;
+export const REPLAY_VERSION = 76;
