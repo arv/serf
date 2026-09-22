@@ -30,6 +30,7 @@ export type DocsRoute =
   | {page: 'basics'}
   | {page: 'difficulty'}
   | {page: 'credits'}
+  | {page: 'license'}
   | {page: 'missing'; path: string};
 
 export function parseDocsPath(pathname: string): DocsRoute {
@@ -75,6 +76,9 @@ export function parseDocsPath(pathname: string): DocsRoute {
       return {page: 'missing', path: pathname};
     case 'credits':
       if (id === undefined) return {page: 'credits'};
+      return {page: 'missing', path: pathname};
+    case 'license':
+      if (id === undefined) return {page: 'license'};
       return {page: 'missing', path: pathname};
     default:
       return {page: 'missing', path: pathname};

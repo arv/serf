@@ -560,6 +560,21 @@ lands mid-block unless a **blank line** separates it from the imports. The
 two workers (`src/app/simWorker.ts`, `src/app/netWorker.ts`) need theirs —
 a `<reference>` TypeScript no longer reads is a silent one.
 
+## License
+
+Serf Valley is licensed under the [Apache License, Version
+2.0](https://www.apache.org/licenses/LICENSE-2.0) — `LICENSE` at the repo
+root, with `NOTICE` naming what travels with it. The bundled models,
+audio and typefaces are not ours to license and keep their own terms (CC0
+and OFL; see Credits below).
+
+The game carries the same thing in player's words at `/docs/license` in
+the field guide, linked from the start screen's footer beside Credits.
+That page is also where the replay recording is disclosed — the archive
+above is silent by design, and a notice nobody can reach is not one.
+`build/licensing.test.ts` checks the page's claims against what the
+repository actually ships.
+
 ## Credits
 
 The game carries its own credits page — `/docs/credits` in the field guide,
@@ -574,5 +589,6 @@ also linked from the start screen's footer — with logos and links.
   fallback, so the samples only ever improve what is already audible
 - Renderer: [three.js](https://threejs.org) (MIT)
 - UI runtime: [SolidJS](https://www.solidjs.com) (MIT)
-- Typeface: [Space Grotesk](https://github.com/floriankarsten/space-grotesk)
-  by Florian Karsten (OFL 1.1) — `public/fonts/`
+- Typefaces: [Space Grotesk](https://github.com/floriankarsten/space-grotesk)
+  by Florian Karsten and Marcellus by Brian J. Bonislawsky (both OFL 1.1) —
+  `public/fonts/`, one licence file each

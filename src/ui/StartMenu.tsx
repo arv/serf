@@ -1727,6 +1727,28 @@ export function StartMenu(props: StartMenuProps) {
               }}
             >
               Credits
+            </a>{' '}
+            ·{' '}
+            {/* Beside Credits, and for a stronger reason than symmetry:
+                the page says what the game records of a match and sends
+                to the server, and a notice nobody can reach is not one. */}
+            <a
+              href="/docs/license"
+              onClick={e => {
+                if (
+                  e.button !== 0 ||
+                  e.metaKey ||
+                  e.ctrlKey ||
+                  e.shiftKey ||
+                  e.altKey
+                )
+                  return;
+                e.preventDefault();
+                releaseMenuBackdrop();
+                goto('/docs/license');
+              }}
+            >
+              License
             </a>
           </span>
         </div>
