@@ -23,7 +23,8 @@ type AiStrategyId = Enum<typeof AiStrategyId>;
  * The Monument shipped with nothing that could reach it: no playbook named
  * the building or Deep Mining, and the brain only researches from its own
  * `researchOrder`. What stood in the way once that was fixed is pinned
- * below, because each of it was measured and none of it is obvious.
+ * below, because each of those things was measured and none of them is
+ * obvious.
  */
 
 /** Play one solo campaign to the end, or to `maxTicks`. */

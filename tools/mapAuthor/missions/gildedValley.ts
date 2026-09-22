@@ -48,11 +48,13 @@ export function build(): Authored {
     // The gold knap, out at the far end. Low and bald — a rise you can
     // build beside rather than a peak you have to mine into.
     .mound(at(26, 22), 10, 0.22, 0.16)
-    // The town floor, and the knap's own shelf. The shelf is the one piece
-    // of ground this whole mission turns on: the Monument is 3x3, it is not
-    // a mine, so it needs FLAT ground — and it must be within four tiles of
-    // the seam below. Levelled generously so the site is a choice of a few
-    // tiles rather than a single pixel-hunt.
+    // The town floor, and the knap's own shelf. The shelf is what lets a
+    // player raise the Monument at the seam rather than at home: it is 3x3
+    // and not a mine, so it needs FLAT ground, and the knap itself has
+    // none. Levelled generously so the site out here is a choice of a few
+    // tiles rather than a single pixel-hunt. (It was drawn when the
+    // building had to stand within four tiles of the seam; that rule is
+    // gone, and the shelf is an offer now.)
     .level(keep, 11, 0.45, 6)
     .level(at(22, 19), 8, 0.42, 5)
     // The water: a beck down the middle of the valley, which the builders'
