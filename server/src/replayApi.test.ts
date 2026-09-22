@@ -31,11 +31,17 @@ let base: string;
 let dir: string;
 let priorStateDir: string | undefined;
 let priorKey: string | undefined;
+let priorTrust: string | undefined;
 
 beforeEach(async () => {
   priorStateDir = process.env.SERF_STATE_DIR;
   priorKey = process.env.SERF_REPLAY_KEY;
+  priorTrust = process.env.SERF_TRUST_PROXY;
   delete process.env.SERF_REPLAY_KEY;
+  // Pinned rather than left to whatever the suite happens to run under:
+  // these are the routes as a directly exposed server answers them, which
+  // is the deployment where a forwarded header is only a claim.
+  process.env.SERF_TRUST_PROXY = '0';
   dir = mkdtempSync(join(tmpdir(), 'serf-replay-api-'));
   process.env.SERF_STATE_DIR = dir;
   resetUploadBudgets();
@@ -56,6 +62,8 @@ beforeEach(async () => {
 afterEach(async () => {
   setLogSink(null);
   await new Promise<void>(resolve => void server.close(() => resolve()));
+  if (priorTrust === undefined) delete process.env.SERF_TRUST_PROXY;
+  else process.env.SERF_TRUST_PROXY = priorTrust;
   if (priorStateDir === undefined) delete process.env.SERF_STATE_DIR;
   else process.env.SERF_STATE_DIR = priorStateDir;
   if (priorKey === undefined) delete process.env.SERF_REPLAY_KEY;
@@ -218,6 +226,31 @@ describe('uploading', () => {
     expect(sock.destroyed).toBe(true);
     sock.destroy();
   }, 15_000);
+
+  it('does not sell a fresh budget for the price of a header', async () => {
+    // X-Forwarded-For is only evidence when a proxy wrote it. Exposed
+    // directly, as the README documents running this, nothing appends
+    // anything and the header is whatever the caller typed — so believing
+    // it let one client claim a new address per request and upload
+    // without limit, replacing a 256 MB shelf as often as it liked.
+    //
+    // No proxy in front (the suite pins SERF_TRUST_PROXY off), so the
+    // socket peer is the only address this process observed and every one
+    // of these requests shares it however they are labelled.
+    let refused = 0;
+    for (let i = 0; i < 25; i++) {
+      const res = await fetch(`${base}${REPLAY_API_PREFIX}?source=solo`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain;charset=UTF-8',
+          'x-forwarded-for': `203.0.113.${i}`,
+        },
+        body: sampleReplay(),
+      });
+      if (res.status === 429) refused++;
+    }
+    expect(refused).toBeGreaterThan(0);
+  });
 
   it('stops an address that will not stop', async () => {
     // The budget is per address and the loopback is one address, so the

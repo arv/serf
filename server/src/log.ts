@@ -73,25 +73,56 @@ export function logEvent(
 }
 
 /**
- * The address the request came from. Behind Railway's edge proxy the socket
- * peer is the proxy, and the client's address rides in X-Forwarded-For.
- * The rightmost entry is the one the proxy nearest to us appended — a
- * client can prepend anything it likes to that header, but it cannot
- * append after the proxy has, which is what makes that entry the one worth
- * believing and why it is consulted first. X-Real-IP is the same address
- * in one field when a proxy sets it, but nothing appends to it: a request
- * that arrives carrying its own is indistinguishable from one a proxy
- * wrote, so it is only ever the fallback, ahead of the bare socket peer.
+ * Whether anything in front of this process is writing the forwarded
+ * headers, and so whether they are evidence or just something the caller
+ * typed.
+ *
+ * Behind Railway's edge they are evidence: the proxy appends the peer it
+ * actually accepted, and a client cannot append after it. Run directly —
+ * `node server/src/index.ts` on a public port, which the README documents
+ * as a way to run this — nothing appends anything, and X-Forwarded-For is
+ * whatever the request felt like claiming. Believing it there hands every
+ * request a fresh identity for the asking, which costs the per-address
+ * upload budget (replayUploads.ts) the whole of what it is for.
+ *
+ * So the headers are disbelieved unless something says otherwise.
+ * SERF_TRUST_PROXY says so for any deployment that puts a proxy in front;
+ * a Railway one says so by stamping its own variables into the
+ * environment, so the arrangement this repo documents deploying to keeps
+ * working without a new setting to forget on the day it is deployed.
+ */
+function trustsProxyHeaders(): boolean {
+  const flag = process.env.SERF_TRUST_PROXY;
+  if (flag !== undefined && flag !== '')
+    return flag !== '0' && flag.toLowerCase() !== 'false';
+  return Object.keys(process.env).some(k => k.startsWith('RAILWAY_'));
+}
+
+/**
+ * The address the request came from. Behind a proxy we believe, the socket
+ * peer is that proxy and the client's address rides in X-Forwarded-For:
+ * the rightmost entry is the one the nearest proxy appended — a client can
+ * prepend anything it likes, but it cannot append after the proxy has,
+ * which is what makes that entry the one worth believing and why it is
+ * consulted first. X-Real-IP is the same address in one field when a proxy
+ * sets it, but nothing appends to it: a request that arrives carrying its
+ * own is indistinguishable from one a proxy wrote, so it is only ever the
+ * fallback, ahead of the bare socket peer.
+ *
+ * With no proxy to credit, none of that is true and the socket peer is the
+ * only address the process actually observed.
  */
 export function clientIp(req: IncomingMessage): string {
-  const parts = forwardedChain(req);
-  const last = parts[parts.length - 1];
-  if (last) return last;
-  const real = req.headers['x-real-ip'];
-  // Trimmed before it is judged: a header of nothing but spaces is not an
-  // address, and taking it at its length would blank the ip rather than
-  // fall through to the socket peer.
-  if (typeof real === 'string' && real.trim().length > 0) return real.trim();
+  if (trustsProxyHeaders()) {
+    const parts = forwardedChain(req);
+    const last = parts[parts.length - 1];
+    if (last) return last;
+    const real = req.headers['x-real-ip'];
+    // Trimmed before it is judged: a header of nothing but spaces is not
+    // an address, and taking it at its length would blank the ip rather
+    // than fall through to the socket peer.
+    if (typeof real === 'string' && real.trim().length > 0) return real.trim();
+  }
   return req.socket.remoteAddress ?? 'unknown';
 }
 
@@ -128,7 +159,11 @@ export function clientFields(req: IncomingMessage): ClientFields {
     ip: clientIp(req),
     ua: req.headers['user-agent'] ?? '',
   };
-  // Only when there is a chain to see — one hop is the ip already logged.
-  if (chain.length > 1) fields.forwardedFor = chain.join(', ');
+  // Only when it says something the ip does not: more than one hop behind
+  // a proxy we believe, and any hop at all when we do not, since a claim
+  // that was disbelieved is the most interesting thing about the request
+  // that made it and the one a log would otherwise lose.
+  if (chain.length > 1 || (chain.length === 1 && chain[0] !== fields.ip))
+    fields.forwardedFor = chain.join(', ');
   return fields;
 }
