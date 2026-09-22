@@ -787,7 +787,7 @@ export function SelectionPanel(props: {
                                 : 'Halts the site, frees the builder, stops new deliveries. Nothing delivered is lost.'
                               : levy()
                                 ? b().paused
-                                  ? 'Mans the tower with a free archer, or villagers until one is. Cannot be shot at.'
+                                  ? 'Mans the tower with a free archer, or villagers until one is. The men on the roof cannot be shot.'
                                   : 'Empties the roof. Archers leave as soldiers, villagers as serfs.'
                                 : b().paused
                                   ? 'Resumes production and deliveries.'

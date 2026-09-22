@@ -486,7 +486,7 @@ const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.barracks]:
     'Trains knights and spearmen. Archers train at the Archery Range.',
   [BuildingTypeId.archeryRange]: 'Trains archers, on its own queue.',
-  [BuildingTypeId.guardTower]: `Holds ${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers, at ×${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.damageMult ?? 1} damage and +${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.rangeBonus ?? 0} range. Cannot be shot back at. Villagers stand in when no archer is free.`,
+  [BuildingTypeId.guardTower]: `Holds ${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers, at ×${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.damageMult ?? 1} damage and +${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.rangeBonus ?? 0} range. They cannot be shot back at, though the tower can. Villagers stand in when no archer is free.`,
   [BuildingTypeId.house]: `+${BUILDING_DEFS[BuildingTypeId.house].housing} beds. Nobody lives in it.`,
   [BuildingTypeId.storehouse]: `Holds every good. +${BUILDING_DEFS[BuildingTypeId.storehouse].housing} beds. Lose it and you lose.`,
 };
