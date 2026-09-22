@@ -806,7 +806,7 @@ export function SelectionPanel(props: {
                       tip={() => (
                         <TextTip
                           title="Sell building"
-                          body="Half the build cost, floored per good, or half of what a site was delivered, plus everything it held. Dropped as salvage. Frees the worker and any garrison."
+                          body="Half the build cost, floored per good, or half of what a site has received so far, plus everything it held. Dropped as salvage. Frees the worker and any garrison."
                         />
                       )}
                     >
