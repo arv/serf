@@ -74,6 +74,19 @@ export const MAX_UPLOADS_PER_HOUR = 20;
  * indistinguishable, since a one-human room looks exactly like solo. */
 export type ReplaySource = 'solo' | 'net';
 
+/**
+ * How the match stopped: played to a winner, or walked out of.
+ *
+ * Both are filed. A match people leave is not a failed recording — it is
+ * the commoner event, and the one that says where a game loses someone —
+ * so the shelf keeps the distinction rather than collecting only the
+ * games that ended tidily. Networked matches are `decided` by
+ * construction: the relay hands out a room's log only once its outcome
+ * has nothing left to hide (rooms.ts, replayFor), so a seat that quits
+ * mid-match is answered with nothing and files nothing.
+ */
+export type ReplayEnding = 'decided' | 'abandoned';
+
 /** What the listing shows for one recording. Everything here is derived
  * from the replay itself at upload time, so the shelf never opens a
  * recording it is only naming. */
@@ -85,6 +98,7 @@ export interface ReplaySummary {
   /** Size of the stored replay, after screening. */
   bytes: number;
   source: ReplaySource;
+  ending: ReplayEnding;
   /** The REPLAY_VERSION it was recorded under. A build that plays a
    * different number cannot watch it — the shelf says so rather than
    * offering a link that fails on arrival. */
@@ -144,7 +158,12 @@ export function mintReplayId(now: Date): string {
 function summarize(
   id: string,
   replay: ReplayData,
-  opts: {bytes: number; uploadedMs: number; source: ReplaySource},
+  opts: {
+    bytes: number;
+    uploadedMs: number;
+    source: ReplaySource;
+    ending: ReplayEnding;
+  },
 ): ReplaySummary {
   const {config} = replay;
   let commands = 0;
@@ -154,6 +173,7 @@ function summarize(
     uploadedMs: opts.uploadedMs,
     bytes: opts.bytes,
     source: opts.source,
+    ending: opts.ending,
     replayVersion: replay.replayVersion,
     endTick: replay.endTick,
     seed: config.seed,
@@ -199,7 +219,7 @@ export type StoreResult =
  */
 export async function storeReplay(
   raw: string,
-  opts: {source: ReplaySource; nowMs: number},
+  opts: {source: ReplaySource; ending: ReplayEnding; nowMs: number},
 ): Promise<StoreResult> {
   const replay = parseReplay(raw);
   if (replay === null) return {ok: false, reason: 'unreadable'};
@@ -209,6 +229,7 @@ export async function storeReplay(
     bytes: Buffer.byteLength(screened),
     uploadedMs: opts.nowMs,
     source: opts.source,
+    ending: opts.ending,
   });
   const dir = replayDir();
   try {

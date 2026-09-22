@@ -1,10 +1,10 @@
 /**
  * The HTTP face of the replay shelf: one upload route the game posts to
- * without being asked, and two read routes the /replays page uses.
+ * without being asked, and two read routes the /all-replays page uses.
  *
- *   POST /api/all-replays?source=solo|net   file a finished match's recording
- *   GET  /api/all-replays                   the shelf, newest first
- *   GET  /api/all-replays/<id>              one recording, as playback reads it
+ *   POST /api/all-replays?source=…&ending=…  file a match's recording
+ *   GET  /api/all-replays                    the shelf, newest first
+ *   GET  /api/all-replays/<id>               one recording, as playback reads it
  *
  * The upload is deliberately the least ceremonious thing here. The client
  * sends it silently and never looks at the answer (src/app/replayUpload.ts),
@@ -28,6 +28,7 @@ import {
   pruneStoredReplays,
   readStoredReplay,
   storeReplay,
+  type ReplayEnding,
   type ReplaySource,
 } from './replayUploads.ts';
 
@@ -102,11 +103,22 @@ function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
   });
 }
 
-/** 'solo' or 'net' as the client claimed, and 'solo' for anything else —
- * the field is a label on a chart, and a garbled one is not worth a
- * refusal that would cost the recording. */
+/**
+ * The two labels the client puts on an upload, taken at their word where
+ * they are one of the values that exist and defaulted where they are not.
+ *
+ * Neither is worth a refusal: they are columns on a listing, and a
+ * garbled one costs a sort key, while refusing over it would cost the
+ * recording. `decided` is the safe default for the same reason it is the
+ * one an older client sends by saying nothing — a match on the shelf at
+ * least got as far as being filed.
+ */
 function sourceFrom(params: URLSearchParams): ReplaySource {
   return params.get('source') === 'net' ? 'net' : 'solo';
+}
+
+function endingFrom(params: URLSearchParams): ReplayEnding {
+  return params.get('ending') === 'abandoned' ? 'abandoned' : 'decided';
 }
 
 /**
@@ -180,6 +192,7 @@ async function handleUpload(
   }
   const stored = await storeReplay(body, {
     source: sourceFrom(params),
+    ending: endingFrom(params),
     nowMs: now,
   });
   if (!stored.ok) {
@@ -200,12 +213,14 @@ async function handleUpload(
   const {summary} = stored;
   logEvent(
     'replay_upload',
-    `replay ${summary.id} uploaded (${summary.source}, ${summary.endTick} ticks)`,
+    `replay ${summary.id} uploaded ` +
+      `(${summary.source}, ${summary.ending}, ${summary.endTick} ticks)`,
     {
       ip,
       ok: true,
       id: summary.id,
       source: summary.source,
+      ending: summary.ending,
       replayVersion: summary.replayVersion,
       endTick: summary.endTick,
       bytes: summary.bytes,

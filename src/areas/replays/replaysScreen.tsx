@@ -82,10 +82,21 @@ function Row(props: {row: UploadedReplay; key: string | null}): JSX.Element {
       ? `&key=${encodeURIComponent(props.key)}`
       : '');
   return (
-    <div class="row" classList={{stale: !playable()}}>
+    <div
+      class="row"
+      classList={{stale: !playable(), quit: props.row.ending === 'abandoned'}}
+    >
       <div class="cell when">
         <span class="strong">{when(props.row.uploadedMs)}</span>
-        <span class="sub">{props.row.source === 'net' ? 'relay' : 'solo'}</span>
+        <span class="sub">
+          {props.row.source === 'net' ? 'relay' : 'solo'}
+          {/* A match walked out of is marked; one played to a winner is
+              the unmarked case, since a row that says nothing about its
+              ending is one that ran its course. Recordings filed before
+              the shelf drew the distinction have no ending at all, and
+              read as decided. */}
+          {props.row.ending === 'abandoned' ? ' · quit' : ''}
+        </span>
       </div>
       <div class="cell what">
         <span class="strong">{billing(props.row)}</span>
@@ -166,6 +177,8 @@ function ShelfApp(props: {key: string | null}): JSX.Element {
   const [nonce, setNonce] = createSignal(0);
   const [rows] = createResource(nonce, () => fetchUploadedReplays(props.key));
   const total = (): number => rows()?.length ?? 0;
+  const quits = (): number =>
+    rows()?.filter(r => r.ending === 'abandoned').length ?? 0;
   return (
     <>
       <style>{SHELF_STYLE}</style>
@@ -213,15 +226,18 @@ function ShelfApp(props: {key: string | null}): JSX.Element {
             }
           >
             <p class="note">
-              {total()} recording{total() === 1 ? '' : 's'}, newest first. Every
-              finished match uploads itself; nothing here was filed by hand.
+              {total()} recording{total() === 1 ? '' : 's'}, newest first
+              {quits() > 0
+                ? `, ${quits()} of them quit rather than played out`
+                : ''}
+              . Every match uploads itself; nothing here was filed by hand.
             </p>
             <Show
               when={total() > 0}
               fallback={
                 <p class="note">
-                  Nothing yet. A match uploads when it is decided — played out
-                  to a winner, not quit halfway.
+                  Nothing yet. A match uploads when it ends — played out to a
+                  winner, or quit after the first half-minute.
                 </p>
               }
             >

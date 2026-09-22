@@ -106,13 +106,23 @@ describe('uploading', () => {
     expect(replays[0]!.endTick).toBe(400);
   });
 
-  it('believes the source only where it is one of the two', async () => {
-    await post(sampleReplay(), '?source=net');
-    await post(sampleReplay(), '?source=nonsense');
+  it('believes the two labels only where they name a value', async () => {
+    // Neither is worth refusing a recording over: they are columns on a
+    // listing, and a garbled one costs a sort key rather than a game.
+    await post(sampleReplay(), '?source=net&ending=abandoned');
+    await post(sampleReplay(), '?source=nonsense&ending=nonsense');
+    // An older client says neither, and a match on the shelf at least got
+    // as far as being filed.
+    await post(sampleReplay(), '');
     const {replays} = (await (
       await fetch(`${base}${REPLAY_API_PREFIX}`)
-    ).json()) as {replays: {source: string}[]};
-    expect(replays.map(r => r.source).sort()).toEqual(['net', 'solo']);
+    ).json()) as {replays: {source: string; ending: string}[]};
+    expect(replays.map(r => r.source).sort()).toEqual(['net', 'solo', 'solo']);
+    expect(replays.map(r => r.ending).sort()).toEqual([
+      'abandoned',
+      'decided',
+      'decided',
+    ]);
   });
 
   it('refuses a body that is not a replay', async () => {

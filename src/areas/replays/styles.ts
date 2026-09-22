@@ -47,6 +47,9 @@ export const SHELF_STYLE = `
   #shelf .row { grid-template-columns: 150px minmax(0,1fr) 92px 84px 84px 150px; }
 }
 #shelf .row.stale { opacity: 0.62; }
+/* A quit match is a quieter row than one played to a winner — still a
+   game, still watchable, just the commoner event. */
+#shelf .row.quit { border-left: 3px solid rgba(229,196,105,0.22); }
 #shelf .cell { display: flex; flex-direction: column; min-width: 0; }
 #shelf .cell.num { font-variant-numeric: tabular-nums; }
 @media (min-width: 720px) { #shelf .cell.num { text-align: right; } }

@@ -69,9 +69,16 @@ silently — see the archive section in the root README for why, and
 
 | route | what |
 | --- | --- |
-| `POST /api/all-replays?source=solo\|net` | file a finished match's recording |
+| `POST /api/all-replays?source=…&ending=…` | file a match's recording |
 | `GET /api/all-replays` | the shelf, newest first, as summaries |
 | `GET /api/all-replays/<id>` | one recording, as playback reads it |
+
+`source` is `solo` or `net`, `ending` is `decided` or `abandoned` — a
+match played to a winner, or one walked out of. Both are stored and both
+show on the shelf; a garbled label defaults rather than refusing the
+recording, since these are columns on a listing. Networked matches are
+`decided` by construction: the relay will not hand out a live room's log,
+so a seat that quits mid-match files nothing.
 
 The game never looks at the answer, so every limit is free to refuse: a
 refused upload costs an observation, never a game. The body is screened
@@ -115,7 +122,7 @@ Every field each event carries, in full:
 | `room_join` | a human took a seat | `conn`, `ip`, `room`, `playerId`, `humans` |
 | `rejoin` | a token came back | `conn`, `ip`, `found`, `room`, `playerId` |
 | `match_start` | the host started a match | `conn`, `ip`, `room`, `visibility`, `humans`, `ai`, `seats`, `seed`, `size`, `bandits`, `difficulty`, `bots`, `matchesStarted`, `runningRooms` |
-| `replay_upload` | a client handed up a finished match's recording | `ip`, `ok`, and on success `id`, `source`, `replayVersion`, `endTick`, `bytes`, `commands`, `seats`, `mission`, `difficulty` — on a refusal `reason` and `bytes` |
+| `replay_upload` | a client handed up a match's recording | `ip`, `ok`, and on success `id`, `source`, `ending`, `replayVersion`, `endTick`, `bytes`, `commands`, `seats`, `mission`, `difficulty` — on a refusal `reason` and `bytes` |
 
 `page_view` and `connect` also carry `forwardedFor` when the request
 crossed more than one proxy. Every line additionally has the fixed

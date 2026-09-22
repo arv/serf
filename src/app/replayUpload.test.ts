@@ -1,9 +1,12 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {TICK_MS} from '../sim/defs/balance';
 import {
+  MIN_ABANDONED_TICKS,
   apiOrigin,
   fetchUploadedReplay,
   fetchUploadedReplays,
   uploadReplay,
+  worthUploading,
 } from './replayUpload';
 
 /**
@@ -79,13 +82,41 @@ describe('where the server is', () => {
   });
 });
 
+describe('which matches are worth filing', () => {
+  it('files every decided match, however short', () => {
+    // Somebody won. How fast is one of the things the shelf is kept to
+    // answer, so a quick game is data rather than noise.
+    expect(worthUploading('decided', 0)).toBe(true);
+    expect(worthUploading('decided', 5)).toBe(true);
+  });
+
+  it('holds an abandoned one to half a minute of play', () => {
+    // A launch opened and backed straight out of is the commonest thing
+    // that happens to the match screen, and the shelf is finite.
+    expect(worthUploading('abandoned', 0)).toBe(false);
+    expect(worthUploading('abandoned', MIN_ABANDONED_TICKS - 1)).toBe(false);
+    expect(worthUploading('abandoned', MIN_ABANDONED_TICKS)).toBe(true);
+  });
+
+  it('puts that floor at thirty seconds of sim time', () => {
+    // Stated in seconds rather than ticks, so a change to the tick rate
+    // moves the constant rather than the rule.
+    expect(MIN_ABANDONED_TICKS * TICK_MS).toBe(30_000);
+  });
+});
+
 describe('uploading a finished match', () => {
-  it('posts the recording as text, with the source named', async () => {
+  it('posts the recording as text, with the source and ending named', async () => {
     stubFetch(() => jsonResponse({id: 'x'}));
-    await uploadReplay('{"format":"serf-replay"}', 'net');
+    await uploadReplay('{"format":"serf-replay"}', {
+      source: 'net',
+      ending: 'decided',
+    });
     expect(calls).toHaveLength(1);
     const [url, init] = calls[0]!;
-    expect(url).toBe('http://localhost:8787/api/all-replays?source=net');
+    expect(url).toBe(
+      'http://localhost:8787/api/all-replays?source=net&ending=decided',
+    );
     expect(init?.method).toBe('POST');
     // text/plain keeps it a CORS-simple request, so the dev setup costs no
     // preflight round trip.
@@ -100,20 +131,34 @@ describe('uploading a finished match', () => {
     // Empty is what the worker answers while it is playing a replay back,
     // and what the relay answers while a room's outcome is undecided.
     stubFetch(() => jsonResponse({}));
-    await uploadReplay('', 'solo');
+    await uploadReplay('', {source: 'solo', ending: 'decided'});
     expect(calls).toEqual([]);
+  });
+
+  it('says so when the match was walked out of', async () => {
+    // The shelf keeps the two apart: a game someone quit is different
+    // evidence from a game they played to a winner.
+    stubFetch(() => jsonResponse({id: 'x'}));
+    await uploadReplay('{"a":1}', {source: 'solo', ending: 'abandoned'});
+    expect(calls[0]![0]).toBe(
+      'http://localhost:8787/api/all-replays?source=solo&ending=abandoned',
+    );
   });
 
   it('swallows a network that is not there', async () => {
     // The whole contract: a player with no network plays the game they
     // would have played anyway, and hears nothing about this.
     stubFetch(() => Promise.reject(new Error('offline')));
-    await expect(uploadReplay('{"a":1}', 'solo')).resolves.toBeUndefined();
+    await expect(
+      uploadReplay('{"a":1}', {source: 'solo', ending: 'decided'}),
+    ).resolves.toBeUndefined();
   });
 
   it('swallows a server that refuses', async () => {
     stubFetch(() => jsonResponse({error: 'too many uploads'}, false));
-    await expect(uploadReplay('{"a":1}', 'solo')).resolves.toBeUndefined();
+    await expect(
+      uploadReplay('{"a":1}', {source: 'solo', ending: 'decided'}),
+    ).resolves.toBeUndefined();
   });
 });
 

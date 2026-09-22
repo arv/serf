@@ -387,20 +387,40 @@ its button is greyed out — and every refusal names which gate it hit.
 
 ### The replay archive
 
-Every match that plays out to a decision uploads its own recording to the
-server, silently, and it is allowed to fail. Nobody is told it happened —
-no toast, no spinner, nothing on the end card — and a player with no
-network, or a relay that is down, plays exactly the game they would have
-played anyway (`src/app/replayUpload.ts` swallows every error where it
-happens). Solo play is a local sim that never opens a socket, so without
-this the only trace of a game played start to finish is the page view that
-fetched the bundle.
+Every match uploads its own recording to the server, silently, and it is
+allowed to fail. Nobody is told it happened — no toast, no spinner,
+nothing on the end card — and a player with no network, or a relay that is
+down, plays exactly the game they would have played anyway
+(`src/app/replayUpload.ts` swallows every error where it happens). Solo
+play is a local sim that never opens a socket, so without this the only
+trace of a game played start to finish is the page view that fetched the
+bundle.
+
+Both endings are filed, and the shelf keeps them apart. A match played to
+a winner reports from the frame that says so, with the page still open
+behind the end card. A match walked out of — Quit to menu, Back, a launch
+into another screen — reports from the screen's teardown, which is the
+last moment the worker still holds the log: the recording is asked for
+before a single teardown step runs, and the worker's own terminate waits
+on that one round trip (up to two seconds) rather than killing the answer
+on its way back. A game people leave is not the lesser record — it is the
+commoner event, and the one that says where the game loses someone.
+
+Two things do not get filed. A quit inside the first thirty seconds of
+play, because a launch bounced off in three seconds is not a game and a
+finite shelf should not fill with them; and a networked match quit before
+it was decided, because the relay hands out a room's log only once the
+outcome has nothing left to hide, and that rule is worth more than the
+recording. A tab closed outright is not caught either: the recording lives
+in a worker, and neither the round trip that fetches it nor the request
+that would carry it survives an unload.
 
 The other end is `/all-replays`: a page listing every recording the server
-holds, newest first — when it arrived, how long it ran, who sat at the
-table, how many orders were given — with **Watch** on each row opening it
-in the ordinary replay screen (`?uploaded=<id>`, screened through the same
-`parseReplay` gate as any file off the player's own shelf). Nothing in the
+holds, newest first — when it arrived, whether it was played out or quit,
+how long it ran, who sat at the table, how many orders were given — with
+**Watch** on each row opening it in the ordinary replay screen
+(`?uploaded=<id>`, screened through the same `parseReplay` gate as any
+file off the player's own shelf). Nothing in the
 game links there; it is a URL you type. That is the difference between
 knowing the page was opened and knowing the game was played, and it is
 also the corpus the AI gets trained against.

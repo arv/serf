@@ -1,5 +1,5 @@
 /**
- * Handing a finished match up to the server, and reading the shelf back.
+ * Handing a match up to the server, and reading the shelf back.
  *
  * The upload is silent and it is allowed to fail. Nobody asked for it, so
  * nobody is told about it: no toast, no spinner, no line on the end card,
@@ -15,17 +15,34 @@
  * closed. The recording says the game was played, by whom, on what, and
  * move by move how — which is also, in time, a training set.
  *
+ * Both endings are filed, and worthUploading below is where the one rule
+ * about which matches are worth a row lives. A game walked out of is not
+ * a failed recording: it is the commoner event, and the one that says
+ * where the game loses someone.
+ *
  * The other half is the shelf: server/src/replayApi.ts lists what has been
  * uploaded, and areas/replays puts it on a page at /all-replays.
  */
 
 import {relayUrl} from '../net/lobbyClient';
+import {TICK_MS} from '../sim/defs/balance';
 
 /** What the client calls a recording's origin when it files one. Solo and
  * networked matches produce identical documents — a one-human room looks
  * exactly like a solo skirmish — so the shelf can only know which it was
  * if the uploader says. */
 export type ReplaySource = 'solo' | 'net';
+
+/**
+ * How the match the recording came from stopped.
+ *
+ * `decided` is a match played to a winner. `abandoned` is one walked out
+ * of — Quit to menu, Back, a launch into another screen — and it is not
+ * the lesser record: a game people leave says as much about how the game
+ * plays as a game they finish, and it is most of what actually happens.
+ * The shelf keeps them apart because the two are different evidence.
+ */
+export type ReplayEnding = 'decided' | 'abandoned';
 
 /** How the server describes one uploaded recording. Mirrors
  * ReplaySummary in server/src/replayUploads.ts; the shelf page is the
@@ -44,6 +61,35 @@ export interface UploadedReplay {
   seats: {kind: string; strategy?: string; difficulty?: string}[];
   commands: number;
   chat: number;
+  /** Absent on recordings filed before the shelf drew the distinction;
+   * the page reads a missing one as `decided`. */
+  ending?: ReplayEnding;
+}
+
+/**
+ * How far a match has to have got before quitting it is worth filing.
+ *
+ * Thirty seconds at the sim's own rate. The shelf a recording lands on is
+ * finite (server/src/replayUploads.ts prunes oldest-first), so a launch
+ * opened and backed straight out of — the commonest thing that happens to
+ * the match screen — would otherwise crowd out the games this exists to
+ * collect. Thirty seconds is short enough that a genuine "I did not like
+ * this" is still on the shelf, and long enough that a misclick is not.
+ */
+export const MIN_ABANDONED_TICKS = Math.round(30_000 / TICK_MS);
+
+/**
+ * Is a match that stopped here worth a row on the shelf?
+ *
+ * A decided match always is: however fast it went, somebody won, and how
+ * long a game took is exactly the kind of thing the shelf is kept to
+ * answer. An abandoned one has to clear the floor above — not because a
+ * short game is uninteresting, but because a launch bounced off in three
+ * seconds is not a game at all, and a hundred of them push real matches
+ * off the end of a finite shelf.
+ */
+export function worthUploading(ending: ReplayEnding, endTick: number): boolean {
+  return ending === 'decided' || endTick >= MIN_ABANDONED_TICKS;
 }
 
 /**
@@ -81,14 +127,15 @@ function withKey(url: string, key: string | null): string {
  */
 export async function uploadReplay(
   data: string,
-  source: ReplaySource,
+  opts: {source: ReplaySource; ending: ReplayEnding},
 ): Promise<void> {
   // Empty is what the worker answers when it has no recording to hand out
   // (it is playing one back) and what the server answers while a room's
   // outcome is undecided. Neither is a replay, and neither is an error.
   if (data === '') return;
   try {
-    await fetch(`${apiOrigin()}/api/all-replays?source=${source}`, {
+    const query = `?source=${opts.source}&ending=${opts.ending}`;
+    await fetch(`${apiOrigin()}/api/all-replays${query}`, {
       method: 'POST',
       headers: {'content-type': 'text/plain;charset=UTF-8'},
       body: data,

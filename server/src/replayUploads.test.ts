@@ -74,6 +74,7 @@ describe('filing an uploaded replay', () => {
   it('keeps a real recording and describes it', async () => {
     const stored = await storeReplay(serializeReplay(sampleReplay()), {
       source: 'solo',
+      ending: 'decided',
       nowMs: Date.UTC(2026, 0, 2, 3, 4, 5, 6),
     });
     expect(stored.ok).toBe(true);
@@ -81,6 +82,7 @@ describe('filing an uploaded replay', () => {
     const {summary} = stored;
     expect(isReplayId(summary.id)).toBe(true);
     expect(summary.source).toBe('solo');
+    expect(summary.ending).toBe('decided');
     expect(summary.replayVersion).toBe(REPLAY_VERSION);
     expect(summary.endTick).toBe(1200);
     expect(summary.seed).toBe(4242);
@@ -101,7 +103,11 @@ describe('filing an uploaded replay', () => {
 
   it('refuses anything that is not a replay, and files nothing', async () => {
     for (const body of ['', 'not json', '{}', '{"format":"something-else"}']) {
-      const stored = await storeReplay(body, {source: 'solo', nowMs: 1});
+      const stored = await storeReplay(body, {
+        source: 'solo',
+        ending: 'decided',
+        nowMs: 1,
+      });
       expect(stored.ok).toBe(false);
     }
     expect(await listStoredReplays()).toEqual([]);
@@ -117,6 +123,7 @@ describe('filing an uploaded replay', () => {
     };
     const stored = await storeReplay(JSON.stringify(doc), {
       source: 'solo',
+      ending: 'decided',
       nowMs: 1,
     });
     expect(stored.ok).toBe(true);
@@ -124,6 +131,20 @@ describe('filing an uploaded replay', () => {
     const raw = (await readStoredReplay(stored.summary.id))!;
     expect(raw).not.toContain('smuggled');
     expect(stored.summary.bytes).toBe(Buffer.byteLength(raw));
+  });
+
+  it('keeps a match that was walked out of, and says so', async () => {
+    // The commoner event, and the one that says where the game loses
+    // someone. It is a row like any other — the shelf only labels it.
+    const stored = await storeReplay(serializeReplay(sampleReplay()), {
+      source: 'solo',
+      ending: 'abandoned',
+      nowMs: 1,
+    });
+    expect(stored.ok).toBe(true);
+    if (!stored.ok) return;
+    expect(stored.summary.ending).toBe('abandoned');
+    expect((await listStoredReplays())[0]!.ending).toBe('abandoned');
   });
 
   it('drops a command the sim would not accept', async () => {
@@ -141,6 +162,7 @@ describe('filing an uploaded replay', () => {
     });
     const stored = await storeReplay(JSON.stringify(doc), {
       source: 'net',
+      ending: 'decided',
       nowMs: 1,
     });
     expect(stored.ok).toBe(true);
@@ -155,7 +177,7 @@ describe('the shelf', () => {
     for (let i = 0; i < 3; i++) {
       const stored = await storeReplay(
         serializeReplay(sampleReplay({endTick: 100 + i})),
-        {source: 'solo', nowMs: 1_000 + i * 1_000},
+        {source: 'solo', ending: 'decided', nowMs: 1_000 + i * 1_000},
       );
       expect(stored.ok).toBe(true);
       if (stored.ok) ids.push(stored.summary.id);
@@ -188,6 +210,7 @@ describe('the shelf', () => {
     const id = mintReplayId(new Date(1));
     await storeReplay(serializeReplay(sampleReplay()), {
       source: 'solo',
+      ending: 'decided',
       nowMs: 2,
     });
     await writeFile(join(replayDir(), `${id}.json`), '{}');
@@ -203,6 +226,7 @@ describe('pruning', () => {
     for (let i = 0; i < n; i++) {
       const stored = await storeReplay(serializeReplay(sampleReplay()), {
         source: 'solo',
+        ending: 'decided',
         nowMs: 1_000 + i * 1_000,
       });
       if (stored.ok) ids.push(stored.summary.id);
