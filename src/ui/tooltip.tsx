@@ -426,9 +426,10 @@ export function CostLine(props: {
 const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.water]: 'From the well. Wheat farms, the bakery, the brewery.',
   [GoodId.wheat]: 'From wheat farms. Milled to flour, brewed to ale.',
-  [GoodId.wood]: 'From woodcutters. Most buildings and most Smith recipes.',
+  [GoodId.wood]: 'From woodcutters. Most buildings and every Smith recipe.',
   [GoodId.stone]: 'From the quarry. Heavy buildings; roads with Masonry.',
-  [GoodId.iron]: 'From the iron mine. Smith weapons and tools.',
+  [GoodId.iron]:
+    'From the iron mine. Every Smith recipe but the bow, rod and pickaxe.',
   [GoodId.silver]: 'From the silver mine. Recruits and research.',
   [GoodId.gold]: 'From the gold mine. Monument and Gilded Arms.',
   [GoodId.sword]: 'Arms one knight.',

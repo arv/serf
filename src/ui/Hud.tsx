@@ -476,7 +476,7 @@ export function Hud(props: {
             {...tooltip(() => (
               <TextTip
                 title="Muster the army"
-                body="Selects every soldier you own."
+                body="Selects your soldiers in the field."
               />
             ))}
             onClick={() => props.onSelectArmy()}

@@ -1615,7 +1615,7 @@ export function SelectionPanel(props: {
                      them apart. */
                   <TextTip
                     title={roster().length > 0 ? 'A mixed band' : 'In hand'}
-                    body="Each tile below, with its resource and what is left."
+                    body="Each tile below is one man, with his health."
                   />
                 )
               }
@@ -1877,7 +1877,7 @@ export function SelectionPanel(props: {
                 tip={() => (
                   <TextTip
                     title="Stop"
-                    body="Cancels marches, attack-moves, assaults and chases. Errands and holds continue. Stopped soldiers still answer an enemy in reach."
+                    body="Cancels marches, attack-moves, assaults and chases. Errands and holds continue. Stopped soldiers still acquire enemies that come near."
                   />
                 )}
               >
