@@ -4,6 +4,7 @@
 import {sanitizeChatText} from '../protocol/chat.ts';
 import {sanitizeCommand} from '../sim/commands.ts';
 import {parseStrategyId} from '../sim/defs/aiStrategies.ts';
+import {TICKS_PER_SECOND} from '../sim/defs/balance.ts';
 import {parseDifficultyId} from '../sim/defs/difficulty.ts';
 import {parseMissionId} from '../sim/defs/missions.ts';
 import {playerKindFromKey} from '../sim/player.ts';
@@ -110,6 +111,23 @@ function isTick(v: unknown): v is number {
 }
 
 /**
+ * How long a recording is allowed to claim it ran for.
+ *
+ * `endTick` is where playback stops, and it is only ever a number in a
+ * document — one in the player's own OPFS, or one a stranger posted to the
+ * shelf. A twelve-line replay claiming Number.MAX_SAFE_INTEGER parses and
+ * lists like any other, and then plays for ever: the worker never reaches
+ * the end, the world grows for as long as the tab is open, and nothing
+ * about the row it was opened from looked wrong.
+ *
+ * A day of sim time is the horizon. Real matches here finish in minutes,
+ * so nothing honest comes near it, and a file that does is refused at the
+ * same gate every other malformed field is caught by rather than needing a
+ * second screen on the way in.
+ */
+export const MAX_REPLAY_TICKS = TICKS_PER_SECOND * 60 * 60 * 24;
+
+/**
  * Rebuild the config from scratch rather than trust the file's object: a
  * replay in OPFS is hand-editable, and createWorld reads config fields
  * without checking them — a crafted `players: [null]` would crash it, and
@@ -190,7 +208,7 @@ export function parseReplay(raw: string): ReplayData | null {
     return null;
   const config = sanitizeConfig(d.config);
   if (!config) return null;
-  if (!isTick(d.endTick)) return null;
+  if (!isTick(d.endTick) || d.endTick > MAX_REPLAY_TICKS) return null;
 
   const commands: ReplayCommandEntry[] = [];
   if (Array.isArray(d.commands)) {

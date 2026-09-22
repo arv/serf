@@ -134,6 +134,20 @@ describe('uploading', () => {
     expect(replays).toEqual([]);
   });
 
+  it('refuses a recording that would never stop playing', async () => {
+    // The shelf is an anonymous drop box, and a Watch link on it opens in
+    // the author's browser. A ten-line replay claiming the end of time
+    // costs nothing to post, lists as an ordinary row, and then plays
+    // until the tab is closed. Screened on the way in, so no such row
+    // ever reaches the shelf to be clicked.
+    const forever = sampleReplay({endTick: Number.MAX_SAFE_INTEGER});
+    expect((await post(forever)).status).toBe(400);
+    const {replays} = (await (
+      await fetch(`${base}${REPLAY_API_PREFIX}`)
+    ).json()) as {replays: unknown[]};
+    expect(replays).toEqual([]);
+  });
+
   it('refuses a body past the cap', async () => {
     // Padding inside a valid replay, so what is being refused is the size
     // and nothing else.

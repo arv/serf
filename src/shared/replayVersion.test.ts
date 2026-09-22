@@ -839,8 +839,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // which is why it moved anyway. The review round moved it a second time,
 // rewriting Ironworking's desc to name the recipes it actually gates —
 // same file, same kind of string, same nothing behind it.
+// Still 75 for the playback horizon: app/replay.ts refuses a document
+// whose endTick claims more than a day of sim time. Nothing a tick does
+// moved, and every log the game has ever written parses exactly as it did
+// — a real match ends in minutes, and the ceiling is an upper bound on a
+// field rather than a change to what the field means. A version bump
+// would be the wrong answer even for the crafted file it does refuse,
+// since bumping stops EVERY old replay rather than that one.
 const EXPECTED_VERSION = 75;
-const EXPECTED_HASH = 'a25b2848c516ded368c165e18c1843bf';
+const EXPECTED_HASH = '5ba070c7c06c31340b2709ed5233bbc3';
 
 /**
  * Everything a replay's playback depends on, as raw source:
