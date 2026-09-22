@@ -16,7 +16,14 @@
  * mis-loaded. Version 9 is the ids themselves: a good, a building, a unit,
  * a tech, a task tag, a job phase and a seat kind are numbers now rather
  * than words, so every record in an older file is keyed and spelled in a
- * language this build no longer reads.
+ * language this build no longer reads. Version 10 is a byte rather than a
+ * record: a worked-out gold seam used to be written to map.resource as a
+ * tailings code of its own, and the one rule that read it — the Monument
+ * standing within reach of the gold — is gone, so the code is gone with
+ * it. A 9 whose gold was ever mined out carries tiles this build cannot
+ * name; it would read them as ore that no mine can work and no building
+ * may stand on, which is exactly the silent mis-load this number exists
+ * to prevent.
  *
  * A module of its own, next to REPLAY_VERSION and for the same reason: the
  * menu stamps it into every save's metadata head so the saves shelf can
@@ -24,7 +31,7 @@
  * number without pulling the whole serializer — a worker's worth of code —
  * into the main thread's bundle.
  */
-export const WORLD_SAVE_VERSION = 9;
+export const WORLD_SAVE_VERSION = 10;
 
 /**
  * Can this build open a file written in that format? Version 5 changed how

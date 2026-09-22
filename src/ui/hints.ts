@@ -208,7 +208,8 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
     {
       text:
-        'Now the Monument, on the levelled shelf beside the seam. The ' +
+        'Now the Monument. It can stand anywhere — the shelf by the seam ' +
+        'saves the haul, the town keeps it behind your soldiers. The ' +
         'bandits learn of it the moment the first cartload lands, and a ' +
         'frame stands at a fifth of its finished hit points.',
       objective: 2,

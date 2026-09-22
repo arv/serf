@@ -21,7 +21,8 @@ function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
 }
 
-/** A gold seam on one tile — all the monument's placement rule asks for. */
+/** A gold seam on one tile: what a gold mine works, and what the twelve
+ * gold in the monument's price ultimately come out of. */
 function plantGold(world: World, x: number, y: number): void {
   const i = tileIdx(x, y, world.map.size);
   world.map.resource[i] = TileResource.GoldDep;
@@ -46,61 +47,55 @@ function refusalFor(world: World, x: number, y: number): string | null {
 }
 
 describe('the monument', () => {
-  it('stands only within reach of a gold seam', () => {
+  it('stands on any ground its owner can clear, seam or no seam', () => {
+    // It was pinned within four tiles of a gold seam once, which put the
+    // one building that wins on the economy out on the one patch of ground
+    // worldgen deals to nobody. The contest is the price now: the twelve
+    // gold in `cost` come from the middle of the map wherever the plinth
+    // goes up (map.ts, mapFairness.test.ts).
     const world = bareWorld();
-    // Flat, empty grass: every other rule this def answers to is satisfied,
-    // so a refusal here can only be the seam rule.
-    expect(refusalFor(world, 32, 30)).toBe('seam');
-    plantGold(world, 30, 30);
+    // Flat, empty grass, and nothing buried anywhere on the map.
     expect(refusalFor(world, 32, 30)).toBeNull();
-    // ...and only within its radius. The def's 4 is measured from the
-    // footprint, so a seam 12 tiles off is out of reach by any reading.
-    expect(refusalFor(world, 44, 30)).toBe('seam');
+    // The ground it used to be refused: as far from gold as the map goes.
+    plantGold(world, 30, 30);
+    expect(refusalFor(world, 60, 60)).toBeNull();
   });
 
-  it('still stands where the seam WAS, once the gold is dug out', () => {
-    // The trap this rule used to be. A gold seam is finite and the mission
-    // that wants a monument also wants a gold mine, so the obvious order of
-    // play — dig the gold, then raise the thing it is for — deleted every
-    // legal site on the map the moment the last tile went dry. Measured on
-    // a campaign seat with the tech and the step in its playbook: 72 legal
-    // sites at t=5000, and 0 from t=62500, holding 108 gold it could not
-    // spend anywhere.
+  it('answers to the rules every building answers to, all the same', () => {
+    // Free of the seam is not free of the ground. A footprint on standing
+    // material is still refused — this is the check that would catch a
+    // placement rule dropped wholesale rather than the one rule it was.
+    const world = bareWorld();
+    plantGold(world, 30, 30);
+    expect(refusalFor(world, 30, 30)).toBe('occupied');
+    placeBuiltBuilding(world, BuildingTypeId.storehouse, 0, 40, 40);
+    expect(refusalFor(world, 40, 40)).toBe('occupied');
+  });
+
+  it('stands where a seam was worked out, the way it stands anywhere', () => {
+    // The trap the old rule was, kept as a test because the failure it
+    // guards against is the expensive one: a campaign seat with the tech
+    // and the step in its playbook had 72 legal sites at t=5000 and 0 from
+    // t=62500 — it had dug its own gold, and digging it deleted every site
+    // for the thing the gold was for. Gold leaves bare ground now like
+    // every other seam (`depleteResourceTile`), and bare ground builds.
     const world = bareWorld();
     plantGold(world, 30, 30);
     const i = tileIdx(30, 30, world.map.size);
-    expect(refusalFor(world, 32, 30)).toBeNull();
 
     // Work it out, one load at a time, the way a mine does.
     while (world.map.resource[i] === TileResource.GoldDep)
       depleteResourceTile(world, i);
 
-    // The ore is gone and no mine will ever work this tile again...
-    expect(world.map.resource[i]).toBe(TileResource.GoldSpoil);
+    expect(world.map.resource[i]).toBe(TileResource.None);
     expect(world.map.resourceAmt[i]).toBe(0);
+    // No mine will ever work this tile again...
     expect(placementRefusal(world.map, BuildingTypeId.goldMine, 29, 29)).toBe(
       'resource',
     );
-    // ...but the ground remembers what it was, so the monument still stands.
-    expect(refusalFor(world, 32, 30)).toBeNull();
-  });
-
-  it('takes the tailings as its own footprint, not just its neighbour', () => {
-    // Spoil is dirt, not standing material. Before it existed the same tile
-    // went back to bare grass and took a building like any other ground, so
-    // refusing one here would be a regression wearing a rule's clothes —
-    // and the tailings are the last place THIS building should be unwelcome.
-    const world = bareWorld();
-    for (let x = 29; x <= 33; x++)
-      for (let y = 29; y <= 33; y++) plantGold(world, x, y);
-    for (let x = 29; x <= 33; x++)
-      for (let y = 29; y <= 33; y++) {
-        const i = tileIdx(x, y, world.map.size);
-        while (world.map.resource[i] === TileResource.GoldDep)
-          depleteResourceTile(world, i);
-      }
-    // A footprint standing entirely on worked-out ground.
+    // ...and the monument stands on it, tailings and all.
     expect(refusalFor(world, 30, 30)).toBeNull();
+    expect(refusalFor(world, 32, 30)).toBeNull();
   });
 
   it('is gated behind Deep Mining, the tech that opens the gold at all', () => {

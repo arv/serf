@@ -58,7 +58,6 @@ import {
 import * as HeraldNote from '../heraldNoteEnum.ts';
 import {
   type GameMap,
-  nearestSeamGround,
   playMin,
   playMax,
   tileBlocks,
@@ -4410,23 +4409,7 @@ function spotFor(
   }
   const code = ANCHOR_RESOURCE[step.anchor];
   if (code === undefined) return null; // the keep anchor sites off the castle, not a seam
-  // A building with a ground rule of its own anchors on the ground THAT rule
-  // accepts, not on what a mine could dig. For the Monument the two differ:
-  // its rule counts a worked-out seam (map.ts `seamSpoil`) and a mine's
-  // search does not, so a seat that banked its gold before it could pay for
-  // the monument would find no anchor at all and never place one. Measured:
-  // the anchor went dark the tick the seam ran dry, on every seed that
-  // reached the step at all.
-  //
-  // It also drops the rival-ground screen `nearestClaimableResource` applies,
-  // which for the Monument changes nothing: gold is the one metal that screen
-  // already exempts (worldgen deals it to nobody, in the middle of the map).
-  // A future `nearResource` building on iron or silver would want that screen
-  // back, and would have to say so here.
-  const ground = BUILDING_DEFS[step.type].nearResource;
-  const tile = ground
-    ? nearestSeamGround(world.map, ground.kind, baseX, baseY)
-    : nearestClaimableResource(world, owner, code, baseX, baseY);
+  const tile = nearestClaimableResource(world, owner, code, baseX, baseY);
   if (tile < 0) return null;
   return outpost(
     findSpot(

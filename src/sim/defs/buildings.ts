@@ -131,21 +131,6 @@ export interface BuildingDef {
    * check that sites every other resource building cannot speak for it.
    */
   nearWater?: {radius: number};
-  /**
-   * Placement: requires a tile of `kind` within `radius` of the footprint.
-   * Like `nearWater` it is a rule the sim enforces rather than a fact about
-   * the building — the gather-radius check that sites a woodcutter reads a
-   * gather recipe, and a building that works no resource has none to read.
-   *
-   * The monument's rule, and the reason it is a rule at all: worldgen puts
-   * the gold in one central cluster with the bandit camp standing over it
-   * (mapFairness.test.ts), so anchoring to the seam is what makes a
-   * monument a claim on contested ground rather than a thing you wall in
-   * beside the keep. It costs nothing in solo, where the middle is home and
-   * the gold rings it at 9-21 tiles — still outside the defended core, on
-   * the flank the raiders walk.
-   */
-  nearResource?: {kind: TileResourceKind; radius: number};
   /** Site demand priority (construction defaults to 1; road paving uses 3). */
   sitePriority?: HaulPriority;
   /** Footprint does not block movement (road sites). */
@@ -973,8 +958,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // is a timer nobody can contest.
     hp: 240,
     // It watches, but it is not a watchtower: the workshop default rather
-    // than the tower's 8, so planting one over the map's most contested
-    // seam does not also hand its owner an eye on it.
+    // than the tower's 8. Nothing about this building is supposed to be an
+    // eye on the ground it stands on.
     sight: 5.5,
     requiresTech: TechId.deepMining,
     // Laid empty and gilded as the carts arrive — see `raisedOnCredit`.
@@ -983,9 +968,20 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // the site twelve ticks later. The bread was the whole gap, and the
     // raising nobody could see coming was the cost of it.
     raisedOnCredit: true,
-    // The gold is why it stands where it stands. Four tiles of slack so a
-    // seam under the camp's own footprint is still buildable beside.
-    nearResource: {kind: TileResource.GoldDep, radius: 4},
+    // No ground rule: it stands wherever its owner can find nine flat
+    // tiles. It used to be pinned within four tiles of a gold seam, on the
+    // reasoning that a monument ought to be a claim on contested ground —
+    // but the contest is already in the price. Worldgen deals gold once and
+    // never at home — in a rival valley it is the middle, under the bandit
+    // camp, equidistant from every start (map.ts, mapFairness.test.ts); in
+    // solo it is the classic ring twelve to eighteen tiles off a base that
+    // sits at the centre itself — so the twelve gold in `cost` are a haul
+    // wherever the plinth goes up. Pinning the SITE to the seam as well
+    // only decided where the plinth stood, and on a rival map it decided it
+    // the one way that made the win unplayable — a 240-hp building, raised
+    // over ninety seconds, announced to every rival on its first delivery
+    // (visibility.ts), standing on the ground furthest from anyone's
+    // soldiers.
   },
   [B.roadSite]: {
     id: B.roadSite,

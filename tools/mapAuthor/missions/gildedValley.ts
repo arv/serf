@@ -9,16 +9,18 @@
  * keep sits in the western meadow with its ordinary trades around it —
  * timber on the wooded slope behind, stone in the shoulder north, iron and
  * silver in the near hills — and the GOLD KNAP stands out at the far end,
- * a low bald rise with a level shelf beside it. That shelf is the mission:
- * three by three of flat ground within four tiles of the seam, which is
- * everything the Monument's placement rule asks for, and it is a long haul
- * from the storehouse on purpose. Sixty-odd goods have to walk there.
+ * a low bald rise with a level shelf beside it. The shelf was drawn when
+ * the Monument had to stand within four tiles of the seam; the building
+ * takes any ground now, so the shelf is an offer rather than the only
+ * site — three by three of flat ground at the seam's shoulder, a long haul
+ * from the storehouse on purpose. Sixty-odd goods walk there, or twelve
+ * gold walk home, and the player picks which.
  *
  * The camp sits north-east, off the town-to-knap diagonal rather than on
- * it, and the same forty-four tiles from the keep as from the Monument's
- * shelf. So it threatens both the town and the haul and gates neither: a
- * player who wants to raze it may, and a player who would rather out-build
- * it may do that instead. That choice is the commission. (The distance is
+ * it, and the same forty-four tiles from the keep as from the shelf. So it
+ * threatens both the town and the haul and gates neither: a player who
+ * wants to raze it may, and a player who would rather out-build it may do
+ * that instead. That choice is the commission. (The distance is
  * not decoration — the shipped bandit missions both march about forty-four,
  * and a camp at twenty-five has guards whose reach covers ground the town
  * wants to work. Serfs walk into it and die by the dozen, which reads as a
@@ -46,11 +48,13 @@ export function build(): Authored {
     // The gold knap, out at the far end. Low and bald — a rise you can
     // build beside rather than a peak you have to mine into.
     .mound(at(26, 22), 10, 0.22, 0.16)
-    // The town floor, and the knap's own shelf. The shelf is the one piece
-    // of ground this whole mission turns on: the Monument is 3x3, it is not
-    // a mine, so it needs FLAT ground — and it must be within four tiles of
-    // the seam below. Levelled generously so the site is a choice of a few
-    // tiles rather than a single pixel-hunt.
+    // The town floor, and the knap's own shelf. The shelf is what lets a
+    // player raise the Monument at the seam rather than at home: it is 3x3
+    // and not a mine, so it needs FLAT ground, and the knap itself has
+    // none. Levelled generously so the site out here is a choice of a few
+    // tiles rather than a single pixel-hunt. (It was drawn when the
+    // building had to stand within four tiles of the seam; that rule is
+    // gone, and the shelf is an offer now.)
     .level(keep, 11, 0.45, 6)
     .level(at(22, 19), 8, 0.42, 5)
     // The water: a beck down the middle of the valley, which the builders'
@@ -102,8 +106,8 @@ export function build(): Authored {
   // Wide rather than deep: the Monument wants twelve gold and a mine wants
   // somewhere to keep working while the stone is hauled. Sited on the
   // knap's south-west face so the shelf levelled above sits between the
-  // seam and the town — the site a player picks is on the near side of the
-  // hill, which is the side they can defend from.
+  // seam and the town — a plinth raised out here is on the near side of
+  // the hill, which is the side they can defend from.
   v.goldSeam(220, at(25, 21));
 
   // The town's own meadow: the woods have an edge, and it is out here
@@ -119,7 +123,7 @@ export function build(): Authored {
     starts: [start!],
     intent: [
       'a long valley: town west, the gold knap out at the south-east end',
-      'a levelled shelf beside the seam — flat 3x3 within four tiles, which is all the Monument asks',
+      "a levelled shelf beside the seam — flat 3x3 at the seam's shoulder, so a plinth CAN go up out here",
       'timber, stone, iron and silver all near home: the only long walk is the gold',
       'the camp north-east and 44 tiles out — equidistant from the keep and the shelf, off the diagonal, gating neither',
     ],

@@ -4,18 +4,16 @@ import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as BuildAnchor from './defs/buildAnchorEnum.ts';
 import {BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as TechId from './defs/techIdEnum.ts';
 import {UNIT_DEFS} from './defs/units.ts';
-import {nearestSeamGround} from './map.ts';
 import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
 import {AiBrain} from './systems/ai.ts';
-import {bareWorld} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
-import * as TileResource from './tileResourceEnum.ts';
-import {createWorld, depleteResourceTile, type World} from './world.ts';
+import {createWorld, type World} from './world.ts';
 
 type AiStrategyId = Enum<typeof AiStrategyId>;
 
@@ -24,8 +22,9 @@ type AiStrategyId = Enum<typeof AiStrategyId>;
  *
  * The Monument shipped with nothing that could reach it: no playbook named
  * the building or Deep Mining, and the brain only researches from its own
- * `researchOrder`. Three things were in the way once that was fixed, and
- * each is pinned below, because each was measured and none is obvious.
+ * `researchOrder`. What stood in the way once that was fixed is pinned
+ * below, because each of those things was measured and none of them is
+ * obvious.
  */
 
 /** Play one solo campaign to the end, or to `maxTicks`. */
@@ -116,7 +115,8 @@ describe('the Mason', () => {
   });
 
   it('doubles the bread chain, because the Monument is bought in loaves', () => {
-    // Twenty bread, banked, while three mines each eat a ration. With one
+    // The plinth's loaves, banked, while three mines each eat a ration.
+    // With one
     // chain the castle shelf sat at two to four loaves for forty thousand
     // ticks and the seat stood at the monument step every beat with the
     // gold and the stone already banked behind it.
@@ -132,41 +132,19 @@ describe('the Mason', () => {
   });
 });
 
-describe('the ground a Monument is anchored on', () => {
-  it('is the seam OR its spoil, so a worked-out seam still anchors one', () => {
-    // The last of the three, and the one that cost the most to find. The
-    // build order anchored on live ore (`nearestClaimableResource`), which
-    // is right for a mine and wrong for the Monument: its own placement
-    // rule counts a worked-out seam, so a seat that banked its whole seam
-    // before it could pay lost the ANCHOR the tick the last load came up.
-    // Measured on four seeds: the anchor went dark at the same tick the
-    // gold stopped rising, and 3 of 8 seeds laid a monument. With the two
-    // agreeing on what counts as ground, 6 of 8 did.
-    const world = bareWorld();
-    const i = 40 * world.map.size + 40;
-    world.map.resource[i] = TileResource.GoldDep;
-    world.map.resourceAmt[i] = 3;
-    expect(nearestSeamGround(world.map, TileResource.GoldDep, 30, 30)).toBe(i);
-
-    while (world.map.resource[i] === TileResource.GoldDep)
-      depleteResourceTile(world, i);
-    expect(world.map.resource[i]).toBe(TileResource.GoldSpoil);
-    // A mine would find nothing here now — and that is correct, there is
-    // nothing to dig. The Monument's anchor still sees the ground.
-    expect(nearestSeamGround(world.map, TileResource.GoldDep, 30, 30)).toBe(i);
-  });
-
-  it('ignores a seam that is only spoil for a resource that leaves none', () => {
-    // Only gold spoils; iron and silver clear to bare ground the way they
-    // always did, and the anchor must not invent ground for them.
-    const world = bareWorld();
-    const i = 40 * world.map.size + 40;
-    world.map.resource[i] = TileResource.IronDep;
-    world.map.resourceAmt[i] = 2;
-    expect(nearestSeamGround(world.map, TileResource.IronDep, 30, 30)).toBe(i);
-    while (world.map.resource[i] === TileResource.IronDep)
-      depleteResourceTile(world, i);
-    expect(nearestSeamGround(world.map, TileResource.IronDep, 30, 30)).toBe(-1);
+describe('the ground a Monument is sited on', () => {
+  it("is the seat's own town, not the seam it is gilded from", () => {
+    // The step anchored on the gold while the building had a placement rule
+    // that demanded it. With the rule gone the anchor was the whole of what
+    // still pushed the plinth out to the middle of the map — the one patch
+    // worldgen deals to nobody, guarded by the bandit camp, and the
+    // furthest ground from a garrison this playbook never marches
+    // (`holdsGround`). The gold is still carted from there; the masonry is
+    // not done there.
+    const step = AI_STRATEGIES[AiStrategyId.mason].build.find(
+      s => s.type === BuildingTypeId.monument,
+    );
+    expect(step?.anchor).toBe(BuildAnchor.base);
   });
 });
 

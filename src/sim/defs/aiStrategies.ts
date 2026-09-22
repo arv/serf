@@ -1144,13 +1144,13 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
      */
     /**
      * The economic win, as a playbook. Everything here follows from one
-     * fact: a Monument costs twelve gold, thirty stone and twenty BREAD,
-     * and finishing it ends the match.
+     * fact: a Monument costs twelve gold, thirty stone and ten BREAD, and
+     * finishing it ends the match.
      *
      * The bread is why this is not the Steward with two steps bolted on.
      * Every other plan treats the ovens as the barracks' supply line and
-     * runs them at the edge of demand; this one has to BANK twenty loaves
-     * while three mines eat a ration apiece. So it builds the chain twice
+     * runs them at the edge of demand; this one has to BANK the plinth's
+     * loaves while three mines eat a ration apiece. So it builds the chain twice
      * over — two farms, two mills, two bakeries — and stops recruiting once
      * its garrison is full (`holdsGround`, and garrisonIsEnough in
      * economyRules.ts). Measured with one chain and no cap, on the seat this
@@ -1246,10 +1246,21 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         after: TechId.deepMining,
       },
       {
+        // Home ground, not the seam. The Monument has no placement rule of
+        // its own any more (defs/buildings.ts), and the gold anchor was
+        // siting the one building this playbook exists for out at the seam
+        // — the `gold` anchor's own note above says what that means: a
+        // dozen-odd tiles out on a solo map whose base IS the centre, and
+        // roughly twice that in a rival valley, where the seam is the
+        // contested middle under the bandit camp. Either way it is ground
+        // the garrison `holdsGround` keeps at the keep never reaches. It
+        // goes up inside the town now, where the soldiers already are and
+        // where the stone and the bread are already stacked; the gold
+        // still has to be carted home from the seam, which is the haul the
+        // plan was always about.
         type: BuildingTypeId.monument,
         count: 1,
-        anchor: BuildAnchorNs.gold,
-        radius: 6,
+        anchor: BuildAnchorNs.base,
         after: TechId.deepMining,
         // The mine before the plinth. The Monument is the one building
         // raised on credit (see the build loop in systems/ai.ts), which
