@@ -723,7 +723,7 @@ export async function startSignpost(
     new MarginMesh(world.map, heights).mesh,
     mist.group,
     camera,
-    sky,
+    sky.mesh,
   );
   const keep = [...world.buildings.values()].find(
     b => b.type === BuildingTypeId.storehouse,
@@ -1915,6 +1915,7 @@ export async function startSignpost(
     // At most one frame in flight — see GameRenderer.gpuReady.
     if (!renderer.gpuReady()) return;
     const dt = Math.min((now - last) / 1000, 0.05);
+    if (!still) sky.drift(dt);
     last = now;
     for (const tw of tweens) {
       const t = Math.min((now - tw.start) / tw.dur, 1);
@@ -2049,7 +2050,7 @@ export async function startSignpost(
 
     water.update(now);
     mist.update(now);
-    sky.position.copy(camera.position);
+    sky.mesh.position.copy(camera.position);
     renderer.render(camera);
     css.render(renderer.scene, camera);
     if (!canvas.classList.contains('lit')) canvas.classList.add('lit');

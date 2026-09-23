@@ -4,6 +4,12 @@ import * as THREE from 'three';
  * haze fades the far ground into it. */
 export const SKY = {zenith: 0x3a8ee0, horizon: 0xa6d0f0};
 
+export interface Sky {
+  mesh: THREE.Mesh;
+  /** Move the clouds on by `dt` seconds. */
+  drift(dt: number): void;
+}
+
 /**
  * The sky, painted on a dome that rides with the lens: a blue gradient, and
  * mountain ranges round the horizon drawn by the shader, not modelled.
@@ -16,9 +22,10 @@ export const SKY = {zenith: 0x3a8ee0, horizon: 0xa6d0f0};
  * straight edges; under it, bands of flat triangles, each lit as one
  * face by the sun; snow above a line that wanders slowly round the range,
  * so only the peaks that reach it are capped, with a clean edge (snow on
- * whole facets zigzagged into teeth).
+ * whole facets zigzagged into teeth). Behind the mountains, clouds drift
+ * on a flat layer overhead.
  */
-export function makeSky(radius: number): THREE.Mesh {
+export function makeSky(radius: number): Sky {
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(radius, 48, 24),
     new THREE.ShaderMaterial({
@@ -29,6 +36,8 @@ export function makeSky(radius: number): THREE.Mesh {
         snow: {value: new THREE.Color(0xf4f7fb)},
         // The renderer's sun, (-28, 55, 18), as an azimuth round y.
         sunAz: {value: Math.atan2(18, -28)},
+        // Seconds the clouds have drifted (see drift).
+        time: {value: 0},
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -42,6 +51,7 @@ export function makeSky(radius: number): THREE.Mesh {
         uniform vec3 rock;
         uniform vec3 snow;
         uniform float sunAz;
+        uniform float time;
         varying vec3 vDir;
 
         #define BANDS 4
@@ -79,6 +89,32 @@ export function makeSky(radius: number): THREE.Mesh {
           vec2 c = vec2(cos(a), sin(a)) * scale + seed;
           return base + amp * ridged(c);
         }
+        float fbm(vec2 p) {
+          float sum = 0.0;
+          float amp = 0.5;
+          for (int i = 0; i < 5; i++) {
+            sum += noise(p) * amp;
+            p = p * 2.02 + vec2(5.2, 1.3);
+            amp *= 0.5;
+          }
+          return sum;
+        }
+        /** Clouds on a flat layer overhead, drifting with the wind: soft
+         * heaps cut out of noise, lit on the sun's side, blue-grey under.
+         * Thinning toward the horizon, where the layer is seen edge-on. */
+        vec3 clouds(vec3 dir, vec3 col) {
+          if (dir.y <= 0.0) return col;
+          vec2 p = dir.xz / (dir.y + 0.15) * 1.8 + vec2(time * 0.017, time * 0.006);
+          float d = fbm(p);
+          float cover = smoothstep(0.615, 0.665, d);
+          if (cover <= 0.0) return col;
+          // Toward the sun the heap thins: that side is lit.
+          vec2 toSun = vec2(cos(sunAz), sin(sunAz)) * 0.12;
+          float lit = clamp(0.55 + (d - fbm(p + toSun)) * 5.0, 0.0, 1.0);
+          vec3 c = mix(vec3(0.66, 0.74, 0.86), vec3(1.0), lit);
+          float far = smoothstep(0.03, 0.25, dir.y);
+          return mix(col, c, cover * far * 0.95);
+        }
         /** Row j of the face under corner k (0 the ridge, BANDS the foot):
          * evenly down it, each inner row pushed about a little. */
         float row(float j, float k, float h, float base, float seed) {
@@ -101,6 +137,7 @@ export function makeSky(radius: number): THREE.Mesh {
           float el = asin(clamp(dir.y, -1.0, 1.0));
           float az = atan(dir.z, dir.x);
           vec3 col = mix(horizon, zenith, pow(max(dir.y, 0.0), 0.4));
+          col = clouds(dir, col);
           float turn = az / 6.2831853 + 0.5;
 
           // Far to near, each painted over the last.
@@ -177,5 +214,11 @@ export function makeSky(radius: number): THREE.Mesh {
   // the valley leaves open run the shader (the clear colour is its horizon).
   mesh.renderOrder = 1000;
   mesh.frustumCulled = false;
-  return mesh;
+  const time = (mesh.material as THREE.ShaderMaterial).uniforms.time!;
+  return {
+    mesh,
+    drift: dt => {
+      time.value += dt;
+    },
+  };
 }
