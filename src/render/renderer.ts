@@ -21,7 +21,8 @@ const STALL_FRAMES = 4;
 const SUN_DIR = new THREE.Vector3(-28, 55, 18).normalize();
 
 /** The shadow camera's two lateral axes, in world space — the basis three
- * builds for it out of SUN_DIR and a Y-up. Constant, because SUN_DIR is,
+ * builds for it out of SUN_DIR and a Y-up. Constant, because SUN_DIR is
+ * (setSun rebuilds a renderer's own copies),
  * and needed here to snap the box to its own texel grid. */
 const SUN_RIGHT = new THREE.Vector3(0, 1, 0).cross(SUN_DIR).normalize();
 const SUN_UP = SUN_DIR.clone().cross(SUN_RIGHT).normalize();
@@ -107,6 +108,11 @@ export class GameRenderer {
   #frame: ViewFrame = {cx: 0, cz: 0, rx: 0, rz: 0, ext: 0};
   #bounds: ViewBounds = {minX: 0, maxX: 0, minZ: 0, maxZ: 0};
   #centreScratch = new THREE.Vector3();
+  /** Toward the sun, and the shadow camera's lateral axes built from it —
+   * the game's fixed SUN_DIR unless a caller sets its own (setSun). */
+  #sunDir = SUN_DIR.clone();
+  #sunRight = SUN_RIGHT.clone();
+  #sunUp = SUN_UP.clone();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -202,16 +208,37 @@ export class GameRenderer {
   }
 
   /**
+   * Light the scene from somewhere else: `dir` points toward the sun. The
+   * game never calls this; the start screen does, to stand the sun behind
+   * its lens. Re-aims the shadow box where it was.
+   */
+  setSun(dir: THREE.Vector3): void {
+    this.#sunDir.copy(dir).normalize();
+    this.#sunRight.set(0, 1, 0).cross(this.#sunDir).normalize();
+    this.#sunUp.copy(this.#sunDir).cross(this.#sunRight).normalize();
+    this.#aimSun(this.#shadowAt.clone(), this.#shadowHalf);
+  }
+
+  /**
+   * Hold the shadow box over `half` either side of `centre`. For a caller
+   * rendering through a lens of its own (render(camera) leaves the box
+   * alone): the whole world is the default, and its shadows are soft.
+   */
+  aimShadow(centre: THREE.Vector3, half: number): void {
+    this.#aimSun(centre, half);
+  }
+
+  /**
    * Point the sun's shadow box at a patch of ground.
    *
-   * The light itself does not move — SUN_DIR is the whole of what shading
-   * reads, and it is fixed. What moves is the box: an orthographic camera
+   * The light itself does not move — its direction is the whole of what
+   * shading reads, and it is fixed (short of setSun). What moves is the box: an orthographic camera
    * standing off along that ray, covering `half` either side of `centre`.
    */
   #aimSun(centre: THREE.Vector3, half: number): void {
     const sun = this.#sun;
     sun.target.position.copy(centre);
-    sun.position.copy(centre).addScaledVector(SUN_DIR, SUN_DISTANCE);
+    sun.position.copy(centre).addScaledVector(this.#sunDir, SUN_DISTANCE);
     const cam = sun.shadow.camera;
     cam.left = -half;
     cam.right = half;
@@ -268,8 +295,10 @@ export class GameRenderer {
     const texel = (2 * half) / this.#shadowMapSize;
     const cx = frame.cx;
     const cz = frame.cz;
-    const u = Math.round((cx * SUN_RIGHT.x + cz * SUN_RIGHT.z) / texel) * texel;
-    const v = Math.round((cx * SUN_UP.x + cz * SUN_UP.z) / texel) * texel;
+    const right = this.#sunRight;
+    const up = this.#sunUp;
+    const u = Math.round((cx * right.x + cz * right.z) / texel) * texel;
+    const v = Math.round((cx * up.x + cz * up.z) / texel) * texel;
     // The third axis is depth along the sun's own ray, and sliding the box
     // down it shows nothing — so rather than carry the frame's continuous
     // position into it, solve it for the ground plane from the snapped
@@ -277,15 +306,15 @@ export class GameRenderer {
     // numbers, which is the whole of what lets the early return below ever
     // fire: carrying the raw depth moved the centre on every frame of a
     // pan, so the box was re-aimed and its projection rebuilt every frame
-    // while its texel grid stood perfectly still. (SUN_RIGHT lies flat by
+    // while its texel grid stood perfectly still. (The right axis lies flat by
     // construction — a cross product with Y has no Y of its own — so only
-    // SUN_UP's rise has to be cancelled.)
-    const w = -(SUN_UP.y * v) / SUN_DIR.y;
+    // the up axis's rise has to be cancelled.)
+    const w = -(up.y * v) / this.#sunDir.y;
     const centre = this.#centreScratch
       .set(0, 0, 0)
-      .addScaledVector(SUN_RIGHT, u)
-      .addScaledVector(SUN_UP, v)
-      .addScaledVector(SUN_DIR, w);
+      .addScaledVector(right, u)
+      .addScaledVector(up, v)
+      .addScaledVector(this.#sunDir, w);
     // A frame that has not moved a whole texel leaves the box — and its
     // projection matrix — exactly as they were.
     if (half === this.#shadowHalf && centre.equals(this.#shadowAt)) return;
@@ -308,6 +337,14 @@ export class GameRenderer {
    * the DEV console handle and the screenshot tooling. */
   get info(): THREE.WebGLRenderer['info'] {
     return this.#webgl.info;
+  }
+
+  /** The WebGLRenderer itself, for a caller that has to bake something
+   * against this context — the start screen's studio light is a PMREM of a
+   * room, and a PMREM must be made on the context that samples it. For
+   * baking, not drawing: every frame still goes through render(). */
+  get webgl(): THREE.WebGLRenderer {
+    return this.#webgl;
   }
 
   dispose(): void {

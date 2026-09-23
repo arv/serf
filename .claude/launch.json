@@ -8,6 +8,12 @@
       "autoPort": true
     },
     {
+      "name": "serf-relay",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["server"],
+      "port": 8787
+    },
+    {
       "name": "serf-mp",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [

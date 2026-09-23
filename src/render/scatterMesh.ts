@@ -832,6 +832,13 @@ export class ScatterMesh {
     }
   }
 
+  /** The instanced meshes of one kind ('flower', 'reed', ...): for a
+   * caller that dresses them (the start screen sways its meadow). */
+  meshesOf(name: string): THREE.InstancedMesh[] {
+    const chunks = this.#archetypes.get(name)?.chunks ?? [];
+    return chunks.flatMap(c => (c ? [c.mesh] : []));
+  }
+
   #addArchetype(
     name: string,
     geometry: THREE.BufferGeometry,

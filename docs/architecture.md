@@ -101,8 +101,8 @@ all.
 The main thread never holds the match's `World`. It holds a `SabReader`
 over a SharedArrayBuffer and a `SimHost` (`src/app/simHost.ts`) that speaks
 the worker protocol in `src/protocol/messages.ts`. Two workers implement the
-far end of that protocol. (The Worlds the main thread does build, the menu
-backdrop's in `ui/backdropScene.ts` and the editor's play-test in
+far end of that protocol. (The Worlds the main thread does build, the start
+screen's valley in `ui/signpost/scene.ts` and the editor's play-test in
 `editor/playWorld.ts`, are its own and never the one being played.)
 `simWorker.ts` owns a World, runs `tickWorld`, and hosts the AI brains.
 `netWorker.ts` owns no World: it holds the socket, the SAB writer and the
@@ -238,7 +238,7 @@ they actually stepped; victory is judged before the dead are removed.
 | --- | --- | --- |
 | `src/sim` | The World and everything that changes it. Pure, deterministic, serializable; imports only `defs/` and `shared`. Content is data in `defs/`; a system names an id only where that id carries a rule of its own. | `world.ts` · `tick.ts` · `commands.ts` · `path.ts` · `visibility.ts` · `save.ts` / `clone.ts` / `hash.ts` · `aiSeats.ts` · `systems/*` · `defs/*` |
 | `src/render` | three.js scene fed only by SAB rows and structural snaps. Interpolates between publishes on its own rAF clock; dresses KayKit rigs at runtime; owns the look of fog, not the rule. | `renderer.ts` · `sceneSync.ts` · `buildingSync.ts` · `characters.ts` · `assets.ts` · `fogOfWar.ts` · `cameraRig.ts` |
-| `src/ui` | Solid.js HUD, start menu, War Council lobby, tech tree, minimap, admin panel. Main-thread state lives in `store.ts` signals that worker updates write into. | `Hud.tsx` · `MenuApp.tsx` · `WarCouncil.tsx` · `store.ts` · `SelectionPanel.tsx` · `TechTreePanel.tsx` · `icons.tsx` |
+| `src/ui` | Solid.js HUD, start menu, War Council lobby, tech tree, minimap, admin panel. Main-thread state lives in `store.ts` signals that worker updates write into. | `Hud.tsx` · `MenuApp.tsx` · `signpost/` · `store.ts` · `SelectionPanel.tsx` · `TechTreePanel.tsx` · `icons.tsx` |
 | `src/input` | Pointer, keyboard and touch into commands and selection: band select, control groups, edge scroll, order modes, long-press move on touch. | `controls.ts` · `picking.ts` · `keyboard.ts` · `groups.ts` · `edgeScroll.ts` |
 | `src/app` | Boot, the in-place router (Navigation API), per-screen chunks, the two workers and the `SimHost` seam, saves and replays in OPFS, service worker, GPU-loss recovery. | `main.ts` · `router.ts` · `matchScreen.ts` · `simHost.ts` · `simWorker.ts` · `netWorker.ts` · `saveStore.ts` · `replay.ts` |
 | `src/editor` · `src/areas` | The map editor screen (brushes, symmetry, play-test) and the field guide at `/docs`, a wiki generated over the game's own defs with one shared WebGL preview context. | `editor/editorScreen.ts` · `editor/editorMap.ts` · `areas/docs/docsScreen.tsx` · `areas/docs/preview/hub.ts` |

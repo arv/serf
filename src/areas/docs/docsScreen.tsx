@@ -200,7 +200,7 @@ function DocsApp(props: {route: Accessor<DocsRoute>}): JSX.Element {
 export function mountDocs(): {dispose(): void; onRouteChange(): void} {
   // The wiki brings its own root and takes it away again, so the game's DOM
   // is untouched by a feature most sessions never open (the pattern
-  // menuBackdrop.ts set with its canvas).
+  // the start screen's signpost follows with its canvas).
   const root = document.createElement('div');
   root.id = 'docs';
   document.body.appendChild(root);

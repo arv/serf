@@ -1,4 +1,4 @@
-import {GOLD} from '../../ui/menuChrome';
+import {GOLD} from '../../ui/gold';
 
 /**
  * The shelf's one sheet, wearing the same glass-and-gold language as the

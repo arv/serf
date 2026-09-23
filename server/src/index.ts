@@ -229,6 +229,7 @@ type LobbyMsg =
   | {t: 'create'; open?: boolean; config?: unknown}
   | {t: 'join'; code: string}
   | {t: 'config'; config?: unknown}
+  | {t: 'visibility'; open?: boolean}
   | {t: 'start'}
   | {t: 'rejoin'; token: string}
   | {t: 'debug'; enabled?: boolean}
@@ -256,6 +257,7 @@ function broadcastRoomState(room: Room): void {
         yourSeat: s.playerId,
         seats,
         config: room.config,
+        open: room.visibility === 'open',
       });
     }
   }
@@ -450,6 +452,24 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       // lose its seat over a message the room simply doesn't honor.
       if (seat.playerId !== 0) break;
       room.config = sanitizeLobbyConfig(room.config, msg.config);
+      broadcastRoomState(room);
+      break;
+    }
+    case 'visibility': {
+      // Listed or invite only, from the council. The host's word only, and
+      // only before the march: a running room is off the list regardless.
+      const {room, seat} = conn;
+      if (!room || !seat) throw new Error('not in a room');
+      if (room.state !== 'lobby' || seat.playerId !== 0) break;
+      const visibility = msg.open === false ? 'closed' : 'open';
+      // Nothing changed: no log line, no push to every seat.
+      if (visibility === room.visibility) break;
+      room.visibility = visibility;
+      logEvent('room_visibility', `room ${room.code} ${room.visibility}`, {
+        conn: conn.id,
+        room: room.code,
+        visibility: room.visibility,
+      });
       broadcastRoomState(room);
       break;
     }

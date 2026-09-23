@@ -34,13 +34,14 @@
       href="/fonts/space-grotesk-latin.woff2"
       crossorigin
     />
-    <!-- Marcellus (OFL): the menu wordmark only. Preloaded because it is
-         the largest thing on a cold visit's first paint. -->
+    <!-- Lilita One (the signpost's lettering) and Nunito (its small text),
+         OFL, self-hosted like the rest. Lilita is preloaded: it is every
+         word on the start screen, and the signpost's boards wait for it. -->
     <link
       rel="preload"
       as="font"
       type="font/woff2"
-      href="/fonts/marcellus-latin.woff2"
+      href="/fonts/lilita-one-latin.woff2"
       crossorigin
     />
     <style>
@@ -67,18 +68,52 @@
           U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
           U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
       }
-      /* 'block' not 'swap': one line of 62px type is worth ~100ms of
-         invisibility to avoid watching it re-set itself. */
+      /* 'block', as Google served them: the boards are drawn once the
+         lettering is in, not re-set under the player's eyes. */
       @font-face {
-        font-family: 'Marcellus';
+        font-family: 'Lilita One';
         font-style: normal;
         font-weight: 400;
         font-display: block;
-        src: url('/fonts/marcellus-latin.woff2') format('woff2');
+        src: url('/fonts/lilita-one-latin.woff2') format('woff2');
         unicode-range:
           U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
           U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
           U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Lilita One';
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url('/fonts/lilita-one-latin-ext.woff2') format('woff2');
+        unicode-range:
+          U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+          U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+          U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      /* One variable file per subset covers the 700–900 the boards use. */
+      @font-face {
+        font-family: 'Nunito';
+        font-style: normal;
+        font-weight: 700 900;
+        font-display: block;
+        src: url('/fonts/nunito-latin.woff2') format('woff2');
+        unicode-range:
+          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+          U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+          U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Nunito';
+        font-style: normal;
+        font-weight: 700 900;
+        font-display: block;
+        src: url('/fonts/nunito-latin-ext.woff2') format('woff2');
+        unicode-range:
+          U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+          U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+          U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
       }
 
       /* One name per edge for the space the system's own chrome wants back.
@@ -388,7 +423,7 @@
           rgba(10, 18, 12, 0.3) 100%
         );
       }
-      /* Pre-boot screens — start menu and War Council (src/ui/MenuApp.tsx).
+      /* Pre-boot screen — the signpost and its War Council (src/ui/MenuApp.tsx).
          Above #ui, and unlike #ui it takes pointer events; hidden until
          something is actually on it. */
       #menu {
@@ -397,46 +432,33 @@
         display: none;
         z-index: 10;
       }
-      /* The menu's background is the real game framed on the castle, pushed
-         back behind the glass (src/ui/menuBackdrop.ts). It gets its own
+      /* The menu's background is the valley itself, with the signpost
+         standing in front of it (src/ui/signpost/scene.ts). It gets its own
          canvas, inserted over #canvas and removed when the menu goes, so the
          match that follows can take a fresh WebGL context — a canvas only
-         ever hands out one. Sitting under the grade layers, it reads exactly
-         like the game does. */
+         ever hands out one. No filter: the signpost is in the same scene,
+         and it has to read sharp. */
       #menu-canvas {
         display: block;
         position: fixed;
         inset: 0;
         width: 100%;
         height: 100%;
-        /* Pushed back far enough that the card reads as foreground, not so
-           far that a live-rendered valley arrives as grey.
-
-           The radius is also a performance figure, and a small one is the
-           expensive kind. This layer is full-screen, and the fireflies
-           (menuChrome.tsx) drift over all of it — not inside it, they are
-           up in #menu, a whole subtree above. That does not spare it:
-           damage is settled in screen space, not by ancestry, and a fly
-           moving anywhere over this layer is damage landing on it, so the
-           filter runs again — sixty times a second, over the whole
-           viewport. A blur wide enough to be worth downsampling for is run
-           on a smaller copy and costs a fraction of one that is not:
-           measured on a 2560x1323 retina window, 2.5px held the GPU at 99%
-           and dropped a fifth of the frames, which starved the backdrop's
-           own loop down to single-figure fps, and 4px came in at 40% with
-           none dropped. The cliff sat between 2.5 and 3; the extra px is
-           margin, since where it sits is Skia's business and not a
-           promise. Do not trim this back below 3px without measuring the
-           menu with the fireflies running. */
-        filter: blur(4px) saturate(1.06) brightness(0.72);
-        /* Blank until the first frame lands, which is after the menu has
-           animated in — so it fades up instead of snapping on.
-           backdropScene.ts adds .lit once there is something to show. */
+        /* Blank until the first frame lands, so it fades up instead of
+           snapping on. The scene adds .lit once there is something to
+           show. */
         opacity: 0;
         transition: opacity 1s ease-out;
       }
       #menu-canvas.lit {
         opacity: 1;
+      }
+      /* The grade is the match's look. The signpost was painted without it,
+         and four blended full-screen layers over a live canvas are a cost
+         the menu has no use for. */
+      body:has(#menu-canvas)
+        :is(#grade-mult, #grade-soft, #grade-glow, #vignette) {
+        display: none;
       }
       #fatal {
         position: fixed;

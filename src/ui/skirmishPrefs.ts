@@ -7,7 +7,7 @@
  *
  * These are preferences about how a player likes to play, not facts about a
  * valley — the seed is deliberately not among them. A seed is rolled fresh
- * per visit (StartMenu's rollSeed) precisely so that "again" means new
+ * per visit (the start screen's rollSeed) precisely so that "again" means new
  * ground; remembering it would hand a returning player the same map they
  * just left, which is the one thing the roll exists to prevent.
  *
