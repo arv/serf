@@ -62,7 +62,8 @@ describe('the work that is not ours to license', () => {
       'public/models/kaykit/LICENSE.txt',
       'public/audio/LICENSE.txt',
       'public/fonts/OFL-SpaceGrotesk.txt',
-      'public/fonts/OFL-Marcellus.txt',
+      'public/fonts/OFL-LilitaOne.txt',
+      'public/fonts/OFL-Nunito.txt',
     ]) {
       expect(() => read(path)).not.toThrow();
       expect(notice).toContain(path);
@@ -75,7 +76,8 @@ describe('the work that is not ours to license', () => {
     const credits = read('src/areas/docs/pages/CreditsPage.tsx');
     expect(credits).not.toContain('/fonts/OFL.txt');
     expect(credits).toContain('/fonts/OFL-SpaceGrotesk.txt');
-    expect(credits).toContain('/fonts/OFL-Marcellus.txt');
+    expect(credits).toContain('/fonts/OFL-LilitaOne.txt');
+    expect(credits).toContain('/fonts/OFL-Nunito.txt');
   });
 });
 

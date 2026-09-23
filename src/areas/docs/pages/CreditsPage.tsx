@@ -161,8 +161,18 @@ const AudioGlyph = (
   </svg>
 );
 
-/** The typeface's card shows the typeface: this page is already set in it. */
-const TypeGlyph = <span class="c-aa">Aa</span>;
+/** A typeface's card shows the typeface. A fresh element per card: one
+ * element shared between cards can only sit in one of them. */
+const typeGlyph = (family?: string, weight?: number): JSX.Element => (
+  <span
+    class="c-aa"
+    style={
+      family ? {'font-family': `'${family}'`, 'font-weight': weight} : undefined
+    }
+  >
+    Aa
+  </span>
+);
 
 interface Credit {
   /** The mark in the card's art box. */
@@ -236,19 +246,44 @@ const CREDITS: Credit[] = [
     links: [{label: 'kenney.nl', href: 'https://kenney.nl'}],
   },
   {
-    art: TypeGlyph,
+    // This page is already set in it.
+    art: typeGlyph(),
     name: 'Space Grotesk — Florian Karsten',
     what:
       'The typeface. Nearly every word in the game — this one included — ' +
-      'is set in Space Grotesk; the menu’s wordmark and the ledger heads ' +
-      'behind it are Marcellus, by Brian J. Bonislawsky.',
+      'is set in Space Grotesk.',
     license: {label: 'OFL 1.1', href: 'https://openfontlicense.org'},
     links: [
       {
         label: 'github.com/floriankarsten',
         href: 'https://github.com/floriankarsten/space-grotesk',
       },
-      {label: 'astigmatic.com', href: 'https://www.astigmatic.com'},
+    ],
+  },
+  {
+    art: typeGlyph('Lilita One', 400),
+    name: 'Lilita One — Juan Montoreano',
+    what:
+      'The start screen’s lettering: the words painted on the signpost’s ' +
+      'arrows, and the headings and buttons on its boards.',
+    license: {label: 'OFL 1.1', href: 'https://openfontlicense.org'},
+    links: [
+      {
+        label: 'fonts.google.com',
+        href: 'https://fonts.google.com/specimen/Lilita+One',
+      },
+    ],
+  },
+  {
+    art: typeGlyph('Nunito', 800),
+    name: 'Nunito — Vernon Adams',
+    what: 'The small print on the signpost’s boards.',
+    license: {label: 'OFL 1.1', href: 'https://openfontlicense.org'},
+    links: [
+      {
+        label: 'github.com/googlefonts/nunito',
+        href: 'https://github.com/googlefonts/nunito',
+      },
     ],
   },
 ];
@@ -292,8 +327,9 @@ export function CreditsPage(): JSX.Element {
         <Ext href="/models/kaykit/LICENSE.txt">models</Ext>,{' '}
         <Ext href="/audio/LICENSE.txt">audio</Ext>,{' '}
         <Ext href="/fonts/OFL-SpaceGrotesk.txt">Space Grotesk</Ext>,{' '}
-        <Ext href="/fonts/OFL-Marcellus.txt">Marcellus</Ext>. The game’s own
-        terms are on the <DocLink href="/docs/license">License</DocLink> page.
+        <Ext href="/fonts/OFL-LilitaOne.txt">Lilita One</Ext>,{' '}
+        <Ext href="/fonts/OFL-Nunito.txt">Nunito</Ext>. The game’s own terms are
+        on the <DocLink href="/docs/license">License</DocLink> page.
       </p>
     </>
   );

@@ -11,8 +11,10 @@ License above and keeps its own terms:
   - Audio samples (Kenney) — CC0 1.0; see public/audio/LICENSE.txt
   - Space Grotesk (The Space Grotesk Project Authors) — SIL Open Font
     License 1.1; see public/fonts/OFL-SpaceGrotesk.txt
-  - Marcellus (Brian J. Bonislawsky, Astigmatic) — SIL Open Font
-    License 1.1; see public/fonts/OFL-Marcellus.txt
+  - Lilita One (Juan Montoreano) — SIL Open Font License 1.1; see
+    public/fonts/OFL-LilitaOne.txt
+  - Nunito (The Nunito Project Authors) — SIL Open Font License 1.1; see
+    public/fonts/OFL-Nunito.txt
 
 three.js (MIT) and SolidJS (MIT) are dependencies rather than bundled
 source; their licenses travel with the packages.
