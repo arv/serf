@@ -6,6 +6,7 @@ import {
 } from '../../src/render/assets';
 import {makeTieredPile} from '../../src/render/models';
 import type {Enum} from '../../src/shared/enum.ts';
+import {OUTPUT_CAP} from '../../src/sim/defs/buildings';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../../src/sim/defs/goodIdEnum.ts';
 import {makeLights, makeRenderer, PITCH} from './scene';
@@ -60,8 +61,8 @@ function yardPiles(type: BuildingTypeId, stacks: number): THREE.Group {
   const s = 2 * 1.06; // min(w,h) * 1.06, the way #syncYard sizes it
   const tiered = TIERED[type];
   if (tiered) {
-    // A full producer's buffer: OUTPUT_CAP.
-    const pile = makeTieredPile(tiered.good, stacks ? 5 : 0);
+    // A full producer's buffer.
+    const pile = makeTieredPile(tiered.good, stacks ? OUTPUT_CAP : 0);
     if (pile) {
       pile.position.set(tiered.spot[0] * s, 0, tiered.spot[1] * s);
       pile.rotation.y = tiered.spot[2];

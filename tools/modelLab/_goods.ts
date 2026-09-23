@@ -43,7 +43,7 @@ const KEYS: Record<string, GoodId> = {
 };
 const ROWS = (q.get('goods') ?? 'wood,stone,iron,silver,gold')
   .split(',')
-  .filter(k => k in KEYS);
+  .filter(k => Object.hasOwn(KEYS, k));
 const COUNTS = (q.get('counts') ?? '1,3,5,8,20,40').split(',').map(Number);
 const W = Number(q.get('w') ?? 1400);
 const H = Number(q.get('h') ?? 300);
@@ -136,7 +136,13 @@ function row(key: string): void {
   const labels = document.createElement('div');
   labels.className = 'labels';
   labels.style.width = `${W}px`;
-  labels.innerHTML = [`${key}, carried`, ...COUNTS.map(n => `${n} at the door`)]
+  // A pile past the cap is drawn at the cap, and says so: a label that
+  // names a count the picture does not hold is worse than no label.
+  const at = (n: number): string =>
+    n > pileCap(good)
+      ? `${n} at the door (${pileCap(good)} shown)`
+      : `${n} at the door`;
+  labels.innerHTML = [`${key}, carried`, ...COUNTS.map(at)]
     .map(s => `<span>${s}</span>`)
     .join('');
   document.querySelector('#app')!.appendChild(labels);
