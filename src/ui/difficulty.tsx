@@ -1,4 +1,4 @@
-import {For} from 'solid-js';
+import {For, Show} from 'solid-js';
 import {
   DIFFICULTIES,
   DIFFICULTY_KEYS,
@@ -35,26 +35,14 @@ import * as DifficultyIdNs from '../sim/defs/difficultyEnum.ts';
 export const DEFAULT_DIFFICULTY: DifficultyId = DifficultyIdNs.normal;
 
 /**
- * What to say under the row, which is not one answer: the setting does two
- * different jobs and a hint naming only one of them would be a lie half
- * the time.
- *
- * On a commission it scales what the crown grants you — the larder, the
- * hands in the yard, and how long the peace holds. In a skirmish it is
- * purely how well the computer plays; nobody's opening moves, which is the
- * part worth saying out loud, since "hard" in most games means the
- * opponent was handed something. A sandbox with no opponents in it is told
- * plainly that the setting has nothing to touch, rather than left to imply
- * otherwise. And a joiner in a war council is told whose choice it is.
+ * What to say under the row in the War Council, the one screen that still
+ * explains it. A host is told the setting is purely how well the computer
+ * plays; nobody's opening moves, which is the part worth saying out loud,
+ * since "hard" in most games means the opponent was handed something. A
+ * joiner is told whose choice it is. The start menu's panes carry no hints.
  */
-export function difficultyHint(
-  kind: 'campaign' | 'skirmish' | 'sandbox' | 'guest',
-): string {
+export function difficultyHint(kind: 'skirmish' | 'guest'): string {
   switch (kind) {
-    case 'campaign':
-      return 'Scales the opening the crown grants you, and the peace before the first raid';
-    case 'sandbox':
-      return 'Nothing to set, since a sandbox has no opponents';
     case 'guest':
       return 'Set by the host';
     case 'skirmish':
@@ -69,7 +57,7 @@ export function difficultyHint(
 export function DifficultyRow(props: {
   value: DifficultyId;
   onChange: (id: DifficultyId) => void;
-  hint: string;
+  hint?: string;
   /** A joiner watches the host's choice rather than making one. */
   disabled?: boolean;
 }) {
@@ -77,7 +65,9 @@ export function DifficultyRow(props: {
     <div class="row">
       <div>
         <div class="row-label">Difficulty</div>
-        <div class="row-hint">{props.hint}</div>
+        <Show when={props.hint}>
+          <div class="row-hint">{props.hint}</div>
+        </Show>
       </div>
       {/* `selected` on the option, not `value` on the select: Solid sets
           the property, and a select whose options are created after it
