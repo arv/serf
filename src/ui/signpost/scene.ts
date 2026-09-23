@@ -9,6 +9,7 @@ import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
 import {snapBuildings} from '../../protocol/snapshot';
 import {loadGlbAssets} from '../../render/assets';
 import {BuildingSync} from '../../render/buildingSync';
+import {butterflyQuad, wander} from '../../render/butterflies';
 import {GrassField} from '../../render/grassField';
 import {HeightField} from '../../render/heightField';
 import {MarginMesh} from '../../render/marginMesh';
@@ -18,6 +19,7 @@ import {crossedQuads, ScatterMesh} from '../../render/scatterMesh';
 import {
   foliageMaterial,
   makeFlowerSprite,
+  makeButterflySprite,
   makeGrassSprite,
 } from '../../render/spriteTextures';
 import {TerrainMesh} from '../../render/terrainMesh';
@@ -442,9 +444,33 @@ const POST_SUNK = 0.3;
 /** The pond right of the signpost: tiles ahead of the resting lens and to
  * its right, its radius, and how deep its middle is. */
 const POND = {ahead: 10, right: 3.2, r: 2.4, bed: -0.9};
-/** Where the lens rests on its circle round the keep — chosen so the sun
- * rakes across the keep, and the lens stands just past a stand of pines,
- * which frame the left. */
+/** The butterflies behind the signpost: how big (the game's are 0.22
+ * tiles across), how far their loops reach (a share of the game's), how
+ * high they fly, how far their wings are turned up toward the lens, and
+ * where each loops — out behind the pond, in the pond's terms (tiles
+ * ahead of the resting lens and right of it). */
+const BUTTERFLY = {
+  size: 0.8,
+  reach: 0.6,
+  height: 0.6,
+  tip: 0.8,
+  spots: [
+    {right: 6, ahead: 16, phase: 0, tint: 0xf2d96a},
+    {right: 8.5, ahead: 18.5, phase: 37, tint: 0xf5efdc},
+  ],
+};
+/** Half the width of ground the menu's shadows fall on (tiles). */
+const SHADOW_HALF = 30;
+/** The menu's sun: behind the resting lens and off to its right (radians
+ * round from straight behind), and how high. It lights the faces of the
+ * keep the lens sees and lays the signpost's shadow ahead of it; the
+ * game's own sun, from behind the keep, left everything in view in shade. */
+const SUN = {
+  right: THREE.MathUtils.degToRad(50),
+  up: THREE.MathUtils.degToRad(50),
+};
+/** Where the lens rests on its circle round the keep — chosen so the lens
+ * stands just past a stand of pines, which frame the left. */
 const START_ANGLE = 2.52;
 /** The haze band, in tiles from the eye (see the old backdrop's note:
  * far ground lit evenly reads as a painted flat pinned behind the keep). */
@@ -707,6 +733,51 @@ export async function startSignpost(
   const renderer = new GameRenderer(canvas, {interactive: false});
   renderer.setWorldExtent(world.map.play, world.map.size);
   renderer.scene.fog = new THREE.Fog(SKY.horizon, FOG_NEAR, FOG_FAR);
+  /** Seconds of wind, for the meadow's sway (see sway). */
+  const windTime = {value: 0};
+  /** The sway's materials, one per material swayed: the game shares them,
+   * and they must not sway there. */
+  const swaying = new Map<THREE.Material, THREE.Material>();
+  /**
+   * Let a meadow mesh sway in the wind: its tips bend most, its roots not
+   * at all, each clump a little out of step with the next so the wind runs
+   * across the field in waves. `top`: how far a tip leans (tiles).
+   */
+  const sway = (mesh: THREE.InstancedMesh, top: number): void => {
+    const src = mesh.material as THREE.Material;
+    let own = swaying.get(src);
+    if (!own) {
+      mesh.geometry.computeBoundingBox();
+      const box = mesh.geometry.boundingBox!;
+      const base = box.min.y;
+      const height = Math.max(box.max.y - base, 1e-3);
+      own = src.clone();
+      own.onBeforeCompile = shader => {
+        shader.uniforms.windTime = windTime;
+        shader.vertexShader = shader.vertexShader
+          .replace('void main() {', 'uniform float windTime;\nvoid main() {')
+          .replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+            {
+              float bend = pow(clamp((position.y - ${base.toFixed(4)}) /
+                ${height.toFixed(4)}, 0.0, 1.0), 1.5) * ${top.toFixed(4)};
+              vec2 at = instanceMatrix[3].xz;
+              float phase = at.x * 0.45 + at.y * 0.3;
+              float gust = sin(windTime * 1.3 + phase) * 0.7
+                + sin(windTime * 2.9 + phase * 1.9) * 0.3;
+              // In the clump's own frame, which its turn spins: every
+              // clump leans its own way, as tufts do.
+              transformed.x += gust * bend;
+              transformed.z += gust * bend * 0.4;
+            }`,
+          );
+      };
+      own.customProgramCacheKey = () => `signpost-sway-${top}-${height}`;
+      swaying.set(src, own);
+    }
+    mesh.material = own;
+  };
   renderer.scene.background = new THREE.Color(SKY.horizon);
   /** The sky and its mountains, riding with the lens (see the loop). */
   const sky = makeSky(FOG_FAR * 3);
@@ -715,9 +786,10 @@ export async function startSignpost(
   const mist = new Mist(world.map);
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.3, 400);
   const grass = new GrassField(world.map, heights);
+  const scatter = new ScatterMesh(world.map, heights);
   renderer.scene.add(
     new TerrainMesh(world.map, heights).group,
-    new ScatterMesh(world.map, heights).group,
+    scatter.group,
     grass.mesh,
     water.mesh,
     new MarginMesh(world.map, heights).mesh,
@@ -725,6 +797,10 @@ export async function startSignpost(
     camera,
     sky.mesh,
   );
+  // The meadow sways; the trees are too sturdy to.
+  sway(grass.mesh, 0.035);
+  for (const m of scatter.meshesOf('flower')) sway(m, 0.03);
+  for (const m of scatter.meshesOf('reed')) sway(m, 0.05);
   const keep = [...world.buildings.values()].find(
     b => b.type === BuildingTypeId.storehouse,
   );
@@ -1002,6 +1078,11 @@ export async function startSignpost(
     };
     ui.traverse(lit);
     rock.traverse(lit);
+    // Now the sun is behind the lens, the sign and the rock throw shadows.
+    for (const g of [ui, rock])
+      g.traverse(o => {
+        if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+      });
   }
 
   // ——— layout
@@ -1087,6 +1168,29 @@ export async function startSignpost(
   };
   const restX = cx + Math.sin(START_ANGLE) * ORBIT_RADIUS;
   const restZ = cz + Math.cos(START_ANGLE) * ORBIT_RADIUS;
+  // The sun behind the resting lens, off to its right (see SUN), and its
+  // shadow box held over the lens's side of the valley — the signpost, the
+  // keep, the rock — rather than the whole world, so shadows come out
+  // crisp.
+  {
+    const back = new THREE.Vector3(
+      Math.sin(START_ANGLE),
+      0,
+      Math.cos(START_ANGLE),
+    );
+    const right = new THREE.Vector3(back.z, 0, -back.x);
+    const dir = back
+      .clone()
+      .multiplyScalar(Math.cos(SUN.right))
+      .addScaledVector(right, Math.sin(SUN.right))
+      .multiplyScalar(Math.cos(SUN.up))
+      .setY(Math.sin(SUN.up));
+    renderer.setSun(dir);
+    renderer.aimShadow(
+      new THREE.Vector3((cx + restX) / 2, groundY, (cz + restZ) / 2),
+      SHADOW_HALF,
+    );
+  }
   /** Clear the grass on the tiles `along` ahead of (x, z) toward `face`,
    * `across` either side: a trodden patch where the lens stands, since
    * seen from there, grass a stride away stands taller than the list. */
@@ -1151,6 +1255,8 @@ export async function startSignpost(
       else grassMesh.setMatrixAt(g++, put.matrix);
     });
     renderer.scene.add(grassMesh, flowerMesh);
+    sway(grassMesh, 0.04);
+    sway(flowerMesh, 0.03);
   };
   const findRockSpot = (): {x: number; z: number; y: number; face: number} => {
     const size = mapSize;
@@ -1909,13 +2015,69 @@ export async function startSignpost(
   const listUp = new THREE.Vector3();
   const yAxis = new THREE.Vector3(0, 1, 0);
   let last = performance.now();
+  // ——— two butterflies out in the field behind the pond: the game's own
+  // painted ones.
+  const flutterers = new THREE.InstancedMesh(
+    butterflyQuad().scale(BUTTERFLY.size, 1, BUTTERFLY.size),
+    new THREE.MeshBasicMaterial({
+      map: makeButterflySprite(),
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    }),
+    BUTTERFLY.spots.length,
+  );
+  flutterers.frustumCulled = false;
+  BUTTERFLY.spots.forEach(({tint}, k) =>
+    flutterers.setColorAt(k, new THREE.Color(tint)),
+  );
+  renderer.scene.add(flutterers);
+  const flutterAt = new THREE.Object3D();
+  flutterAt.rotation.order = 'YXZ';
+  /** Move the butterflies on: `t` seconds. They loop about spots set off
+   * the post's foot along the resting lens's right and forward. */
+  const flutter = (t: number): void => {
+    // The pond's frame: from the resting lens toward the keep.
+    const ax = (cx - restX) / ORBIT_RADIUS;
+    const az = (cz - restZ) / ORBIT_RADIUS;
+    BUTTERFLY.spots.forEach(({right, ahead, phase}, k) => {
+      const sx = restX + ax * ahead - az * right;
+      const sz = restZ + az * ahead + ax * right;
+      const w = wander(0, 0, phase, t + phase);
+      const x = sx + w.x * BUTTERFLY.reach;
+      const z = sz + w.z * BUTTERFLY.reach;
+      flutterAt.position.set(
+        x,
+        Math.max(heights.at(x, z), WATER_LEVEL) +
+          BUTTERFLY.height +
+          Math.sin((t + phase) * 1.9) * 0.12,
+        z,
+      );
+      // Wings turned up toward the lens, banking the way it is flying:
+      // level, from down here, they were edge-on and all but vanished.
+      const toLens = Math.atan2(camera.position.x - x, camera.position.z - z);
+      flutterAt.rotation.set(
+        -BUTTERFLY.tip,
+        toLens + Math.PI,
+        Math.sin(w.yaw - toLens) * 0.5,
+      );
+      const flap = Math.abs(Math.sin((t + phase) * 17));
+      flutterAt.scale.set(0.3 + 0.7 * flap, 1, 1);
+      flutterAt.updateMatrix();
+      flutterers.setMatrixAt(k, flutterAt.matrix);
+    });
+    flutterers.instanceMatrix.needsUpdate = true;
+  };
   const loop = (now: number): void => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
     // At most one frame in flight — see GameRenderer.gpuReady.
     if (!renderer.gpuReady()) return;
     const dt = Math.min((now - last) / 1000, 0.05);
-    if (!still) sky.drift(dt);
+    if (!still) {
+      sky.drift(dt);
+      windTime.value += dt;
+    }
+    flutter(still ? 0 : now / 1000);
     last = now;
     for (const tw of tweens) {
       const t = Math.min((now - tw.start) / tw.dur, 1);
