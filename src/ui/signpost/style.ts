@@ -1495,4 +1495,123 @@ export const SIGNPOST_STYLE = `
         height: 32px;
       }
     
+
+      /* ---- the shelf of replays: one column, header / list / Watch ---- */
+      #signpost-3d .face.shelf {
+        padding: 14px 12px 16px;
+      }
+      #signpost-3d .face.shelf .main {
+        justify-content: flex-start;
+        gap: 10px;
+        border-radius: 14px;
+      }
+      #signpost-3d .face.shelf h2 {
+        font-size: 34px;
+      }
+      /* A file dragged over the board: the board says it will take it. */
+      #signpost-3d .face.shelf .main.dropping {
+        outline: 4px dashed #ffe9c2;
+        outline-offset: 4px;
+      }
+      #signpost-3d .files {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        /* Room for the rows' ledges and outlines inside the scroller. */
+        padding: 2px 2px 6px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(59, 29, 16, 0.6) transparent;
+      }
+      #signpost-3d .file {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      #signpost-3d .file .pick {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 4px 12px 6px;
+        text-align: left;
+        color: var(--ink);
+        background: #fbeed3;
+        border: 3px solid var(--ink);
+        border-radius: 12px;
+        box-shadow:
+          inset 0 -3px 0 rgba(160, 110, 60, 0.25),
+          0 3px 0 rgba(59, 29, 16, 0.55);
+      }
+      #signpost-3d .file .pick:hover:enabled {
+        filter: brightness(1.05);
+      }
+      #signpost-3d .file .pick.sel {
+        background: linear-gradient(#ffd66b, #f0a33a);
+      }
+      #signpost-3d .file .pick:disabled {
+        cursor: default;
+        opacity: 0.55;
+      }
+      #signpost-3d .file .name {
+        max-width: 100%;
+        font-family: var(--comic), sans-serif;
+        font-size: 19px;
+        line-height: 1.15;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #signpost-3d .file .meta {
+        font-size: 12px;
+        color: #8a5a3c;
+      }
+      #signpost-3d .file .pick.sel .meta {
+        color: var(--ink);
+      }
+      /* Share and delete: small round steel buttons, like Refresh. */
+      #signpost-3d .file .tool {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        color: var(--ink);
+        border: 3px solid var(--ink);
+        border-radius: 50%;
+        background: linear-gradient(#b9c6cc, #7f8c92);
+        box-shadow:
+          inset 0 2px 0 rgba(255, 255, 255, 0.4),
+          0 3px 0 var(--ink);
+      }
+      #signpost-3d .file .tool:hover {
+        filter: brightness(1.08);
+      }
+      #signpost-3d .file .tool:active {
+        transform: translateY(2px);
+        box-shadow:
+          inset 0 2px 0 rgba(255, 255, 255, 0.4),
+          0 1px 0 var(--ink);
+      }
+      #signpost-3d .face.shelf .none,
+#signpost-3d .face.shelf .note {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.3;
+        color: #ffe9c2;
+        text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
+      }
+      #signpost-3d .face.shelf .note {
+        color: #ffe39a;
+      }
+      #signpost-3d .face.shelf .main > .go {
+        flex: none;
+        align-self: center;
+        margin-bottom: 6px;
+      }
 `;

@@ -62,9 +62,13 @@ Decisions that are settled, so they are not relitigated:
 - [ ] War Council **map seed** and its re-roll.
 - [x] **Offline**: the Multiplayer board says so, Host and Join disable,
       and polling stops.
-- [ ] **Load save** and **Replays**: the player's file lists (import, drag,
-      share — the old `SHELVES`) need a place. Their footer buttons are
-      disabled until then. **Map editor** and **Field guide** work.
+- [x] **Replays**: written on a face of a rock (the hexagon pack's
+      `mountain_C`) standing in the valley; the footer's Replays flies the
+      lens over to it. Pick and Watch, double-click, delete, share, drag
+      out, drop in (`ShelfBoard.tsx`). Not yet tried with a real recording.
+- [ ] **Load save**: the same shelf for saved games — a second face, or a
+      second rock. Its footer button is disabled until then. **Map editor**
+      and **Field guide** work.
 - [ ] Reopen on the board the player used last (`rememberedMode`), or
       decide not to. Today it always opens on the crossroads.
 
@@ -73,13 +77,15 @@ Decisions that are settled, so they are not relitigated:
 - [ ] **Keyboard and screen readers**: visually hidden buttons stand in
       for the arrows and Esc closes a board; not yet walked through with
       Tab or VoiceOver.
-- [ ] **Reduced motion**: turn, flip and zoom snap and the sway stops
-      under `prefers-reduced-motion`; not yet checked by eye.
+- [ ] **Reduced motion**: turn, flip, zoom and the trip to the rock snap,
+      and the pointer/tilt lean stops, under `prefers-reduced-motion`; not
+      yet checked by eye.
 - [ ] **Performance**: the valley renders full-resolution every frame; the
       old backdrop was capped at 30fps and drawn soft. Measure on a laptop
       and a phone (see the GPU perf memory for the harness).
 - [ ] **Real devices**: everything so far is pane emulation. Check a real
-      phone, including `:active` presses on iOS.
+      phone, including `:active` presses on iOS and the tilt lean (iOS asks
+      permission on the first tap).
 - [ ] **Fonts**: self-host Lilita One and Nunito in `public/fonts`;
       `index.html` loads them from Google Fonts for now.
 - [x] **Renderer access**: `GameRenderer.webgl` for the studio-light bake.

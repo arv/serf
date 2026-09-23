@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {
   CSS3DObject,
   CSS3DRenderer,
@@ -18,7 +19,10 @@ import {ScatterMesh} from '../../render/scatterMesh';
 import {TerrainMesh} from '../../render/terrainMesh';
 import {WaterMesh} from '../../render/waterMesh';
 import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
+import {WATER_LEVEL} from '../../sim/map';
 import * as PlayerKind from '../../sim/playerKindEnum.ts';
+import * as Terrain from '../../sim/terrainEnum.ts';
+import * as TileResource from '../../sim/tileResourceEnum.ts';
 import {createWorld} from '../../sim/world';
 
 /**
@@ -37,17 +41,25 @@ import {createWorld} from '../../sim/world';
  * light at the top of the object, dark at the bottom), with fat rounded
  * bevels and smooth normals, and soft carved grain that carries no colour.
  *
- * One WebGL context, one loop: the signpost is parented to the valley
- * camera rather than drawn on a second canvas over it, and nothing is
- * blurred by CSS — a full-screen filter under a canvas that changes every
- * frame is re-run every frame, and stutters.
+ * The signpost stands in the valley where the lens rests, and the shelf of
+ * replays is a rock elsewhere in it: opening Replays is the lens going over
+ * there. Nothing drifts; the pointer — on a phone, tilting it — moves the
+ * lens a little round what it looks at.
+ *
+ * One WebGL context, one loop: the signpost is in the valley's own scene
+ * rather than drawn on a second canvas over it, and nothing is blurred by
+ * CSS — a full-screen filter under a canvas that changes every frame is
+ * re-run every frame, and stutters.
  */
 
 export type Mode = 'campaign' | 'skirmish' | 'multi';
+/** Every board the screen can be in front of: a mode's, or the shelf of
+ * recorded matches. */
+export type Board = Mode | 'replays';
 
 export interface SignpostEvents {
   /** The open board changed; null is back at the crossroads. */
-  onBoard(mode: Mode | null): void;
+  onBoard(board: Board | null): void;
 }
 
 export interface SignpostScene {
@@ -55,9 +67,13 @@ export interface SignpostScene {
   readonly faces: Readonly<Record<Mode, HTMLDivElement>>;
   /** The War Council's board, on the front of the Multiplayer arrow. */
   readonly councilFace: HTMLDivElement;
+  /** The shelf of recorded matches, written on the face of the rock that springs up for it. */
+  readonly shelfFace: HTMLDivElement;
   /** Turn the signpost round to `mode`'s board (closing another first).
    * `instant` skips the animation — a page that opens already there. */
   open(mode: Mode, instant?: boolean): Promise<void>;
+  /** Go over to the rock with the shelf on it (closing any board first). */
+  openShelf(): Promise<void>;
   /** Back to the crossroads. */
   close(): Promise<void>;
   /** Flip the Multiplayer arrow over to the War Council. */
@@ -73,7 +89,6 @@ export interface SignpostScene {
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const easeInOut = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
-
 /** A small seeded generator: the sign's jitter and grain are the same on
  * every visit. */
 function seeded(start: number): () => number {
@@ -401,7 +416,8 @@ const BACKDROP_SEED = 41207;
 const EYE_HEIGHT = 6;
 const ORBIT_RADIUS = 19;
 const LOOK_HEIGHT = 2.8;
-/** Where the walk starts — chosen so the sun rakes across the keep. */
+/** Where the lens rests on its circle round the keep — chosen so the sun
+ * rakes across the keep. */
 const START_ANGLE = 2.2;
 /** The haze band, in tiles from the eye (see the old backdrop's note:
  * far ground lit evenly reads as a painted flat pinned behind the keep). */
@@ -416,11 +432,12 @@ const FOV = 32;
 const TAN = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
 
 /**
- * Everything of the menu hangs off the camera. In `ui` space the camera is
- * at the origin looking down -z; the whole of it is shrunk toward the lens,
- * so the post stands a few tiles off rather than nine — well clear of any
- * hill between it and the eye. `stage` is where the signpost stands; the
- * zoom onto an arrow is `stage` sliding toward the lens.
+ * The signpost stands in `ui`, a space fixed in the valley where the lens
+ * rests (see placeRest): in it the resting lens is at the origin looking
+ * down -z, and the whole of it is shrunk toward the lens, so the post
+ * stands a few tiles off rather than nine — well clear of any hill between
+ * it and the eye. `stage` is where the signpost stands; the zoom onto an
+ * arrow is `stage` sliding toward the lens.
  */
 const STAGE_DIST = 9.5;
 const STAGE_Y = 1.5;
@@ -428,6 +445,44 @@ const UI_SCALE = 0.45;
 
 const TURN_MS = 1150;
 const FLIP_MS = 900;
+/** The lens's trip from the signpost to the rock, and back. */
+const FLY_MS = 1600;
+
+/**
+ * The pointer — or on a phone, tilting it — moves the lens a little round
+ * what it looks at, which is what sells the depth. How far, at the
+ * signpost (ui units, at the crossroads; less as the lens closes in on a
+ * board) and at the rock (tiles), and how many degrees of tilt make a full
+ * lean.
+ */
+const LEAN = {x: 0.6, y: 0.3};
+const ROCK_LEAN = {x: 0.45, y: 0.2};
+const TILT_FULL = 20;
+
+/**
+ * The rock the shelf is written on — the pack's mountain_C, a heap of
+ * hexagonal slabs — and the face of it the list is written on: the front
+ * slab's right-hand face, in the model's own units. The slab's sides are
+ * upright and its foot is flat, but its top is cut on a slant, from `low`
+ * at its left end up to `high` at its right.
+ */
+const ROCK_FACE = {
+  x: 0.2015,
+  z: 0.862,
+  yaw: THREE.MathUtils.degToRad(29),
+  w: 0.551,
+  low: 0.758,
+  high: 0.828,
+};
+/** The list inside the face: its width, and the stone left clear above and
+ * below it (the model's units) — above the flat foot, and under the top's
+ * low end, so the whole of it is on the face. */
+const LIST_W = ROCK_FACE.w * 0.92;
+const LIST_MARGIN = 0.03;
+const LIST_H = ROCK_FACE.low - 2 * LIST_MARGIN;
+/** How wide the rock is, in tiles: a big one, well over the grass, and
+ * seen near level from in front of its face. */
+const ROCK_WIDTH = 3.6;
 
 // ------------------------------------------------------------------ layout
 
@@ -520,7 +575,11 @@ export async function startSignpost(
   events: SignpostEvents,
 ): Promise<SignpostScene> {
   releaseSignpost();
-  await Promise.all([loadGlbAssets(), document.fonts.load(`100px "${FONT}"`)]);
+  const [, , rockGltf] = await Promise.all([
+    loadGlbAssets(),
+    document.fonts.load(`100px "${FONT}"`),
+    new GLTFLoader().loadAsync('/models/kaykit/mountain_C.gltf'),
+  ]);
 
   const rand = seeded(20260923);
   const jitter = (a: number): number => (rand() * 2 - 1) * a;
@@ -562,10 +621,11 @@ export async function startSignpost(
   const water = new WaterMesh(world.map);
   const mist = new Mist(world.map);
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.3, 400);
+  const grass = new GrassField(world.map, heights);
   renderer.scene.add(
     new TerrainMesh(world.map, heights).group,
     new ScatterMesh(world.map, heights).group,
-    new GrassField(world.map, heights).mesh,
+    grass.mesh,
     water.mesh,
     new MarginMesh(world.map, heights).mesh,
     mist.group,
@@ -582,10 +642,13 @@ export async function startSignpost(
   const cz = keep ? keep.y + keep.h / 2 : half;
   const groundY = heights.at(cx, cz);
 
-  // ——— the stage the signpost stands on, hung off the camera
+  // ——— the stage the signpost stands on: fixed in the valley, where the
+  // lens rests (see rest), so its space is the lens's own there.
   const ui = new THREE.Group();
   ui.scale.setScalar(UI_SCALE);
-  camera.add(ui);
+  renderer.scene.add(ui);
+  /** The lens at rest: where the signpost's framing is worked out from. */
+  const rest = new THREE.PerspectiveCamera();
   const stage = new THREE.Group();
   ui.add(stage);
   const REST = new THREE.Vector3(0, -STAGE_Y, -STAGE_DIST);
@@ -764,6 +827,42 @@ export async function startSignpost(
   councilObj.rotation.z = Math.PI;
   councilObj.position.z = ARROW_Z + ARROW_D / 2 + 0.006;
 
+  // ——— the shelf: a rock standing in the valley, the list written on one
+  // of its faces. Opening it is the lens going over there.
+  /** The rock, normalised to a width of 1 (its foot at 0, centred), then
+   * scaled to ROCK_WIDTH and stood on its spot (findRockSpot). */
+  const rock = new THREE.Group();
+  renderer.scene.add(rock);
+  /** The rock's width in the model's units: a face's size over this is its
+   * size in the rock's. */
+  let rockW = 1;
+  /** On the face, in the model's own frame: the list hangs from this. */
+  const faceAnchor = new THREE.Object3D();
+  {
+    const model = rockGltf.scene;
+    // The pack's own palette material, as the sign wears it (studio light
+    // included, below): the model's uvs already point into the atlas.
+    model.traverse(o => {
+      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = kayMat;
+    });
+    const box = new THREE.Box3().setFromObject(model);
+    rockW = box.max.x - box.min.x;
+    faceAnchor.position.set(ROCK_FACE.x, LIST_MARGIN + LIST_H / 2, ROCK_FACE.z);
+    faceAnchor.rotation.y = ROCK_FACE.yaw;
+    model.add(faceAnchor);
+    model.position.set(
+      -(box.min.x + box.max.x) / 2,
+      -box.min.y,
+      -(box.min.z + box.max.z) / 2,
+    );
+    const norm = new THREE.Group();
+    norm.add(model);
+    norm.scale.setScalar(1 / rockW);
+    rock.add(norm);
+    rock.scale.setScalar(ROCK_WIDTH);
+  }
+  const {el: shelfFace, obj: shelfObj} = boardOf(faceAnchor, 'face shelf');
+
   // ——— studio light: for the sign only. The valley's sun sits behind the
   // post from where the lens stands, which left the wood a muddy brown; the
   // pack's own renders are lit soft and even from the front. An envMap on
@@ -772,7 +871,7 @@ export async function startSignpost(
     const pmrem = new THREE.PMREMGenerator(renderer.webgl);
     const studio = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
-    ui.traverse(o => {
+    const lit = (o: THREE.Object3D): void => {
       const m = (o as THREE.Mesh).material as
         | THREE.MeshStandardMaterial
         | undefined;
@@ -781,7 +880,9 @@ export async function startSignpost(
       m.envMapIntensity = 0.42;
       m.fog = false;
       m.needsUpdate = true;
-    });
+    };
+    ui.traverse(lit);
+    rock.traverse(lit);
   }
 
   // ——— layout
@@ -789,7 +890,7 @@ export async function startSignpost(
   let postY = 0;
   let inCouncil = false;
   let current: Arrow | null = null;
-
+  let shelfOpen = false;
   const place = (
     el: HTMLDivElement,
     obj: CSS3DObject,
@@ -828,6 +929,160 @@ export async function startSignpost(
     return new THREE.Vector3(0, 0, -depth).sub(c);
   };
 
+  /**
+   * Where the rock stands: somewhere in the valley on dry, open grass — no
+   * river, no trees, no buildings — with room in front of its face for the
+   * lens, and the ground under it near level. Off to one side of the keep
+   * as the lens sees it from rest, and not far, so the trip is short and
+   * the rock is part of the view, not in front of it. Its face turns to
+   * the resting lens.
+   *
+   * Scored rather than filtered — a wooded valley may have nowhere that is
+   * perfect — except for water: never in the river.
+   */
+  const findRockSpot = (): {x: number; z: number; y: number; face: number} => {
+    const map = world.map;
+    const size = map.size;
+    const tileAt = (x: number, z: number): number => {
+      const tx = Math.floor(x);
+      const tz = Math.floor(z);
+      return tx < 0 || tz < 0 || tx >= size || tz >= size ? -1 : tz * size + tx;
+    };
+    const wet = (x: number, z: number): boolean => {
+      const i = tileAt(x, z);
+      return (
+        i < 0 ||
+        map.terrain[i] === Terrain.Water ||
+        heights.at(x, z) < WATER_LEVEL + 0.25
+      );
+    };
+    const cluttered = (x: number, z: number): boolean => {
+      const i = tileAt(x, z);
+      return (
+        i < 0 ||
+        map.terrain[i] !== Terrain.Grass ||
+        map.resource[i] !== TileResource.None ||
+        map.buildingAt[i]! >= 0
+      );
+    };
+    const restX = cx + Math.sin(START_ANGLE) * ORBIT_RADIUS;
+    const restZ = cz + Math.cos(START_ANGLE) * ORBIT_RADIUS;
+    const toKeep = Math.atan2(cx - restX, cz - restZ);
+    let best = {x: restX, z: restZ, y: heights.at(restX, restZ), face: toKeep};
+    let bestScore = Infinity;
+    for (let tz = 0; tz < size; tz++)
+      for (let tx = 0; tx < size; tx++) {
+        const x = tx + 0.5;
+        const z = tz + 0.5;
+        const away = Math.hypot(x - restX, z - restZ);
+        if (away < 6 || away > 18) continue;
+        // Beside the keep from the resting lens, not in front of it.
+        const off = Math.abs(
+          THREE.MathUtils.euclideanModulo(
+            Math.atan2(x - restX, z - restZ) - toKeep + Math.PI,
+            Math.PI * 2,
+          ) - Math.PI,
+        );
+        if (off < 0.2 || off > 1.1) continue;
+        let score = Math.abs(away - 10) * 0.3 + Math.abs(off - 0.45) * 2;
+        // Its footprint: dry (always), open, near level.
+        let lo = Infinity;
+        let hi = -Infinity;
+        let dry = true;
+        for (let dz = -2; dz <= 2 && dry; dz += 0.5)
+          for (let dx = -2; dx <= 2 && dry; dx += 0.5) {
+            if (dx * dx + dz * dz > 4.4) continue;
+            if (wet(x + dx, z + dz)) dry = false;
+            if (cluttered(x + dx, z + dz)) score += 1;
+            const h = heights.at(x + dx, z + dz);
+            lo = Math.min(lo, h);
+            hi = Math.max(hi, h);
+          }
+        if (!dry) continue;
+        score += (hi - lo) * 8;
+        // The way toward the resting lens, where the lens will stand: dry
+        // and open.
+        const fx = (restX - x) / away;
+        const fz = (restZ - z) / away;
+        for (let d = 2; d <= 6.5; d += 0.5)
+          for (let l = -1.2; l <= 1.2; l += 0.6) {
+            const px = x + fx * d - fz * l;
+            const pz = z + fz * d + fx * l;
+            if (wet(px, pz)) score += 3;
+            else if (cluttered(px, pz)) score += 1;
+          }
+        if (score < bestScore) {
+          bestScore = score;
+          best = {x, z, y: lo - 0.05, face: Math.atan2(fx, fz)};
+        }
+      }
+    return best;
+  };
+  {
+    const spot = findRockSpot();
+    rock.position.set(spot.x, spot.y, spot.z);
+    // A trodden patch in front of the face, where the lens stands: seen
+    // from there, grass a stride away would stand taller than the list.
+    const size = world.map.size;
+    const fx = Math.sin(spot.face);
+    const fz = Math.cos(spot.face);
+    for (let d = 0; d <= 8; d += 0.5)
+      for (let l = -1.5; l <= 1.5; l += 0.5) {
+        const tx = Math.floor(spot.x + fx * d - fz * l);
+        const tz = Math.floor(spot.z + fz * d + fx * l);
+        if (tx >= 0 && tz >= 0 && tx < size && tz < size)
+          grass.removeTile(tz * size + tx);
+      }
+    // The face points `face`; the model's face points ROCK_FACE.yaw.
+    rock.rotation.y = spot.face - ROCK_FACE.yaw;
+  }
+
+  /** The list's text scale: set by placeShelf, from the face's width. */
+  let shelfK = 1;
+  /** How far in front of the face the lens stands (tiles): set by
+   * placeShelf. */
+  let shelfDist = 4;
+
+  /**
+   * Size the list to the face, and stand the lens far enough back that
+   * the face fills most of the window's height — or its width, on a phone.
+   */
+  const placeShelf = (): void => {
+    const toWorld = ROCK_WIDTH / rockW;
+    const faceH = ROCK_FACE.high * toWorld;
+    const faceW = ROCK_FACE.w * toWorld;
+    shelfDist = Math.max(
+      faceH / (0.8 * 2 * TAN),
+      faceW / (0.9 * 2 * TAN * camera.aspect),
+    );
+    // The list, laid out about 380px wide whatever that is on screen.
+    const perPx = (2 * shelfDist * TAN) / innerHeight;
+    const toPx = toWorld / perPx;
+    shelfK = THREE.MathUtils.clamp((LIST_W * toPx) / 380, 0.75, 1.35);
+    shelfFace.style.width = `${(LIST_W * toPx) / shelfK}px`;
+    shelfFace.style.height = `${(LIST_H * toPx) / shelfK}px`;
+    // The anchor is in the model's units.
+    shelfObj.scale.setScalar((shelfK * perPx) / toWorld);
+    // A hair off the stone, toward the lens.
+    shelfObj.position.set(0, 0, 0.004 / toWorld);
+  };
+
+  /** Where the lens rests, looking at the signpost: START_ANGLE round,
+   * the keep pushed left on a wide window to leave the right for the
+   * signpost. */
+  const placeRest = (): void => {
+    const room = THREE.MathUtils.clamp((camera.aspect - 1) / 0.8, 0, 1);
+    rest.position.set(
+      cx + Math.sin(START_ANGLE) * ORBIT_RADIUS,
+      groundY + EYE_HEIGHT,
+      cz + Math.cos(START_ANGLE) * ORBIT_RADIUS,
+    );
+    rest.lookAt(cx, groundY + LOOK_HEIGHT, cz);
+    rest.rotateY(-0.2 * room);
+    ui.position.copy(rest.position);
+    ui.quaternion.copy(rest.quaternion);
+  };
+
   const layout = (): void => {
     const aspect = camera.aspect;
     const halfW = STAGE_DIST * TAN * aspect;
@@ -847,6 +1102,7 @@ export async function startSignpost(
     post.position.set(postX, postY, 0);
     for (const a of arrows) place(a.face, a.faceObj, a, false);
     place(councilFace, councilObj, multi, true);
+    placeShelf();
   };
 
   let busy = false;
@@ -855,6 +1111,7 @@ export async function startSignpost(
     camera.updateProjectionMatrix();
     css.setSize(innerWidth, innerHeight);
     layout();
+    placeRest();
     if (current && !busy) stageBase.copy(focusBase(current, inCouncil));
   };
   window.addEventListener('resize', fit);
@@ -934,6 +1191,35 @@ export async function startSignpost(
     busy = false;
   };
 
+  /** How far the lens is on its way to the rock: 0 at the signpost, 1 in
+   * front of the face. */
+  let fly = 0;
+
+  const showShelf = async (): Promise<void> => {
+    busy = true;
+    shelfOpen = true;
+    events.onBoard('replays');
+    const f0 = fly;
+    await tween(FLY_MS, t => {
+      fly = lerp(f0, 1, t);
+    });
+    activate(shelfFace, true);
+    busy = false;
+  };
+
+  const hideShelf = async (): Promise<void> => {
+    if (!shelfOpen) return;
+    busy = true;
+    activate(shelfFace, false);
+    events.onBoard(null);
+    const f0 = fly;
+    await tween(FLY_MS, t => {
+      fly = lerp(f0, 0, t);
+    });
+    shelfOpen = false;
+    busy = false;
+  };
+
   /**
    * Flip the Multiplayer arrow a half turn about its length, bringing its
    * front — and the council there — round to the lens (or its back again),
@@ -966,9 +1252,9 @@ export async function startSignpost(
   const ray = new THREE.Raycaster();
   const pointer = new THREE.Vector2(9, 9);
   const parallax = new THREE.Vector2();
-  /** Where the sway leans toward: the mouse, and only the mouse. A finger
-   * leaves no position between taps, and a lean toward its last tap would
-   * slide the board off-centre on a phone. */
+  /** Where the lens leans toward: the mouse, or on a phone its tilt. Not
+   * a finger: it leaves no position between taps, and a lean toward its
+   * last tap would slide the board off-centre. */
   const leanTo = new THREE.Vector2();
   let hovered: Arrow | null = null;
 
@@ -995,7 +1281,9 @@ export async function startSignpost(
     const el = e.target as HTMLElement | null;
     if (el?.closest('.face, #menu button, #menu a, #menu input')) return;
     if (busy) return;
-    if (!current) {
+    if (shelfOpen) {
+      void scene.close();
+    } else if (!current) {
       const a = arrowUnder(toNdc(e.clientX, e.clientY));
       if (a) void scene.open(a.mode);
     } else if (!inCouncil) {
@@ -1004,6 +1292,51 @@ export async function startSignpost(
   };
   window.addEventListener('pointermove', onMove);
   window.addEventListener('click', onClick);
+
+  // A phone has no pointer to lean after, but it has a tilt: the lens
+  // leans as the phone does, measured from how it is being held (which
+  // drifts along slowly, so holding it at a new angle settles back to
+  // straight on).
+  let held: {beta: number; gamma: number} | null = null;
+  const onTilt = (e: DeviceOrientationEvent): void => {
+    if (e.beta === null || e.gamma === null) return;
+    // Held sideways, the phone's own axes swap round the screen's.
+    const turn = screen.orientation?.angle ?? 0;
+    const across =
+      turn === 90 ? e.beta : turn === 270 || turn === -90 ? -e.beta : e.gamma;
+    const along =
+      turn === 90 ? -e.gamma : turn === 270 || turn === -90 ? e.gamma : e.beta;
+    held ??= {beta: along, gamma: across};
+    held.beta += (along - held.beta) * 0.01;
+    held.gamma += (across - held.gamma) * 0.01;
+    leanTo.set(
+      THREE.MathUtils.clamp((across - held.gamma) / TILT_FULL, -1, 1),
+      THREE.MathUtils.clamp((held.beta - along) / TILT_FULL, -1, 1),
+    );
+  };
+  const touchOnly = !(
+    window.matchMedia?.('(any-pointer: fine)').matches ?? false
+  );
+  /** iOS asks before it hands out the tilt, and only from a tap. */
+  const askTilt = (): void => {
+    window.removeEventListener('touchend', askTilt);
+    const ask = (
+      DeviceOrientationEvent as unknown as {
+        requestPermission?: () => Promise<'granted' | 'denied'>;
+      }
+    ).requestPermission;
+    if (ask)
+      void ask()
+        .then(r => {
+          if (r === 'granted')
+            window.addEventListener('deviceorientation', onTilt);
+        })
+        .catch(() => {});
+  };
+  if (touchOnly && typeof DeviceOrientationEvent !== 'undefined') {
+    window.addEventListener('deviceorientation', onTilt);
+    window.addEventListener('touchend', askTilt);
+  }
 
   // ——— the loop
   const eye = new THREE.Vector3();
@@ -1026,6 +1359,14 @@ export async function startSignpost(
 
   let raf = 0;
   let stopped = false;
+  const pivot = new THREE.Vector3();
+  const lensAt = new THREE.Vector3();
+  const faceAt = new THREE.Vector3();
+  const faceN = new THREE.Vector3();
+  const faceRight = new THREE.Vector3();
+  const signPos = new THREE.Vector3();
+  const signQuat = new THREE.Quaternion();
+  const rockQuat = new THREE.Quaternion();
   let last = performance.now();
   const loop = (now: number): void => {
     if (stopped) return;
@@ -1043,32 +1384,55 @@ export async function startSignpost(
       }
     }
 
-    // The valley: a slow sway rather than a full orbit — the post is lit by
-    // the valley's sun, and a full turn would walk it into back-light.
+    // The lens: at rest in front of the signpost, or over at the rock, or
+    // on its way between. Nothing drifts; the pointer (or the phone's
+    // tilt) moves it a little round what it looks at.
     parallax.lerp(leanTo, 1 - Math.exp(-dt * 3));
-    const t = still ? 0 : now / 60000;
-    const angle =
-      START_ANGLE + Math.sin(t * Math.PI * 2) * 0.12 - parallax.x * 0.015;
-    const room = THREE.MathUtils.clamp((camera.aspect - 1) / 0.8, 0, 1);
-    camera.position.set(
-      cx + Math.sin(angle) * ORBIT_RADIUS,
-      groundY + EYE_HEIGHT + Math.sin(t * 4) * 0.3,
-      cz + Math.cos(angle) * ORBIT_RADIUS,
-    );
-    camera.lookAt(cx, groundY + LOOK_HEIGHT, cz);
-    camera.rotateY(-0.2 * room);
-    // The menu leans against the pointer, which is what sells the depth.
-    // Squared distance: the lean shrinks faster than the view does as the
-    // lens closes in, so at the crossroads it sways and in front of a board
-    // — on a phone held upright, very close — it barely moves at all.
-    const lean = still ? 0 : (-stageBase.z / STAGE_DIST) ** 2;
-    stage.position.set(
-      stageBase.x - parallax.x * 0.18 * lean,
-      stageBase.y - parallax.y * 0.1 * lean,
-      stageBase.z,
-    );
+    const px = still ? 0 : parallax.x;
+    const py = still ? 0 : parallax.y;
+    // At the signpost: round the point on its axis at the stage's depth —
+    // the signpost, or the board the lens has closed in on. Squared
+    // distance: the swing shrinks faster than the view does as the lens
+    // closes in, so at the crossroads it sways and in front of a board —
+    // on a phone held upright, very close — it barely moves at all.
+    const lean = (-stageBase.z / STAGE_DIST) ** 2;
+    stage.position.copy(stageBase);
+    ui.updateMatrixWorld();
+    ui.localToWorld(pivot.set(0, 0, stageBase.z));
+    ui.localToWorld(lensAt.set(px * LEAN.x * lean, py * LEAN.y * lean, 0));
+    camera.position.copy(lensAt);
+    camera.lookAt(pivot);
+    if (fly > 0) {
+      signPos.copy(camera.position);
+      signQuat.copy(camera.quaternion);
+      // At the rock: square in front of the face, level with its middle,
+      // swung round it by the pointer.
+      rock.updateMatrixWorld();
+      faceAnchor.getWorldPosition(faceAt);
+      faceAnchor.getWorldDirection(faceN).setY(0).normalize();
+      faceRight.set(faceN.z, 0, -faceN.x);
+      camera.position
+        .copy(faceAt)
+        .addScaledVector(faceN, shelfDist)
+        .addScaledVector(faceRight, px * ROCK_LEAN.x)
+        .setY(faceAt.y + py * ROCK_LEAN.y);
+      // Never under the ground (or the river) where it stands.
+      camera.position.y = Math.max(
+        camera.position.y,
+        Math.max(
+          heights.at(camera.position.x, camera.position.z),
+          WATER_LEVEL,
+        ) + 0.5,
+      );
+      camera.lookAt(faceAt);
+      // On the way: over the ground between, a little lifted mid-trip.
+      camera.position.lerp(signPos, 1 - fly);
+      camera.position.y += Math.sin(fly * Math.PI) * 1.2;
+      rockQuat.copy(camera.quaternion);
+      camera.quaternion.slerpQuaternions(signQuat, rockQuat, fly);
+    }
 
-    hovered = busy || current ? null : arrowUnder(pointer);
+    hovered = busy || current || shelfOpen ? null : arrowUnder(pointer);
     document.body.style.cursor = hovered ? 'pointer' : '';
     for (const a of arrows) {
       if (a !== current) {
@@ -1092,6 +1456,8 @@ export async function startSignpost(
         current === a && facing(a.faceObj) ? 'visible' : 'hidden';
     councilFace.style.visibility =
       inCouncil && facing(councilObj) ? 'visible' : 'hidden';
+    shelfFace.style.visibility =
+      shelfOpen && facing(shelfObj) ? 'visible' : 'hidden';
 
     water.update(now);
     mist.update(now);
@@ -1108,20 +1474,31 @@ export async function startSignpost(
       multi: multi.face,
     },
     councilFace,
+    shelfFace,
     open: (mode, instant = false) =>
       queue(async () => {
         const a = byMode(mode);
         if (current === a) return;
+        await hideShelf();
         if (current) await turnBack();
         await turnTo(a, instant);
       }),
+    openShelf: () =>
+      queue(async () => {
+        if (shelfOpen) return;
+        if (inCouncil) return; // a room is left by its Leave, not by this
+        if (current) await turnBack();
+        await showShelf();
+      }),
     close: () =>
       queue(async () => {
+        await hideShelf();
         if (inCouncil) await flip(false, false);
         await turnBack();
       }),
     enterCouncil: (instant = false) =>
       queue(async () => {
+        await hideShelf();
         if (current !== multi) {
           if (current) await turnBack();
           await turnTo(multi, instant);
@@ -1139,6 +1516,8 @@ export async function startSignpost(
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', fit);
       window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('deviceorientation', onTilt);
+      window.removeEventListener('touchend', askTilt);
       window.removeEventListener('click', onClick);
       document.body.style.cursor = '';
       css.domElement.removeEventListener('scroll', pin);

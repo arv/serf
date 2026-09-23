@@ -22,7 +22,8 @@ import {muted, toggleMuted} from '../store';
 import {CampaignBoard, MultiplayerBoard, SkirmishBoard} from './boards';
 import {CouncilBoard} from './CouncilBoard';
 import {listRooms, POLL_MS, type OpenRoom} from './rooms';
-import type {Mode, SignpostScene} from './scene';
+import type {Board, SignpostScene} from './scene';
+import {ShelfBoard} from './ShelfBoard';
 import {SIGNPOST_STYLE} from './style';
 
 /**
@@ -65,7 +66,7 @@ export function Signpost(props: {
   /** Back out of a room that has not answered yet. */
   onLeaveCouncil(): void;
 }) {
-  const [board, setBoard] = createSignal<Mode | null>(null);
+  const [board, setBoard] = createSignal<Board | null>(null);
   const [scene, setScene] = createSignal<SignpostScene | null>(null);
 
   // ——— the skirmish setup, remembered between visits
@@ -240,6 +241,16 @@ export function Signpost(props: {
         ),
         s.councilFace,
       ),
+      render(
+        () => (
+          <ShelfBoard
+            open={board() === 'replays'}
+            onWatch={name => launch('?replay=' + encodeURIComponent(name))}
+            onBack={close}
+          />
+        ),
+        s.shelfFace,
+      ),
     ];
     setScene(s);
     // Arriving already in a room (an invite link, a reload mid-lobby): be
@@ -356,7 +367,11 @@ export function Signpost(props: {
         <button disabled title="Saved games are coming back to the signpost">
           Load save
         </button>
-        <button disabled title="Replays are coming back to the signpost">
+        <button
+          title="Watch a recorded match"
+          disabled={scene() === null}
+          onClick={() => void scene()?.openShelf()}
+        >
           Replays
         </button>
         <button
