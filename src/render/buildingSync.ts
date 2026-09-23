@@ -33,8 +33,8 @@ import {
   makePileProp,
   makeSiteFrame,
   makeTieredPile,
-  PILE_SCALE,
-  pileCap,
+  PILE_LANE,
+  pileChunks,
   pileSlot,
   makeRoadPile,
   SITE_FRAME_H,
@@ -242,9 +242,10 @@ interface BuildingVisual {
   piles?: THREE.Group;
   /** Serialized pile contents — rebuilt only when the counts change. */
   pileKey: string;
-  /** Which lane each good's stack stands in, kept across rebuilds so a
-   * stack never slides sideways because a *different* good arrived. */
-  pileLanes: Map<GoodId, number>;
+  /** Which lanes each good's stacks stand in, in claim order, kept across
+   * rebuilds so a stack never slides sideways because a *different* good
+   * arrived (or its own count spilled into another pile). */
+  pileLanes: Map<GoodId, number[]>;
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
   /** The mill's sail assembly, turned per frame while the mill grinds. */
@@ -1795,7 +1796,7 @@ export class BuildingSync {
     if (!yard || b.state !== BuildingState.built) return false;
     const n = (b.stock[yard.good] ?? 0) + (b.inputs[yard.good] ?? 0);
     const stacks = yard.tiered
-      ? Math.min(n, pileCap(yard.good))
+      ? n
       : Math.min(Math.ceil(n / yard.per), yard.spots.length);
     const key = `yard${stacks}`;
     if (key === v.pileKey) return true;
@@ -1904,7 +1905,7 @@ export class BuildingSync {
       } else {
         n = (b.stock[g] ?? 0) + (b.inputs[g] ?? 0);
       }
-      if (n > 0) shown.push([g, Math.min(n, pileCap(g))]);
+      if (n > 0) shown.push([g, n]);
     }
     const key = shown.map(([g, n]) => `${g}:${n}`).join('.');
     if (key === v.pileKey) return;
@@ -1912,18 +1913,27 @@ export class BuildingSync {
     // Lanes are sticky. Laying the stacks out by their index in `shown`
     // meant every kind already on the ground jumped sideways the moment a
     // new kind was set down beside it — half a lane, for goods nobody had
-    // touched. A good keeps the lane it was first given instead, so an
+    // touched. A good keeps the lanes it was first given instead, so an
     // arrival only ever adds a stack at the edge; a good that runs out
-    // hands its lane back for the next arrival to claim.
+    // hands its lanes back for the next arrival to claim. A good that
+    // outgrows one pile (pileChunks) claims another the same way, and
+    // hands back its last-claimed first as it shrinks.
+    const chunks = new Map(shown.map(([g, n]) => [g, pileChunks(g, n)]));
     const lanes = v.pileLanes;
-    const present = new Set(shown.map(([g]) => g));
-    for (const g of lanes.keys()) if (!present.has(g)) lanes.delete(g);
-    const taken = new Set(lanes.values());
-    for (const [g] of shown) {
-      if (lanes.has(g)) continue;
-      const lane = freeLane(taken);
-      lanes.set(g, lane);
-      taken.add(lane);
+    for (const [g, held] of lanes) {
+      const need = chunks.get(g)?.length ?? 0;
+      if (need === 0) lanes.delete(g);
+      else if (held.length > need) held.length = need;
+    }
+    const taken = new Set([...lanes.values()].flat());
+    for (const [g, want] of chunks) {
+      let held = lanes.get(g);
+      if (!held) lanes.set(g, (held = []));
+      while (held.length < want.length) {
+        const lane = freeLane(taken);
+        held.push(lane);
+        taken.add(lane);
+      }
     }
     if (v.piles) {
       v.root.remove(v.piles);
@@ -1940,28 +1950,29 @@ export class BuildingSync {
       0,
       b.type === BuildingTypeId.salvage ? 0 : b.h / 2 + 0.3,
     );
-    for (const [good, n] of shown) {
-      const lane = lanes.get(good)!;
-      // The lattice grows with the props (PILE_SCALE), or the fatter
-      // stacks interpenetrate.
-      const cx = lane * 0.42 * PILE_SCALE;
-      const tiered = makeTieredPile(good, n);
-      if (tiered) {
-        tiered.position.x = cx;
-        piles.add(tiered);
-        continue;
-      }
-      for (let i = 0; i < n; i++) {
-        const prop = makePileProp(good);
-        const [x, y, z, yaw] = pileSlot(
-          i,
-          hash2(b.id * 31 + i, lane),
-          hash2(b.id * 17 + i, lane + 9),
-        );
-        prop.position.set(cx + x, y, z);
-        prop.rotation.y = yaw;
-        piles.add(prop);
-      }
+    for (const [good, want] of chunks) {
+      const held = lanes.get(good)!;
+      want.forEach((n, k) => {
+        const lane = held[k]!;
+        const cx = lane * PILE_LANE;
+        const tiered = makeTieredPile(good, n);
+        if (tiered) {
+          tiered.position.x = cx;
+          piles.add(tiered);
+          return;
+        }
+        for (let i = 0; i < n; i++) {
+          const prop = makePileProp(good);
+          const [x, y, z, yaw] = pileSlot(
+            i,
+            hash2(b.id * 31 + i, lane),
+            hash2(b.id * 17 + i, lane + 9),
+          );
+          prop.position.set(cx + x, y, z);
+          prop.rotation.y = yaw;
+          piles.add(prop);
+        }
+      });
     }
     v.root.add(piles);
     v.piles = piles;

@@ -10,7 +10,8 @@ import {
   makeCarryProp,
   makePileProp,
   makeTieredPile,
-  pileCap,
+  PILE_LANE,
+  pileChunks,
   pileSlot,
 } from '../../src/render/models';
 import type {Enum} from '../../src/shared/enum.ts';
@@ -51,18 +52,28 @@ const YAW = (Number(q.get('yaw') ?? 30) * Math.PI) / 180;
 
 await Promise.all([loadGlbAssets(), loadCharacterAssets()]);
 
-/** One good's door pile in lane 0, the way #syncPiles lays it. */
+/** A good's door piles, the way #syncPiles lays them: one lane per chunk
+ * (pileChunks), here side by side and centred rather than claimed. */
 function pile(good: GoodId, n: number): THREE.Group {
-  const tiered = makeTieredPile(good, Math.min(n, pileCap(good)));
-  if (tiered) return tiered;
   const g = new THREE.Group();
-  for (let i = 0; i < Math.min(n, pileCap(good)); i++) {
-    const prop = makePileProp(good);
-    const [x, y, z, yaw] = pileSlot(i, (i * 0.37) % 1, (i * 0.61) % 1);
-    prop.position.set(x, y, z);
-    prop.rotation.y = yaw;
-    g.add(prop);
-  }
+  const chunks = pileChunks(good, n);
+  chunks.forEach((c, k) => {
+    const cx = (k - (chunks.length - 1) / 2) * PILE_LANE;
+    const tiered = makeTieredPile(good, c);
+    if (tiered) {
+      tiered.position.x = cx;
+      g.add(tiered);
+      return;
+    }
+    for (let i = 0; i < c; i++) {
+      const prop = makePileProp(good);
+      const [x, y, z, yaw] = pileSlot(i, (i * 0.37) % 1, (i * 0.61) % 1);
+      prop.position.set(cx + x, y, z);
+      prop.rotation.y = yaw;
+      g.add(prop);
+    }
+  });
+  g.userData.lanes = chunks.length;
   return g;
 }
 
@@ -105,15 +116,20 @@ function row(key: string): void {
     carrier(good),
     ...COUNTS.map(n => pile(good, n)),
   ];
-  const PITCH_X = 1.2;
+  // Each item gets a slot at least as wide as the lanes it spreads over.
+  const slots = items.map(item =>
+    Math.max(1.2, ((item.userData.lanes as number) ?? 0) * PILE_LANE + 0.6),
+  );
+  const span = slots.reduce((a, b) => a + b, 0);
+  let left = -span / 2;
   items.forEach((item, i) => {
-    const t = (i - (items.length - 1) / 2) * PITCH_X;
+    const t = left + slots[i]! / 2;
+    left += slots[i]!;
     item.position.x += t * Math.cos(YAW);
     item.position.z += -t * Math.sin(YAW);
     scene.add(item);
   });
 
-  const span = PITCH_X * items.length;
   const view = H / (W / span);
   const cam = new THREE.OrthographicCamera(
     -span / 2,
@@ -136,14 +152,8 @@ function row(key: string): void {
   const labels = document.createElement('div');
   labels.className = 'labels';
   labels.style.width = `${W}px`;
-  // A pile past the cap is drawn at the cap, and says so: a label that
-  // names a count the picture does not hold is worse than no label.
-  const at = (n: number): string =>
-    n > pileCap(good)
-      ? `${n} at the door (${pileCap(good)} shown)`
-      : `${n} at the door`;
-  labels.innerHTML = [`${key}, carried`, ...COUNTS.map(at)]
-    .map(s => `<span>${s}</span>`)
+  labels.innerHTML = [`${key}, carried`, ...COUNTS.map(n => `${n} at the door`)]
+    .map((s, i) => `<span style="flex: ${slots[i]}">${s}</span>`)
     .join('');
   document.querySelector('#app')!.appendChild(labels);
 }

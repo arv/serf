@@ -1498,6 +1498,39 @@ describe('the stock piles at a building door', () => {
     for (const x of both) expect(stands(refilled, x)).toBe(true);
   });
 
+  it('shows every unit, spilling a big stock into piles beside it', () => {
+    const {sync, scene} = makeSync();
+    // Past one pile's worth (laneCap: nine, for a heaped good with no pack
+    // model loaded) the rest starts another pile rather than going unshown.
+    sync.update([castle({[GoodId.wheat]: 20})]);
+    const xs = stackXs(scene);
+    expect(xs.length).toBe(3);
+    const root = scene.children.find(o => o instanceof THREE.Group)!;
+    const piles = root.children.find(
+      o => o instanceof THREE.Group && Math.abs(o.position.z - 1.8) < 1e-6,
+    )!;
+    expect(piles.children.length).toBe(20);
+  });
+
+  it('keeps its neighbours still while a good spills over and drains back', () => {
+    const {sync, scene} = makeSync();
+    sync.update([castle({[GoodId.wood]: 2, [GoodId.wheat]: 4})]);
+    const before = stackXs(scene);
+    expect(before.length).toBe(2);
+    // The wheat outgrows its pile: the overflow claims a free lane at the
+    // edge, and neither the wood nor the first wheat pile moves.
+    sync.update([castle({[GoodId.wood]: 2, [GoodId.wheat]: 14})]);
+    const grown = stackXs(scene);
+    expect(grown.length).toBe(3);
+    for (const x of before) expect(stands(grown, x)).toBe(true);
+    // Drained back under one pile's worth, it hands the extra lane back and
+    // is standing where it stood to begin with.
+    sync.update([castle({[GoodId.wood]: 2, [GoodId.wheat]: 4})]);
+    const shrunk = stackXs(scene);
+    expect(shrunk.length).toBe(2);
+    for (const x of before) expect(stands(shrunk, x)).toBe(true);
+  });
+
   it('stands a lone good squarely at the door', () => {
     const {sync, scene} = makeSync();
     sync.update([castle({[GoodId.wood]: 3})]);

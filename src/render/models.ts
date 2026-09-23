@@ -492,9 +492,17 @@ interface PileTiers {
   perLayer: number;
   /** Alternate layers turn a quarter, the way bars are stacked. */
   crisscross?: boolean;
-  /** Largest first. `rests` false for a bundle nothing sits on (a roped
-   * pyramid of bars has a ridge for a top): repeats go in front instead. */
-  tiers: {prop: string; units: number; rests?: false}[];
+  /** Units one door pile holds before the rest start another beside it
+   * (pileChunks) — what fits in a lane without towering or running deep. */
+  laneCap: number;
+  /**
+   * Largest first. A repeat of a bundle is set on top of the one before,
+   * unless `rests` is false — a roped pyramid of bars has a ridge for a
+   * top, and a tower of them on a tower would topple — in which case
+   * repeats go `across` to a row (default 1), rows running out from the
+   * wall.
+   */
+  tiers: {prop: string; units: number; rests?: false; across?: number}[];
 }
 
 const PILE_TIERS: Partial<Record<GoodId, PileTiers>> = {
@@ -503,6 +511,7 @@ const PILE_TIERS: Partial<Record<GoodId, PileTiers>> = {
     yaw: Math.PI / 2,
     unit: 'resources/Wood_Plank_A',
     perLayer: 2,
+    laneCap: 64,
     tiers: [
       {prop: 'resources/Wood_Planks_Stack_Large', units: 32},
       {prop: 'resources/Wood_Planks_Stack_Medium', units: 16},
@@ -514,6 +523,7 @@ const PILE_TIERS: Partial<Record<GoodId, PileTiers>> = {
     yaw: 0,
     unit: 'resources/Stone_Brick',
     perLayer: 2,
+    laneCap: 48,
     tiers: [
       {prop: 'resources/Stone_Bricks_Stack_Large', units: 24},
       {prop: 'resources/Stone_Bricks_Stack_Medium', units: 12},
@@ -535,18 +545,47 @@ const PILE_TIERS: Partial<Record<GoodId, PileTiers>> = {
         unit: `resources/${metal}_Bar`,
         perLayer: 2,
         crisscross: true,
-        tiers: [{prop: `resources/${metal}_Bars`, units: 6, rests: false}],
+        // The pack's whole progression, counted by mesh volume: a roped
+        // pyramid of 6, a tower of 12 (slim enough to stand two across a
+        // lane), and the block of 48 that is four towers square — a full
+        // lane on its own.
+        laneCap: 48,
+        tiers: [
+          {prop: `resources/${metal}_Bars_Stack_Large`, units: 48},
+          {
+            prop: `resources/${metal}_Bars_Stack_Medium`,
+            units: 12,
+            rests: false,
+            across: 2,
+          },
+          {prop: `resources/${metal}_Bars`, units: 6, rests: false},
+        ],
       } satisfies PileTiers,
     ]),
   ),
 };
 
-/** The most of a tiered good a door pile shows: two of its biggest bundle.
- * Heaped goods stop at 8 units (see #syncPiles). */
-export function pileCap(good: GoodId): number {
-  const t = PILE_TIERS[good];
-  return t ? t.tiers[0]!.units * 2 : 8;
+/** Units one door pile holds before the rest start another beside it:
+ * the tiered good's own laneCap, or three layers of three heaped. */
+export function laneCap(good: GoodId): number {
+  return PILE_TIERS[good]?.laneCap ?? 9;
 }
+
+/**
+ * `n` units of a good split into door piles, each a lane of its own: full
+ * ones first, the remainder last. There is no cap — a storehouse holding
+ * forty bars shows forty bars, in as many piles as that takes.
+ */
+export function pileChunks(good: GoodId, n: number): number[] {
+  const cap = laneCap(good);
+  const out: number[] = [];
+  for (let left = n; left > 0; left -= cap) out.push(Math.min(left, cap));
+  return out;
+}
+
+/** Centre-to-centre spacing of door-pile lanes. The lattice grows with the
+ * props (PILE_SCALE), or the fatter stacks interpenetrate. */
+export const PILE_LANE = 0.42 * PILE_SCALE;
 
 /** Back edge of a door pile, lane-local: just off the wall. */
 const PILE_BACK = -0.26;
@@ -560,9 +599,9 @@ const SCRATCH_BOX = new THREE.Box3();
  * lane, z out from the wall, y up), or null when the good heaps instead or
  * the pack has not loaded — the caller then lays units with pileSlot.
  * Bundles go against the wall, biggest first, a repeat of the same bundle
- * set on top of the one before (or in front of it, when it `rests` nothing);
- * loose units lie in front, `perLayer` to a
- * layer.
+ * set on top of the one before (or in rows out from the wall, when it
+ * `rests` nothing); loose units lie in front, `perLayer` to a layer. Any
+ * `n` lays; keeping it to laneCap is pileChunks' job.
  */
 export function makeTieredPile(good: GoodId, n: number): THREE.Group | null {
   const t = PILE_TIERS[good];
@@ -570,16 +609,29 @@ export function makeTieredPile(good: GoodId, n: number): THREE.Group | null {
   const g = new THREE.Group();
   /** Front edge of what is down so far. */
   let front = PILE_BACK;
-  const place = (prop: string, yaw: number, below: THREE.Object3D | null) => {
+  /** One bundle: on top of `below`, or else in a row that starts at the
+   * current front — slot `col` of `cols` across it. */
+  const place = (
+    prop: string,
+    below: THREE.Object3D | null,
+    col = 0,
+    cols = 1,
+  ): THREE.Object3D | null => {
     const item = glbPropAtScale(prop, t.scale);
     if (!item) return null;
-    item.rotation.y = yaw;
+    item.rotation.y = t.yaw;
     const size = SCRATCH_BOX.setFromObject(item).getSize(SCRATCH_SIZE);
     if (below) {
       item.position.set(below.position.x, below.userData.top, below.position.z);
     } else {
-      item.position.set(0, 0, front + size.z / 2);
-      front += size.z + PILE_GAP;
+      item.position.set(
+        (col - (cols - 1) / 2) * (size.x + PILE_GAP),
+        0,
+        front + size.z / 2,
+      );
+      // A row is only as deep as one of its bundles, and only its last
+      // bundle moves the front on.
+      if (col === cols - 1) front += size.z + PILE_GAP;
     }
     item.userData.top = item.position.y + size.y;
     g.add(item);
@@ -587,12 +639,19 @@ export function makeTieredPile(good: GoodId, n: number): THREE.Group | null {
   };
   let left = n;
   for (const tier of t.tiers) {
-    let below: THREE.Object3D | null = null;
-    for (let k = Math.floor(left / tier.units); k > 0; k--) {
-      const on = place(tier.prop, t.yaw, below);
-      below = tier.rests === false ? null : on;
-    }
+    const count = Math.floor(left / tier.units);
     left %= tier.units;
+    if (tier.rests !== false) {
+      let below: THREE.Object3D | null = null;
+      for (let k = 0; k < count; k++) below = place(tier.prop, below);
+      continue;
+    }
+    const across = tier.across ?? 1;
+    for (let k = 0; k < count; k++) {
+      // The last row closes the front even when it is short of full.
+      const cols = Math.min(across, count - k + (k % across));
+      place(tier.prop, null, k % across, cols);
+    }
   }
   // Loose units, a layer at a time, side by side across the unit's own
   // width; a crisscrossed layer turns a quarter and spreads the other way.
