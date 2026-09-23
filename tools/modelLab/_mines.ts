@@ -16,9 +16,10 @@ type GoodId = Enum<typeof GoodId>;
 
 /**
  * A scratch page for the one question the cards cannot answer: do the four
- * ore posts read apart from one another? It draws them the way a match
- * does — makeGlbBuilding plus the yard stock buildingSync stacks — in a row
- * at the game's own 45/35 rig, with the yard both empty and full.
+ * ore posts read apart from one another — and, beside them, how does the
+ * woodcutter's yard stock sit? It draws all five the way a match does —
+ * makeGlbBuilding plus the yard stock buildingSync lays — in a row at the
+ * game's own 45/35 rig, with the yard both empty and full.
  *
  *   pnpm dev, then /tools/modelLab/_mines.html
  *   ?stock=0|1   empty yards or full ones (default: both rows)
