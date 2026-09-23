@@ -13,7 +13,6 @@ import {GrassField} from '../../render/grassField';
 import {HeightField} from '../../render/heightField';
 import {MarginMesh} from '../../render/marginMesh';
 import {Mist} from '../../render/mist';
-import {background} from '../../render/palette';
 import {GameRenderer} from '../../render/renderer';
 import {crossedQuads, ScatterMesh} from '../../render/scatterMesh';
 import {
@@ -29,6 +28,7 @@ import * as PlayerKind from '../../sim/playerKindEnum.ts';
 import * as Terrain from '../../sim/terrainEnum.ts';
 import * as TileResource from '../../sim/tileResourceEnum.ts';
 import {createWorld} from '../../sim/world';
+import {makeSky, SKY} from './sky';
 
 /**
  * The start screen's world: the valley, and a signpost standing in front of
@@ -706,7 +706,10 @@ export async function startSignpost(
   }
   const renderer = new GameRenderer(canvas, {interactive: false});
   renderer.setWorldExtent(world.map.play, world.map.size);
-  renderer.scene.fog = new THREE.Fog(background, FOG_NEAR, FOG_FAR);
+  renderer.scene.fog = new THREE.Fog(SKY.horizon, FOG_NEAR, FOG_FAR);
+  renderer.scene.background = new THREE.Color(SKY.horizon);
+  /** The sky and its mountains, riding with the lens (see the loop). */
+  const sky = makeSky(FOG_FAR * 3);
   const heights = new HeightField(world.map.height, world.map.size);
   const water = new WaterMesh(world.map);
   const mist = new Mist(world.map);
@@ -720,6 +723,7 @@ export async function startSignpost(
     new MarginMesh(world.map, heights).mesh,
     mist.group,
     camera,
+    sky,
   );
   const keep = [...world.buildings.values()].find(
     b => b.type === BuildingTypeId.storehouse,
@@ -2045,6 +2049,7 @@ export async function startSignpost(
 
     water.update(now);
     mist.update(now);
+    sky.position.copy(camera.position);
     renderer.render(camera);
     css.render(renderer.scene, camera);
     if (!canvas.classList.contains('lit')) canvas.classList.add('lit');
