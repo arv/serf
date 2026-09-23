@@ -19,6 +19,7 @@ export function listRooms(): Promise<OpenRoom[]> {
     const done = (rooms: OpenRoom[]): void => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       try {
         ws.close();
       } catch {
@@ -31,10 +32,15 @@ export function listRooms(): Promise<OpenRoom[]> {
     ws.onclose = () => done([]);
     ws.onopen = () => ws.send(JSON.stringify({t: 'list'}));
     ws.onmessage = (e: MessageEvent<string>) => {
-      const msg = JSON.parse(e.data) as {t: string; rooms?: OpenRoom[]};
+      let msg: {t?: string; rooms?: OpenRoom[]};
+      try {
+        msg = JSON.parse(e.data) as typeof msg;
+      } catch {
+        return done([]); // not the relay talking: no list, no throw
+      }
       if (msg.t === 'rooms') done(msg.rooms ?? []);
     };
-    setTimeout(() => done([]), 4000);
+    const timer = setTimeout(() => done([]), 4000);
   });
 }
 

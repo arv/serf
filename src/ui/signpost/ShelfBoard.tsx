@@ -205,8 +205,13 @@ export function ShelfBoard(props: {
    * closes; a timer would take it away mid-read. */
   const [note, setNote] = createSignal<string | null>(null);
 
+  /** The latest listing asked for: an older one landing after it is
+   * dropped, not shown over it. */
+  let asked = 0;
   const refresh = async (): Promise<void> => {
+    const mine = ++asked;
     const found = await spec.list();
+    if (mine !== asked) return;
     setFiles(found);
     setLoaded(true);
     // A picked row that is no longer there must not stay behind Watch.

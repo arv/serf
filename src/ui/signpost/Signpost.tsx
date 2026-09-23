@@ -97,8 +97,14 @@ export function Signpost(props: {
   const refresh = async (): Promise<void> => {
     if (asking || !online()) return; // a slow server must not stack up polls
     asking = true;
-    setRooms(await listRooms());
-    asking = false;
+    try {
+      setRooms(await listRooms());
+    } catch {
+      // No socket to be had: an empty list, and the next poll tries again.
+      setRooms([]);
+    } finally {
+      asking = false;
+    }
   };
   const browsing = (): boolean => board() === 'multi' && props.council === null;
   createEffect(
@@ -111,6 +117,13 @@ export function Signpost(props: {
     if (browsing() && !document.hidden) void refresh();
   }, POLL_MS);
   onCleanup(() => clearInterval(poll));
+  // Back from another tab: the list is as old as the time away, so ask now
+  // rather than at the next poll.
+  const onShown = (): void => {
+    if (!document.hidden && browsing()) void refresh();
+  };
+  document.addEventListener('visibilitychange', onShown);
+  onCleanup(() => document.removeEventListener('visibilitychange', onShown));
   const syncOnline = (): void => {
     setOnline(navigator.onLine);
     if (navigator.onLine && browsing()) void refresh();
@@ -190,7 +203,17 @@ export function Signpost(props: {
     const close = (): void => void s.close();
     disposers = [
       render(
-        () => <CampaignBoard onPlay={playMission} onBack={close} />,
+        () => (
+          <CampaignBoard
+            difficulty={difficulty()}
+            onDifficulty={id => {
+              setDifficulty(id);
+              remember();
+            }}
+            onPlay={playMission}
+            onBack={close}
+          />
+        ),
         s.faces.campaign,
       ),
       render(
@@ -199,7 +222,6 @@ export function Signpost(props: {
             ai={ai()}
             difficulty={difficulty()}
             bandits={bandits()}
-            seed={seed}
             onAi={n => {
               setAi(n);
               remember();
@@ -235,7 +257,6 @@ export function Signpost(props: {
         () => (
           <CouncilBoard
             hooks={props.hooks()}
-            listed={props.council?.open ?? true}
             onLeave={() => props.onLeaveCouncil()}
           />
         ),
@@ -340,10 +361,9 @@ export function Signpost(props: {
           <button onClick={() => void scene()?.open('skirmish')}>
             Skirmish
           </button>
-          <button
-            disabled={!online()}
-            onClick={() => void scene()?.open('multi')}
-          >
+          {/* Open offline too, as the arrow is: the board says why
+              Host and Join are out. */}
+          <button onClick={() => void scene()?.open('multi')}>
             Multiplayer
           </button>
         </nav>

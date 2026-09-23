@@ -28,6 +28,11 @@ Decisions that are settled, so they are not relitigated:
   post side is cropped first, then the head. Board layout scale follows the
   on-screen size. Per-board narrow cutoffs (640 boards / 960 council) are
   decided in code and set `.narrow`.
+- **A sunny valley.** A blue sky dome with shader-drawn snow-capped
+  ranges and drifting clouds (`sky.ts`); the menu's own sun behind the lens,
+  off to its right, so the keep is lit and the signpost casts a shadow
+  (`GameRenderer.setSun` / `aimShadow`); grass, flowers and reeds sway, the
+  trees do not; two butterflies behind the pond.
 - **War Council on the arrow's front.** Host flips 180° and zooms closer
   (the chat needs height); Leave flips back. Only the open arrow's board
   draws.
@@ -37,9 +42,9 @@ Decisions that are settled, so they are not relitigated:
 - [x] Campaign **Play** launches the picked mission (`missionUrl`), giving
       the WebGL context back first.
 - [x] Skirmish **Play** launches with the chosen rivals (None = sandbox),
-      difficulty and bandits, and a seed rolled fresh per visit and shown
-      as "Valley No.". The lab's map-size row is gone: the old menu never
-      offered one.
+      difficulty and bandits, and a seed rolled fresh per visit. The seed
+      is not shown (decided 2026-09-24: random, not something to read). The
+      lab's map-size row is gone: the old menu never offered one.
 - [x] Room tickets come from the relay's open-room list, polled every 3s
       while the board is up and the tab visible; **Refresh** re-asks.
 - [x] **Join** (picked ticket, double-click, or typed code) and **Host**
@@ -47,31 +52,34 @@ Decisions that are settled, so they are not relitigated:
 - [x] The council is the real room: code, seats, chat, the host's settings
       reaching every seat, **Begin** starting the match, **Invite** sharing.
       Joiners see the settings disabled; the host's AI seats fill chairs.
-- [ ] **Listed / Invite only** changeable from the council — needs a relay
-      message; today `open` is only sent with `create`
-      (`src/net/lobbyClient.ts`). Shown disabled until then.
+- [x] **Listed / Invite only** from the council: the host's switch sends
+      `visibility` to the relay, which lists or unlists the room and tells
+      every seat (`open` in the room state). Joiners see it, disabled.
 
 ## Parity with the old menu
 
-- [ ] Campaign **difficulty** picker. The campaign launches with the
-      skirmish board's remembered tier, as the old menu's shared row did,
-      but nothing on the Campaign board shows or sets it.
-- [ ] Campaign **hide hints** option (`hintsHidden` / `setHintsHidden`).
+- [x] Campaign **difficulty** picker: a row under the mission, the same
+      remembered tier as the skirmish board's (the old menu's one row). The
+      campaign board lays out taller (`NEEDS` in `scene.ts`) to fit it.
+- [x] Campaign **hide hints**: dropped (decided 2026-09-24). Hints are
+      always on in the tutorial.
 - [x] Mission **briefings**: the match opens on the long briefing, so the
       board's one-liner is enough.
-- [ ] War Council **map seed** and its re-roll.
+- [x] War Council **map seed**: not shown, no re-roll (decided
+      2026-09-24). A multiplayer valley is always random.
 - [x] **Offline**: the Multiplayer board says so, Host and Join disable,
       and polling stops.
 - [x] **Replays**: written on a face of a rock (the hexagon pack's
       `mountain_C`) standing in the valley; the footer's Replays flies the
       lens over to it. Pick and Watch, double-click, delete, share, drag
-      out, drop in (`ShelfBoard.tsx`). Not yet tried with a real recording.
+      out, drop in (`ShelfBoard.tsx`). The list and launch code are the
+      old menu's, which worked; not re-tried with a real recording.
 - [x] **Load save**: the same shelf for saved games, written on the
       keep's back wall under its window; the lens swings round to it on one
-      arc over the trees. Not yet tried with a real save. **Map editor**
-      and **Field guide** work.
-- [ ] Reopen on the board the player used last (`rememberedMode`), or
-      decide not to. Today it always opens on the crossroads.
+      arc over the trees. Not re-tried with a real save (as above). **Map
+      editor** and **Field guide** work.
+- [x] Reopen on the last board: not wanted (decided 2026-09-24). It
+      always opens on the crossroads.
 
 ## Before it ships
 
@@ -81,14 +89,15 @@ Decisions that are settled, so they are not relitigated:
 - [ ] **Reduced motion**: turn, flip, zoom and the trip to the rock snap,
       and the pointer/tilt lean stops, under `prefers-reduced-motion`; not
       yet checked by eye.
-- [ ] **Performance**: the valley renders full-resolution every frame; the
-      old backdrop was capped at 30fps and drawn soft. Measure on a laptop
-      and a phone (see the GPU perf memory for the harness).
+- [x] **Frame rate**: capped at 30fps on every device (`MENU_FPS`), as
+      the old backdrop was; full resolution.
 - [ ] **Real devices**: everything so far is pane emulation. Check a real
       phone, including `:active` presses on iOS and the tilt lean (iOS asks
-      permission on the first tap).
-- [ ] **Fonts**: self-host Lilita One and Nunito in `public/fonts`;
-      `index.html` loads them from Google Fonts for now.
+      permission on the first tap). Erik tests on staging once the branch
+      is deployed there.
+- [x] **Fonts**: Lilita One and Nunito are self-hosted in `public/fonts`
+      (latin and latin-ext, OFL texts beside them) and credited; Marcellus,
+      the old menu's wordmark, is gone.
 - [x] **Renderer access**: `GameRenderer.webgl` for the studio-light bake.
 
 ## Fold it in

@@ -61,6 +61,8 @@ export const DIFFICULTY_OPTIONS: readonly SegOption<DifficultyId>[] =
 function BoardHead(props: {
   title: string;
   sub?: string;
+  /** The sub is news (offline), not flavour: it stays on narrow boards. */
+  alert?: boolean;
   onBack(): void;
   back?: string;
 }) {
@@ -68,7 +70,9 @@ function BoardHead(props: {
     <header>
       <h2 class="comic">{props.title}</h2>
       <Show when={props.sub}>
-        <span class="sub">{props.sub}</span>
+        <span class="sub" classList={{alert: props.alert}}>
+          {props.sub}
+        </span>
       </Show>
       <button class="back" onClick={() => props.onBack()}>
         {props.back ?? 'Back'}
@@ -114,6 +118,10 @@ const RefreshIcon = () => (
  * fulfilled.
  */
 export function CampaignBoard(props: {
+  /** Shared with the skirmish board: one remembered tier, as the old
+   * menu's one row was. */
+  difficulty: DifficultyId;
+  onDifficulty(id: DifficultyId): void;
   onPlay(id: MissionId): void;
   onBack(): void;
 }) {
@@ -173,6 +181,15 @@ export function CampaignBoard(props: {
           <span class="t">{mission().title}</span>
           <span class="d">{mission().tagline}</span>
         </div>
+        <div class="field level">
+          <label>Difficulty</label>
+          <Seg
+            label="Difficulty"
+            options={DIFFICULTY_OPTIONS}
+            value={props.difficulty}
+            onPick={id => props.onDifficulty(id)}
+          />
+        </div>
       </div>
     </>
   );
@@ -193,14 +210,13 @@ const ON_OFF: readonly SegOption<boolean>[] = [
 
 /**
  * A fresh valley against the computer. The rows are the player's own
- * remembered setup; the seed is rolled fresh every visit and shown, so the
- * valley can be shared.
+ * remembered setup; the valley itself is rolled fresh every visit and
+ * not shown — a number means nothing until the map has been played.
  */
 export function SkirmishBoard(props: {
   ai: number;
   difficulty: DifficultyId;
   bandits: boolean;
-  seed: number;
   onAi(n: number): void;
   onDifficulty(id: DifficultyId): void;
   onBandits(on: boolean): void;
@@ -249,10 +265,6 @@ export function SkirmishBoard(props: {
               value={props.bandits}
               onPick={on => props.onBandits(on)}
             />
-          </div>
-          <div class="field">
-            <label>Valley</label>
-            <span class="seed">No. {props.seed}</span>
           </div>
         </div>
       </div>
@@ -326,21 +338,32 @@ export function MultiplayerBoard(props: {
         >
           Host
         </button>
-        <span class="hint">Makes a room with a code to share</span>
       </div>
       <div class="main">
         <BoardHead
           title="Multiplayer"
-          sub="Play with friends"
+          sub={props.online ? undefined : 'Offline'}
+          alert
           onBack={() => props.onBack()}
         />
         <div class="rooms">
-          <span class="lbl">
-            Open rooms
-            <Show when={props.rooms.length > 0}>
-              <span class="n"> · {open()}</span>
-            </Show>
-          </span>
+          <div class="rooms-head">
+            <span class="lbl">
+              Open rooms
+              <Show when={props.rooms.length > 0}>
+                <span class="n"> · {open()}</span>
+              </Show>
+            </span>
+            <button
+              class="refresh"
+              title="Refresh"
+              aria-label="Refresh the rooms"
+              ref={spin}
+              onClick={refresh}
+            >
+              <RefreshIcon />
+            </button>
+          </div>
           <div
             class="tickets"
             classList={{
@@ -356,11 +379,16 @@ export function MultiplayerBoard(props: {
           >
             <Show
               when={props.online}
-              fallback={<span class="none">Offline: no rooms to show.</span>}
+              fallback={
+                <span class="none">
+                  No connection to the relay. Campaign, skirmish and saves still
+                  play here.
+                </span>
+              }
             >
               <Show
                 when={rooms().length > 0}
-                fallback={<span class="none">None right now. Host one!</span>}
+                fallback={<span class="none">None right now.</span>}
               >
                 <For each={rooms()}>
                   {r => {
@@ -399,15 +427,6 @@ export function MultiplayerBoard(props: {
               </Show>
             </Show>
           </div>
-          <button
-            class="refresh"
-            title="Refresh"
-            aria-label="Refresh the rooms"
-            ref={spin}
-            onClick={refresh}
-          >
-            <RefreshIcon />
-          </button>
         </div>
         <div class="join">
           <label for="sp-room-code">Have a code?</label>

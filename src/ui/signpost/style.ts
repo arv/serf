@@ -403,9 +403,13 @@ export const SIGNPOST_STYLE = `
           0 6px 0 var(--ink);
       }
       /* Campaign: the commissions as stops on a trail. */
+      /* Room above the stops for the heading, and below them before the
+         mission: the board's contents are centred, so the heading moves
+         up by what this adds. */
       #signpost-3d .path {
         display: flex;
         align-items: center;
+        margin: 16px 0 20px;
       }
       /* A dotted line between stops, clear of both circles. The dots are
          a repeating pattern spaced to fit ('space'): a short gap gets a
@@ -510,11 +514,26 @@ export const SIGNPOST_STYLE = `
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      /* Skirmish: four settings, two by two. */
+      /* Skirmish: three settings, two by two, with air between them and
+         under the heading. */
       #signpost-3d .grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 6px 14px;
+        gap: 24px 20px;
+        margin-top: 16px;
+      }
+      /* The campaign's difficulty: one row under the mission, the label
+         beside its choices on every board width, and the choices no wider
+         than they need. */
+      #signpost-3d .field.level {
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+        margin-top: 4px;
+      }
+      #signpost-3d .field.level .seg {
+        flex: 1;
+        max-width: 420px;
       }
       /* Label over control: the board ends at the neck, so a label beside
          each control left the controls too narrow for their words. */
@@ -541,7 +560,6 @@ export const SIGNPOST_STYLE = `
         padding-left: 2px;
       }
       #signpost-3d .seg,
-#signpost-3d .field .seed,
 #signpost-3d .face input {
         background: #fbeed3;
         border: 3px solid var(--ink);
@@ -599,21 +617,6 @@ export const SIGNPOST_STYLE = `
         box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45);
         /* A little overshoot: it lands, rather than parks. */
         transition: translate 0.28s cubic-bezier(0.3, 1.35, 0.55, 1);
-      }
-      /* The valley's number: read, not chosen — the box a choice sits in,
-         with the word in the ink of an unpicked option. */
-      #signpost-3d .field .seed {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: var(--comic), sans-serif;
-        font-size: 17px;
-        color: #8a5a3c;
-        padding: 5px 8px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-variant-numeric: tabular-nums;
       }
       #signpost-3d .seg button {
         position: relative;
@@ -725,24 +728,17 @@ export const SIGNPOST_STYLE = `
           center / 6px 9px no-repeat;
         background-repeat: no-repeat space;
       }
+      /* Host centred on the board's height. */
       #signpost-3d .face.mp .tipcol .go {
-        grid-area: 1 / 1 / 3 / 2;
-        align-self: end;
-      }
-      #signpost-3d .face.mp .tipcol .hint {
-        grid-area: 3 / 1;
-        align-self: start;
-        text-align: center;
-        font-size: 15px;
-        line-height: 1.25;
-        color: #ffe9c2;
-        text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
+        grid-area: 1 / 1 / 4 / 2;
+        align-self: center;
       }
       #signpost-3d .face.mp header {
         grid-area: 1 / 3;
       }
       #signpost-3d .face.mp .rooms {
         grid-area: 2 / 3;
+        align-self: start;
       }
       #signpost-3d .face.mp .join {
         grid-area: 3 / 3;
@@ -751,10 +747,7 @@ export const SIGNPOST_STYLE = `
         grid-template-columns: minmax(0, 1fr) 6px 176px;
       }
       #signpost-3d .face.mp.tip-end .tipcol .go {
-        grid-area: 1 / 3 / 3 / 4;
-      }
-      #signpost-3d .face.mp.tip-end .tipcol .hint {
-        grid-area: 3 / 3;
+        grid-area: 1 / 3 / 4 / 4;
       }
       #signpost-3d .face.mp.tip-end header {
         grid-area: 1 / 1;
@@ -765,11 +758,19 @@ export const SIGNPOST_STYLE = `
       #signpost-3d .face.mp.tip-end .join {
         grid-area: 3 / 1;
       }
+      /* The heading and its refresh on top, the tickets (or why there
+         are none) under them. */
       #signpost-3d .rooms {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        min-width: 0;
+      }
+      #signpost-3d .rooms-head {
         display: flex;
         align-items: center;
         gap: 10px;
-        min-width: 0;
       }
       #signpost-3d .rooms .lbl {
         flex: none;
@@ -888,7 +889,6 @@ export const SIGNPOST_STYLE = `
         opacity: 0.5;
       }
       #signpost-3d .rooms .none {
-        flex: 1;
         font-size: 16px;
         color: #ffe9c2;
         text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
@@ -1224,15 +1224,9 @@ export const SIGNPOST_STYLE = `
         grid-row: 3;
       }
       #signpost-3d .face.narrow.mp .tipcol .go {
-        grid-area: 4 / 1;
-        justify-self: end;
+        grid-area: 4 / 1 / 5 / 3;
+        justify-self: center;
         align-self: center;
-      }
-      #signpost-3d .face.narrow.mp .tipcol .hint {
-        grid-area: 4 / 2;
-        justify-self: start;
-        align-self: center;
-        text-align: left;
       }
       #signpost-3d .face.narrow .tipcol .go {
         font-size: 28px;
@@ -1297,6 +1291,9 @@ export const SIGNPOST_STYLE = `
       #signpost-3d .face.narrow header .sub {
         display: none;
       }
+      #signpost-3d .face.narrow header .sub.alert {
+        display: inline;
+      }
       /* Clear of the first row of stops, which runs right up under Back. */
       #signpost-3d .face.narrow header {
         margin-bottom: 8px;
@@ -1308,6 +1305,8 @@ export const SIGNPOST_STYLE = `
            then 5-6-7-8 back right to left, so the dots stay one path.
            Children alternate stop, trail, stop… — fifteen in all. */
       #signpost-3d .face.narrow .path {
+        /* Stacked, the mission keeps its own gap (.path + .pick below). */
+        margin: 0;
         display: grid;
         grid-template-columns: auto 1fr auto 1fr auto 1fr auto;
         grid-template-rows: auto 22px auto;
@@ -1370,7 +1369,16 @@ export const SIGNPOST_STYLE = `
       }
       #signpost-3d .face.narrow .grid {
         grid-template-columns: minmax(0, 1fr);
-        gap: 3px;
+        gap: 14px;
+      }
+      /* The stacked campaign board has height to spare under its snake
+         of stops: the mission sits half a stop lower, and the difficulty
+         half a stop lower again, between it and Play. */
+      #signpost-3d .face.narrow .path + .pick {
+        margin-top: 20px;
+      }
+      #signpost-3d .face.narrow .field.level {
+        margin-top: 24px;
       }
       #signpost-3d .face.narrow .field {
         flex-direction: row;
@@ -1434,17 +1442,11 @@ export const SIGNPOST_STYLE = `
         font-size: 15px;
       }
       #signpost-3d .face.narrow .rooms {
-        flex-wrap: wrap;
-        row-gap: 2px;
-      }
-      #signpost-3d .face.narrow .rooms .lbl {
-        flex: 1;
+        gap: 2px;
       }
       /* Upright: two columns, two rows showing; more scroll up and down
            with the same snap and fades. */
       #signpost-3d .face.narrow .rooms .tickets {
-        order: 2;
-        flex-basis: 100%;
         display: grid;
         grid-template-columns: 1fr 1fr;
         grid-auto-rows: 32px;

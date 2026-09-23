@@ -10,6 +10,7 @@ import {snapBuildings} from '../../protocol/snapshot';
 import {loadGlbAssets} from '../../render/assets';
 import {BuildingSync} from '../../render/buildingSync';
 import {butterflyQuad, wander} from '../../render/butterflies';
+import {FramePacer} from '../../render/framePacer';
 import {GrassField} from '../../render/grassField';
 import {HeightField} from '../../render/heightField';
 import {MarginMesh} from '../../render/marginMesh';
@@ -459,6 +460,12 @@ const BUTTERFLY = {
     {right: 8.5, ahead: 18.5, phase: 37, tint: 0xf5efdc},
   ],
 };
+/**
+ * The menu's frame cap, on every device, as the old backdrop had it: a
+ * menu left open has nothing to gain from 120 Hz and a battery to lose —
+ * that drain is what makes a laptop throttle its graphics.
+ */
+const MENU_FPS = 30;
 /** Half the width of ground the menu's shadows fall on (tiles). */
 const SHADOW_HALF = 30;
 /** The menu's sun: behind the resting lens and off to its right (radians
@@ -579,11 +586,23 @@ const FILL = 0.95;
  */
 const narrowBelow = (council: boolean): number => (council ? 960 : 640);
 
+/**
+ * The layout height a board's contents want, wide and stacked narrow
+ * (px): the text scale is held down until the board has that much. The
+ * campaign's has a difficulty row under its trail of stops.
+ */
+const NEEDS: Record<Mode, [wide: number, narrow: number]> = {
+  campaign: [262, 440],
+  skirmish: [212, 290],
+  multi: [212, 290],
+};
+
 function frameFor(
   len: number,
   council: boolean,
   width: number,
   aspect: number,
+  needs: [wide: number, narrow: number],
 ): Frame {
   const tip = len - THROUGH;
   const neck = tip - HEAD_L;
@@ -601,16 +620,16 @@ function frameFor(
     R <= faceW + HEAD_L ? [face[0], face[0] + R] : [tip - R, tip];
   // Text scale: about CSS size on a phone, growing with the window — but
   // never so large that the board's layout gets less height than its
-  // contents need (a phone held sideways has hardly any): the wide layouts
-  // want ~212px, the stacked narrow one ~290, and the council more.
+  // contents need (a phone held sideways has hardly any): `needs`, and the
+  // council more.
   const onScreen = (width * FILL) / R;
   const tallEnough = (h: number): number => (ARROW_H * 0.9 * onScreen) / h;
   let k = Math.min(
     Math.max(0.8, width / 1070),
-    tallEnough(council ? 400 : 212),
+    tallEnough(council ? 400 : needs[0]),
   );
   const narrow = faceW * (onScreen / k) < narrowBelow(council);
-  if (narrow) k = Math.min(k, tallEnough(council ? 440 : 290));
+  if (narrow) k = Math.min(k, tallEnough(council ? 440 : needs[1]));
   return {face, view, px: onScreen / k, narrow};
 }
 
@@ -773,7 +792,8 @@ export async function startSignpost(
             }`,
           );
       };
-      own.customProgramCacheKey = () => `signpost-sway-${top}-${height}`;
+      own.customProgramCacheKey = () =>
+        `signpost-sway-${top}-${base}-${height}`;
       swaying.set(src, own);
     }
     mesh.material = own;
@@ -1101,7 +1121,7 @@ export async function startSignpost(
       face: [from, to],
       px,
       narrow,
-    } = frameFor(a.len, council, innerWidth, camera.aspect);
+    } = frameFor(a.len, council, innerWidth, camera.aspect, NEEDS[a.mode]);
     el.style.width = `${(to - from) * px}px`;
     el.style.height = `${ARROW_H * 0.9 * px}px`;
     el.classList.toggle('narrow', narrow);
@@ -1115,7 +1135,13 @@ export async function startSignpost(
    */
   const focusBase = (a: Arrow, council: boolean): THREE.Vector3 => {
     const s = post.scale.x;
-    const [from, to] = frameFor(a.len, council, innerWidth, camera.aspect).view;
+    const [from, to] = frameFor(
+      a.len,
+      council,
+      innerWidth,
+      camera.aspect,
+      NEEDS[a.mode],
+    ).view;
     const mid = (a.dir * (from + to)) / 2;
     const back = ARROW_Z - ARROW_D / 2;
     // Post turned by pi about y: (x, y, z) -> (-x, y, -z), then scaled and
@@ -1186,6 +1212,7 @@ export async function startSignpost(
       .multiplyScalar(Math.cos(SUN.up))
       .setY(Math.sin(SUN.up));
     renderer.setSun(dir);
+    sky.setSun(dir);
     renderer.aimShadow(
       new THREE.Vector3((cx + restX) / 2, groundY, (cz + restZ) / 2),
       SHADOW_HALF,
@@ -1727,6 +1754,9 @@ export async function startSignpost(
     const r0 = post.rotation.y;
     const y0 = a.root.rotation.y;
     const z0 = a.root.rotation.z;
+    // The hover's glow goes out on the way: the loop leaves the open arrow
+    // alone, so whatever it held here it would still hold coming back.
+    const g0 = a.glow;
     await tween(instant ? 1 : TURN_MS, t => {
       // The turn leads, the move follows a little behind: it reads as the
       // signpost being turned toward you rather than the camera flying.
@@ -1734,6 +1764,7 @@ export async function startSignpost(
       stageBase.lerpVectors(from, to, easeInOut(Math.min(1, t * 1.15)));
       a.root.rotation.y = lerp(y0, 0, t);
       a.root.rotation.z = lerp(z0, 0, t);
+      a.glow = lerp(g0, 0, t);
     });
     activate(a.face, true);
     busy = false;
@@ -1753,7 +1784,9 @@ export async function startSignpost(
       a.root.rotation.y = lerp(0, a.yaw, t);
       a.root.rotation.z = lerp(0, a.tilt, t);
     });
-    a.vel = -2.5;
+    // Back at rest, not hovered: it lights and leans again only if the
+    // pointer is on it now.
+    a.vel = 0;
     current = null;
     busy = false;
   };
@@ -1839,9 +1872,12 @@ export async function startSignpost(
     return arrows.find(a => a.plank === hit?.object) ?? null;
   };
 
+  /** Hover is a mouse's: a finger's last touch is not resting on anything. */
+  let mouse = false;
   const onMove = (e: PointerEvent): void => {
     pointer.copy(toNdc(e.clientX, e.clientY));
-    if (e.pointerType === 'mouse') leanTo.copy(pointer).clampScalar(-1, 1);
+    mouse = e.pointerType === 'mouse';
+    if (mouse) leanTo.copy(pointer).clampScalar(-1, 1);
   };
   /** A click on the world: an arrow opens its board; open ground closes
    * one — unless it is the council, where a stray click must not walk the
@@ -1867,7 +1903,7 @@ export async function startSignpost(
   // leans as the phone does, measured from how it is being held (which
   // drifts along slowly, so holding it at a new angle settles back to
   // straight on).
-  let held: {beta: number; gamma: number} | null = null;
+  let held: {beta: number; gamma: number; turn: number} | null = null;
   const onTilt = (e: DeviceOrientationEvent): void => {
     if (e.beta === null || e.gamma === null) return;
     // Held sideways, the phone's own axes swap round the screen's.
@@ -1876,7 +1912,8 @@ export async function startSignpost(
       turn === 90 ? e.beta : turn === 270 || turn === -90 ? -e.beta : e.gamma;
     const along =
       turn === 90 ? -e.gamma : turn === 270 || turn === -90 ? e.gamma : e.beta;
-    held ??= {beta: along, gamma: across};
+    // A rotation swaps the axes the rest was measured on: start again.
+    if (held?.turn !== turn) held = {beta: along, gamma: across, turn};
     held.beta += (along - held.beta) * 0.01;
     held.gamma += (across - held.gamma) * 0.01;
     leanTo.set(
@@ -1898,7 +1935,9 @@ export async function startSignpost(
     if (ask)
       void ask()
         .then(r => {
-          if (r === 'granted')
+          // The sheet can be answered after the scene has gone (the tap
+          // was Play): nothing to lean then.
+          if (r === 'granted' && !stopped)
             window.addEventListener('deviceorientation', onTilt);
         })
         .catch(() => {});
@@ -2039,7 +2078,8 @@ export async function startSignpost(
     // The pond's frame: from the resting lens toward the keep.
     const ax = (cx - restX) / ORBIT_RADIUS;
     const az = (cz - restZ) / ORBIT_RADIUS;
-    BUTTERFLY.spots.forEach(({right, ahead, phase}, k) => {
+    for (let k = 0; k < BUTTERFLY.spots.length; k++) {
+      const {right, ahead, phase} = BUTTERFLY.spots[k]!;
       const sx = restX + ax * ahead - az * right;
       const sz = restZ + az * ahead + ax * right;
       const w = wander(0, 0, phase, t + phase);
@@ -2064,20 +2104,21 @@ export async function startSignpost(
       flutterAt.scale.set(0.3 + 0.7 * flap, 1, 1);
       flutterAt.updateMatrix();
       flutterers.setMatrixAt(k, flutterAt.matrix);
-    });
+    }
     flutterers.instanceMatrix.needsUpdate = true;
   };
+  const pacer = new FramePacer(MENU_FPS);
   const loop = (now: number): void => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
-    // At most one frame in flight — see GameRenderer.gpuReady.
-    if (!renderer.gpuReady()) return;
+    // At most one frame in flight — see GameRenderer.gpuReady — and at
+    // most MENU_FPS of them.
+    if (!renderer.gpuReady() || !pacer.due(now)) return;
     const dt = Math.min((now - last) / 1000, 0.05);
     if (!still) {
       sky.drift(dt);
       windTime.value += dt;
     }
-    flutter(still ? 0 : now / 1000);
     last = now;
     for (const tw of tweens) {
       const t = Math.min((now - tw.start) / tw.dur, 1);
@@ -2182,7 +2223,8 @@ export async function startSignpost(
       }
     }
 
-    hovered = busy || current || shelfOpen ? null : arrowUnder(pointer);
+    hovered =
+      !mouse || busy || current || shelfOpen ? null : arrowUnder(pointer);
     document.body.style.cursor = hovered ? 'pointer' : '';
     for (const a of arrows) {
       if (a !== current) {
@@ -2213,6 +2255,8 @@ export async function startSignpost(
     water.update(now);
     mist.update(now);
     sky.mesh.position.copy(camera.position);
+    // After the lens is placed: the wings turn to where it is now.
+    flutter(still ? 0 : now / 1000);
     renderer.render(camera);
     css.render(renderer.scene, camera);
     if (!canvas.classList.contains('lit')) canvas.classList.add('lit');

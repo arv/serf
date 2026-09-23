@@ -8,6 +8,9 @@ export interface Sky {
   mesh: THREE.Mesh;
   /** Move the clouds on by `dt` seconds. */
   drift(dt: number): void;
+  /** Light the ranges and the clouds from `dir` (toward the sun), as the
+   * scene's sun is set. */
+  setSun(dir: THREE.Vector3): void;
 }
 
 /**
@@ -34,7 +37,8 @@ export function makeSky(radius: number): Sky {
         horizon: {value: new THREE.Color(SKY.horizon)},
         rock: {value: new THREE.Color(0x4c5a6c)},
         snow: {value: new THREE.Color(0xf4f7fb)},
-        // The renderer's sun, (-28, 55, 18), as an azimuth round y.
+        // The sun as an azimuth round y: the renderer's own, (-28, 55,
+        // 18), until setSun moves it.
         sunAz: {value: Math.atan2(18, -28)},
         // Seconds the clouds have drifted (see drift).
         time: {value: 0},
@@ -56,6 +60,10 @@ export function makeSky(radius: number): Sky {
 
         #define BANDS 4
         float hash(vec2 p) {
+          // A lattice that repeats every 1024 cells: the clouds' wind moves
+          // the noise forever, and unbounded coordinates times these
+          // factors lose float precision after a few hours open.
+          p = mod(p, 1024.0);
           p = fract(p * vec2(123.34, 456.21));
           p += dot(p, p + 45.32);
           return fract(p.x * p.y);
@@ -139,6 +147,8 @@ export function makeSky(radius: number): Sky {
           vec3 col = mix(horizon, zenith, pow(max(dir.y, 0.0), 0.4));
           col = clouds(dir, col);
           float turn = az / 6.2831853 + 0.5;
+          // Out here, not in the loop: it skips ranges a pixel is above.
+          float w = fwidth(el) * 0.75;
 
           // Far to near, each painted over the last.
           for (int i = 0; i < 3; i++) {
@@ -147,16 +157,22 @@ export function makeSky(radius: number): Sky {
             float scale = 2.0 + fi * 0.7;
             float base = 0.012 - fi * 0.006;
             float amp = 0.15 - fi * 0.035;
+            // Above the tallest peak the range can have (ridged tops out
+            // near 1.03): nothing of it here, and no noise spent finding
+            // that out.
+            if (el > base + amp * 1.04 + w) continue;
             float haze = 0.5 - fi * 0.2;
             // Corners round the circle: a straight-edged, low-poly line.
             float n = 480.0 + fi * 120.0;
             float t = turn * n;
-            float k = floor(t);
-            float f = t - k;
+            // Corner indices wrapped round the circle: atan jumps at -x,
+            // and everything seeded by a corner has to close up there.
+            float f = fract(t);
+            float k = mod(floor(t), n);
+            float k1 = mod(k + 1.0, n);
             float h0 = ridge(k, n, seed, scale, base, amp);
-            float h1 = ridge(k + 1.0, n, seed, scale, base, amp);
+            float h1 = ridge(k1, n, seed, scale, base, amp);
             float h = mix(h0, h1, f);
-            float w = fwidth(el) * 0.75;
             float cover = smoothstep(-w, w, h - el);
             if (cover <= 0.0) continue;
 
@@ -170,9 +186,9 @@ export function makeSky(radius: number): Sky {
             for (int b = 0; b < BANDS; b++) {
               float j = float(b);
               float u0 = row(j, k, h0, base, seed);
-              float u1 = row(j, k + 1.0, h1, base, seed);
+              float u1 = row(j, k1, h1, base, seed);
               float l0 = row(j + 1.0, k, h0, base, seed);
-              float l1 = row(j + 1.0, k + 1.0, h1, base, seed);
+              float l1 = row(j + 1.0, k1, h1, base, seed);
               if (b < BANDS - 1 && el < mix(l0, l1, f)) continue;
               vec3 p0 = vec3(0.0, u0, j * depth);
               vec3 p1 = vec3(seg, u1, j * depth);
@@ -193,8 +209,11 @@ export function makeSky(radius: number): Sky {
             float mid = (A.y + B.y + C.y) / 3.0;
             // Snow above a line that wanders slowly round the range, so
             // only the peaks that reach it are capped, with a clean edge.
+            // Its wander is noise taken round a circle, so it closes up.
+            vec2 around = vec2(cos(turn * 6.2831853), sin(turn * 6.2831853))
+              * (n * 0.12 / 6.2831853);
             float line = base + amp * (0.66 + fi * 0.14
-              + (noise(vec2(t * 0.12, seed + 3.0)) - 0.5) * 0.12);
+              + (noise(around + vec2(seed + 3.0, 0.0)) - 0.5) * 0.12);
             float capped = smoothstep(-w, w, el - line);
             vec3 c = mix(rock, snow, capped) * lit;
             // Hazier toward the foot, where the air is thickest.
@@ -214,11 +233,14 @@ export function makeSky(radius: number): Sky {
   // the valley leaves open run the shader (the clear colour is its horizon).
   mesh.renderOrder = 1000;
   mesh.frustumCulled = false;
-  const time = (mesh.material as THREE.ShaderMaterial).uniforms.time!;
+  const {time, sunAz} = (mesh.material as THREE.ShaderMaterial).uniforms;
   return {
     mesh,
     drift: dt => {
-      time.value += dt;
+      time!.value += dt;
+    },
+    setSun: dir => {
+      sunAz!.value = Math.atan2(dir.z, dir.x);
     },
   };
 }
