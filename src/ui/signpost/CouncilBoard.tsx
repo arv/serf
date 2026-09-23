@@ -35,8 +35,7 @@ const ON_OFF: readonly SegOption<boolean>[] = [
   {value: true, label: 'On'},
 ];
 
-/** Who can find the room. Fixed when the room is made: the relay takes it
- * with `create` and has no message to change it yet. */
+/** Who can find the room: the host's to change while the council sits. */
 const LISTING: readonly SegOption<boolean>[] = [
   {value: true, label: 'Listed'},
   {value: false, label: 'Invite only'},
@@ -51,8 +50,6 @@ interface SeatChip {
 
 export function CouncilBoard(props: {
   hooks: CouncilHooks | null;
-  /** Whether the room was made listed (the request that made it). */
-  listed: boolean;
   /** Back out while there is no room yet to back out of. */
   onLeave(): void;
 }) {
@@ -73,6 +70,11 @@ export function CouncilBoard(props: {
   const tier = (): DifficultyId =>
     parseDifficultyId(view()?.config.difficulty) ?? DifficultyIdNs.normal;
 
+  /** What a human seat is called at this table. Every banner plays for
+   * itself — there are no teams — so the others are rivals, not allies;
+   * the one running the council is the host. */
+  const whoAt = (seat: number): string =>
+    seat === view()?.yourSeat ? 'You' : seat === 0 ? 'Host' : 'Rival';
   /** The table, always MAX_SEATS chairs: humans, then the computer seats
    * the host asked for, then what is still open. */
   const seats = (): SeatChip[] => {
@@ -80,7 +82,7 @@ export function CouncilBoard(props: {
     if (!v) return [];
     const out: SeatChip[] = v.seats.map((s, i) => ({
       color: SEAT_COLORS[i % SEAT_COLORS.length]!,
-      who: i === v.yourSeat ? 'You' : 'Ally',
+      who: whoAt(i),
       open: false,
       away: !s.connected,
     }));
@@ -113,8 +115,6 @@ export function CouncilBoard(props: {
     });
   };
 
-  const said = (seat: number): string =>
-    seat === view()?.yourSeat ? 'You' : 'Ally';
   const banner = (seat: number): string =>
     SEAT_COLORS[seat % SEAT_COLORS.length]!;
 
@@ -182,9 +182,9 @@ export function CouncilBoard(props: {
             <Seg
               label="Who can find the room"
               options={LISTING}
-              value={props.listed}
-              onPick={() => {}}
-              disabled
+              value={view()?.open ?? true}
+              onPick={open => props.hooks?.onListed(open)}
+              disabled={!isHost()}
             />
           </div>
           <div class="seats">
@@ -248,7 +248,7 @@ export function CouncilBoard(props: {
             <For each={view()!.chat}>
               {line => (
                 <div class="line">
-                  <b style={{'--c': banner(line.seat)}}>{said(line.seat)}</b>{' '}
+                  <b style={{'--c': banner(line.seat)}}>{whoAt(line.seat)}</b>{' '}
                   {line.text}
                 </div>
               )}

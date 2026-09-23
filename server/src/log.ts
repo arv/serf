@@ -21,6 +21,8 @@ export type LogEvent =
   | 'page_view'
   | 'room_create'
   | 'room_join'
+  /** The host listed the room or took it off the list, from the council. */
+  | 'room_visibility'
   | 'rejoin'
   /** A multiplayer match began. Count these to count games. */
   | 'match_start'

@@ -30,6 +30,8 @@ export interface CouncilView {
   yourSeat: number;
   seats: {kind: PlayerKind.human | 'ai'; connected: boolean}[];
   config: LobbyConfig;
+  /** Listed in everyone's room browser, or found by its code only. */
+  open: boolean;
   /** Table talk, oldest first, this seat's own lines included — the relay
    * echoes every line to everyone, so the log is the same on every seat. */
   chat: ChatLine[];
@@ -39,6 +41,8 @@ export interface CouncilHooks {
   view: Accessor<CouncilView>;
   /** Host-only settings change; the relay echoes it back to every seat. */
   onConfig(patch: Partial<LobbyConfig>): void;
+  /** Host only: list the room in the browser, or take it off. */
+  onListed(open: boolean): void;
   onStart(): void;
   /** Hand the invite link over; resolves with which route it took. */
   onShare(): Promise<'shared' | 'copied'>;

@@ -130,6 +130,8 @@ interface RoomMsg {
   yourSeat: number;
   seats: {kind: PlayerKind.human | 'ai'; connected: boolean}[];
   config?: unknown;
+  /** Listed; absent from a relay older than the council's switch. */
+  open?: boolean;
 }
 
 /** Lines the council keeps. The table waits minutes, not hours; what was
@@ -239,6 +241,7 @@ export function runLobby(
       yourSeat: isHost ? 0 : -1,
       seats: [],
       config: req.init,
+      open: req.open,
       chat: [],
     });
     let chatId = 0;
@@ -259,6 +262,13 @@ export function runLobby(
               config: sanitizeLobbyConfig(s.config, patch),
             }));
             ws.send(JSON.stringify({t: 'config', config: patch}));
+          },
+          onListed(open) {
+            // Not optimistic: a relay that ignores it (not the host any
+            // more, or one older than the switch) sends nothing back, and
+            // the switch must not claim a listing that never took. The
+            // room's echo moves it.
+            ws.send(JSON.stringify({t: 'visibility', open}));
           },
           onStart() {
             ws.send(JSON.stringify({t: 'start'}));
@@ -345,6 +355,8 @@ export function runLobby(
           // only ever seats four.
           seats: Array.isArray(msg.seats) ? msg.seats.slice(0, 8) : [],
           config: sanitizeLobbyConfig(defaultLobbyConfig(), msg.config),
+          // A relay from before the switch says nothing: keep what we had.
+          open: typeof msg.open === 'boolean' ? msg.open : view().open,
           // The room's word replaces the rest; what was said stays said.
           chat: view().chat,
         });
