@@ -15,7 +15,12 @@ import {MarginMesh} from '../../render/marginMesh';
 import {Mist} from '../../render/mist';
 import {background} from '../../render/palette';
 import {GameRenderer} from '../../render/renderer';
-import {ScatterMesh} from '../../render/scatterMesh';
+import {crossedQuads, ScatterMesh} from '../../render/scatterMesh';
+import {
+  foliageMaterial,
+  makeFlowerSprite,
+  makeGrassSprite,
+} from '../../render/spriteTextures';
 import {TerrainMesh} from '../../render/terrainMesh';
 import {WaterMesh} from '../../render/waterMesh';
 import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
@@ -55,7 +60,9 @@ import {createWorld} from '../../sim/world';
 export type Mode = 'campaign' | 'skirmish' | 'multi';
 /** Every board the screen can be in front of: a mode's, or the shelf of
  * recorded matches. */
-export type Board = Mode | 'replays';
+/** The shelves of files, each on a surface somewhere in the valley. */
+export type Shelf = 'replays' | 'saves';
+export type Board = Mode | Shelf;
 
 export interface SignpostEvents {
   /** The open board changed; null is back at the crossroads. */
@@ -67,13 +74,14 @@ export interface SignpostScene {
   readonly faces: Readonly<Record<Mode, HTMLDivElement>>;
   /** The War Council's board, on the front of the Multiplayer arrow. */
   readonly councilFace: HTMLDivElement;
-  /** The shelf of recorded matches, written on the face of the rock that springs up for it. */
-  readonly shelfFace: HTMLDivElement;
+  /** The shelves' boards: the replays on a rock's face, the saves on the
+   * storehouse's wall. */
+  readonly shelfFaces: Readonly<Record<Shelf, HTMLDivElement>>;
   /** Turn the signpost round to `mode`'s board (closing another first).
    * `instant` skips the animation — a page that opens already there. */
   open(mode: Mode, instant?: boolean): Promise<void>;
-  /** Go over to the rock with the shelf on it (closing any board first). */
-  openShelf(): Promise<void>;
+  /** Go over to where a shelf is (closing any board first). */
+  openShelf(shelf: Shelf): Promise<void>;
   /** Back to the crossroads. */
   close(): Promise<void>;
   /** Flip the Multiplayer arrow over to the War Council. */
@@ -308,7 +316,8 @@ function roundedTop(w: number, h: number, r: number): THREE.Vector2[] {
 
 /** Half the post's thickness: the arrows are nailed to its front. */
 const POST_HALF = 0.22;
-/** Long enough that the post's foot is never on screen. */
+/** The post's length before it is planted (placeRest cuts it to the
+ * ground). */
 const POST_LEN = 40;
 
 const ARROW_H = 0.84;
@@ -413,12 +422,30 @@ interface Arrow {
 
 /** A seed whose start plateau frames well. Nothing depends on it. */
 const BACKDROP_SEED = 41207;
-const EYE_HEIGHT = 6;
 const ORBIT_RADIUS = 19;
-const LOOK_HEIGHT = 2.8;
+/** The resting lens: this far over the ground it stands on — down in the
+ * valley, so the signpost is seen planted in it, the trees on the left and
+ * the keep behind — and aimed this far over the keep's ground. */
+const EYE_HEIGHT = 1.6;
+const LOOK_HEIGHT = 1.6;
+/** How far round from the resting lens the saves' wall faces: off to the
+ * back side, so the walk there is one circle of a sensible size. */
+const WALL_FACING = THREE.MathUtils.degToRad(130);
+/** How high the walk to the castle's wall arches at its middle: over the
+ * trees, which stand about this tall. */
+const WALK_ARCH = 3;
+/** Stone left clear over the saves' list, under what is above it on the
+ * wall (tiles). */
+const LIST_TOP_GAP = 0.1;
+/** How far the post goes into the ground it is planted in. */
+const POST_SUNK = 0.3;
+/** The pond right of the signpost: tiles ahead of the resting lens and to
+ * its right, its radius, and how deep its middle is. */
+const POND = {ahead: 10, right: 3.2, r: 2.4, bed: -0.9};
 /** Where the lens rests on its circle round the keep — chosen so the sun
- * rakes across the keep. */
-const START_ANGLE = 2.2;
+ * rakes across the keep, and the lens stands just past a stand of pines,
+ * which frame the left. */
+const START_ANGLE = 2.52;
 /** The haze band, in tiles from the eye (see the old backdrop's note:
  * far ground lit evenly reads as a painted flat pinned behind the keep). */
 const FOG_NEAR = 26;
@@ -447,6 +474,8 @@ const TURN_MS = 1150;
 const FLIP_MS = 900;
 /** The lens's trip from the signpost to the rock, and back. */
 const FLY_MS = 1600;
+/** The walk round to the castle's wall: longer, and taken slower. */
+const WALL_WALK_MS = 2400;
 
 /**
  * The pointer — or on a phone, tilting it — moves the lens a little round
@@ -456,7 +485,8 @@ const FLY_MS = 1600;
  * lean.
  */
 const LEAN = {x: 0.6, y: 0.3};
-const ROCK_LEAN = {x: 0.45, y: 0.2};
+/** At a shelf, the swing is a share of how far off the lens stands. */
+const SHELF_LEAN = {x: 0.12, y: 0.05};
 const TILT_FULL = 20;
 
 /**
@@ -575,10 +605,11 @@ export async function startSignpost(
   events: SignpostEvents,
 ): Promise<SignpostScene> {
   releaseSignpost();
+  const gltf = new GLTFLoader();
   const [, , rockGltf] = await Promise.all([
     loadGlbAssets(),
     document.fonts.load(`100px "${FONT}"`),
-    new GLTFLoader().loadAsync('/models/kaykit/mountain_C.gltf'),
+    gltf.loadAsync('/models/kaykit/mountain_C.gltf'),
   ]);
 
   const rand = seeded(20260923);
@@ -614,6 +645,65 @@ export async function startSignpost(
     adminEnabled: false,
     banditsEnabled: false,
   });
+  // The signpost is planted a few tiles in front of the resting lens,
+  // and the river runs there: fill it in, a grassy bank blended into the
+  // ground round it. The menu's valley is its own; the ground and grass
+  // are built from the map after this.
+  {
+    const map = world.map;
+    const store = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    );
+    const kx = store ? store.x + store.w / 2 : map.size / 2;
+    const kz = store ? store.y + store.h / 2 : map.size / 2;
+    const ex = kx + Math.sin(START_ANGLE) * ORBIT_RADIUS;
+    const ez = kz + Math.cos(START_ANGLE) * ORBIT_RADIUS;
+    const fx = (kx - ex) / ORBIT_RADIUS;
+    const fz = (kz - ez) / ORBIT_RADIUS;
+    // Ahead by the stage's distance, a touch right, where the post stands
+    // on any window's shape.
+    const px = ex + fx * STAGE_DIST * UI_SCALE - fz * 0.4;
+    const pz = ez + fz * STAGE_DIST * UI_SCALE + fx * 0.4;
+    const BANK = 0.12;
+    const R = 3.2;
+    for (let tz = Math.floor(pz - R - 2); tz <= pz + R + 2; tz++)
+      for (let tx = Math.floor(px - R - 2); tx <= px + R + 2; tx++) {
+        if (tx < 0 || tz < 0 || tx >= map.size || tz >= map.size) continue;
+        const d = Math.hypot(tx + 0.5 - px, tz + 0.5 - pz);
+        if (d > R + 2) continue;
+        const i = tz * map.size + tx;
+        // Full bank inside R, easing out to the ground as it was over the
+        // two tiles past it.
+        const k = d <= R ? 1 : 1 - THREE.MathUtils.smoothstep(d, R, R + 2);
+        const h = map.height[i]!;
+        if (h >= BANK) continue;
+        map.height[i] = lerp(h, BANK, k);
+        if (k > 0.5 && map.terrain[i] === Terrain.Water)
+          map.terrain[i] = Terrain.Grass;
+      }
+    // And a pond to its right, a little further off, so the valley's
+    // water is still in the view the bank took it out of.
+    const qx = ex + fx * POND.ahead - fz * POND.right;
+    const qz = ez + fz * POND.ahead + fx * POND.right;
+    for (let tz = Math.floor(qz - POND.r - 2); tz <= qz + POND.r + 2; tz++)
+      for (let tx = Math.floor(qx - POND.r - 2); tx <= qx + POND.r + 2; tx++) {
+        if (tx < 0 || tz < 0 || tx >= map.size || tz >= map.size) continue;
+        const d = Math.hypot(tx + 0.5 - qx, tz + 0.5 - qz);
+        if (d > POND.r + 1.5) continue;
+        const i = tz * map.size + tx;
+        // A bowl: deepest in the middle, up to the bank at its rim.
+        const bed = lerp(
+          POND.bed,
+          BANK,
+          THREE.MathUtils.smoothstep(d, 0, POND.r + 1.5),
+        );
+        map.height[i] = Math.min(map.height[i]!, bed);
+        if (bed < WATER_LEVEL) {
+          map.terrain[i] = Terrain.Water;
+          map.resource[i] = TileResource.None;
+        }
+      }
+  }
   const renderer = new GameRenderer(canvas, {interactive: false});
   renderer.setWorldExtent(world.map.play, world.map.size);
   renderer.scene.fog = new THREE.Fog(background, FOG_NEAR, FOG_FAR);
@@ -631,12 +721,30 @@ export async function startSignpost(
     mist.group,
     camera,
   );
-  const buildings = new BuildingSync(renderer.scene, heights);
-  buildings.cameraQuaternion = camera.quaternion;
-  buildings.update(snapBuildings(world));
   const keep = [...world.buildings.values()].find(
     b => b.type === BuildingTypeId.storehouse,
   );
+  const buildings = new BuildingSync(renderer.scene, heights);
+  buildings.cameraQuaternion = camera.quaternion;
+  buildings.update(snapBuildings(world));
+  // The game stands a building at the ground under its middle; where the
+  // ground falls away toward its edges the keep's plinth floats, which the
+  // menu's lens — down at the rock, round at the back wall — sees. Sink it
+  // to the lowest ground under its footprint, a little into it.
+  if (keep) {
+    const bx = keep.x + keep.w / 2;
+    const bz = keep.y + keep.h / 2;
+    let lowest = Infinity;
+    for (let z = keep.y - 0.25; z <= keep.y + keep.h + 0.25; z += 0.25)
+      for (let x = keep.x - 0.25; x <= keep.x + keep.w + 0.25; x += 0.25)
+        lowest = Math.min(lowest, heights.at(x, z));
+    for (const o of renderer.scene.children)
+      if (
+        Math.abs(o.position.x - bx) < 1e-3 &&
+        Math.abs(o.position.z - bz) < 1e-3
+      )
+        o.position.y = Math.min(o.position.y, lowest - 0.05);
+  }
   const half = world.map.size / 2;
   const cx = keep ? keep.x + keep.w / 2 : half;
   const cz = keep ? keep.y + keep.h / 2 : half;
@@ -656,31 +764,29 @@ export async function startSignpost(
 
   const post = new THREE.Group();
   stage.add(post);
-  {
-    // A plain square post, its top just rounded off like every other edge
-    // of the sign. The gradient runs over the part you see — post space
-    // -1.2 to 3.6 — in the shaft's own coordinates (its middle is
-    // POST_LEN / 2 below the top at 3.4).
-    const shaft = new THREE.Mesh(
-      grain(
-        paint(
-          extrude(
-            roundedTop(POST_HALF * 2, POST_LEN, 0.07),
-            POST_HALF * 2,
-            0.09,
-          ),
-          CELL.post,
-          POST_LEN / 2 - 4.6,
-          POST_LEN / 2 + 0.2,
-        ),
-        true,
-        0.13,
+  /** The post: a plain square shaft, its top just rounded off like every
+   * other edge of the sign, planted in the ground where the signpost
+   * stands — so its length is the ground's to say (plant, on layout). */
+  const shaft = new THREE.Mesh(new THREE.BufferGeometry(), woodMat);
+  post.add(shaft);
+  /** Make the shaft run from its top (post space 3.4) down to `bottom`.
+   * The colour's gradient runs over the part in view, the top 4.8. */
+  const shaftTo = (bottom: number): void => {
+    const len = Math.max(3.4 - bottom, 1);
+    shaft.geometry.dispose();
+    shaft.geometry = grain(
+      paint(
+        extrude(roundedTop(POST_HALF * 2, len, 0.07), POST_HALF * 2, 0.09),
+        CELL.post,
+        len / 2 - 4.6,
+        len / 2 + 0.2,
       ),
-      woodMat,
+      true,
+      0.13,
     );
-    shaft.position.y = 3.4 - POST_LEN / 2;
-    post.add(shaft);
-  }
+    shaft.position.y = 3.4 - len / 2;
+  };
+  shaftTo(3.4 - POST_LEN);
 
   // ——— the boards' layer
   const css = new CSS3DRenderer();
@@ -861,17 +967,26 @@ export async function startSignpost(
     rock.add(norm);
     rock.scale.setScalar(ROCK_WIDTH);
   }
-  const {el: shelfFace, obj: shelfObj} = boardOf(faceAnchor, 'face shelf');
+  const rockBoard = boardOf(faceAnchor, 'face shelf');
+
+  // ——— the saves: written on a wall of the storehouse (placed below,
+  // once the building's model is found).
+  const wallAnchor = new THREE.Object3D();
+  renderer.scene.add(wallAnchor);
+  const savesBoard = boardOf(wallAnchor, 'face shelf');
 
   // ——— studio light: for the sign only. The valley's sun sits behind the
   // post from where the lens stands, which left the wood a muddy brown; the
   // pack's own renders are lit soft and even from the front. An envMap on
   // the sign's materials lights just these meshes and leaves the valley.
+  /** Light a piece the studio way (set below; also used for the saves'
+   * banner, hung once the castle is searched). */
+  let lit: (o: THREE.Object3D) => void = () => {};
   {
     const pmrem = new THREE.PMREMGenerator(renderer.webgl);
     const studio = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
-    const lit = (o: THREE.Object3D): void => {
+    lit = (o: THREE.Object3D): void => {
       const m = (o as THREE.Mesh).material as
         | THREE.MeshStandardMaterial
         | undefined;
@@ -890,7 +1005,7 @@ export async function startSignpost(
   let postY = 0;
   let inCouncil = false;
   let current: Arrow | null = null;
-  let shelfOpen = false;
+  let shelfOpen: Shelf | null = null;
   const place = (
     el: HTMLDivElement,
     obj: CSS3DObject,
@@ -940,33 +1055,101 @@ export async function startSignpost(
    * Scored rather than filtered — a wooded valley may have nowhere that is
    * perfect — except for water: never in the river.
    */
+  const map = world.map;
+  const mapSize = map.size;
+  const tileAt = (x: number, z: number): number => {
+    const tx = Math.floor(x);
+    const tz = Math.floor(z);
+    return tx < 0 || tz < 0 || tx >= mapSize || tz >= mapSize
+      ? -1
+      : tz * mapSize + tx;
+  };
+  const wet = (x: number, z: number): boolean => {
+    const i = tileAt(x, z);
+    return (
+      i < 0 ||
+      map.terrain[i] === Terrain.Water ||
+      heights.at(x, z) < WATER_LEVEL + 0.25
+    );
+  };
+  const cluttered = (x: number, z: number): boolean => {
+    const i = tileAt(x, z);
+    return (
+      i < 0 ||
+      map.terrain[i] !== Terrain.Grass ||
+      map.resource[i] !== TileResource.None ||
+      map.buildingAt[i]! >= 0
+    );
+  };
+  const restX = cx + Math.sin(START_ANGLE) * ORBIT_RADIUS;
+  const restZ = cz + Math.cos(START_ANGLE) * ORBIT_RADIUS;
+  /** Clear the grass on the tiles `along` ahead of (x, z) toward `face`,
+   * `across` either side: a trodden patch where the lens stands, since
+   * seen from there, grass a stride away stands taller than the list. */
+  const tread = (
+    x: number,
+    z: number,
+    face: number,
+    along: number,
+    across: number,
+  ): void => {
+    const fx = Math.sin(face);
+    const fz = Math.cos(face);
+    for (let d = -across; d <= along; d += 0.5)
+      for (let l = -across; l <= across; l += 0.5) {
+        const i = tileAt(x + fx * d - fz * l, z + fz * d + fx * l);
+        if (i >= 0) grass.removeTile(i);
+      }
+  };
+  /**
+   * Grass and flowers at the rock's foot, either side of the list: the
+   * valley's own clumps, bigger, so the rock stands in the meadow rather
+   * than on a lawn. Kept out from in front of the list — the list is drawn
+   * over the valley, so a blade there would show behind the writing.
+   */
+  const tuft = (face: number): void => {
+    rock.updateMatrixWorld(true);
+    const at = faceAnchor.getWorldPosition(new THREE.Vector3());
+    const fx = Math.sin(face);
+    const fz = Math.cos(face);
+    /** Half the list's width, and a hair. */
+    const clear = (LIST_W * ROCK_WIDTH) / rockW / 2 + 0.08;
+    // [side, out past the list's edge, off the face, size, flower]
+    const clumps: [number, number, number, number, boolean][] = [
+      [-1, 0.1, 0.3, 1.2, false],
+      [-1, 0.45, 0.45, 1.0, true],
+      [1, 0.15, 0.35, 0.9, true],
+      [1, 0.5, 0.25, 1.1, false],
+    ];
+    const grassN = clumps.filter(c => !c[4]).length;
+    const grassMesh = new THREE.InstancedMesh(
+      crossedQuads(0.62, 0.42),
+      foliageMaterial(makeGrassSprite()),
+      grassN,
+    );
+    const flowerMesh = new THREE.InstancedMesh(
+      crossedQuads(0.5, 0.4),
+      foliageMaterial(makeFlowerSprite()),
+      clumps.length - grassN,
+    );
+    const put = new THREE.Object3D();
+    let g = 0;
+    let f = 0;
+    clumps.forEach(([side, out, off, size, flower], k) => {
+      const l = side * (clear + out);
+      const x = at.x + fx * off + fz * l;
+      const z = at.z + fz * off - fx * l;
+      put.position.set(x, heights.at(x, z) + (flower ? 0.18 : 0.2) * size, z);
+      put.rotation.set(0, k * 1.3, 0);
+      put.scale.setScalar(size);
+      put.updateMatrix();
+      if (flower) flowerMesh.setMatrixAt(f++, put.matrix);
+      else grassMesh.setMatrixAt(g++, put.matrix);
+    });
+    renderer.scene.add(grassMesh, flowerMesh);
+  };
   const findRockSpot = (): {x: number; z: number; y: number; face: number} => {
-    const map = world.map;
-    const size = map.size;
-    const tileAt = (x: number, z: number): number => {
-      const tx = Math.floor(x);
-      const tz = Math.floor(z);
-      return tx < 0 || tz < 0 || tx >= size || tz >= size ? -1 : tz * size + tx;
-    };
-    const wet = (x: number, z: number): boolean => {
-      const i = tileAt(x, z);
-      return (
-        i < 0 ||
-        map.terrain[i] === Terrain.Water ||
-        heights.at(x, z) < WATER_LEVEL + 0.25
-      );
-    };
-    const cluttered = (x: number, z: number): boolean => {
-      const i = tileAt(x, z);
-      return (
-        i < 0 ||
-        map.terrain[i] !== Terrain.Grass ||
-        map.resource[i] !== TileResource.None ||
-        map.buildingAt[i]! >= 0
-      );
-    };
-    const restX = cx + Math.sin(START_ANGLE) * ORBIT_RADIUS;
-    const restZ = cz + Math.cos(START_ANGLE) * ORBIT_RADIUS;
+    const size = mapSize;
     const toKeep = Math.atan2(cx - restX, cz - restZ);
     let best = {x: restX, z: restZ, y: heights.at(restX, restZ), face: toKeep};
     let bestScore = Infinity;
@@ -1021,51 +1204,317 @@ export async function startSignpost(
   {
     const spot = findRockSpot();
     rock.position.set(spot.x, spot.y, spot.z);
-    // A trodden patch in front of the face, where the lens stands: seen
-    // from there, grass a stride away would stand taller than the list.
-    const size = world.map.size;
-    const fx = Math.sin(spot.face);
-    const fz = Math.cos(spot.face);
-    for (let d = 0; d <= 8; d += 0.5)
-      for (let l = -1.5; l <= 1.5; l += 0.5) {
-        const tx = Math.floor(spot.x + fx * d - fz * l);
-        const tz = Math.floor(spot.z + fz * d + fx * l);
-        if (tx >= 0 && tz >= 0 && tx < size && tz < size)
-          grass.removeTile(tz * size + tx);
-      }
+    tread(spot.x, spot.z, spot.face, 8, 1.5);
     // The face points `face`; the model's face points ROCK_FACE.yaw.
     rock.rotation.y = spot.face - ROCK_FACE.yaw;
+    tuft(spot.face);
   }
 
-  /** The list's text scale: set by placeShelf, from the face's width. */
-  let shelfK = 1;
-  /** How far in front of the face the lens stands (tiles): set by
-   * placeShelf. */
-  let shelfDist = 4;
+  /**
+   * The storehouse's wall: the biggest single flat, upright face of its
+   * model — found in the geometry the building is drawn with, so it holds
+   * whatever the model is — facing out, on the far side from the resting
+   * lens, out of sight until the lens goes round. One face: triangles in
+   * one plane that touch, so a list never runs round a corner or across to
+   * a piece of wall that only happens to line up. Written on it, upright.
+   */
+  /**
+   * Over the castle's own banner — a flat card at the lens's distance —
+   * hang the Dungeon pack's, the rally flag's cloth, which has folds and a
+   * cut foot to it: a touch bigger, so it covers the card, flush on the
+   * wall. Double-sided, as the rally flag has it (the pack ships it for
+   * dungeon walls, one face only), and lit the signpost's way.
+   */
+  /** The list's size on the wall, and what the lens frames there: the
+   * whole banner, centred on it (wallView). */
+  const wall = {w: 1, h: 1};
+  const wallFit = {w: 1, h: 1};
+  const wallView = new THREE.Object3D();
+  renderer.scene.add(wallView);
+  if (keep) {
+    renderer.scene.updateMatrixWorld(true);
+    const bx = keep.x + keep.w / 2;
+    const bz = keep.y + keep.h / 2;
+    const reach = Math.max(keep.w, keep.h) / 2 + 0.5;
+    interface Tri {
+      pts: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+      area: number;
+    }
+    interface Plane {
+      n: THREE.Vector3;
+      tris: Tri[];
+    }
+    const planes = new Map<string, Plane>();
+    /** The building's own meshes: what may stand between the lens and a
+     * face. */
+    const walls: THREE.Mesh[] = [];
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const box = new THREE.Box3();
+    renderer.scene.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || (m as THREE.InstancedMesh).isInstancedMesh) return;
+      // The building's own model: within its footprint (not the ground it
+      // stands on, which is centred there too), and tall (not a pile).
+      box.setFromObject(m);
+      const mid = box.getCenter(a);
+      if (Math.abs(mid.x - bx) > reach || Math.abs(mid.z - bz) > reach) return;
+      if (box.max.x - box.min.x > 2 * reach) return;
+      if (box.max.z - box.min.z > 2 * reach) return;
+      if (box.max.y - box.min.y < 0.8) return;
+      walls.push(m);
+      // A mirrored piece (negative scale) has its triangles wound the
+      // other way round: its faces' fronts are the other side.
+      const flip = m.matrixWorld.determinant() < 0 ? -1 : 1;
+      const pos = m.geometry.getAttribute('position');
+      const idx = m.geometry.getIndex();
+      const count = idx ? idx.count : pos.count;
+      const at = (k: number, v: THREE.Vector3): THREE.Vector3 =>
+        v
+          .fromBufferAttribute(pos, idx ? idx.getX(k) : k)
+          .applyMatrix4(m.matrixWorld);
+      for (let k = 0; k + 2 < count; k += 3) {
+        at(k, a);
+        at(k + 1, b);
+        at(k + 2, c);
+        n.subVectors(b, a).cross(c.clone().sub(a));
+        const area = n.length() / 2;
+        if (area < 1e-5) continue;
+        n.normalize().multiplyScalar(flip);
+        if (Math.abs(n.y) > 0.05) continue;
+        // Facing out of the building, not into its courtyard.
+        if (n.x * (a.x - bx) + n.z * (a.z - bz) <= 0) continue;
+        // The far side only: facing away from the resting lens.
+        if (n.x * (restX - bx) + n.z * (restZ - bz) >= 0) continue;
+        const key = [n.x, n.z, n.dot(a)].map(v => Math.round(v * 20)).join();
+        let p = planes.get(key);
+        if (!p) planes.set(key, (p = {n: n.clone(), tris: []}));
+        p.tris.push({pts: [a.clone(), b.clone(), c.clone()], area});
+      }
+    });
+    // Each plane's triangles, joined where they share a corner: its faces.
+    const vkey = (v: THREE.Vector3): string =>
+      `${Math.round(v.x * 1e3)},${Math.round(v.y * 1e3)},${Math.round(v.z * 1e3)}`;
+    const faces: {n: THREE.Vector3; pts: THREE.Vector3[]; area: number}[] = [];
+    for (const p of planes.values()) {
+      const root = p.tris.map((_, i) => i);
+      const find = (i: number): number => {
+        while (root[i] !== i) i = root[i] = root[root[i]!]!;
+        return i;
+      };
+      const owner = new Map<string, number>();
+      p.tris.forEach((t, i) => {
+        for (const v of t.pts) {
+          const k = vkey(v);
+          const j = owner.get(k);
+          if (j === undefined) owner.set(k, i);
+          else root[find(i)] = find(j);
+        }
+      });
+      const joined = new Map<number, {pts: THREE.Vector3[]; area: number}>();
+      p.tris.forEach((t, i) => {
+        const r = find(i);
+        let f = joined.get(r);
+        if (!f) joined.set(r, (f = {pts: [], area: 0}));
+        f.pts.push(...t.pts);
+        f.area += t.area;
+      });
+      for (const f of joined.values()) faces.push({n: p.n, ...f});
+    }
+    faces.sort((x, y) => y.area - x.area);
+    /** A face's frame: its middle, its axes, its size. */
+    const frame = (f: (typeof faces)[number]) => {
+      const normal = f.n;
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(up, normal);
+      let lo = Infinity;
+      let hi = -Infinity;
+      let bottom = Infinity;
+      let top = -Infinity;
+      for (const q of f.pts) {
+        const u = q.x * right.x + q.z * right.z;
+        lo = Math.min(lo, u);
+        hi = Math.max(hi, u);
+        bottom = Math.min(bottom, q.y);
+        top = Math.max(top, q.y);
+      }
+      const p0 = f.pts[0]!;
+      const off = (lo + hi) / 2 - (p0.x * right.x + p0.z * right.z);
+      const mid = new THREE.Vector3(
+        p0.x + right.x * off,
+        (bottom + top) / 2,
+        p0.z + right.z * off,
+      );
+      return {mid, normal, up, right, w: hi - lo, h: top - bottom};
+    };
+    // The biggest face the lens can see all of from where it will stand:
+    // rays from there to its middle and toward its corners, none stopped
+    // by another part of the building.
+    const ray = new THREE.Raycaster();
+    const eye = new THREE.Vector3();
+    const toPt = new THREE.Vector3();
+    const seen = (fr: ReturnType<typeof frame>): boolean => {
+      const dist = Math.max(
+        fr.h / (0.8 * 2 * TAN),
+        fr.w / (0.9 * 2 * TAN * camera.aspect),
+      );
+      eye.copy(fr.mid).addScaledVector(fr.normal, dist);
+      // Its front: a ray to its middle meets it, where it is. (From behind,
+      // a ray passes through a face's back unseen, so this is what tells.)
+      toPt.subVectors(fr.mid, eye);
+      ray.set(eye, toPt.clone().normalize());
+      ray.far = dist + 0.05;
+      const hit = ray.intersectObjects(walls, false)[0];
+      if (!hit || hit.distance < dist - 0.03) return false;
+      for (const [du, dv] of [
+        [0, 0],
+        [-0.4, -0.4],
+        [0.4, -0.4],
+        [-0.4, 0.4],
+        [0.4, 0.4],
+      ] as const) {
+        const pt = fr.mid
+          .clone()
+          .addScaledVector(fr.right, du * fr.w)
+          .addScaledVector(fr.up, dv * fr.h)
+          .addScaledVector(fr.normal, 0.01);
+        toPt.subVectors(pt, eye);
+        const far = toPt.length();
+        ray.set(eye, toPt.normalize());
+        ray.far = far - 0.02;
+        if (ray.intersectObjects(walls, false).length > 0) return false;
+      }
+      return true;
+    };
+    // On this castle that is one of its banners, out of sight at the
+    // back; any wall at all will do before none. Of those the lens can see
+    // whole, the one facing about WALL_FACING round from the resting lens:
+    // straight away from it, the walk there (one circle, walkToWall) would
+    // have to go right round the keep; that far round, it sweeps out to the
+    // side and comes in to the wall head on.
+    const framed = faces.map(frame).filter(fr => fr.w > 0.3 && fr.h > 0.6);
+    const toRest = new THREE.Vector3(restX - bx, 0, restZ - bz).normalize();
+    const facing = (fr: (typeof framed)[number]): number =>
+      Math.abs(fr.normal.dot(toRest) - Math.cos(WALL_FACING));
+    const wallFace =
+      framed.filter(seen).sort((a, b) => facing(a) - facing(b))[0] ?? framed[0];
+    // The banner on it: a smaller face just in front of it, parallel,
+    // within its outline. The list takes the plain stone under its point,
+    // clear of the carved bricks low on the wall.
+    let chosen = wallFace;
+    if (wallFace) {
+      for (const fr of faces.map(frame)) {
+        if (fr.normal.dot(wallFace.normal) < 0.99) continue;
+        const ahead = toPt
+          .subVectors(fr.mid, wallFace.mid)
+          .dot(wallFace.normal);
+        if (ahead < 0.003 || ahead > 0.2) continue;
+        const across = Math.abs(toPt.dot(wallFace.right));
+        const upDown = Math.abs(fr.mid.y - wallFace.mid.y);
+        if (across > wallFace.w / 2 || upDown > wallFace.h / 2) continue;
+        if (fr.h < 0.3 || fr.w < 0.15) continue;
+        const foot = wallFace.mid.y - wallFace.h / 2 + 0.06;
+        const point = fr.mid.y - fr.h / 2 - 0.03;
+        if (point - foot < 0.4) break;
+        const low = foot + (point - foot) * 0.265;
+        chosen = {
+          ...wallFace,
+          mid: wallFace.mid.clone().setY((low + point) / 2),
+          h: point - low,
+        };
+        break;
+      }
+    }
+    if (chosen) {
+      // Clear of whatever is over the list — a window, a banner's point.
+      chosen = {
+        ...chosen,
+        mid: chosen.mid.clone().setY(chosen.mid.y - LIST_TOP_GAP / 2),
+        h: chosen.h - LIST_TOP_GAP,
+      };
+      wallAnchor.position.copy(chosen.mid);
+      wallAnchor.quaternion.setFromRotationMatrix(
+        new THREE.Matrix4().makeBasis(chosen.right, chosen.up, chosen.normal),
+      );
+      wall.w = chosen.w;
+      wall.h = chosen.h;
+      // Framed close: the list and a band of stone round it.
+      wallView.quaternion.copy(wallAnchor.quaternion);
+      wallView.position.copy(chosen.mid);
+      wallFit.w = chosen.w * 1.08;
+      wallFit.h = chosen.h * 1.2;
+    }
+  }
 
   /**
-   * Size the list to the face, and stand the lens far enough back that
-   * the face fills most of the window's height — or its width, on a phone.
+   * A shelf's stop: the surface its list is written on, and how the lens
+   * looks at it. The anchor is the list's middle, its +z out of the
+   * surface and its +y the list's up.
    */
-  const placeShelf = (): void => {
-    const toWorld = ROCK_WIDTH / rockW;
-    const faceH = ROCK_FACE.high * toWorld;
-    const faceW = ROCK_FACE.w * toWorld;
-    shelfDist = Math.max(
-      faceH / (0.8 * 2 * TAN),
-      faceW / (0.9 * 2 * TAN * camera.aspect),
-    );
-    // The list, laid out about 380px wide whatever that is on screen.
-    const perPx = (2 * shelfDist * TAN) / innerHeight;
-    const toPx = toWorld / perPx;
-    shelfK = THREE.MathUtils.clamp((LIST_W * toPx) / 380, 0.75, 1.35);
-    shelfFace.style.width = `${(LIST_W * toPx) / shelfK}px`;
-    shelfFace.style.height = `${(LIST_H * toPx) / shelfK}px`;
-    // The anchor is in the model's units.
-    shelfObj.scale.setScalar((shelfK * perPx) / toWorld);
-    // A hair off the stone, toward the lens.
-    shelfObj.position.set(0, 0, 0.004 / toWorld);
+  interface Stop {
+    board: {el: HTMLDivElement; obj: CSS3DObject};
+    anchor: THREE.Object3D;
+    /** What the lens centres on, if not the list: the whole of a thing
+     * the list is only part of. Its +z is the surface's out. */
+    view?: THREE.Object3D;
+
+    /** The surface to frame, and the list on it (tiles). */
+    fit: {w: number; h: number};
+    list: {w: number; h: number};
+    /** How steeply the lens looks at the surface: PI / 2 square on. */
+    elev: number;
+    /** Set by placeStop: how far off the lens stands (tiles). */
+    dist: number;
+  }
+  const rockScale = ROCK_WIDTH / rockW;
+  const stops: Record<Shelf, Stop> = {
+    replays: {
+      board: rockBoard,
+      anchor: faceAnchor,
+      fit: {w: ROCK_FACE.w * rockScale, h: ROCK_FACE.high * rockScale},
+      list: {w: LIST_W * rockScale, h: LIST_H * rockScale},
+      elev: Math.PI / 2,
+      dist: 1,
+    },
+    saves: {
+      board: savesBoard,
+      anchor: wallAnchor,
+      view: wallView,
+      fit: wallFit,
+      list: {w: wall.w * 0.9, h: wall.h},
+      elev: Math.PI / 2,
+      dist: 1,
+    },
   };
+
+  /**
+   * Stand the lens far enough off that the surface fills most of the
+   * window's height — or its width, on a phone — and lay the list out to
+   * fit it, about 380px wide whatever that comes to on screen.
+   */
+  const placeStop = (stop: Stop): void => {
+    const {el, obj} = stop.board;
+    stop.dist = Math.max(
+      (stop.fit.h * Math.sin(stop.elev)) / (0.8 * 2 * TAN),
+      stop.fit.w / (0.9 * 2 * TAN * camera.aspect),
+    );
+    const toPx = innerHeight / (2 * stop.dist * TAN);
+    // As long as the surface allows, and no longer than shows.
+    const shows = (0.82 * 2 * TAN * stop.dist) / Math.sin(stop.elev);
+    const listH = Math.min(stop.list.h, shows);
+    const k = THREE.MathUtils.clamp((stop.list.w * toPx) / 380, 0.75, 1.35);
+    el.style.width = `${(stop.list.w * toPx) / k}px`;
+    el.style.height = `${(listH * toPx) / k}px`;
+    // In the anchor's units, which may be a model's.
+    stop.anchor.updateWorldMatrix(true, false);
+    const scale = stop.anchor.getWorldScale(tmpScale).x;
+    obj.scale.setScalar(k / toPx / scale);
+    // A hair off the surface, toward the lens.
+    obj.position.set(0, 0, 0.002 / scale);
+  };
+  const tmpScale = new THREE.Vector3();
 
   /** Where the lens rests, looking at the signpost: START_ANGLE round,
    * the keep pushed left on a wide window to leave the right for the
@@ -1073,14 +1522,21 @@ export async function startSignpost(
   const placeRest = (): void => {
     const room = THREE.MathUtils.clamp((camera.aspect - 1) / 0.8, 0, 1);
     rest.position.set(
-      cx + Math.sin(START_ANGLE) * ORBIT_RADIUS,
-      groundY + EYE_HEIGHT,
-      cz + Math.cos(START_ANGLE) * ORBIT_RADIUS,
+      restX,
+      Math.max(heights.at(restX, restZ), WATER_LEVEL) + EYE_HEIGHT,
+      restZ,
     );
     rest.lookAt(cx, groundY + LOOK_HEIGHT, cz);
     rest.rotateY(-0.2 * room);
     ui.position.copy(rest.position);
     ui.quaternion.copy(rest.quaternion);
+    stage.position.copy(REST);
+    ui.updateMatrixWorld(true);
+    // Plant the post: down to the ground under it (a bank over the river
+    // there, made for it at the start), and a little in.
+    const foot = post.localToWorld(new THREE.Vector3(0, 0, 0));
+    foot.y = heights.at(foot.x, foot.z) - POST_SUNK;
+    shaftTo(post.worldToLocal(foot).y);
   };
 
   const layout = (): void => {
@@ -1091,8 +1547,8 @@ export async function startSignpost(
     const s = Math.min(0.7, (halfW * 2 * 0.94) / span);
     post.scale.setScalar(s);
     // Right of centre on a wide screen, so the keep (pushed left by the
-    // lens) stays in view.
-    postX = aspect > 1.15 ? halfW * 0.1 : 0;
+    // lens) stays in view, and the trees and rocks on the left.
+    postX = aspect > 1.15 ? halfW * 0.28 : 0;
     // On a screen taller than wide the signpost shrinks to fit the width
     // and would sit low under an empty sky; lift its arrows toward the
     // middle, more the taller the screen.
@@ -1102,7 +1558,8 @@ export async function startSignpost(
     post.position.set(postX, postY, 0);
     for (const a of arrows) place(a.face, a.faceObj, a, false);
     place(councilFace, councilObj, multi, true);
-    placeShelf();
+    placeStop(stops.replays);
+    placeStop(stops.saves);
   };
 
   let busy = false;
@@ -1191,32 +1648,35 @@ export async function startSignpost(
     busy = false;
   };
 
-  /** How far the lens is on its way to the rock: 0 at the signpost, 1 in
-   * front of the face. */
+  /** How far the lens is on its way to a shelf: 0 at the signpost, 1 at
+   * the shelf. */
   let fly = 0;
+  /** The shelf the lens is at or going to (or coming back from). */
+  let target: Stop = stops.replays;
 
-  const showShelf = async (): Promise<void> => {
+  const showShelf = async (shelf: Shelf): Promise<void> => {
     busy = true;
-    shelfOpen = true;
-    events.onBoard('replays');
+    shelfOpen = shelf;
+    target = stops[shelf];
+    events.onBoard(shelf);
     const f0 = fly;
-    await tween(FLY_MS, t => {
+    await tween(target === stops.saves ? WALL_WALK_MS : FLY_MS, t => {
       fly = lerp(f0, 1, t);
     });
-    activate(shelfFace, true);
+    activate(target.board.el, true);
     busy = false;
   };
 
   const hideShelf = async (): Promise<void> => {
     if (!shelfOpen) return;
     busy = true;
-    activate(shelfFace, false);
+    activate(target.board.el, false);
     events.onBoard(null);
     const f0 = fly;
-    await tween(FLY_MS, t => {
+    await tween(target === stops.saves ? WALL_WALK_MS : FLY_MS, t => {
       fly = lerp(f0, 0, t);
     });
-    shelfOpen = false;
+    shelfOpen = null;
     busy = false;
   };
 
@@ -1360,6 +1820,7 @@ export async function startSignpost(
   let raf = 0;
   let stopped = false;
   const pivot = new THREE.Vector3();
+  const walk = new THREE.Vector3();
   const lensAt = new THREE.Vector3();
   const faceAt = new THREE.Vector3();
   const faceN = new THREE.Vector3();
@@ -1367,6 +1828,82 @@ export async function startSignpost(
   const signPos = new THREE.Vector3();
   const signQuat = new THREE.Quaternion();
   const rockQuat = new THREE.Quaternion();
+  const stopPos = new THREE.Vector3();
+  const keepQuat = new THREE.Quaternion();
+  /**
+   * The trip to the castle's wall: round one circle, from the lens at the
+   * signpost (A) to the lens at the wall (B), arriving at B moving
+   * straight on to the wall. Of the circles through A, the one that meets
+   * the line in to the wall at B head on — its centre off to one side of
+   * B, along the wall — and round it the way that arrives moving toward
+   * the wall, however far round that is: out from the signpost, a wide
+   * sweep, and in. Along the ground: its height over the ground eases from
+   * the signpost's to the wall's. The lens turns off the signpost onto the
+   * castle and keeps to it, turning onto the wall — square to it — only at
+   * the end. `signPos`/`signQuat` are the lens at the signpost,
+   * `stopPos`/`rockQuat` at the wall, `faceN` the way out of the wall;
+   * `fly` how far along.
+   */
+  const castleAt = new THREE.Vector3();
+  const walkToWall = (): void => {
+    const under = (x: number, z: number): number =>
+      Math.max(heights.at(x, z), WATER_LEVEL);
+    // n: out of the wall; w: along it.
+    const nx = faceN.x;
+    const nz = faceN.z;
+    const nl = Math.hypot(nx, nz) || 1;
+    const ox = nx / nl;
+    const oz = nz / nl;
+    const wx = oz;
+    const wz = -ox;
+    // The centre C = B + w s, as far from A as from B.
+    const abx = signPos.x - stopPos.x;
+    const abz = signPos.z - stopPos.z;
+    const across = wx * abx + wz * abz;
+    const sgn = Math.abs(across) < 1e-3 ? 1e-3 : across;
+    const off = (abx * abx + abz * abz) / (2 * sgn);
+    const mx = stopPos.x + wx * off;
+    const mz = stopPos.z + wz * off;
+    const radius = Math.abs(off);
+    const a0 = Math.atan2(signPos.x - mx, signPos.z - mz);
+    const a1 = Math.atan2(stopPos.x - mx, stopPos.z - mz);
+    // Round the way that arrives moving in to the wall (against n): at an
+    // angle a the circle runs (cos a, -sin a) as a grows.
+    const dir = Math.cos(a1) * -ox + -Math.sin(a1) * -oz > 0 ? 1 : -1;
+    const turn =
+      dir * THREE.MathUtils.euclideanModulo(dir * (a1 - a0), Math.PI * 2);
+    const ang = a0 + turn * fly;
+    camera.position.set(
+      mx + Math.sin(ang) * radius,
+      0,
+      mz + Math.cos(ang) * radius,
+    );
+    const h0 = signPos.y - under(signPos.x, signPos.z);
+    const h1 = stopPos.y - under(stopPos.x, stopPos.z);
+    // Arching up over the trees on the way, down again at each end.
+    camera.position.y =
+      under(camera.position.x, camera.position.z) +
+      lerp(h0, h1, fly) +
+      Math.sin(fly * Math.PI) * WALK_ARCH;
+    // Off the signpost onto the castle, kept on the castle all the way,
+    // and onto the wall at the end.
+    castleAt.set(cx, faceAt.y + 0.6, cz);
+    camera.lookAt(castleAt);
+    keepQuat.copy(camera.quaternion);
+    camera.quaternion.slerpQuaternions(
+      signQuat,
+      keepQuat,
+      THREE.MathUtils.smoothstep(fly, 0, 0.35),
+    );
+    const onto = THREE.MathUtils.smoothstep(fly, 0.8, 1);
+    if (onto > 0) {
+      keepQuat.copy(camera.quaternion);
+      camera.quaternion.slerpQuaternions(keepQuat, rockQuat, onto);
+    }
+  };
+  const anchorQuat = new THREE.Quaternion();
+  const listUp = new THREE.Vector3();
+  const yAxis = new THREE.Vector3(0, 1, 0);
   let last = performance.now();
   const loop = (now: number): void => {
     if (stopped) return;
@@ -1395,41 +1932,87 @@ export async function startSignpost(
     // distance: the swing shrinks faster than the view does as the lens
     // closes in, so at the crossroads it sways and in front of a board —
     // on a phone held upright, very close — it barely moves at all.
+    // The signpost stands where it is planted; the zoom onto a board is
+    // the lens walking up to it — where the stage would have come to the
+    // lens, the lens goes the other way.
     const lean = (-stageBase.z / STAGE_DIST) ** 2;
-    stage.position.copy(stageBase);
+    stage.position.copy(REST);
     ui.updateMatrixWorld();
-    ui.localToWorld(pivot.set(0, 0, stageBase.z));
-    ui.localToWorld(lensAt.set(px * LEAN.x * lean, py * LEAN.y * lean, 0));
+    walk.subVectors(REST, stageBase);
+    ui.localToWorld(pivot.set(walk.x, walk.y, REST.z));
+    ui.localToWorld(
+      lensAt.set(
+        walk.x + px * LEAN.x * lean,
+        walk.y + py * LEAN.y * lean,
+        walk.z,
+      ),
+    );
     camera.position.copy(lensAt);
     camera.lookAt(pivot);
+    if (fly === 0 && camera.near !== 0.3) {
+      camera.near = 0.3;
+      camera.updateProjectionMatrix();
+    }
     if (fly > 0) {
       signPos.copy(camera.position);
       signQuat.copy(camera.quaternion);
-      // At the rock: square in front of the face, level with its middle,
-      // swung round it by the pointer.
-      rock.updateMatrixWorld();
-      faceAnchor.getWorldPosition(faceAt);
-      faceAnchor.getWorldDirection(faceN).setY(0).normalize();
-      faceRight.set(faceN.z, 0, -faceN.x);
+      // At the shelf: off the surface at its angle, swung round it by the
+      // pointer.
+      const {elev, dist} = target;
+      const anchor = target.view ?? target.anchor;
+      anchor.updateWorldMatrix(true, false);
+      anchor.getWorldPosition(faceAt);
+      anchor.getWorldQuaternion(anchorQuat);
+      faceN.set(0, 0, 1).applyQuaternion(anchorQuat);
+      listUp.set(0, 1, 0).applyQuaternion(anchorQuat);
+      faceN
+        .multiplyScalar(Math.sin(elev))
+        .addScaledVector(listUp, -Math.cos(elev))
+        .normalize();
+      faceRight.crossVectors(faceN, yAxis).negate().normalize();
       camera.position
         .copy(faceAt)
-        .addScaledVector(faceN, shelfDist)
-        .addScaledVector(faceRight, px * ROCK_LEAN.x)
-        .setY(faceAt.y + py * ROCK_LEAN.y);
+        .addScaledVector(faceN, dist)
+        .addScaledVector(faceRight, px * SHELF_LEAN.x * dist);
+      camera.position.y += py * SHELF_LEAN.y * dist;
       // Never under the ground (or the river) where it stands.
       camera.position.y = Math.max(
         camera.position.y,
         Math.max(
           heights.at(camera.position.x, camera.position.z),
           WATER_LEVEL,
-        ) + 0.5,
+        ) + Math.min(0.5, dist * 0.3),
       );
       camera.lookAt(faceAt);
-      // On the way: over the ground between, a little lifted mid-trip.
-      camera.position.lerp(signPos, 1 - fly);
-      camera.position.y += Math.sin(fly * Math.PI) * 1.2;
+      // Close in on a small thing, the near plane comes in with the lens.
+      const near = lerp(0.3, Math.min(0.3, dist * 0.1), fly);
+      if (Math.abs(camera.near - near) > 1e-4) {
+        camera.near = near;
+        camera.updateProjectionMatrix();
+      }
+      stopPos.copy(camera.position);
       rockQuat.copy(camera.quaternion);
-      camera.quaternion.slerpQuaternions(signQuat, rockQuat, fly);
+      if (target === stops.saves) walkToWall();
+      else {
+        // On the way: round the keep rather than through it — the angle
+        // round it swings over first, the distance from it closes in
+        // after — a little lifted mid-trip.
+        const a0 = Math.atan2(signPos.x - cx, signPos.z - cz);
+        const a1 = Math.atan2(stopPos.x - cx, stopPos.z - cz);
+        const turn =
+          THREE.MathUtils.euclideanModulo(a1 - a0 + Math.PI, Math.PI * 2) -
+          Math.PI;
+        const r0 = Math.hypot(signPos.x - cx, signPos.z - cz);
+        const r1 = Math.hypot(stopPos.x - cx, stopPos.z - cz);
+        const ang = a0 + turn * fly;
+        const r = lerp(r0, r1, fly * fly);
+        camera.position.set(
+          cx + Math.sin(ang) * r,
+          lerp(signPos.y, stopPos.y, fly) + Math.sin(fly * Math.PI) * 1.5,
+          cz + Math.cos(ang) * r,
+        );
+        camera.quaternion.slerpQuaternions(signQuat, rockQuat, fly);
+      }
     }
 
     hovered = busy || current || shelfOpen ? null : arrowUnder(pointer);
@@ -1456,8 +2039,9 @@ export async function startSignpost(
         current === a && facing(a.faceObj) ? 'visible' : 'hidden';
     councilFace.style.visibility =
       inCouncil && facing(councilObj) ? 'visible' : 'hidden';
-    shelfFace.style.visibility =
-      shelfOpen && facing(shelfObj) ? 'visible' : 'hidden';
+    for (const [shelf, stop] of Object.entries(stops) as [Shelf, Stop][])
+      stop.board.el.style.visibility =
+        shelfOpen === shelf && facing(stop.board.obj) ? 'visible' : 'hidden';
 
     water.update(now);
     mist.update(now);
@@ -1474,7 +2058,7 @@ export async function startSignpost(
       multi: multi.face,
     },
     councilFace,
-    shelfFace,
+    shelfFaces: {replays: rockBoard.el, saves: savesBoard.el},
     open: (mode, instant = false) =>
       queue(async () => {
         const a = byMode(mode);
@@ -1483,12 +2067,13 @@ export async function startSignpost(
         if (current) await turnBack();
         await turnTo(a, instant);
       }),
-    openShelf: () =>
+    openShelf: shelf =>
       queue(async () => {
-        if (shelfOpen) return;
+        if (shelfOpen === shelf) return;
         if (inCouncil) return; // a room is left by its Leave, not by this
+        await hideShelf();
         if (current) await turnBack();
-        await showShelf();
+        await showShelf(shelf);
       }),
     close: () =>
       queue(async () => {

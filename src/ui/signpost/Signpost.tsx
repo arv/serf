@@ -244,12 +244,24 @@ export function Signpost(props: {
       render(
         () => (
           <ShelfBoard
+            kind="replays"
             open={board() === 'replays'}
-            onWatch={name => launch('?replay=' + encodeURIComponent(name))}
+            onOpen={launch}
             onBack={close}
           />
         ),
-        s.shelfFace,
+        s.shelfFaces.replays,
+      ),
+      render(
+        () => (
+          <ShelfBoard
+            kind="saves"
+            open={board() === 'saves'}
+            onOpen={launch}
+            onBack={close}
+          />
+        ),
+        s.shelfFaces.saves,
       ),
     ];
     setScene(s);
@@ -364,13 +376,17 @@ export function Signpost(props: {
       </div>
 
       <nav class="sp-footer comic">
-        <button disabled title="Saved games are coming back to the signpost">
+        <button
+          title="Resume a saved village"
+          disabled={scene() === null}
+          onClick={() => void scene()?.openShelf('saves')}
+        >
           Load save
         </button>
         <button
           title="Watch a recorded match"
           disabled={scene() === null}
-          onClick={() => void scene()?.openShelf()}
+          onClick={() => void scene()?.openShelf('replays')}
         >
           Replays
         </button>

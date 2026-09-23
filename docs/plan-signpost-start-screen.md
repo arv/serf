@@ -66,8 +66,9 @@ Decisions that are settled, so they are not relitigated:
       `mountain_C`) standing in the valley; the footer's Replays flies the
       lens over to it. Pick and Watch, double-click, delete, share, drag
       out, drop in (`ShelfBoard.tsx`). Not yet tried with a real recording.
-- [ ] **Load save**: the same shelf for saved games — a second face, or a
-      second rock. Its footer button is disabled until then. **Map editor**
+- [x] **Load save**: the same shelf for saved games, written on the
+      keep's back wall under its window; the lens swings round to it on one
+      arc over the trees. Not yet tried with a real save. **Map editor**
       and **Field guide** work.
 - [ ] Reopen on the board the player used last (`rememberedMode`), or
       decide not to. Today it always opens on the crossroads.
