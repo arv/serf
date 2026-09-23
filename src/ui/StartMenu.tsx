@@ -34,7 +34,7 @@ import {
 } from '../sim/defs/missions';
 import {SHORT} from './breakpoints';
 import {isMissionComplete, isMissionUnlocked} from './campaign';
-import {DifficultyRow, difficultyHint} from './difficulty';
+import {DifficultyRow} from './difficulty';
 import {fullscreen} from './fullscreen';
 import {LockIcon} from './icons';
 import {releaseMenuBackdrop} from './menuBackdrop';
@@ -1204,12 +1204,7 @@ export function StartMenu(props: StartMenuProps) {
 
               <Show when={isMulti() && mp() === 'host'}>
                 <div class="row">
-                  <div>
-                    <div class="row-label">Room visibility</div>
-                    <div class="row-hint">
-                      Open rooms appear in everyone’s browser
-                    </div>
-                  </div>
+                  <div class="row-label">Room visibility</div>
                   <div class="vis">
                     <Glide index={vis() === 'open' ? 0 : 1} />
                     <button
@@ -1226,15 +1221,6 @@ export function StartMenu(props: StartMenuProps) {
                     >
                       Private
                     </button>
-                  </div>
-                </div>
-                <div class="row">
-                  <div>
-                    <div class="row-label">Match settings</div>
-                    <div class="row-hint">
-                      Computer seats, map seed and bandit raids are chosen in
-                      the War Council, where everyone sees them.
-                    </div>
                   </div>
                 </div>
               </Show>
@@ -1297,16 +1283,8 @@ export function StartMenu(props: StartMenuProps) {
                       }}
                     </For>
                   </div>
-                  <div class="row-hint">
-                    A tutorial in seven commissions. Hints can be hidden in the
-                    first minute. Finishing one unseals the next.
-                  </div>
                 </div>
-                <DifficultyRow
-                  value={difficulty()}
-                  onChange={pickDifficulty}
-                  hint={difficultyHint('campaign')}
-                />
+                <DifficultyRow value={difficulty()} onChange={pickDifficulty} />
               </Show>
 
               <Show when={shelfSpec() !== null}>
@@ -1465,10 +1443,7 @@ export function StartMenu(props: StartMenuProps) {
 
               <Show when={isSingle()}>
                 <div class="row">
-                  <div>
-                    <div class="row-label">Computer opponents</div>
-                    <div class="row-hint">They build and raid like you do</div>
-                  </div>
+                  <div class="row-label">Computer opponents</div>
                   <div class="pills" style={{'--n': AI_SEATS.length}}>
                     <Glide index={ai()} />
                     <For each={AI_SEATS}>
@@ -1484,21 +1459,12 @@ export function StartMenu(props: StartMenuProps) {
                   </div>
                 </div>
 
-                <DifficultyRow
-                  value={difficulty()}
-                  onChange={pickDifficulty}
-                  hint={difficultyHint(ai() === 0 ? 'sandbox' : 'skirmish')}
-                />
+                <DifficultyRow value={difficulty()} onChange={pickDifficulty} />
               </Show>
 
               <Show when={isSingle() && OPTIONS.showBanditsRow}>
                 <div class="row">
-                  <div>
-                    <div class="row-label">Bandit raids</div>
-                    <div class="row-hint">
-                      Neutral hostiles harass the roads
-                    </div>
-                  </div>
+                  <div class="row-label">Bandit raids</div>
                   <button
                     class={`toggle ${bandits() ? 'on' : ''}`}
                     role="switch"
@@ -1544,12 +1510,7 @@ export function StartMenu(props: StartMenuProps) {
                   used to be separate only ever made sense together. */}
               <Show when={fs.offerable()}>
                 <div class="row">
-                  <div>
-                    <div class="row-label">Full screen</div>
-                    <div class="row-hint">
-                      The pointer plays inside it, and the edges pan the map
-                    </div>
-                  </div>
+                  <div class="row-label">Full screen</div>
                   <button
                     class={`toggle ${fs.active() ? 'on' : ''}`}
                     role="switch"
