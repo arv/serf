@@ -638,9 +638,13 @@ function frameFor(
 /** The one live scene: a single-player launch is a navigation, and the
  * page must give its WebGL context back before the match asks for one. */
 let live: SignpostScene | null = null;
+/** Bumped by every release: a start still loading when a newer start (or
+ * a release) comes along must not finish and take `live` from it. */
+let starts = 0;
 
 /** Stop the live scene, if any. Safe at any time. */
 export function releaseSignpost(): void {
+  starts++;
   live?.stop();
   live = null;
 }
@@ -650,12 +654,16 @@ export async function startSignpost(
   events: SignpostEvents,
 ): Promise<SignpostScene> {
   releaseSignpost();
+  const mine = starts;
   const gltf = new GLTFLoader();
   const [, , rockGltf] = await Promise.all([
     loadGlbAssets(),
     document.fonts.load(`100px "${FONT}"`),
     gltf.loadAsync('/models/kaykit/mountain_C.gltf'),
   ]);
+  // Superseded while loading: build nothing, so there is no second scene
+  // (and WebGL context) running untracked.
+  if (mine !== starts) throw new Error('signpost start superseded');
 
   const rand = seeded(20260923);
   const jitter = (a: number): number => (rand() * 2 - 1) * a;

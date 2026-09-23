@@ -85,7 +85,6 @@ export function Signpost(props: {
       difficulty: difficulty(),
       bandits: bandits(),
     });
-  const seed = rollSeed();
 
   // ——— online: single player is a local sim and works offline; only the
   // relay-backed half has to stand down.
@@ -150,7 +149,7 @@ export function Signpost(props: {
     clearSeatStash();
     const p = new URLSearchParams();
     if (ai() > 0) p.set('ai', String(ai()));
-    p.set('seed', String(seed));
+    p.set('seed', String(rollSeed())); // fresh every launch
     if (!bandits()) p.set('bandits', '0');
     // Only a tier that is not the printed game travels.
     if (difficulty() !== DifficultyIdNs.normal)
@@ -192,7 +191,8 @@ export function Signpost(props: {
       if (mine !== generation) return;
       s = await startSignpost(canvas, {onBoard: setBoard});
     } catch (err) {
-      console.warn('[menu] no signpost:', err);
+      // A newer boot (or a release) superseded this one: not a failure.
+      if (mine === generation) console.warn('[menu] no signpost:', err);
       return;
     }
     // Torn down while loading — the page is already on its way into a match.

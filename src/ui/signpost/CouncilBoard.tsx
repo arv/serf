@@ -261,7 +261,8 @@ export function CouncilBoard(props: {
             maxLength={MAX_CHAT_CHARS}
             aria-label="Say to the table"
             onKeyDown={e => {
-              if (e.key === 'Enter') send();
+              // Enter that commits an IME composition is not a send.
+              if (e.key === 'Enter' && !e.isComposing) send();
             }}
           />
         </Show>

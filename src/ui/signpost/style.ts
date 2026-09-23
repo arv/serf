@@ -1616,4 +1616,16 @@ export const SIGNPOST_STYLE = `
         align-self: center;
         margin-bottom: 6px;
       }
+      /* Reduced motion: the scene already snaps its turns and holds
+         the valley still; the page's own fades, slides and sliding
+         highlights stand still with it. */
+      @media (prefers-reduced-motion: reduce) {
+        #menu .sp-screen,
+        #menu .sp-screen *,
+        #signpost-3d,
+        #signpost-3d * {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
 `;
