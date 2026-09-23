@@ -12,6 +12,8 @@ import type {PierInfo} from './pierFit';
 // of the front face — a plank box reaching 3.35 out of the pier's own origin.
 vi.mock('./assets', () => ({
   glbCarryProp: () => null,
+  glbPropAtScale: () => null,
+  hasGlbProp: () => false,
   makeGlbBuilding: (type: number) => {
     const group = new THREE.Group();
     group.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)));

@@ -148,8 +148,6 @@ interface Decor {
    * the grass the way `size` would put them.
    */
   span?: number;
-  /** ...an ore-tinted boulder... */
-  rock?: number;
   /** ...or something we build ourselves, for what the pack has no model of.
    * Sized by the builder, not by `size`. The builder is handed a factory so
    * it can fold pack models into what it makes (the shoal is pack fish on a
@@ -244,8 +242,6 @@ const PIER_RUN =
 const DECOR_PROP_FILES = [
   'wheelbarrow',
   'sack',
-  'resource_stone',
-  'resource_lumber',
   'bucket_water',
   'barrel',
   'extra/anchor',
@@ -261,6 +257,29 @@ const DECOR_PROP_FILES = [
   // Fantasy Weapons Bits (CC0): the one tool RPG Tools does not ship —
   // the scythe good, carried and piled like its five siblings above.
   'weapons/scythe',
+  // Resource Bits (CC0): the raw goods — sawn planks, dressed stone and
+  // the three metals, carried and piled; nuggets for the ore in a mine's
+  // yard.
+  'resources/Wood_Plank_A',
+  'resources/Wood_Planks_Stack_Small',
+  'resources/Wood_Planks_Stack_Medium',
+  'resources/Wood_Planks_Stack_Large',
+  'resources/Stone_Brick',
+  'resources/Stone_Bricks_Stack_Small',
+  'resources/Stone_Bricks_Stack_Medium',
+  'resources/Stone_Bricks_Stack_Large',
+  'resources/Iron_Bar',
+  'resources/Iron_Bars',
+  'resources/Iron_Nuggets',
+  'resources/Iron_Nugget_Large',
+  'resources/Silver_Bar',
+  'resources/Silver_Bars',
+  'resources/Silver_Nuggets',
+  'resources/Silver_Nugget_Large',
+  'resources/Gold_Bar',
+  'resources/Gold_Bars',
+  'resources/Gold_Nuggets',
+  'resources/Gold_Nugget_Large',
 ];
 
 /**
@@ -562,20 +581,30 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   ],
   [BuildingTypeId.ironMine]: [
     {make: () => makeOreChute(), at: [0.36, 0.42], size: 1, rot: -0.3},
-    {rock: 0x8a5238, at: [-0.42, 0.44], size: 0.17},
-    {rock: 0x6b4132, at: [-0.28, 0.55], size: 0.11},
+    {prop: 'resources/Iron_Nugget_Large', at: [-0.42, 0.44], size: 0.13},
+    {
+      prop: 'resources/Iron_Nugget_Large',
+      at: [-0.28, 0.55],
+      size: 0.08,
+      rot: 1.9,
+    },
     {prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85},
   ],
   [BuildingTypeId.silverMine]: [
     {make: () => makeWindlassHouse(), at: [0.35, 0.43], size: 1, rot: -0.45},
-    {rock: 0xdde3ea, at: [-0.42, 0.44], size: 0.17},
-    {rock: 0xb2bcc6, at: [-0.28, 0.55], size: 0.11},
+    {prop: 'resources/Silver_Nugget_Large', at: [-0.42, 0.44], size: 0.13},
+    {
+      prop: 'resources/Silver_Nugget_Large',
+      at: [-0.28, 0.55],
+      size: 0.08,
+      rot: 1.9,
+    },
     {prop: 'sack', at: [-0.04, 0.61], size: 0.12, rot: 0.7},
   ],
   [BuildingTypeId.goldMine]: [
     {make: () => makeHeadframe(), at: [0.34, 0.43], size: 1, rot: -0.55},
     {make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3},
-    {rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13},
+    {prop: 'resources/Gold_Nugget_Large', at: [-0.52, 0.3], size: 0.11},
   ],
 };
 
@@ -1047,15 +1076,6 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
               d.span !== undefined
                 ? propOfSpan(src, d.span)
                 : propOfSize(src, d.size);
-        } else if (d.rock !== undefined && rocks[0]) {
-          const mat = natureMaterial.clone();
-          mat.color.set(d.rock);
-          const boulder = new THREE.Mesh(rocks[0], mat);
-          boulder.castShadow = true;
-          const g = new THREE.Group();
-          g.scale.setScalar(d.size);
-          g.add(boulder);
-          obj = g;
         }
         if (!obj) continue;
         if (d.name) obj.name = d.name;
@@ -1509,31 +1529,6 @@ export function glbForest(): {
   };
 }
 
-/** Tinted nature materials for yard rocks, cached per color. */
-const yardRockMaterials = new Map<number, THREE.MeshLambertMaterial>();
-
-/** A spoil boulder for the mine yards: the scatter rock geometry under a
- * tinted nature material, scaled like BUILDING_DECOR's rock branch was —
- * live ore stock wearing the exact look of the decor it replaces. */
-export function glbYardRock(color: number, size: number): THREE.Group | null {
-  if (!assets || !assets.rocks[0]) return null;
-  // Tinted materials are cached per color (like teamMaterials above):
-  // stock piles come and go constantly, and a fresh material clone per
-  // pile leaked GPU programs/uniforms on every bare remove().
-  let mat = yardRockMaterials.get(color);
-  if (!mat) {
-    mat = (assets.natureMaterial as THREE.MeshLambertMaterial).clone();
-    mat.color.set(color);
-    yardRockMaterials.set(color, mat);
-  }
-  const boulder = new THREE.Mesh(assets.rocks[0], mat);
-  boulder.castShadow = true;
-  const g = new THREE.Group();
-  g.scale.setScalar(size);
-  g.add(boulder);
-  return g;
-}
-
 /** A pack prop normalized to `height` tall, feet on the ground — the same
  * framing BUILDING_DECOR uses. For live stock that stands in for baked
  * yard decor the surgery cut out (the woodcutter's lumber stacks). */
@@ -1552,6 +1547,33 @@ export function glbYardProp(prop: string, height: number): THREE.Group | null {
   g.scale.setScalar(height / h);
   g.add(c);
   return g;
+}
+
+/** A pack prop at `scale` world units per model unit, centered, feet on the
+ * ground — for props that must keep their true size relative to one
+ * another (a loose board and a bundle of them). */
+export function glbPropAtScale(
+  prop: string,
+  scale: number,
+): THREE.Group | null {
+  const src = assets?.props.get(prop);
+  if (!src) return null;
+  const c = src.clone();
+  const bb = new THREE.Box3().setFromObject(c);
+  c.position.set(
+    -(bb.min.x + bb.max.x) / 2,
+    -bb.min.y,
+    -(bb.min.z + bb.max.z) / 2,
+  );
+  const g = new THREE.Group();
+  g.scale.setScalar(scale);
+  g.add(c);
+  return g;
+}
+
+/** Whether a pack prop (by DECOR_PROP_FILES stem) has loaded. */
+export function hasGlbProp(prop: string): boolean {
+  return assets?.props.has(prop) ?? false;
 }
 
 /**

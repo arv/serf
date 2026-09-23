@@ -25,6 +25,8 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
 // of the same shape.
 vi.mock('./assets', () => ({
   glbCarryProp: () => null,
+  glbPropAtScale: () => null,
+  hasGlbProp: () => false,
   makeGlbBuilding: (type: BuildingTypeId) => {
     const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.clearGroups();
