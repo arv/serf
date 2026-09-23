@@ -3,19 +3,23 @@ import {
   loadGlbAssets,
   makeGlbBuilding,
   glbYardProp,
-  glbYardRock,
 } from '../../src/render/assets';
+import {makeTieredPile} from '../../src/render/models';
 import type {Enum} from '../../src/shared/enum.ts';
+import {OUTPUT_CAP} from '../../src/sim/defs/buildings';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../../src/sim/defs/goodIdEnum.ts';
 import {makeLights, makeRenderer, PITCH} from './scene';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
 
 /**
  * A scratch page for the one question the cards cannot answer: do the four
- * ore posts read apart from one another? It draws them the way a match
- * does — makeGlbBuilding plus the yard stock buildingSync stacks — in a row
- * at the game's own 45/35 rig, with the yard both empty and full.
+ * ore posts read apart from one another — and, beside them, how does the
+ * woodcutter's yard stock sit? It draws all five the way a match does —
+ * makeGlbBuilding plus the yard stock buildingSync lays — in a row at the
+ * game's own 45/35 rig, with the yard both empty and full.
  *
  *   pnpm dev, then /tools/modelLab/_mines.html
  *   ?stock=0|1   empty yards or full ones (default: both rows)
@@ -25,12 +29,13 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
 const q = new URLSearchParams(location.search);
 
 const TYPES: BuildingTypeId[] = [
+  BuildingTypeId.woodcutter,
   BuildingTypeId.quarry,
   BuildingTypeId.ironMine,
   BuildingTypeId.silverMine,
   BuildingTypeId.goldMine,
 ];
-const NAMES = ['Quarry', 'Iron Mine', 'Silver Mine', 'Gold Mine'];
+const NAMES = ['Woodcutter', 'Quarry', 'Iron Mine', 'Silver Mine', 'Gold Mine'];
 
 /** buildingSync's MINE_SPOTS and YARDS, copied so the page needs no
  * private access. */
@@ -39,22 +44,37 @@ const MINE_SPOTS: [number, number, number, number][] = [
   [0.177, 0.337, -0.3, 0.52],
   [-0.325, 0.274, 1.1, 0.54],
 ];
-const YARD: Record<string, {prop?: string; rock?: number; size: number}> = {
-  quarry: {prop: 'resource_stone', size: 0.12},
-  ironMine: {rock: 0x9a5f42, size: 0.153},
-  silverMine: {rock: 0xdbe4ee, size: 0.153},
-  goldMine: {rock: 0xf0bc42, size: 0.153},
+const YARD: Partial<Record<BuildingTypeId, {prop: string; size: number}>> = {
+  [BuildingTypeId.ironMine]: {prop: 'resources/Iron_Nuggets', size: 0.11},
+  [BuildingTypeId.silverMine]: {prop: 'resources/Silver_Nuggets', size: 0.11},
+  [BuildingTypeId.goldMine]: {prop: 'resources/Gold_Nuggets', size: 0.11},
+};
+/** The yards that pile the good itself, unit for unit, on one spot. */
+const TIERED: Partial<
+  Record<BuildingTypeId, {good: GoodId; spot: [number, number, number]}>
+> = {
+  [BuildingTypeId.woodcutter]: {good: GoodId.wood, spot: [0.3, 0.2, 0]},
+  [BuildingTypeId.quarry]: {good: GoodId.stone, spot: [-0.1, 0.52, 0.35]},
 };
 
 function yardPiles(type: BuildingTypeId, stacks: number): THREE.Group {
   const g = new THREE.Group();
-  const spec = YARD[type]!;
   const s = 2 * 1.06; // min(w,h) * 1.06, the way #syncYard sizes it
+  const tiered = TIERED[type];
+  if (tiered) {
+    // A full producer's buffer.
+    const pile = makeTieredPile(tiered.good, stacks ? OUTPUT_CAP : 0);
+    if (pile) {
+      pile.position.set(tiered.spot[0] * s, 0, tiered.spot[1] * s);
+      pile.rotation.y = tiered.spot[2];
+      g.add(pile);
+    }
+    return g;
+  }
+  const spec = YARD[type]!;
   for (let i = 0; i < stacks; i++) {
     const [x, z, rot, f] = MINE_SPOTS[i]!;
-    const item = spec.prop
-      ? glbYardProp(spec.prop, spec.size * f * s)
-      : glbYardRock(spec.rock!, spec.size * f * s);
+    const item = glbYardProp(spec.prop, spec.size * f * s);
     if (!item) continue;
     item.position.set(x * s, 0, z * s);
     item.rotation.y = rot;

@@ -183,7 +183,8 @@ const CREDITS: Credit[] = [
       'terrain are the Medieval Hexagon pack, the serfs and soldiers its ' +
       'Adventurers, the farmer in the fields a Series 6 character; ' +
       'Dungeon Remastered, Forest Nature, Restaurant Bits and RPG Tools ' +
-      'fill the corners.',
+      'fill the corners, and Resource Bits is every board, stone and bar ' +
+      'hauled between them.',
     license: {
       label: 'CC0',
       href: 'https://creativecommons.org/publicdomain/zero/1.0/',

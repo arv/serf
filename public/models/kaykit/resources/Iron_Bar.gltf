@@ -15,12 +15,12 @@
     "nodes" : [
         {
             "mesh" : 0,
-            "name" : "resource_lumber"
+            "name" : "Iron_Bar"
         }
     ],
     "materials" : [
         {
-            "name" : "hexagons_medieval",
+            "name" : "resource",
             "pbrMetallicRoughness" : {
                 "baseColorTexture" : {
                     "index" : 0
@@ -32,7 +32,7 @@
     ],
     "meshes" : [
         {
-            "name" : "Cube.569",
+            "name" : "Iron_Bar",
             "primitives" : [
                 {
                     "attributes" : {
@@ -55,69 +55,69 @@
     "images" : [
         {
             "mimeType" : "image/png",
-            "name" : "hexagons_medieval",
-            "uri" : "hexagons_medieval.png"
+            "name" : "resource_bits_texture",
+            "uri" : "resource_bits_texture.png"
         }
     ],
     "accessors" : [
         {
             "bufferView" : 0,
             "componentType" : 5126,
-            "count" : 330,
+            "count" : 100,
             "max" : [
-                0.3414117693901062,
-                0.20999956130981445,
-                0.1668621450662613
+                0.20000000298023224,
+                0.2499999701976776,
+                0.4000000059604645
             ],
             "min" : [
-                -0.3445308208465576,
-                -1.4901161193847656e-06,
-                -0.1636335700750351
+                -0.20000000298023224,
+                1.862645149230957e-08,
+                -0.4000000059604645
             ],
             "type" : "VEC3"
         },
         {
             "bufferView" : 1,
             "componentType" : 5126,
-            "count" : 330,
+            "count" : 100,
             "type" : "VEC2"
         },
         {
             "bufferView" : 2,
             "componentType" : 5126,
-            "count" : 330,
+            "count" : 100,
             "type" : "VEC3"
         },
         {
             "bufferView" : 3,
             "componentType" : 5123,
-            "count" : 660,
+            "count" : 324,
             "type" : "SCALAR"
         }
     ],
     "bufferViews" : [
         {
             "buffer" : 0,
-            "byteLength" : 3960,
+            "byteLength" : 1200,
             "byteOffset" : 0,
             "target" : 34962
         },
         {
             "buffer" : 0,
-            "byteLength" : 2640,
-            "byteOffset" : 3960,
+            "byteLength" : 800,
+            "byteOffset" : 1200,
             "target" : 34962
         },
         {
             "buffer" : 0,
-            "byteLength" : 3960,
-            "byteOffset" : 6600,
+            "byteLength" : 1200,
+            "byteOffset" : 2000,
             "target" : 34962
         },
         {
             "buffer" : 0,
-            "byteLength" : 1320,
-            "byteOffset" : 10560,
+            "byteLength" : 648,
+            "byteOffset" : 3200,
             "target" : 34963
         }
     ],
@@ -129,8 +129,8 @@
     ],
     "buffers" : [
         {
-            "byteLength" : 11880,
-            "uri" : "resource_lumber.bin"
+            "byteLength" : 3848,
+            "uri" : "Iron_Bar.bin"
         }
     ]
 }

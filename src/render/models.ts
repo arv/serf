@@ -3,7 +3,12 @@ import type {Enum} from '../shared/enum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {GOODS} from '../sim/defs/goods';
 import type {BuildingTypeId} from '../sim/entities';
-import {makeGlbBuilding, glbCarryProp} from './assets';
+import {
+  makeGlbBuilding,
+  glbCarryProp,
+  glbPropAtScale,
+  hasGlbProp,
+} from './assets';
 import {mapMaterials} from './materials';
 import {
   goodColors as goodColorsLocal,
@@ -367,10 +372,45 @@ const carryPrototypes = new Map<GoodId, THREE.Group>();
 /** Goods whose carried look comes from the pack's own resource piles, so
  * what's on a serf's arms matches what's stacked in the yards. */
 const PACK_CARRY: Partial<
-  Record<GoodId, {prop: string; span: number; rot?: [number, number, number]}>
+  Record<
+    GoodId,
+    {
+      prop: string;
+      span: number;
+      rot?: [number, number, number];
+    }
+  >
 > = {
-  [GoodId.wood]: {prop: 'resource_lumber', span: 0.44},
-  [GoodId.stone]: {prop: 'resource_stone', span: 0.36},
+  // Resource Bits (CC0): the raw goods, one unit on the arms — a single
+  // board, a single dressed stone, a single bar. Ground stock bundles them
+  // up (PILE_TIERS).
+  [GoodId.wood]: {
+    prop: 'resources/Wood_Plank_A',
+    span: 0.46,
+    rot: [0, Math.PI / 2, 0],
+  },
+  // Long side across the arms, like the board; authored running along z,
+  // they would stick straight out of the carrier's chest.
+  [GoodId.stone]: {
+    prop: 'resources/Stone_Brick',
+    span: 0.26,
+    rot: [0, Math.PI / 2, 0],
+  },
+  [GoodId.iron]: {
+    prop: 'resources/Iron_Bar',
+    span: 0.24,
+    rot: [0, Math.PI / 2, 0],
+  },
+  [GoodId.silver]: {
+    prop: 'resources/Silver_Bar',
+    span: 0.24,
+    rot: [0, Math.PI / 2, 0],
+  },
+  [GoodId.gold]: {
+    prop: 'resources/Gold_Bar',
+    span: 0.24,
+    rot: [0, Math.PI / 2, 0],
+  },
   // The procedural shoulder-pole carry spanned most of a tile; water
   // travels by the hand-sized pack bucket instead.
   [GoodId.water]: {prop: 'bucket_water', span: 0.26},
@@ -429,6 +469,238 @@ export function makePileProp(good: GoodId): THREE.Group {
   const bb = new THREE.Box3().setFromObject(g);
   inner.position.y -= bb.min.y;
   return g;
+}
+
+/**
+ * How a good whose unit is squared-off — a board, a dressed stone, a bar —
+ * piles at a door: the way a yard would stack it, not heaped. Up to a few
+ * units lie loose; past that they are strapped into the pack's own bundles,
+ * each of which holds exactly `units` of them (counted off the models), so
+ * the pile is the count: five boards are a banded four and one loose, not
+ * five of anything.
+ *
+ * Every model is drawn at one `scale` (world units per pack unit), and the
+ * pack authors every board the same size in every stack, so a loose board
+ * and a board in a bundle are the same board.
+ */
+interface PileTiers {
+  scale: number;
+  /** Turned by this before laying: boards parallel to the wall. */
+  yaw: number;
+  /** The loose unit, and how many lie side by side in a layer of them. */
+  unit: string;
+  perLayer: number;
+  /** Alternate layers turn a quarter, the way bars are stacked. */
+  crisscross?: boolean;
+  /** Units one door pile holds before the rest start another beside it
+   * (pileChunks) — what fits in a lane without towering or running deep. */
+  laneCap: number;
+  /**
+   * Largest first. A repeat of a bundle is set on top of the one before,
+   * unless `rests` is false — a roped pyramid of bars has a ridge for a
+   * top, and a tower of them on a tower would topple — in which case
+   * repeats go `across` to a row (default 1), rows running out from the
+   * wall.
+   */
+  tiers: {prop: string; units: number; rests?: false; across?: number}[];
+}
+
+const PILE_TIERS: Partial<Record<GoodId, PileTiers>> = {
+  [GoodId.wood]: {
+    scale: 0.28,
+    yaw: Math.PI / 2,
+    unit: 'resources/Wood_Plank_A',
+    perLayer: 2,
+    laneCap: 64,
+    tiers: [
+      {prop: 'resources/Wood_Planks_Stack_Large', units: 32},
+      {prop: 'resources/Wood_Planks_Stack_Medium', units: 16},
+      {prop: 'resources/Wood_Planks_Stack_Small', units: 4},
+    ],
+  },
+  [GoodId.stone]: {
+    scale: 0.3,
+    yaw: 0,
+    unit: 'resources/Stone_Brick',
+    perLayer: 2,
+    laneCap: 48,
+    tiers: [
+      {prop: 'resources/Stone_Bricks_Stack_Large', units: 24},
+      {prop: 'resources/Stone_Bricks_Stack_Medium', units: 12},
+      {prop: 'resources/Stone_Bricks_Stack_Small', units: 4},
+    ],
+  },
+  ...Object.fromEntries(
+    (
+      [
+        [GoodId.iron, 'Iron'],
+        [GoodId.silver, 'Silver'],
+        [GoodId.gold, 'Gold'],
+      ] as const
+    ).map(([good, metal]) => [
+      good,
+      {
+        scale: 0.28,
+        yaw: 0,
+        unit: `resources/${metal}_Bar`,
+        perLayer: 2,
+        crisscross: true,
+        // The pack's whole progression, counted by mesh volume: a roped
+        // pyramid of 6, a tower of 12 (slim enough to stand two across a
+        // lane), and the block of 48 that is four towers square — a full
+        // lane on its own.
+        laneCap: 48,
+        tiers: [
+          {prop: `resources/${metal}_Bars_Stack_Large`, units: 48},
+          {
+            prop: `resources/${metal}_Bars_Stack_Medium`,
+            units: 12,
+            rests: false,
+            across: 2,
+          },
+          {prop: `resources/${metal}_Bars`, units: 6, rests: false},
+        ],
+      } satisfies PileTiers,
+    ]),
+  ),
+};
+
+/** Units one door pile holds before the rest start another beside it:
+ * the tiered good's own laneCap, or three layers of three heaped. */
+export function laneCap(good: GoodId): number {
+  return PILE_TIERS[good]?.laneCap ?? 9;
+}
+
+/**
+ * `n` units of a good split into door piles, each a lane of its own: full
+ * ones first, the remainder last. There is no cap — a storehouse holding
+ * forty bars shows forty bars, in as many piles as that takes.
+ */
+export function pileChunks(good: GoodId, n: number): number[] {
+  const cap = laneCap(good);
+  const out: number[] = [];
+  for (let left = n; left > 0; left -= cap) out.push(Math.min(left, cap));
+  return out;
+}
+
+/** Centre-to-centre spacing of door-pile lanes. The lattice grows with the
+ * props (PILE_SCALE), or the fatter stacks interpenetrate. */
+export const PILE_LANE = 0.42 * PILE_SCALE;
+
+/** Back edge of a door pile, lane-local: just off the wall. */
+const PILE_BACK = -0.26;
+/** Air between bundles laid one in front of the next. */
+const PILE_GAP = 0.03;
+
+const SCRATCH_BOX = new THREE.Box3();
+
+/**
+ * A tiered good's whole door pile for `n` units, lane-local (x across the
+ * lane, z out from the wall, y up), or null when the good heaps instead or
+ * the pack has not loaded — the caller then lays units with pileSlot.
+ * Bundles go against the wall, biggest first, a repeat of the same bundle
+ * set on top of the one before (or in rows out from the wall, when it
+ * `rests` nothing); loose units lie in front, `perLayer` to a layer. Any
+ * `n` lays; keeping it to laneCap is pileChunks' job.
+ */
+export function makeTieredPile(good: GoodId, n: number): THREE.Group | null {
+  const t = PILE_TIERS[good];
+  if (!t || !hasGlbProp(t.unit)) return null;
+  const g = new THREE.Group();
+  /** Front edge of what is down so far. */
+  let front = PILE_BACK;
+  /** One bundle: on top of `below`, or else in a row that starts at the
+   * current front — slot `col` of `cols` across it. */
+  const place = (
+    prop: string,
+    below: THREE.Object3D | null,
+    col = 0,
+    cols = 1,
+  ): THREE.Object3D | null => {
+    const item = glbPropAtScale(prop, t.scale);
+    if (!item) return null;
+    item.rotation.y = t.yaw;
+    const size = SCRATCH_BOX.setFromObject(item).getSize(SCRATCH_SIZE);
+    if (below) {
+      item.position.set(below.position.x, below.userData.top, below.position.z);
+    } else {
+      item.position.set(
+        (col - (cols - 1) / 2) * (size.x + PILE_GAP),
+        0,
+        front + size.z / 2,
+      );
+      // A row is only as deep as one of its bundles, and only its last
+      // bundle moves the front on.
+      if (col === cols - 1) front += size.z + PILE_GAP;
+    }
+    item.userData.top = item.position.y + size.y;
+    g.add(item);
+    return item;
+  };
+  let left = n;
+  for (const tier of t.tiers) {
+    const count = Math.floor(left / tier.units);
+    left %= tier.units;
+    if (tier.rests !== false) {
+      let below: THREE.Object3D | null = null;
+      for (let k = 0; k < count; k++) below = place(tier.prop, below);
+      continue;
+    }
+    const across = tier.across ?? 1;
+    for (let k = 0; k < count; k++) {
+      // The last row closes the front even when it is short of full.
+      const cols = Math.min(across, count - k + (k % across));
+      place(tier.prop, null, k % across, cols);
+    }
+  }
+  // Loose units, a layer at a time, side by side across the unit's own
+  // width; a crisscrossed layer turns a quarter and spreads the other way.
+  const unit = glbPropAtScale(t.unit, t.scale);
+  if (!unit || left === 0) return g;
+  unit.rotation.y = t.yaw;
+  const u = SCRATCH_BOX.setFromObject(unit).getSize(new THREE.Vector3());
+  const cell = Math.min(u.x, u.z);
+  // The first layer's depth off the wall sets where the loose rows start.
+  const z0 = front + (u.x < u.z ? u.z : t.perLayer * cell) / 2;
+  for (let i = 0; i < left; i++) {
+    const layer = (i / t.perLayer) | 0;
+    const slot = (i % t.perLayer) - (t.perLayer - 1) / 2;
+    const turned = t.crisscross === true && layer % 2 === 1;
+    const item = i === 0 ? unit : glbPropAtScale(t.unit, t.scale)!;
+    item.rotation.y = t.yaw + (turned ? Math.PI / 2 : 0);
+    // Side by side along whichever ground axis is the unit's narrow one.
+    const along = u.x < u.z !== turned;
+    item.position.set(
+      along ? slot * cell : 0,
+      layer * u.y,
+      z0 + (along ? 0 : slot * cell),
+    );
+    g.add(item);
+  }
+  return g;
+}
+
+const SCRATCH_SIZE = new THREE.Vector3();
+
+/**
+ * Where the `i`th unit of a heaped good's door pile goes, relative to its
+ * lane's centre: [x, y, z, yaw]. Three to a layer, front to back, each set
+ * down a little off true by `ja` and `jb` — hash draws in [0, 1), so a
+ * heap stays the same heap from one rebuild to the next.
+ */
+export function pileSlot(
+  i: number,
+  ja: number,
+  jb: number,
+): [number, number, number, number] {
+  const row = i % 3;
+  const layer = (i / 3) | 0;
+  return [
+    (ja - 0.5) * 0.06,
+    layer * 0.12 * PILE_SCALE,
+    (row * 0.17 - 0.17) * PILE_SCALE,
+    (jb - 0.5) * 0.7,
+  ];
 }
 
 export function makeCarryProp(carryCode: number): THREE.Group | null {

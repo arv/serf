@@ -15,7 +15,7 @@ import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as AnimKey from './animKeyEnum.ts';
 import {crossedRelease} from './arrows';
-import {glbYardProp, glbYardRock, makeGlbBuilding} from './assets';
+import {glbYardProp, makeGlbBuilding} from './assets';
 import {CAMERA_YAW, type ViewBounds} from './cameraRig';
 import {
   makeCharacter,
@@ -32,7 +32,10 @@ import {
   makeGhostModel,
   makePileProp,
   makeSiteFrame,
-  PILE_SCALE,
+  makeTieredPile,
+  PILE_LANE,
+  pileChunks,
+  pileSlot,
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
@@ -239,9 +242,10 @@ interface BuildingVisual {
   piles?: THREE.Group;
   /** Serialized pile contents — rebuilt only when the counts change. */
   pileKey: string;
-  /** Which lane each good's stack stands in, kept across rebuilds so a
-   * stack never slides sideways because a *different* good arrived. */
-  pileLanes: Map<GoodId, number>;
+  /** Which lanes each good's stacks stand in, in claim order, kept across
+   * rebuilds so a stack never slides sideways because a *different* good
+   * arrived (or its own count spilled into another pile). */
+  pileLanes: Map<GoodId, number[]>;
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
   /** The mill's sail assembly, turned per frame while the mill grinds. */
@@ -313,13 +317,14 @@ interface BuildingVisual {
 /** One yard-stock entry: what good, worn as which look, standing where. */
 interface YardStyle {
   good: GoodId;
-  /** Pack prop stacks (lumber, cut stone)... */
+  /** The good's own tiered pile (makeTieredPile), counted unit for unit,
+   * on the first spot — boards and dressed stone... */
+  tiered?: true;
+  /** ...or pack prop stacks (ore nuggets), `per` goods to a stack. */
   prop?: string;
-  /** ...or spoil boulders tinted to the ore. */
-  rock?: number;
   /** Normalized template coords: x, z, yaw, per-spot scale factor. */
   spots: [number, number, number, number][];
-  /** Template-space size of the biggest stack or boulder. */
+  /** Template-space size of the biggest stack. */
   size: number;
   /** Goods per stack shown. */
   per: number;
@@ -1747,41 +1752,41 @@ export class BuildingSync {
   static #YARDS: Partial<Record<BuildingSnap['type'], YardStyle>> = {
     [BuildingTypeId.woodcutter]: {
       good: GoodId.wood,
-      prop: 'resource_lumber',
-      spots: [
-        [0.36, 0.28, 0.3, 1],
-        [0.36, -0.04, -0.25, 0.9],
-        [0.08, 0.3, 0.15, 0.85],
-      ],
-      size: 0.12,
-      per: 3,
+      tiered: true,
+      spots: [[0.3, 0.2, 0, 1]],
+      size: 1,
+      per: 1,
     },
     [BuildingTypeId.quarry]: {
       good: GoodId.stone,
-      prop: 'resource_stone',
-      spots: MINE_SPOTS,
-      size: 0.12,
-      per: 3,
+      tiered: true,
+      // Out in front of the mouth, clear of the sheerlegs — the first
+      // boulder seat is behind their legs at most yaws.
+      spots: [[-0.1, 0.52, 0.35, 1]],
+      size: 1,
+      per: 1,
     },
+    // Ore comes out of the adit as nuggets; it is the smith's bars once it
+    // is hauled (the carried and door-pile look).
     [BuildingTypeId.ironMine]: {
       good: GoodId.iron,
-      rock: 0x9a5f42,
+      prop: 'resources/Iron_Nuggets',
       spots: MINE_SPOTS,
-      size: 0.153,
+      size: 0.11,
       per: 2,
     },
     [BuildingTypeId.silverMine]: {
       good: GoodId.silver,
-      rock: 0xdbe4ee,
+      prop: 'resources/Silver_Nuggets',
       spots: MINE_SPOTS,
-      size: 0.153,
+      size: 0.11,
       per: 2,
     },
     [BuildingTypeId.goldMine]: {
       good: GoodId.gold,
-      rock: 0xf0bc42,
+      prop: 'resources/Gold_Nuggets',
       spots: MINE_SPOTS,
-      size: 0.153,
+      size: 0.11,
       per: 2,
     },
   };
@@ -1790,7 +1795,9 @@ export class BuildingSync {
     const yard = BuildingSync.#YARDS[b.type];
     if (!yard || b.state !== BuildingState.built) return false;
     const n = (b.stock[yard.good] ?? 0) + (b.inputs[yard.good] ?? 0);
-    const stacks = Math.min(Math.ceil(n / yard.per), yard.spots.length);
+    const stacks = yard.tiered
+      ? n
+      : Math.min(Math.ceil(n / yard.per), yard.spots.length);
     const key = `yard${stacks}`;
     if (key === v.pileKey) return true;
     v.pileKey = key;
@@ -1800,12 +1807,20 @@ export class BuildingSync {
     }
     if (stacks === 0) return true;
     const s = Math.min(b.w, b.h) * 1.06;
+    if (yard.tiered) {
+      const pile = makeTieredPile(yard.good, stacks);
+      if (!pile) return true; // assets missing; nothing to show
+      const [x, z, rot] = yard.spots[0]!;
+      pile.position.set(x * s, 0, z * s);
+      pile.rotation.y = rot;
+      v.root.add(pile);
+      v.piles = pile;
+      return true;
+    }
     const piles = new THREE.Group();
     for (let i = 0; i < stacks; i++) {
       const [x, z, rot, f] = yard.spots[i]!;
-      const item = yard.prop
-        ? glbYardProp(yard.prop, yard.size * f * s)
-        : glbYardRock(yard.rock!, yard.size * f * s);
+      const item = glbYardProp(yard.prop!, yard.size * f * s);
       if (!item) return true; // assets missing; nothing to show
       item.position.set(x * s, 0, z * s);
       item.rotation.y = rot;
@@ -1890,7 +1905,7 @@ export class BuildingSync {
       } else {
         n = (b.stock[g] ?? 0) + (b.inputs[g] ?? 0);
       }
-      if (n > 0) shown.push([g, Math.min(n, 8)]);
+      if (n > 0) shown.push([g, n]);
     }
     const key = shown.map(([g, n]) => `${g}:${n}`).join('.');
     if (key === v.pileKey) return;
@@ -1898,18 +1913,27 @@ export class BuildingSync {
     // Lanes are sticky. Laying the stacks out by their index in `shown`
     // meant every kind already on the ground jumped sideways the moment a
     // new kind was set down beside it — half a lane, for goods nobody had
-    // touched. A good keeps the lane it was first given instead, so an
+    // touched. A good keeps the lanes it was first given instead, so an
     // arrival only ever adds a stack at the edge; a good that runs out
-    // hands its lane back for the next arrival to claim.
+    // hands its lanes back for the next arrival to claim. A good that
+    // outgrows one pile (pileChunks) claims another the same way, and
+    // hands back its last-claimed first as it shrinks.
+    const chunks = new Map(shown.map(([g, n]) => [g, pileChunks(g, n)]));
     const lanes = v.pileLanes;
-    const present = new Set(shown.map(([g]) => g));
-    for (const g of lanes.keys()) if (!present.has(g)) lanes.delete(g);
-    const taken = new Set(lanes.values());
-    for (const [g] of shown) {
-      if (lanes.has(g)) continue;
-      const lane = freeLane(taken);
-      lanes.set(g, lane);
-      taken.add(lane);
+    for (const [g, held] of lanes) {
+      const need = chunks.get(g)?.length ?? 0;
+      if (need === 0) lanes.delete(g);
+      else if (held.length > need) held.length = need;
+    }
+    const taken = new Set([...lanes.values()].flat());
+    for (const [g, want] of chunks) {
+      let held = lanes.get(g);
+      if (!held) lanes.set(g, (held = []));
+      while (held.length < want.length) {
+        const lane = freeLane(taken);
+        held.push(lane);
+        taken.add(lane);
+      }
     }
     if (v.piles) {
       v.root.remove(v.piles);
@@ -1926,23 +1950,29 @@ export class BuildingSync {
       0,
       b.type === BuildingTypeId.salvage ? 0 : b.h / 2 + 0.3,
     );
-    for (const [good, n] of shown) {
-      const lane = lanes.get(good)!;
-      // The lattice grows with the props (PILE_SCALE), or the fatter
-      // stacks interpenetrate.
-      const cx = lane * 0.42 * PILE_SCALE;
-      for (let i = 0; i < n; i++) {
-        const prop = makePileProp(good);
-        const row = i % 3;
-        const layer = (i / 3) | 0;
-        prop.position.set(
-          cx + (hash2(b.id * 31 + i, lane) - 0.5) * 0.06,
-          layer * 0.12 * PILE_SCALE,
-          (row * 0.17 - 0.17) * PILE_SCALE,
-        );
-        prop.rotation.y = (hash2(b.id * 17 + i, lane + 9) - 0.5) * 0.7;
-        piles.add(prop);
-      }
+    for (const [good, want] of chunks) {
+      const held = lanes.get(good)!;
+      want.forEach((n, k) => {
+        const lane = held[k]!;
+        const cx = lane * PILE_LANE;
+        const tiered = makeTieredPile(good, n);
+        if (tiered) {
+          tiered.position.x = cx;
+          piles.add(tiered);
+          return;
+        }
+        for (let i = 0; i < n; i++) {
+          const prop = makePileProp(good);
+          const [x, y, z, yaw] = pileSlot(
+            i,
+            hash2(b.id * 31 + i, lane),
+            hash2(b.id * 17 + i, lane + 9),
+          );
+          prop.position.set(cx + x, y, z);
+          prop.rotation.y = yaw;
+          piles.add(prop);
+        }
+      });
     }
     v.root.add(piles);
     v.piles = piles;

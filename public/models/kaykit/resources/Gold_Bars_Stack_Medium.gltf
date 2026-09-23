@@ -15,12 +15,12 @@
     "nodes" : [
         {
             "mesh" : 0,
-            "name" : "resource_stone"
+            "name" : "Gold_Bars_Stack_Medium"
         }
     ],
     "materials" : [
         {
-            "name" : "hexagons_medieval",
+            "name" : "resource",
             "pbrMetallicRoughness" : {
                 "baseColorTexture" : {
                     "index" : 0
@@ -32,7 +32,7 @@
     ],
     "meshes" : [
         {
-            "name" : "Cube.568",
+            "name" : "Gold_Bars_Stack_Medium",
             "primitives" : [
                 {
                     "attributes" : {
@@ -55,69 +55,69 @@
     "images" : [
         {
             "mimeType" : "image/png",
-            "name" : "hexagons_medieval",
-            "uri" : "hexagons_medieval.png"
+            "name" : "resource_bits_texture",
+            "uri" : "resource_bits_texture.png"
         }
     ],
     "accessors" : [
         {
             "bufferView" : 0,
             "componentType" : 5126,
-            "count" : 320,
+            "count" : 1200,
             "max" : [
-                0.21054169535636902,
-                0.27999743819236755,
-                0.18078866600990295
+                0.4000002443790436,
+                1.5,
+                0.40000078082084656
             ],
             "min" : [
-                -0.21055184304714203,
-                -4.172325134277344e-07,
-                -0.17706181108951569
+                -0.40000003576278687,
+                1.862645149230957e-08,
+                -0.4000000059604645
             ],
             "type" : "VEC3"
         },
         {
             "bufferView" : 1,
             "componentType" : 5126,
-            "count" : 320,
+            "count" : 1200,
             "type" : "VEC2"
         },
         {
             "bufferView" : 2,
             "componentType" : 5126,
-            "count" : 320,
+            "count" : 1200,
             "type" : "VEC3"
         },
         {
             "bufferView" : 3,
             "componentType" : 5123,
-            "count" : 660,
+            "count" : 3888,
             "type" : "SCALAR"
         }
     ],
     "bufferViews" : [
         {
             "buffer" : 0,
-            "byteLength" : 3840,
+            "byteLength" : 14400,
             "byteOffset" : 0,
             "target" : 34962
         },
         {
             "buffer" : 0,
-            "byteLength" : 2560,
-            "byteOffset" : 3840,
+            "byteLength" : 9600,
+            "byteOffset" : 14400,
             "target" : 34962
         },
         {
             "buffer" : 0,
-            "byteLength" : 3840,
-            "byteOffset" : 6400,
+            "byteLength" : 14400,
+            "byteOffset" : 24000,
             "target" : 34962
         },
         {
             "buffer" : 0,
-            "byteLength" : 1320,
-            "byteOffset" : 10240,
+            "byteLength" : 7776,
+            "byteOffset" : 38400,
             "target" : 34963
         }
     ],
@@ -129,8 +129,8 @@
     ],
     "buffers" : [
         {
-            "byteLength" : 11560,
-            "uri" : "resource_stone.bin"
+            "byteLength" : 46176,
+            "uri" : "Gold_Bars_Stack_Medium.bin"
         }
     ]
 }
