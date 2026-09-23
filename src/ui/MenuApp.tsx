@@ -14,21 +14,20 @@ import {
   type CouncilRequest,
   type LobbyResult,
 } from '../net/lobbyClient';
-import {releaseMenuBackdrop, startMenuBackdrop} from './menuBackdrop';
-import {Fireflies, MENU_STYLE} from './menuChrome';
-import {StartMenu, rememberedMode, type StartState} from './StartMenu';
+import type {CouncilHooks} from './councilTypes';
+import {Signpost} from './signpost/Signpost';
 import {muted, volume} from './store';
-import {WarCouncil, type CouncilHooks} from './WarCouncil';
 
 /**
- * The pre-boot shell: one page, two screens. The start screen and the War
- * Council are cards swapped in front of the same live backdrop — walking
- * into a room, backing out of it and beginning the match all happen without
- * a navigation, so the valley behind the glass keeps drifting throughout.
+ * The pre-boot shell. The start screen is a signpost in front of the valley
+ * (signpost/Signpost.tsx), and the War Council is the front of its
+ * Multiplayer arrow — walking into a room, backing out of it and beginning
+ * the match all happen without a navigation, so the valley keeps drifting
+ * throughout.
  *
- * The shell owns the three things that must outlive a screen: the #menu
- * root, the backdrop's canvas and renderer, and the address bar. Screens
- * own their own card and nothing else.
+ * The shell owns what must outlive a room: the #menu root, the lobby's
+ * socket, the theme music and the address bar. The signpost owns its canvas
+ * and scene.
  *
  * The last of those matters more than it looks. The URL is what a reload
  * comes back to — a phone that loses its GPU process mid-match reloads
@@ -37,7 +36,7 @@ import {WarCouncil, type CouncilHooks} from './WarCouncil';
  */
 
 export interface MenuHost {
-  /** The match has begun and the menu is already torn down: the backdrop's
+  /** The match has begun and the menu is already torn down: the signpost's
    * WebGL context is released and the canvas is gone, so the caller is free
    * to take one of its own. */
   onBegin(lobby: LobbyResult): void;
@@ -48,14 +47,6 @@ export interface MenuHost {
 /** Where the shell opens: the start screen, or straight into a room (an
  * invite link, or a reload mid-lobby). */
 export type MenuEntry = CouncilRequest | null;
-
-/** The start-screen pane a room belongs to: hosting one came from Host,
- * everything else from the room browser. */
-function paneFor(req: CouncilRequest | null): StartState | null {
-  return req === null
-    ? null
-    : {mode: 'multi', mp: req.mp === 'new' ? 'host' : 'join'};
-}
 
 /**
  * Write the room into the address bar, or take it back out — leaving every
@@ -85,16 +76,12 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
   // never presents, which is what keeps a mid-match reload from flashing
   // the lobby — and, below, from paying for a backdrop it will not use.
   const [hooks, setHooks] = createSignal<CouncilHooks | null>(null);
-  // Which pane the start screen wears when it appears. Backing out of a
-  // room means backing out to the pane that room came from — including for
-  // someone who arrived on an invite link and never saw the menu, who
-  // belongs in the browser next to the room they just declined.
-  const [resume, setResume] = createSignal<StartState>(
-    paneFor(props.entry) ?? {mode: rememberedMode(), mp: 'host'},
-  );
-
-  /** Is either screen actually on the glass? */
+  /** Is the menu actually on the glass? */
   const showing = (): boolean => council() === null || hooks() !== null;
+  // The signpost stays up once it has been: a room has no hooks for a beat
+  // while its socket opens, and taking the scene down for that beat would
+  // throw the valley away with it.
+  const [seen, setSeen] = createSignal(false);
 
   // Whether we own a history entry to pop. Entering the council from the
   // start screen pushes one so the phone's back gesture backs out of the
@@ -102,7 +89,6 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
   let pushed = false;
 
   const enterCouncil = (req: CouncilRequest): void => {
-    setResume(paneFor(req)!);
     // Pushed with the URL unchanged: the room has no code yet, and the
     // effect below writes the real one in as soon as the relay says it.
     history.pushState(null, '', location.pathname + location.search);
@@ -144,29 +130,7 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
     if (code) setRoomInUrl(code);
   });
 
-  // The live backdrop (menuBackdrop.ts) on its own canvas, over the game's
-  // and under the grade layers. Started once, on the first screen that
-  // actually appears — a silent rejoin shows nothing and must not pay for a
-  // world it will throw away a moment later. Failure is cosmetic: the veils
-  // alone still look deliberate.
   const root = document.getElementById('menu')!;
-  let canvas: HTMLCanvasElement | null = null;
-  const raise = (): void => {
-    if (canvas) return;
-    canvas = document.createElement('canvas');
-    canvas.id = 'menu-canvas';
-    document
-      .getElementById('canvas')!
-      .insertAdjacentElement('afterend', canvas);
-    void startMenuBackdrop(canvas).catch((err: unknown) => {
-      console.warn('[menu] no live backdrop:', err);
-    });
-  };
-  const drop = (): void => {
-    releaseMenuBackdrop();
-    canvas?.remove();
-    canvas = null;
-  };
   // Seeded, not just subscribed: a menu can be raised in a tab that is
   // already hidden — opened in the background, or restored into one — and
   // no visibilitychange would follow to say so. Ahead of the effect below,
@@ -177,9 +141,9 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
 
   createEffect(() => {
     const on = showing();
-    root.style.display = on ? 'block' : 'none';
+    root.style.display = on || seen() ? 'block' : 'none';
     if (on) {
-      raise();
+      setSeen(true);
       startTheme();
     } else {
       // A silent rejoin shows no menu, so it should play none of its music.
@@ -190,19 +154,13 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
   createEffect(() => {
     setThemeGain(muted() ? 0 : volumeToGain(volume()));
   });
-  // A page that leaves while holding a context can be parked in the
-  // back/forward cache still holding it, and the single-player launch is a
-  // navigation — so the match on the far side would be asking a phone for a
-  // second context. Hand this one back on the way out, and build a fresh one
-  // if the player comes back to a restored page.
-  const onHide = (): void => {
-    drop();
-    // The stream goes back too, like the WebGL context above it.
-    releaseTheme();
-  };
+  // The single-player launch is a navigation, and a page parked in the
+  // back/forward cache holding the theme's stream still holds it. Give it
+  // back on the way out (the signpost does the same with its WebGL context)
+  // and start it again on a restored page.
+  const onHide = (): void => releaseTheme();
   const onShow = (e: PageTransitionEvent): void => {
     if (e.persisted && showing()) {
-      raise();
       // A restore is a second mount for the theme, so it needs the same
       // seeding: the tab it comes back into may not be the one it left.
       onVisibility();
@@ -216,50 +174,44 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
     window.removeEventListener('pagehide', onHide);
     window.removeEventListener('pageshow', onShow);
     document.removeEventListener('visibilitychange', onVisibility);
-    drop();
     releaseTheme();
     root.style.display = 'none';
   });
 
   return (
     <>
-      <style>{MENU_STYLE}</style>
-      {/* Fixed and outside the screens: the veils belong to the background,
-          and swapping the card in front of them must not blink. */}
-      <div class="veil-a" />
-      <div class="veil-b" />
-      {/* Behind the card, so its backdrop-filter catches them. */}
-      <Fireflies />
-      <Show
-        when={council()}
-        keyed
-        fallback={<StartMenu start={resume()} onCouncil={enterCouncil} />}
-      >
+      <Show when={seen()}>
+        <Signpost
+          council={council()}
+          hooks={hooks}
+          onCouncil={enterCouncil}
+          onLeaveCouncil={leaveCouncil}
+        />
+      </Show>
+      <Show when={council()} keyed>
         {req => (
           <Council
             req={req}
             host={props.host}
-            hooks={hooks}
             present={setHooks}
             onLeave={leaveCouncil}
           />
         )}
       </Show>
-      {/* In front: last in the DOM, so neither layer needs a z-index. */}
-      <Fireflies near />
     </>
   );
 }
 
 /**
- * One visit to a room. Mounting opens the socket; unmounting can only
- * happen after the lobby has let go of it (the match began, the player
- * left, or the relay refused), so there is nothing to close here.
+ * One visit to a room: the socket, with nothing on screen of its own — the
+ * signpost shows the council from the hooks it presents. Mounting opens the
+ * socket; unmounting can only happen after the lobby has let go of it (the
+ * match began, the player left, or the relay refused), so there is nothing
+ * to close here.
  */
 function Council(props: {
   req: CouncilRequest;
   host: MenuHost;
-  hooks: () => CouncilHooks | null;
   present(hooks: CouncilHooks | null): void;
   onLeave(): void;
 }) {
@@ -282,14 +234,7 @@ function Council(props: {
     );
   });
 
-  // Keyed on the hooks object, not merely on its presence: a stale rejoin
-  // falls back to knocking on a fresh socket, and the council that comes
-  // back is a different room with a different view behind it.
-  return (
-    <Show when={props.hooks()} keyed>
-      {hooks => <WarCouncil {...hooks} />}
-    </Show>
-  );
+  return null;
 }
 
 let dispose: (() => void) | null = null;
@@ -301,7 +246,7 @@ export function mountMenu(entry: MenuEntry, host: MenuHost): void {
   dispose = render(() => <MenuApp entry={entry} host={host} />, root);
 }
 
-/** Take it down, releasing the backdrop's WebGL context with it. */
+/** Take it down, releasing the signpost's WebGL context with it. */
 export function unmountMenu(): void {
   dispose?.();
   dispose = null;

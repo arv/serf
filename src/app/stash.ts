@@ -12,7 +12,7 @@
 /**
  * Storage, tolerated: where site data is blocked, touching
  * sessionStorage/localStorage itself throws — and the boot path must not
- * die for a convenience stash (StartMenu and the stores wear the same
+ * die for a convenience stash (the skirmish prefs and the stores wear the same
  * try/catch). A denied read is an absent stash; a denied write is a
  * handoff that doesn't survive, which every caller already tolerates.
  */

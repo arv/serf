@@ -1,376 +1,243 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Serf Valley — signpost lab</title>
-    <!-- Lab only: Lilita One (and Nunito for small text) straight from
-         Google Fonts. The shipping menu self-hosts its fonts (public/fonts),
-         and these will get the same treatment. crossorigin because the dev server
-         is cross-origin isolated (COEP require-corp). -->
-    <link
-      rel="preconnect"
-      href="https://fonts.gstatic.com"
-      crossorigin="anonymous"
-    />
-    <link
-      rel="stylesheet"
-      crossorigin="anonymous"
-      href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&display=block"
-    />
-    <style>
-      :root {
-        --comic: 'Lilita One';
-        --ink: #3b1d10;
-        --cream: #fff4dc;
-      }
-      html,
-      body {
-        margin: 0;
-        height: 100%;
-        overflow: hidden;
-        background: #0e1210;
-        color: var(--cream);
-        font-family: 'Nunito', system-ui, sans-serif;
-        font-weight: 800;
-      }
-      /* One canvas: the valley and the signpost in the same scene. No CSS
-         filter on it — a blur under anything that moves is re-run every
-         frame over the whole screen. */
-      #menu-canvas {
-        position: fixed;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        display: block;
-        opacity: 0;
-        transition: opacity 0.8s ease-out;
-      }
-      #menu-canvas.lit {
-        opacity: 1;
-      }
-      /* The page's chrome — title, corner buttons, footer, build line —
-         scales with the window exactly as the old menu does: the same
-         --ui-scale ladder as index.html (read the long note there), and the
-         same `zoom`. The world and the boards are a camera, not chrome. */
-      :root {
-        --ui-scale: 1;
-      }
-      @media (min-width: 1584px) and (min-height: 990px) {
-        :root {
-          --ui-scale: 1.1;
-        }
-      }
-      @media (min-width: 1728px) and (min-height: 1080px) {
-        :root {
-          --ui-scale: 1.2;
-        }
-      }
-      @media (min-width: 1872px) and (min-height: 1170px) {
-        :root {
-          --ui-scale: 1.3;
-        }
-      }
-      @media (min-width: 2016px) and (min-height: 1260px) {
-        :root {
-          --ui-scale: 1.4;
-        }
-      }
-      @media (min-width: 2160px) and (min-height: 1350px) {
-        :root {
-          --ui-scale: 1.5;
-        }
-      }
-      @media (min-width: 2304px) and (min-height: 1440px) {
-        :root {
-          --ui-scale: 1.6;
-        }
-      }
-      @media (min-width: 2448px) and (min-height: 1530px) {
-        :root {
-          --ui-scale: 1.7;
-        }
-      }
-      @media (min-width: 2592px) and (min-height: 1620px) {
-        :root {
-          --ui-scale: 1.8;
-        }
-      }
-      @media (min-width: 2736px) and (min-height: 1710px) {
-        :root {
-          --ui-scale: 1.9;
-        }
-      }
-      @media (min-width: 2880px) and (min-height: 1800px) {
-        :root {
-          --ui-scale: 2;
-        }
-      }
-      @media (min-width: 3024px) and (min-height: 1890px) {
-        :root {
-          --ui-scale: 2.1;
-        }
-      }
-      @media (min-width: 3168px) and (min-height: 1980px) {
-        :root {
-          --ui-scale: 2.2;
-        }
-      }
-      @media (min-width: 3312px) and (min-height: 2070px) {
-        :root {
-          --ui-scale: 2.3;
-        }
-      }
-      @media (min-width: 3456px) and (min-height: 2160px) {
-        :root {
-          --ui-scale: 2.4;
-        }
-      }
-      @media (min-width: 3744px) and (min-height: 2340px) {
-        :root {
-          --ui-scale: 2.6;
-        }
-      }
-      @media (min-width: 4032px) and (min-height: 2520px) {
-        :root {
-          --ui-scale: 2.8;
-        }
-      }
-      @media (min-width: 4320px) and (min-height: 2700px) {
-        :root {
-          --ui-scale: 3;
-        }
-      }
-      @media (min-width: 4608px) and (min-height: 2880px) {
-        :root {
-          --ui-scale: 3.2;
-        }
-      }
-      @media (min-width: 4896px) and (min-height: 3060px) {
-        :root {
-          --ui-scale: 3.4;
-        }
-      }
-      @media (min-width: 5184px) and (min-height: 3240px) {
-        :root {
-          --ui-scale: 3.6;
-        }
-      }
-      @media (min-width: 5472px) and (min-height: 3420px) {
-        :root {
-          --ui-scale: 3.8;
-        }
-      }
-      @media (min-width: 5760px) and (min-height: 3600px) {
-        :root {
-          --ui-scale: 4;
-        }
-      }
-      @media (min-width: 6048px) and (min-height: 3780px) {
-        :root {
-          --ui-scale: 4.2;
-        }
-      }
-      @media (min-width: 6336px) and (min-height: 3960px) {
-        :root {
-          --ui-scale: 4.4;
-        }
-      }
-      @media (min-width: 6624px) and (min-height: 4140px) {
-        :root {
-          --ui-scale: 4.6;
-        }
-      }
-      @media (min-width: 6912px) and (min-height: 4320px) {
-        :root {
-          --ui-scale: 4.8;
-        }
-      }
-      #title,
-      #opts,
-      #footer,
-      #build {
-        zoom: var(--ui-scale);
-      }
-      /* Outlined comic lettering: the stroke is painted under the fill, the
-         drop below is the same ink again. */
-      .comic {
-        font-family: var(--comic), sans-serif;
-        font-weight: 400;
-        color: var(--cream);
-        -webkit-text-stroke: 0.18em var(--ink);
-        paint-order: stroke fill;
-        text-shadow: 0 0.09em 0 var(--ink);
-      }
-      #title {
-        position: fixed;
-        top: 3vh;
-        left: 0;
-        right: 0;
-        text-align: center;
-        pointer-events: none;
-        transition:
-          opacity 0.4s ease,
-          transform 0.5s ease;
-      }
-      body.open #title {
-        opacity: 0;
-        transform: translateY(-16px);
-      }
-      #title h1 {
-        margin: 0;
-        font-size: clamp(48px, 8vw, 104px);
-        line-height: 1;
-        letter-spacing: 0.02em;
-      }
-      #title p {
-        margin: 8px 0 0;
-        font-size: clamp(14px, 1.6vw, 20px);
-        letter-spacing: 0.04em;
-      }
-      #footer {
-        position: fixed;
-        left: 18px;
-        bottom: 30px;
-        display: flex;
-        gap: 30px;
-        font-size: 30px;
-        transition: opacity 0.4s ease;
-      }
-      /* A phone held upright: the four links in one row, smaller. */
-      @media (max-aspect-ratio: 17/20) {
-        /* The branch name alone can be wider than a phone: two balanced
-           lines, and the links sit above them. */
-        body #build {
-          left: 0;
-          right: 0;
-          padding: 0 12px;
-          text-align: center;
-          font-size: 11px;
-          white-space: normal;
-          text-wrap: balance;
-        }
-        /* The links as large as one row across the phone allows: at 1px
-           of type they measure ~17px, and three gaps of 0.8em. */
-        body #footer {
-          bottom: 44px;
-          font-size: min(24px, calc((100vw - 28px) / 19.6));
-          gap: 0.8em;
-        }
-        #footer {
-          left: 0;
-          right: 0;
-          justify-content: center;
-          gap: 14px;
-          font-size: 15px;
-          white-space: nowrap;
-        }
-      }
-      /* Which build this is, as the old menu's footer says it: version,
-         commit, branch — and where the credits and the license live. */
-      #build {
-        position: fixed;
-        left: 16px;
-        bottom: 8px;
-        font:
-          700 12px 'Nunito',
-          system-ui,
-          sans-serif;
-        letter-spacing: 0.02em;
-        color: rgba(255, 244, 220, 0.72);
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-        white-space: nowrap;
-        transition: opacity 0.4s ease;
-      }
-      #build a {
-        color: inherit;
-        text-decoration: none;
-      }
-      #build a:hover {
-        color: #ffe39a;
-        text-decoration: underline;
-      }
-      body.open #build {
-        opacity: 0;
-        pointer-events: none;
-      }
-      body.open #footer {
-        opacity: 0;
-        pointer-events: none;
-      }
-      #footer a {
-        text-decoration: none;
-      }
-      #footer a:hover {
-        color: #ffe39a;
-      }
+/**
+ * The start screen's styles: the page around the signpost (#menu — title,
+ * corner icons, footer, build line) and the boards on the arrows
+ * (#signpost-3d, the CSS3DRenderer's layer). One sheet, injected by the
+ * screen (Signpost.tsx).
+ *
+ * The look is the signpost's, not the glass HUD's: Lilita One lettering in
+ * cream with a thick ink outline, chunky gold buttons that sink onto a
+ * ledge without their foot moving, cream panels outlined in ink.
+ */
+export const SIGNPOST_STYLE = `
+/* ——— The page around the signpost ———
+   #menu is the menu's own root (index.html): fixed over the canvas, zoomed
+   by --ui-scale like every other screen. Here it holds only the chrome —
+   title, corner icons, footer, build line — and lets every other click
+   through to the world beneath it. */
+#menu, #signpost-3d {
+  --comic: 'Lilita One';
+  --ink: #3b1d10;
+  --cream: #fff4dc;
+}
+#menu {
+  zoom: var(--ui-scale);
+  --safe-top: calc(var(--safe-top-raw) / var(--ui-scale));
+  --safe-right: calc(var(--safe-right-raw) / var(--ui-scale));
+  --safe-bottom: calc(var(--safe-bottom-raw) / var(--ui-scale));
+  --safe-left: calc(var(--safe-left-raw) / var(--ui-scale));
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--cream);
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-weight: 800;
+}
+#menu * { box-sizing: border-box; }
+#menu button, #menu a, #menu input { pointer-events: auto; }
 
-      /* Sound and full screen: bare icons, drawn like the lettering —
-         cream with an ink outline and the same drop under it. */
-      #opts {
-        position: fixed;
-        top: 14px;
-        right: 14px;
-        z-index: 5;
-        display: flex;
-        gap: 6px;
-      }
-      .opt {
-        display: grid;
-        place-items: center;
-        width: 44px;
-        height: 44px;
-        padding: 0;
-        cursor: pointer;
-        background: none;
-        border: none;
-        filter: drop-shadow(0 2px 0 var(--ink));
-      }
-      .opt[hidden] {
-        display: none;
-      }
-      .opt:hover {
-        filter: drop-shadow(0 2px 0 var(--ink)) brightness(1.1);
-      }
-      .opt:hover svg {
-        --cream: #ffe39a;
-      }
-      .opt:active {
-        translate: 0 2px;
-        filter: none;
-      }
-      /* A phone: the title is as wide as the screen, so it drops below the
-         buttons, which shrink a little. */
-      @media (max-width: 560px) {
-        #title {
-          top: 70px;
-        }
-        #opts {
-          top: 12px;
-          right: 12px;
-        }
-        .opt {
-          width: 42px;
-          height: 42px;
-        }
-      }
+/* The boards' layer: CSS3DRenderer's, between the canvas and #menu. */
+#signpost-3d {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  color: var(--cream);
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-weight: 800;
+}
+#signpost-3d * { box-sizing: border-box; }
 
-      /* CSS3DRenderer's own full-screen wrappers must not eat the clicks
-         meant for the arrows on the canvas beneath. */
-      #css3d,
-      #css3d * {
+/* Outlined comic lettering: the stroke is painted under the fill, the
+   drop below is the same ink again. */
+#menu .comic, #signpost-3d .comic {
+  font-family: var(--comic), sans-serif;
+  font-weight: 400;
+  color: var(--cream);
+  -webkit-text-stroke: 0.18em var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0.09em 0 var(--ink);
+}
+
+#menu .sp-title {
+  position: fixed;
+  top: calc(3vh + var(--safe-top));
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  transition: opacity 0.4s ease, transform 0.5s ease;
+}
+#menu .open .sp-title { opacity: 0; transform: translateY(-16px); }
+#menu .sp-title h1 {
+  margin: 0;
+  font-size: clamp(48px, 8vw, 104px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+#menu .sp-title p {
+  margin: 8px 0 0;
+  font-size: clamp(14px, 1.6vw, 20px);
+  letter-spacing: 0.04em;
+}
+/* The staging deploy says so on its face. */
+#menu .sp-title .channel {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 12px 3px;
+  font-family: var(--comic), sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: linear-gradient(#ffd66b, #f0a33a);
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+}
+
+/* The arrows as buttons, for a keyboard or a screen reader: the signpost
+   itself is 3D and cannot take focus. Out of sight until focused. */
+#menu .sp-arrows {
+  position: fixed;
+  left: 50%;
+  bottom: 50%;
+  translate: -50% 0;
+  display: flex;
+  gap: 8px;
+}
+#menu .sp-arrows button {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+#menu .sp-arrows button:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  font: inherit;
+  font-family: var(--comic), sans-serif;
+  font-size: 22px;
+  padding: 6px 18px 8px;
+  color: var(--cream);
+  -webkit-text-stroke: 5px var(--ink);
+  paint-order: stroke fill;
+  background: linear-gradient(#ffd66b, #f0a33a);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  outline: 3px solid var(--cream);
+}
+
+#menu .sp-footer {
+  position: fixed;
+  left: 18px;
+  bottom: calc(30px + var(--safe-bottom));
+  display: flex;
+  gap: 30px;
+  font-size: 30px;
+  transition: opacity 0.4s ease;
+}
+#menu .sp-footer button {
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+#menu .sp-footer button:hover { color: #ffe39a; }
+#menu .sp-footer button:disabled { opacity: 0.5; cursor: default; color: var(--cream); }
+
+/* Which build this is, as the old menu's footer said it: version, commit,
+   branch — and where the credits and the license live. */
+#menu .sp-build {
+  position: fixed;
+  left: 16px;
+  bottom: calc(8px + var(--safe-bottom));
+  font: 700 12px 'Nunito', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  color: rgba(255, 244, 220, 0.72);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  transition: opacity 0.4s ease;
+}
+#menu .sp-build a { color: inherit; text-decoration: none; }
+#menu .sp-build a:hover { color: #ffe39a; text-decoration: underline; }
+#menu .open .sp-build, #menu .open .sp-footer { opacity: 0; }
+#menu .open .sp-build *, #menu .open .sp-footer * { pointer-events: none; }
+
+/* A phone held upright: the links as large as one row across it allows
+   (at 1px of type they measure ~17px, and three gaps of 0.8em), and the
+   build line in two balanced lines under them — the branch name alone can
+   be wider than a phone. */
+@media (max-aspect-ratio: 17/20) {
+  #menu .sp-footer {
+    left: 0;
+    right: 0;
+    justify-content: center;
+    bottom: calc(44px + var(--safe-bottom));
+    font-size: min(24px, calc((100vw - 28px) / 19.6));
+    gap: 0.8em;
+    white-space: nowrap;
+  }
+  #menu .sp-build {
+    left: 0;
+    right: 0;
+    padding: 0 12px;
+    text-align: center;
+    font-size: 11px;
+    white-space: normal;
+    text-wrap: balance;
+  }
+}
+
+/* Sound and full screen: bare icons, drawn like the lettering — cream with
+   an ink outline and the same drop under it. */
+#menu .sp-opts {
+  position: fixed;
+  top: calc(14px + var(--safe-top));
+  right: calc(14px + var(--safe-right));
+  display: flex;
+  gap: 6px;
+}
+#menu .opt {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  background: none;
+  border: none;
+  filter: drop-shadow(0 2px 0 var(--ink));
+}
+#menu .opt[hidden] { display: none; }
+#menu .opt:hover { filter: drop-shadow(0 2px 0 var(--ink)) brightness(1.1); }
+#menu .opt:hover svg { --cream: #ffe39a; }
+#menu .opt:active { translate: 0 2px; filter: none; }
+/* A phone: the title is as wide as the screen, so it drops below the
+   icons, which shrink a little. */
+@media (max-width: 560px) {
+  #menu .sp-title { top: calc(70px + var(--safe-top)); }
+  #menu .sp-opts { top: calc(12px + var(--safe-top)); right: calc(12px + var(--safe-right)); }
+  #menu .opt { width: 42px; height: 42px; }
+}
+
+/* ——— The boards ——— */
+      #signpost-3d,
+#signpost-3d * {
         pointer-events: none;
       }
       /* Only the board being read takes the pointer: the others are still
          in the DOM, just turned away, and would swallow clicks meant for
          the arrows. */
-      #css3d .face.active,
-      #css3d .face.active * {
+      #signpost-3d .face.active,
+#signpost-3d .face.active * {
         pointer-events: auto;
       }
 
       /* ---- the board: the back of the arrow, a strip of game UI ---- */
-      .face {
+      #signpost-3d .face {
         box-sizing: border-box;
         padding: 12px 16px;
         display: flex;
@@ -378,27 +245,27 @@
         gap: 14px;
         container-type: inline-size;
         /* Painted on the back of the arrow; the lab hides it while that
-           side faces away (see the loop in signpostLab.ts). */
+           side faces away (see the loop in scene.ts). */
         color: var(--ink);
       }
       /* Play sits at the arrow's tip, whichever end of the strip that is,
          flush with the board's edge — which is the neck of the head. */
-      .face.tip-start {
+      #signpost-3d .face.tip-start {
         padding-left: 0;
       }
-      .face.tip-end {
+      #signpost-3d .face.tip-end {
         padding-right: 0;
       }
-      .face.tip-end > .go {
+      #signpost-3d .face.tip-end > .go {
         order: 2;
       }
-      .face > .go {
+      #signpost-3d .face > .go {
         flex: none;
         align-self: center;
         font-size: 34px;
         padding: 16px 22px 18px;
       }
-      .main {
+      #signpost-3d .main {
         flex: 1;
         min-width: 0;
         display: flex;
@@ -406,30 +273,30 @@
         justify-content: center;
         gap: 8px;
       }
-      .face header {
+      #signpost-3d .face header {
         display: flex;
         align-items: center;
         gap: 12px;
       }
-      .face h2 {
+      #signpost-3d .face h2 {
         margin: 0;
         font-size: 38px;
         line-height: 1;
       }
-      .face .sub {
+      #signpost-3d .face .sub {
         font-size: 16px;
         color: #ffe9c2;
         text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
         white-space: nowrap;
       }
-      .face button {
+      #signpost-3d .face button {
         font: inherit;
         cursor: pointer;
       }
       /* Chunky button: flat fill, thick ink outline, a solid ledge under it
          that it sinks into when pressed. */
-      .go,
-      .back {
+      #signpost-3d .go,
+#signpost-3d .back {
         font-family: var(--comic), sans-serif !important;
         font-size: 26px;
         padding: 8px 20px 10px;
@@ -452,10 +319,10 @@
          hole. The stroke alone only just meets itself in the middle of an
          o, and where its two soft edges meet the gold shows through as a
          dot. */
-      .go,
-      .back,
-      .invite,
-      .seg button[aria-pressed='true'] {
+      #signpost-3d .go,
+#signpost-3d .back,
+#signpost-3d .invite,
+#signpost-3d .seg button[aria-pressed='true'] {
         --ring: 3.4px;
         text-shadow:
           calc(var(--ring) * 1) calc(var(--ring) * 0) 0 var(--ink),
@@ -483,14 +350,14 @@
           calc(var(--ring) * 0.866) calc(var(--ring) * -0.5) 0 var(--ink),
           calc(var(--ring) * 0.966) calc(var(--ring) * -0.259) 0 var(--ink);
       }
-      .back {
+      #signpost-3d .back {
         --ring: 2.9px;
       }
-      .go.small {
+      #signpost-3d .go.small {
         font-size: 22px;
         padding: 4px 16px 6px;
       }
-      .back {
+      #signpost-3d .back {
         margin-left: auto;
         font-size: 17px;
         padding: 3px 12px 5px;
@@ -502,35 +369,48 @@
           inset 0 -3px 0 rgba(40, 50, 55, 0.35),
           0 4px 0 var(--ink);
       }
-      .go:hover,
-      .back:hover {
+      #signpost-3d .go:hover,
+#signpost-3d .back:hover {
         filter: brightness(1.08);
       }
       /* Pressed: the button sinks by exactly the ledge it loses, so its
          bottom edge — the ledge's foot — stays where it was. */
-      .go:active {
+      #signpost-3d .go:active {
         transform: translateY(5px);
         box-shadow:
           inset 0 3px 0 rgba(255, 255, 255, 0.45),
           inset 0 -5px 0 rgba(160, 80, 20, 0.45),
           0 1px 0 var(--ink);
       }
-      .back:active {
+      #signpost-3d .back:active {
         transform: translateY(3px);
         box-shadow:
           inset 0 2px 0 rgba(255, 255, 255, 0.4),
           inset 0 -3px 0 rgba(40, 50, 55, 0.35),
           0 1px 0 var(--ink);
       }
+      /* Not yours to press — a joiner's Begin, Host with the network down:
+         the gold goes to worn wood, and it neither lights nor sinks. */
+      #signpost-3d .go:disabled {
+        cursor: default;
+        color: #f3e6cb;
+        background: linear-gradient(#d8c29c, #b59b72);
+        filter: none;
+        transform: none;
+        box-shadow:
+          inset 0 3px 0 rgba(255, 255, 255, 0.3),
+          inset 0 -5px 0 rgba(90, 60, 30, 0.3),
+          0 6px 0 var(--ink);
+      }
       /* Campaign: the commissions as stops on a trail. */
-      .path {
+      #signpost-3d .path {
         display: flex;
         align-items: center;
       }
       /* A dotted line between stops, clear of both circles. The dots are
          a repeating pattern spaced to fit ('space'): a short gap gets a
          couple, a long one a proper dotted line, never a clipped dot. */
-      .trail {
+      #signpost-3d .trail {
         flex: 1;
         align-self: stretch;
         margin: 0 4px;
@@ -539,7 +419,7 @@
           center / 9px 6px space no-repeat;
         background-repeat: space no-repeat;
       }
-      .stop {
+      #signpost-3d .stop {
         flex: none;
         display: grid;
         place-items: center;
@@ -580,26 +460,26 @@
           box-shadow 0.06s ease;
       }
       /* Hover, as on the gold buttons: a touch brighter. */
-      .stop:not(.locked):hover {
+      #signpost-3d .stop:not(.locked):hover {
         filter: brightness(1.08);
       }
       /* The chosen stop stands a little proud and lighter. */
-      .stop.sel {
+      #signpost-3d .stop.sel {
         transform: scale(1.18);
         background: linear-gradient(#fff3c4, #ffd66b);
       }
       /* Every open stop is a button: held down, it sinks onto its ledge,
          and comes back up on release — same as the gold buttons. */
-      .stop:not(.locked):active {
+      #signpost-3d .stop:not(.locked):active {
         transform: translateY(4px);
         box-shadow:
           inset 0 3px 0 rgba(255, 255, 255, 0.45),
           0 0 0 var(--ink);
       }
-      .stop.sel:active {
+      #signpost-3d .stop.sel:active {
         transform: scale(1.18) translateY(4px);
       }
-      .stop.locked {
+      #signpost-3d .stop.locked {
         cursor: default;
         color: #efe3d2;
         text-shadow: none;
@@ -608,13 +488,13 @@
       }
       /* Title over its one-liner: side by side, the longer lines ran out
          of board and were cut off. */
-      .pick {
+      #signpost-3d .pick {
         display: flex;
         flex-direction: column;
         gap: 1px;
         min-width: 0;
       }
-      .pick .t {
+      #signpost-3d .pick .t {
         font-family: var(--comic), sans-serif;
         font-size: 24px;
         color: var(--cream);
@@ -622,7 +502,7 @@
         paint-order: stroke fill;
         white-space: nowrap;
       }
-      .pick .d {
+      #signpost-3d .pick .d {
         font-size: 16px;
         color: #ffe9c2;
         text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
@@ -631,21 +511,21 @@
         text-overflow: ellipsis;
       }
       /* Skirmish: four settings, two by two. */
-      .grid {
+      #signpost-3d .grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 6px 14px;
       }
       /* Label over control: the board ends at the neck, so a label beside
          each control left the controls too narrow for their words. */
-      .field {
+      #signpost-3d .field {
         display: flex;
         flex-direction: column;
         gap: 2px;
         min-width: 0;
       }
-      .field label,
-      .join label {
+      #signpost-3d .field label,
+#signpost-3d .join label {
         font-family: var(--comic), sans-serif;
         font-size: 20px;
         color: var(--cream);
@@ -657,11 +537,12 @@
       /* Over its box, the label's cream lines up with the box's cream: the
          box's is 3px in, behind its border, and Lilita's capitals start
          their fill about 1px into the text box. */
-      .field label {
+      #signpost-3d .field label {
         padding-left: 2px;
       }
-      .seg,
-      .face input {
+      #signpost-3d .seg,
+#signpost-3d .field .seed,
+#signpost-3d .face input {
         background: #fbeed3;
         border: 3px solid var(--ink);
         border-radius: 12px;
@@ -675,7 +556,7 @@
          of the pressed option into --i, the option count into --n, and the
          move is a transition on translate. Options are equal width (flex 1
          from a zero basis), so the highlight's slot is simple arithmetic. */
-      .seg {
+      #signpost-3d .seg {
         --pad: 3px;
         --gap: 3px;
         --n: 3;
@@ -685,23 +566,23 @@
         padding: var(--pad);
         gap: var(--gap);
       }
-      .seg:has(> :last-child:nth-child(2)) {
+      #signpost-3d .seg:has(> :last-child:nth-child(2)) {
         --n: 2;
       }
-      .seg:has(> :nth-child(2)[aria-pressed='true']) {
+      #signpost-3d .seg:has(> :nth-child(2)[aria-pressed='true']) {
         --i: 1;
       }
-      .seg:has(> :nth-child(3)[aria-pressed='true']) {
+      #signpost-3d .seg:has(> :nth-child(3)[aria-pressed='true']) {
         --i: 2;
       }
       /* Four options: the council's AI seats, 0 to 3. */
-      .seg:has(> :last-child:nth-child(4)) {
+      #signpost-3d .seg:has(> :last-child:nth-child(4)) {
         --n: 4;
       }
-      .seg:has(> :nth-child(4)[aria-pressed='true']) {
+      #signpost-3d .seg:has(> :nth-child(4)[aria-pressed='true']) {
         --i: 3;
       }
-      .seg::before {
+      #signpost-3d .seg::before {
         content: '';
         position: absolute;
         top: var(--pad);
@@ -719,7 +600,22 @@
         /* A little overshoot: it lands, rather than parks. */
         transition: translate 0.28s cubic-bezier(0.3, 1.35, 0.55, 1);
       }
-      .seg button {
+      /* The valley's number: read, not chosen — the box a choice sits in,
+         with the word in the ink of an unpicked option. */
+      #signpost-3d .field .seed {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--comic), sans-serif;
+        font-size: 17px;
+        color: #8a5a3c;
+        padding: 5px 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-variant-numeric: tabular-nums;
+      }
+      #signpost-3d .seg button {
         position: relative;
         flex: 1;
         min-width: 0;
@@ -732,7 +628,7 @@
         padding: 2px 0;
         transition: color 0.2s ease;
       }
-      .seg button[aria-pressed='true'] {
+      #signpost-3d .seg button[aria-pressed='true'] {
         color: var(--cream);
         -webkit-text-stroke: 4px var(--ink);
         paint-order: stroke fill;
@@ -741,20 +637,38 @@
       /* The chosen option, held down (mouse or finger): the outline stays
          put, the gold reads as pushed in — its light turned upside down, a
          shadow under its top edge — and the word sinks into it. */
-      .seg:has(> [aria-pressed='true']:active)::before {
+      #signpost-3d .seg:has(> [aria-pressed='true']:active)::before {
         background: linear-gradient(#e89a34, #ffd66b);
         box-shadow: inset 0 3px 3px rgba(120, 60, 10, 0.45);
       }
-      .seg button[aria-pressed='true']:active {
+      #signpost-3d .seg button[aria-pressed='true']:active {
         translate: 0 2px;
       }
+      /* A choice that cannot be made: one option (an AI seat the table has
+         no chair for) goes faint; a whole row (a joiner watching the host's
+         settings, difficulty in a sandbox) fades as one, still readable. */
+      #signpost-3d .seg button:disabled {
+        cursor: default;
+      }
+      #signpost-3d .seg:has(button:enabled) button:disabled:not([aria-pressed='true']) {
+        color: #cdb497;
+      }
+      #signpost-3d .seg button:disabled:active {
+        translate: none;
+      }
+      #signpost-3d .seg:not(:has(button:enabled)) {
+        opacity: 0.8;
+      }
+      #signpost-3d .seg:not(:has(button:enabled))::before {
+        background: linear-gradient(#e9d3a3, #cfae76);
+      }
       /* Multiplayer: host is the tip; joining is a code and a button. */
-      .join {
+      #signpost-3d .join {
         display: flex;
         align-items: center;
         gap: 12px;
       }
-      .face input {
+      #signpost-3d .face input {
         font-family: var(--comic), sans-serif;
         font-size: 26px;
         letter-spacing: 0.25em;
@@ -768,7 +682,7 @@
       /* ---- Multiplayer ---- */
       /* Host at the tip, Open/Private under it: the one choice made before
          the War Council. */
-      .tipcol {
+      #signpost-3d .tipcol {
         flex: none;
         align-self: center;
         display: flex;
@@ -776,10 +690,10 @@
         align-items: stretch;
         gap: 10px;
       }
-      .face.tip-end > .tipcol {
+      #signpost-3d .face.tip-end > .tipcol {
         order: 2;
       }
-      .tipcol .go {
+      #signpost-3d .tipcol .go {
         font-size: 34px;
         padding: 12px 22px 14px;
       }
@@ -787,7 +701,7 @@
          the heading and the rooms, Open/Private level with the code row.
          .tipcol and .main step aside (display: contents) and their children
          take the cells. */
-      .face.mp {
+      #signpost-3d .face.mp {
         display: grid;
         grid-template-columns: 176px 6px minmax(0, 1fr);
         grid-template-rows: auto 1fr auto;
@@ -795,13 +709,13 @@
         column-gap: 14px;
         row-gap: 8px;
       }
-      .face.mp > .tipcol,
-      .face.mp > .main {
+      #signpost-3d .face.mp > .tipcol,
+#signpost-3d .face.mp > .main {
         display: contents;
       }
       /* Between hosting and joining, a dotted line — the campaign trail's
          dots — so the board reads as two choices, not one form. */
-      .face.mp::before {
+      #signpost-3d .face.mp::before {
         content: '';
         grid-area: 1 / 2 / 4 / 3;
         align-self: stretch;
@@ -811,11 +725,11 @@
           center / 6px 9px no-repeat;
         background-repeat: no-repeat space;
       }
-      .face.mp .tipcol .go {
+      #signpost-3d .face.mp .tipcol .go {
         grid-area: 1 / 1 / 3 / 2;
         align-self: end;
       }
-      .face.mp .tipcol .hint {
+      #signpost-3d .face.mp .tipcol .hint {
         grid-area: 3 / 1;
         align-self: start;
         text-align: center;
@@ -824,40 +738,40 @@
         color: #ffe9c2;
         text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
       }
-      .face.mp header {
+      #signpost-3d .face.mp header {
         grid-area: 1 / 3;
       }
-      .face.mp .rooms {
+      #signpost-3d .face.mp .rooms {
         grid-area: 2 / 3;
       }
-      .face.mp .join {
+      #signpost-3d .face.mp .join {
         grid-area: 3 / 3;
       }
-      .face.mp.tip-end {
+      #signpost-3d .face.mp.tip-end {
         grid-template-columns: minmax(0, 1fr) 6px 176px;
       }
-      .face.mp.tip-end .tipcol .go {
+      #signpost-3d .face.mp.tip-end .tipcol .go {
         grid-area: 1 / 3 / 3 / 4;
       }
-      .face.mp.tip-end .tipcol .hint {
+      #signpost-3d .face.mp.tip-end .tipcol .hint {
         grid-area: 3 / 3;
       }
-      .face.mp.tip-end header {
+      #signpost-3d .face.mp.tip-end header {
         grid-area: 1 / 1;
       }
-      .face.mp.tip-end .rooms {
+      #signpost-3d .face.mp.tip-end .rooms {
         grid-area: 2 / 1;
       }
-      .face.mp.tip-end .join {
+      #signpost-3d .face.mp.tip-end .join {
         grid-area: 3 / 1;
       }
-      .rooms {
+      #signpost-3d .rooms {
         display: flex;
         align-items: center;
         gap: 10px;
         min-width: 0;
       }
-      .rooms .lbl {
+      #signpost-3d .rooms .lbl {
         flex: none;
         font-family: var(--comic), sans-serif;
         font-size: 20px;
@@ -872,7 +786,7 @@
       /* However many rooms there are, the row stays one row: it scrolls
          sideways (the wheel too, see the lab), snaps to whole tickets, and
          fades at whichever end still has more past it. */
-      .tickets {
+      #signpost-3d .tickets {
         flex: 0 1 auto;
         min-width: 0;
         display: flex;
@@ -886,27 +800,27 @@
         padding: 2px 2px 5px;
         --fade: 36px;
       }
-      .tickets::-webkit-scrollbar {
+      #signpost-3d .tickets::-webkit-scrollbar {
         display: none;
       }
-      .ticket {
+      #signpost-3d .ticket {
         scroll-snap-align: start;
       }
-      .tickets.more-after {
+      #signpost-3d .tickets.more-after {
         mask-image: linear-gradient(
           to right,
           #000 calc(100% - var(--fade)),
           transparent
         );
       }
-      .tickets.more-before {
+      #signpost-3d .tickets.more-before {
         mask-image: linear-gradient(
           to left,
           #000 calc(100% - var(--fade)),
           transparent
         );
       }
-      .tickets.more-before.more-after {
+      #signpost-3d .tickets.more-before.more-after {
         mask-image: linear-gradient(
           to right,
           transparent,
@@ -915,10 +829,10 @@
           transparent
         );
       }
-      .rooms .lbl .n {
+      #signpost-3d .rooms .lbl .n {
         color: #ffe39a;
       }
-      .ticket {
+      #signpost-3d .ticket {
         flex: none;
         display: grid;
         grid-template-columns: auto auto;
@@ -934,52 +848,52 @@
           inset 0 -3px 0 rgba(160, 110, 60, 0.25),
           0 3px 0 rgba(59, 29, 16, 0.55);
       }
-      .ticket .code {
+      #signpost-3d .ticket .code {
         grid-column: 1 / span 2;
         font-family: var(--comic), sans-serif;
         font-size: 21px;
         letter-spacing: 0.06em;
         line-height: 1.1;
       }
-      .ticket .pips {
+      #signpost-3d .ticket .pips {
         display: flex;
         gap: 3px;
       }
-      .ticket .pips i {
+      #signpost-3d .ticket .pips i {
         width: 9px;
         height: 9px;
         box-sizing: border-box;
         border-radius: 50%;
         border: 2px solid var(--ink);
       }
-      .ticket .pips i.on {
+      #signpost-3d .ticket .pips i.on {
         background: var(--ink);
       }
-      .ticket .meta {
+      #signpost-3d .ticket .meta {
         font-size: 12px;
         color: #8a5a3c;
         white-space: nowrap;
       }
-      .ticket:not([disabled]):hover {
+      #signpost-3d .ticket:not([disabled]):hover {
         filter: brightness(1.05);
       }
-      .ticket.sel {
+      #signpost-3d .ticket.sel {
         background: linear-gradient(#ffd66b, #f0a33a);
       }
-      .ticket.sel .meta {
+      #signpost-3d .ticket.sel .meta {
         color: var(--ink);
       }
-      .ticket[disabled] {
+      #signpost-3d .ticket[disabled] {
         cursor: default;
         opacity: 0.5;
       }
-      .rooms .none {
+      #signpost-3d .rooms .none {
         flex: 1;
         font-size: 16px;
         color: #ffe9c2;
         text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
       }
-      .refresh {
+      #signpost-3d .refresh {
         flex: none;
         display: grid;
         place-items: center;
@@ -994,29 +908,29 @@
           inset 0 2px 0 rgba(255, 255, 255, 0.4),
           0 3px 0 var(--ink);
       }
-      .refresh:hover {
+      #signpost-3d .refresh:hover {
         filter: brightness(1.08);
       }
-      .refresh:active {
+      #signpost-3d .refresh:active {
         translate: 0 2px;
         box-shadow:
           inset 0 2px 0 rgba(255, 255, 255, 0.4),
           0 1px 0 var(--ink);
       }
-      .refresh.spin svg {
-        animation: spin 0.5s ease;
+      #signpost-3d .refresh.spin svg {
+        animation: sp-spin 0.5s ease;
       }
-      @keyframes spin {
+      @keyframes sp-spin {
         to {
           rotate: 360deg;
         }
       }
-      .join label {
+      #signpost-3d .join label {
         padding-left: 2px;
       }
 
       /* ---- War Council: the Multiplayer board, turned over ---- */
-      .face.council {
+      #signpost-3d .face.council {
         display: grid;
         grid-template-columns: 190px 6px minmax(0, 1fr);
         grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
@@ -1025,11 +939,11 @@
         row-gap: 12px;
         padding: 22px 30px 24px;
       }
-      .face.council > .tipcol,
-      .face.council > .main {
+      #signpost-3d .face.council > .tipcol,
+#signpost-3d .face.council > .main {
         display: contents;
       }
-      .face.council::before {
+      #signpost-3d .face.council::before {
         content: '';
         grid-area: 1 / 2 / 7 / 3;
         align-self: stretch;
@@ -1039,12 +953,12 @@
           center / 6px 9px no-repeat;
         background-repeat: no-repeat space;
       }
-      .face.council .tipcol .go {
+      #signpost-3d .face.council .tipcol .go {
         grid-area: 1 / 1 / 7 / 2;
         align-self: center;
         font-size: 38px;
       }
-      .face.council .tipcol .hint {
+      #signpost-3d .face.council .tipcol .hint {
         grid-area: 5 / 1 / 7 / 2;
         align-self: start;
         text-align: center;
@@ -1053,43 +967,43 @@
         color: #ffe9c2;
         text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
       }
-      .face.council header {
+      #signpost-3d .face.council header {
         grid-area: 1 / 3;
       }
-      .face.council .code-row {
+      #signpost-3d .face.council .code-row {
         grid-area: 2 / 3;
       }
-      .face.council .seats {
+      #signpost-3d .face.council .seats {
         grid-area: 3 / 3;
       }
-      .face.council .settings {
+      #signpost-3d .face.council .settings {
         grid-area: 4 / 3;
       }
-      .face.council .log {
+      #signpost-3d .face.council .log {
         grid-area: 5 / 3;
       }
-      .face.council .chat {
+      #signpost-3d .face.council .chat {
         grid-area: 6 / 3;
       }
-      .face.council.tip-end {
+      #signpost-3d .face.council.tip-end {
         grid-template-columns: minmax(0, 1fr) 6px 176px;
       }
-      .face.council.tip-end .tipcol .go {
+      #signpost-3d .face.council.tip-end .tipcol .go {
         grid-area: 1 / 3 / 7 / 4;
       }
-      .face.council.tip-end .tipcol .hint {
+      #signpost-3d .face.council.tip-end .tipcol .hint {
         grid-area: 5 / 3 / 7 / 4;
       }
-      .face.council.tip-end header,
-      .face.council.tip-end .code-row,
-      .face.council.tip-end .seats,
-      .face.council.tip-end .settings,
-      .face.council.tip-end .log,
-      .face.council.tip-end .chat {
+      #signpost-3d .face.council.tip-end header,
+#signpost-3d .face.council.tip-end .code-row,
+#signpost-3d .face.council.tip-end .seats,
+#signpost-3d .face.council.tip-end .settings,
+#signpost-3d .face.council.tip-end .log,
+#signpost-3d .face.council.tip-end .chat {
         grid-column: 1;
       }
       /* Table talk: newest at the bottom, names in their banner colour. */
-      .log {
+      #signpost-3d .log {
         align-self: stretch;
         min-height: 0;
         overflow-y: auto;
@@ -1107,7 +1021,7 @@
         color: #fff4dc;
         text-shadow: 0 1px 0 rgba(59, 29, 16, 0.7);
       }
-      .log .line b {
+      #signpost-3d .log .line b {
         font-family: var(--comic), sans-serif;
         font-weight: 400;
         color: var(--c);
@@ -1115,12 +1029,12 @@
         paint-order: stroke fill;
         margin-right: 4px;
       }
-      .log .note {
+      #signpost-3d .log .note {
         color: #ffe39a;
         font-style: italic;
       }
       /* The table talk, a line on the board like the code box. */
-      .face .chat {
+      #signpost-3d .face .chat {
         font-family: 'Nunito', sans-serif;
         font-weight: 800;
         font-size: 17px;
@@ -1129,14 +1043,14 @@
         width: 100%;
         padding: 6px 12px;
       }
-      .code-row {
+      #signpost-3d .code-row {
         display: flex;
         align-items: center;
         gap: 10px;
         min-width: 0;
       }
-      .code-row .lbl,
-      .settings label {
+      #signpost-3d .code-row .lbl,
+#signpost-3d .settings label {
         font-family: var(--comic), sans-serif;
         font-size: 20px;
         color: var(--cream);
@@ -1147,7 +1061,7 @@
       }
       /* The room code: the one thing on this board you read out to a
          friend, so it is the biggest thing on it. */
-      .code-row .code {
+      #signpost-3d .code-row .code {
         font-family: var(--comic), sans-serif;
         font-size: 34px;
         letter-spacing: 0.12em;
@@ -1160,7 +1074,7 @@
           inset 0 -3px 0 rgba(160, 110, 60, 0.25),
           0 3px 0 rgba(59, 29, 16, 0.55);
       }
-      .invite {
+      #signpost-3d .invite {
         font-family: var(--comic), sans-serif !important;
         font-size: 18px;
         padding: 3px 12px 5px;
@@ -1176,33 +1090,33 @@
           0 4px 0 var(--ink);
         --ring: 2.9px;
       }
-      .invite:hover {
+      #signpost-3d .invite:hover {
         filter: brightness(1.08);
       }
-      .invite:active {
+      #signpost-3d .invite:active {
         translate: 0 3px;
         box-shadow:
           inset 0 2px 0 rgba(255, 255, 255, 0.4),
           inset 0 -3px 0 rgba(40, 50, 55, 0.35),
           0 1px 0 var(--ink);
       }
-      .code-row .seg {
+      #signpost-3d .code-row .seg {
         flex: 0 1 260px;
         min-width: 0;
         margin-left: auto;
       }
-      .code-row .seg button {
+      #signpost-3d .code-row .seg button {
         font-size: 15px;
         white-space: nowrap;
       }
       /* Seats as the council knows them: a banner colour and a name, or a
          dashed place waiting for someone. */
-      .seats {
+      #signpost-3d .seats {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 8px;
       }
-      .seat {
+      #signpost-3d .seat {
         display: flex;
         align-items: center;
         gap: 7px;
@@ -1215,76 +1129,76 @@
         background: #fbeed3;
         border: 3px solid var(--ink);
         border-radius: 12px;
-        animation: seat-in 0.35s cubic-bezier(0.3, 1.4, 0.55, 1);
+        animation: sp-seat-in 0.35s cubic-bezier(0.3, 1.4, 0.55, 1);
       }
-      .seat i {
+      #signpost-3d .seat i {
         flex: none;
         width: 12px;
         height: 12px;
         border-radius: 50%;
         border: 2px solid var(--ink);
       }
-      .seat.open {
+      #signpost-3d .seat.open {
         color: #8a5a3c;
         background: rgba(251, 238, 211, 0.35);
         border-style: dashed;
         animation: none;
       }
-      .seat.open i {
+      #signpost-3d .seat.open i {
         border-style: dashed;
       }
-      @keyframes seat-in {
+      @keyframes sp-seat-in {
         from {
           scale: 0.85;
         }
       }
-      .settings {
+      #signpost-3d .settings {
         display: flex;
         align-items: center;
         gap: 8px;
         min-width: 0;
       }
-      .settings .seg {
+      #signpost-3d .settings .seg {
         flex: 1;
         min-width: 0;
       }
-      .settings .seg button {
+      #signpost-3d .settings .seg button {
         font-size: 17px;
       }
       /* AI seats and raids take what their few short words need; the
          difficulty gets the rest. */
-      .settings .seg:nth-of-type(1) {
+      #signpost-3d .settings .seg:nth-of-type(1) {
         flex: 0 0 140px;
       }
-      .settings .seg:nth-of-type(3) {
+      #signpost-3d .settings .seg:nth-of-type(3) {
         flex: 0 0 110px;
       }
-      .settings {
+      #signpost-3d .settings {
         gap: 10px;
       }
 
       /* A phone held upright: Play goes under everything, centred, instead
          of beside it. A container query can style what is in the board but
          not the board itself, so placeFace() sets .narrow for this part. */
-      .face.narrow {
+      #signpost-3d .face.narrow {
         flex-direction: column;
         padding: 16px 18px 14px;
         gap: 8px;
       }
       /* Back: a size a thumb can find, its right edge in line with the
          right-hand column below it (stop 4, the option rows). */
-      .face.narrow .back {
+      #signpost-3d .face.narrow .back {
         margin: 2px 0 0 auto;
         font-size: 20px;
         padding: 4px 16px 6px;
       }
-      .face.narrow > .go {
+      #signpost-3d .face.narrow > .go {
         order: 2;
         font-size: 28px;
         padding: 6px 40px 8px;
       }
-      .face.narrow.mp,
-      .face.narrow.mp.tip-end {
+      #signpost-3d .face.narrow.mp,
+#signpost-3d .face.narrow.mp.tip-end {
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto auto auto auto;
         column-gap: 14px;
@@ -1292,84 +1206,84 @@
       }
       /* Upright there is no height to spare for the dotted line: the Host
          row at the foot is apart enough. */
-      .face.narrow.mp::before {
+      #signpost-3d .face.narrow.mp::before {
         display: none;
       }
-      .face.narrow.mp header,
-      .face.narrow.mp .rooms,
-      .face.narrow.mp .join {
+      #signpost-3d .face.narrow.mp header,
+#signpost-3d .face.narrow.mp .rooms,
+#signpost-3d .face.narrow.mp .join {
         grid-column: 1 / 3;
       }
-      .face.narrow.mp header {
+      #signpost-3d .face.narrow.mp header {
         grid-row: 1;
       }
-      .face.narrow.mp .rooms {
+      #signpost-3d .face.narrow.mp .rooms {
         grid-row: 2;
       }
-      .face.narrow.mp .join {
+      #signpost-3d .face.narrow.mp .join {
         grid-row: 3;
       }
-      .face.narrow.mp .tipcol .go {
+      #signpost-3d .face.narrow.mp .tipcol .go {
         grid-area: 4 / 1;
         justify-self: end;
         align-self: center;
       }
-      .face.narrow.mp .tipcol .hint {
+      #signpost-3d .face.narrow.mp .tipcol .hint {
         grid-area: 4 / 2;
         justify-self: start;
         align-self: center;
         text-align: left;
       }
-      .face.narrow .tipcol .go {
+      #signpost-3d .face.narrow .tipcol .go {
         font-size: 28px;
         padding: 5px 32px 6px;
       }
 
-      .face.narrow.council,
-      .face.narrow.council.tip-end {
+      #signpost-3d .face.narrow.council,
+#signpost-3d .face.narrow.council.tip-end {
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
         column-gap: 14px;
         row-gap: 8px;
         padding: 16px 18px 14px;
       }
-      .face.narrow.council::before {
+      #signpost-3d .face.narrow.council::before {
         display: none;
       }
-      .face.narrow.council header,
-      .face.narrow.council .code-row,
-      .face.narrow.council .seats,
-      .face.narrow.council .settings,
-      .face.narrow.council .log,
-      .face.narrow.council .chat {
+      #signpost-3d .face.narrow.council header,
+#signpost-3d .face.narrow.council .code-row,
+#signpost-3d .face.narrow.council .seats,
+#signpost-3d .face.narrow.council .settings,
+#signpost-3d .face.narrow.council .log,
+#signpost-3d .face.narrow.council .chat {
         grid-column: 1 / 3;
       }
-      .face.narrow.council .log {
+      #signpost-3d .face.narrow.council .log {
         grid-row: 5;
       }
-      .face.narrow.council .chat {
+      #signpost-3d .face.narrow.council .chat {
         grid-row: 6;
       }
-      .face.narrow.council header {
+      #signpost-3d .face.narrow.council header {
         grid-row: 1;
       }
-      .face.narrow.council .code-row {
+      #signpost-3d .face.narrow.council .code-row {
         grid-row: 2;
       }
-      .face.narrow.council .seats {
+      #signpost-3d .face.narrow.council .seats {
         grid-row: 3;
       }
-      .face.narrow.council .settings {
+      #signpost-3d .face.narrow.council .settings {
         grid-row: 4;
       }
-      .face.narrow.council .tipcol .go {
+      #signpost-3d .face.narrow.council .tipcol .go {
         grid-area: 7 / 1 / 8 / 3;
         justify-self: center;
         align-self: center;
         font-size: 28px;
         padding: 6px 48px 8px;
       }
-      .face.narrow.council .tipcol .hint {
+      #signpost-3d .face.narrow.council .tipcol .hint {
         grid-area: 7 / 2;
         justify-self: start;
         align-self: center;
@@ -1380,155 +1294,155 @@
       /* The narrow layout of a board (the lab sets .narrow per board, from
          the width the board actually gets — see frameFor): the same
          pieces, restacked to fit. */
-      .face.narrow header .sub {
+      #signpost-3d .face.narrow header .sub {
         display: none;
       }
       /* Clear of the first row of stops, which runs right up under Back. */
-      .face.narrow header {
+      #signpost-3d .face.narrow header {
         margin-bottom: 8px;
       }
-      .face.narrow .main {
+      #signpost-3d .face.narrow .main {
         gap: 4px;
       }
       /* A trail that snakes: 1-2-3-4 left to right, down at the end,
            then 5-6-7-8 back right to left, so the dots stay one path.
            Children alternate stop, trail, stop… — fifteen in all. */
-      .face.narrow .path {
+      #signpost-3d .face.narrow .path {
         display: grid;
         grid-template-columns: auto 1fr auto 1fr auto 1fr auto;
         grid-template-rows: auto 22px auto;
         align-items: center;
         justify-items: center;
       }
-      .face.narrow .path > .trail {
+      #signpost-3d .face.narrow .path > .trail {
         width: 100%;
         height: 100%;
       }
-      .face.narrow .path > :nth-child(1) {
+      #signpost-3d .face.narrow .path > :nth-child(1) {
         grid-area: 1 / 1;
       }
-      .face.narrow .path > :nth-child(2) {
+      #signpost-3d .face.narrow .path > :nth-child(2) {
         grid-area: 1 / 2;
       }
-      .face.narrow .path > :nth-child(3) {
+      #signpost-3d .face.narrow .path > :nth-child(3) {
         grid-area: 1 / 3;
       }
-      .face.narrow .path > :nth-child(4) {
+      #signpost-3d .face.narrow .path > :nth-child(4) {
         grid-area: 1 / 4;
       }
-      .face.narrow .path > :nth-child(5) {
+      #signpost-3d .face.narrow .path > :nth-child(5) {
         grid-area: 1 / 5;
       }
-      .face.narrow .path > :nth-child(6) {
+      #signpost-3d .face.narrow .path > :nth-child(6) {
         grid-area: 1 / 6;
       }
-      .face.narrow .path > :nth-child(7) {
+      #signpost-3d .face.narrow .path > :nth-child(7) {
         grid-area: 1 / 7;
       }
       /* The turn: two dots running down from 4 to 5. */
-      .face.narrow .path > :nth-child(8) {
+      #signpost-3d .face.narrow .path > :nth-child(8) {
         grid-area: 2 / 7;
         width: 6px;
         margin: 3px 0;
         background-size: 6px 8px;
         background-repeat: no-repeat space;
       }
-      .face.narrow .path > :nth-child(9) {
+      #signpost-3d .face.narrow .path > :nth-child(9) {
         grid-area: 3 / 7;
       }
-      .face.narrow .path > :nth-child(10) {
+      #signpost-3d .face.narrow .path > :nth-child(10) {
         grid-area: 3 / 6;
       }
-      .face.narrow .path > :nth-child(11) {
+      #signpost-3d .face.narrow .path > :nth-child(11) {
         grid-area: 3 / 5;
       }
-      .face.narrow .path > :nth-child(12) {
+      #signpost-3d .face.narrow .path > :nth-child(12) {
         grid-area: 3 / 4;
       }
-      .face.narrow .path > :nth-child(13) {
+      #signpost-3d .face.narrow .path > :nth-child(13) {
         grid-area: 3 / 3;
       }
-      .face.narrow .path > :nth-child(14) {
+      #signpost-3d .face.narrow .path > :nth-child(14) {
         grid-area: 3 / 2;
       }
-      .face.narrow .path > :nth-child(15) {
+      #signpost-3d .face.narrow .path > :nth-child(15) {
         grid-area: 3 / 1;
       }
-      .face.narrow .grid {
+      #signpost-3d .face.narrow .grid {
         grid-template-columns: minmax(0, 1fr);
         gap: 3px;
       }
-      .face.narrow .field {
+      #signpost-3d .face.narrow .field {
         flex-direction: row;
         align-items: center;
         gap: 8px;
       }
-      .face.narrow .field label {
+      #signpost-3d .face.narrow .field label {
         flex: none;
         width: 96px;
         padding-left: 0;
       }
-      .face.narrow .field .seg {
+      #signpost-3d .face.narrow .field .seg {
         flex: 1;
         --pad: 2px;
       }
-      .face.narrow .field .seg button {
+      #signpost-3d .face.narrow .field .seg button {
         padding: 0;
       }
       /* War Council, upright: the code needs no label, an open seat is
            just "Open", and the settings take two rows — AI seats and raids,
            then the difficulty across the full width. */
-      .face.narrow .code-row .lbl,
-      .face.narrow .seat .w {
+      #signpost-3d .face.narrow .code-row .lbl,
+#signpost-3d .face.narrow .seat .w {
         display: none;
       }
-      .face.narrow .code-row .seg button {
+      #signpost-3d .face.narrow .code-row .seg button {
         font-size: 13px;
       }
-      .face.narrow .seats {
+      #signpost-3d .face.narrow .seats {
         gap: 6px;
       }
-      .face.narrow .seat {
+      #signpost-3d .face.narrow .seat {
         padding: 2px 8px 3px;
         gap: 5px;
       }
-      .face.narrow .settings {
+      #signpost-3d .face.narrow .settings {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
         gap: 6px 8px;
       }
-      .face.narrow .settings .seg:nth-of-type(1),
-      .face.narrow .settings .seg:nth-of-type(3) {
+      #signpost-3d .face.narrow .settings .seg:nth-of-type(1),
+#signpost-3d .face.narrow .settings .seg:nth-of-type(3) {
         flex: none;
       }
-      .face.narrow .settings label:nth-of-type(1) {
+      #signpost-3d .face.narrow .settings label:nth-of-type(1) {
         grid-area: 1 / 1;
       }
-      .face.narrow .settings .seg:nth-of-type(1) {
+      #signpost-3d .face.narrow .settings .seg:nth-of-type(1) {
         grid-area: 1 / 2;
       }
-      .face.narrow .settings label:nth-of-type(2) {
+      #signpost-3d .face.narrow .settings label:nth-of-type(2) {
         grid-area: 1 / 3;
       }
-      .face.narrow .settings .seg:nth-of-type(3) {
+      #signpost-3d .face.narrow .settings .seg:nth-of-type(3) {
         grid-area: 1 / 4;
       }
-      .face.narrow .settings .seg:nth-of-type(2) {
+      #signpost-3d .face.narrow .settings .seg:nth-of-type(2) {
         grid-area: 2 / 1 / 3 / 5;
       }
-      .face.narrow .settings .seg:nth-of-type(2) button {
+      #signpost-3d .face.narrow .settings .seg:nth-of-type(2) button {
         font-size: 15px;
       }
-      .face.narrow .rooms {
+      #signpost-3d .face.narrow .rooms {
         flex-wrap: wrap;
         row-gap: 2px;
       }
-      .face.narrow .rooms .lbl {
+      #signpost-3d .face.narrow .rooms .lbl {
         flex: 1;
       }
       /* Upright: two columns, two rows showing; more scroll up and down
            with the same snap and fades. */
-      .face.narrow .rooms .tickets {
+      #signpost-3d .face.narrow .rooms .tickets {
         order: 2;
         flex-basis: 100%;
         display: grid;
@@ -1542,21 +1456,21 @@
         padding: 0 0 3px;
         --fade: 18px;
       }
-      .face.narrow .rooms .tickets.more-after {
+      #signpost-3d .face.narrow .rooms .tickets.more-after {
         mask-image: linear-gradient(
           to bottom,
           #000 calc(100% - var(--fade)),
           transparent
         );
       }
-      .face.narrow .rooms .tickets.more-before {
+      #signpost-3d .face.narrow .rooms .tickets.more-before {
         mask-image: linear-gradient(
           to top,
           #000 calc(100% - var(--fade)),
           transparent
         );
       }
-      .face.narrow .rooms .tickets.more-before.more-after {
+      #signpost-3d .face.narrow .rooms .tickets.more-before.more-after {
         mask-image: linear-gradient(
           to bottom,
           transparent,
@@ -1566,39 +1480,19 @@
         );
       }
       /* One line each: code, then its seats. */
-      .face.narrow .ticket {
+      #signpost-3d .face.narrow .ticket {
         grid-template-columns: 1fr auto;
         padding: 2px 10px 3px;
       }
-      .face.narrow .ticket .code {
+      #signpost-3d .face.narrow .ticket .code {
         grid-column: auto;
       }
-      .face.narrow .ticket .meta {
+      #signpost-3d .face.narrow .ticket .meta {
         display: none;
       }
-      .face.narrow .refresh {
+      #signpost-3d .face.narrow .refresh {
         width: 32px;
         height: 32px;
       }
-    </style>
-  </head>
-  <body>
-    <canvas id="menu-canvas"></canvas>
-    <div id="title">
-      <h1 class="comic">Serf Valley</h1>
-      <p class="comic">Settle the valley. Feed the levy. Hold the road.</p>
-    </div>
-    <div id="opts">
-      <button id="opt-sound" class="opt"></button>
-      <button id="opt-full" class="opt"></button>
-    </div>
-    <nav id="footer" class="comic">
-      <a class="comic" href="#">Load save</a
-      ><a class="comic" href="#">Replays</a
-      ><a class="comic" href="#">Map editor</a
-      ><a class="comic" href="#">Field guide</a>
-    </nav>
-    <div id="build"></div>
-    <script type="module" src="/src/ui/signpostLab.ts"></script>
-  </body>
-</html>
+    
+`;

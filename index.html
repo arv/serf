@@ -43,6 +43,20 @@
       href="/fonts/marcellus-latin.woff2"
       crossorigin
     />
+    <!-- Lilita One (the signpost's lettering) and Nunito (its small text),
+         from Google Fonts for now: they are to be self-hosted in public/fonts
+         like the rest before this ships. crossorigin because the page is
+         cross-origin isolated (COEP require-corp). -->
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      crossorigin="anonymous"
+      href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&display=block"
+    />
     <style>
       /* One variable file per subset covers the 400–600 range the UI uses. */
       @font-face {
@@ -388,7 +402,7 @@
           rgba(10, 18, 12, 0.3) 100%
         );
       }
-      /* Pre-boot screens — start menu and War Council (src/ui/MenuApp.tsx).
+      /* Pre-boot screen — the signpost and its War Council (src/ui/MenuApp.tsx).
          Above #ui, and unlike #ui it takes pointer events; hidden until
          something is actually on it. */
       #menu {
@@ -397,46 +411,33 @@
         display: none;
         z-index: 10;
       }
-      /* The menu's background is the real game framed on the castle, pushed
-         back behind the glass (src/ui/menuBackdrop.ts). It gets its own
+      /* The menu's background is the valley itself, with the signpost
+         standing in front of it (src/ui/signpost/scene.ts). It gets its own
          canvas, inserted over #canvas and removed when the menu goes, so the
          match that follows can take a fresh WebGL context — a canvas only
-         ever hands out one. Sitting under the grade layers, it reads exactly
-         like the game does. */
+         ever hands out one. No filter: the signpost is in the same scene,
+         and it has to read sharp. */
       #menu-canvas {
         display: block;
         position: fixed;
         inset: 0;
         width: 100%;
         height: 100%;
-        /* Pushed back far enough that the card reads as foreground, not so
-           far that a live-rendered valley arrives as grey.
-
-           The radius is also a performance figure, and a small one is the
-           expensive kind. This layer is full-screen, and the fireflies
-           (menuChrome.tsx) drift over all of it — not inside it, they are
-           up in #menu, a whole subtree above. That does not spare it:
-           damage is settled in screen space, not by ancestry, and a fly
-           moving anywhere over this layer is damage landing on it, so the
-           filter runs again — sixty times a second, over the whole
-           viewport. A blur wide enough to be worth downsampling for is run
-           on a smaller copy and costs a fraction of one that is not:
-           measured on a 2560x1323 retina window, 2.5px held the GPU at 99%
-           and dropped a fifth of the frames, which starved the backdrop's
-           own loop down to single-figure fps, and 4px came in at 40% with
-           none dropped. The cliff sat between 2.5 and 3; the extra px is
-           margin, since where it sits is Skia's business and not a
-           promise. Do not trim this back below 3px without measuring the
-           menu with the fireflies running. */
-        filter: blur(4px) saturate(1.06) brightness(0.72);
-        /* Blank until the first frame lands, which is after the menu has
-           animated in — so it fades up instead of snapping on.
-           backdropScene.ts adds .lit once there is something to show. */
+        /* Blank until the first frame lands, so it fades up instead of
+           snapping on. The scene adds .lit once there is something to
+           show. */
         opacity: 0;
         transition: opacity 1s ease-out;
       }
       #menu-canvas.lit {
         opacity: 1;
+      }
+      /* The grade is the match's look. The signpost was painted without it,
+         and four blended full-screen layers over a live canvas are a cost
+         the menu has no use for. */
+      body:has(#menu-canvas)
+        :is(#grade-mult, #grade-soft, #grade-glow, #vignette) {
+        display: none;
       }
       #fatal {
         position: fixed;

@@ -185,8 +185,8 @@ the relay names the room, and that must not tear the room down.
 Each screen is also its own bundle chunk, fetched when a URL first names
 it: the match (`src/app/matchScreen.ts` — three.js, the render stack, the
 HUD, the input layer), the map editor, the field guide, the wardrobe, and
-the menu's own live backdrop (`src/ui/menuBackdrop.ts` fetches the scene
-behind it, which is cosmetic by design). What a cold visit must fetch
+the start screen's signpost and the valley behind it (`src/ui/signpost/scene.ts`,
+fetched once the menu is up). What a cold visit must fetch
 before the start menu is on the glass is about 60 kB gzipped rather than
 330; the match's chunk is then warmed behind the menu, so pressing Play
 does not start a download. Dependencies that do not change get chunks of

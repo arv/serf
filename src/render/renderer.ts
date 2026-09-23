@@ -310,6 +310,14 @@ export class GameRenderer {
     return this.#webgl.info;
   }
 
+  /** The WebGLRenderer itself, for a caller that has to bake something
+   * against this context — the start screen's studio light is a PMREM of a
+   * room, and a PMREM must be made on the context that samples it. For
+   * baking, not drawing: every frame still goes through render(). */
+  get webgl(): THREE.WebGLRenderer {
+    return this.#webgl;
+  }
+
   dispose(): void {
     if (this.#fence !== null) {
       this.#gl()?.deleteSync(this.#fence);

@@ -7,7 +7,7 @@ import {
 import type {NetInfo} from '../protocol/messages';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as CouncilPhase from '../ui/councilPhaseEnum.ts';
-import type {ChatLine, CouncilHooks, CouncilView} from '../ui/WarCouncil';
+import type {ChatLine, CouncilHooks, CouncilView} from '../ui/councilTypes';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On
@@ -122,7 +122,7 @@ async function shareInvite(url: string): Promise<'shared' | 'copied'> {
 }
 
 /** What the relay broadcasts while the room waits. Everything in it is the
- * relay's word — it only ever reaches the screen as text (see WarCouncil's
+ * relay's word — it only ever reaches the screen as text (see CouncilBoard's
  * security note), and the config passes the same sanitizer the server uses. */
 interface RoomMsg {
   t: 'room';

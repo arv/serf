@@ -94,7 +94,7 @@ const DRAFT_DEBOUNCE_MS = 2000;
 
 /**
  * ?editor — the map editor screen. The full game render stack over an
- * authored GameMap with no sim worker (backdropScene's trick: a GameMap
+ * authored GameMap with no sim worker (the start screen's trick: a GameMap
  * satisfies MapView), a top-down camera by default, and a Solid panel in
  * #ui. Painting flows: stroke -> map arrays -> per-frame incremental
  * repaint/reheight -> debounced foliage rebuild.
