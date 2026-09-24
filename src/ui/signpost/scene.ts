@@ -7,7 +7,7 @@ import {
 } from 'three/addons/renderers/CSS3DRenderer.js';
 import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
 import {snapBuildings} from '../../protocol/snapshot';
-import {loadGlbAssets} from '../../render/assets';
+import {loadMenuAssets} from '../../render/assets';
 import {BuildingSync} from '../../render/buildingSync';
 import {butterflyQuad, wander} from '../../render/butterflies';
 import {FramePacer} from '../../render/framePacer';
@@ -657,7 +657,7 @@ export async function startSignpost(
   const mine = starts;
   const gltf = new GLTFLoader();
   const [, , rockGltf] = await Promise.all([
-    loadGlbAssets(),
+    loadMenuAssets(),
     document.fonts.load(`100px "${FONT}"`),
     gltf.loadAsync('/models/kaykit/mountain_C.gltf'),
   ]);
