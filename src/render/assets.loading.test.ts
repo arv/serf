@@ -90,6 +90,37 @@ describe('menu asset loading', () => {
     ).toHaveLength(1);
   });
 
+  it('keeps the ready menu usable when a game-only model fails during an upgrade', async () => {
+    vi.useFakeTimers();
+    try {
+      const assets = await import('./assets');
+      await assets.loadMenuAssets();
+      loadAsync.mockImplementation(async (url: string) => {
+        if (url.endsWith('building_home_A_green.gltf'))
+          throw new Error('offline');
+        return model();
+      });
+      const full = assets.loadGlbAssets();
+      const failed = expect(full).rejects.toThrow('asset failed');
+      // Navigate back before the upgrade has settled. Its failure must not
+      // take down a menu whose castle and scenery are already available.
+      const menu = assets.loadMenuAssets().then(
+        () => 'ready',
+        () => 'failed',
+      );
+      await vi.runAllTimersAsync();
+      await failed;
+      expect(await menu).toBe('ready');
+      expect(assets.makeGlbBuilding(BuildingTypeId.storehouse)).not.toBeNull();
+      // The failed upgrade remains retryable after the menu has returned.
+      loadAsync.mockImplementation(async () => model());
+      await assets.loadGlbAssets();
+      expect(assets.makeGlbBuilding(BuildingTypeId.house)).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('uses the full pack when a match loaded first', async () => {
     const assets = await import('./assets');
     const full = assets.loadGlbAssets();

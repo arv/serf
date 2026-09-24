@@ -904,6 +904,9 @@ const loadedScenes = new Map<string, THREE.Group>();
 
 /** The menu draws only the castle and scenery, never the rest of the village. */
 export function loadMenuAssets(): Promise<boolean> {
+  // A completed menu batch survives a pending or failed full-pack upgrade.
+  // Returning to the menu must not wait for models it will never draw.
+  if (menuLoading && assets) return menuLoading;
   if (glbLoading) return glbLoading;
   menuLoading ??= loadAssetBatch(true).catch((err: unknown) => {
     menuLoading = null;
