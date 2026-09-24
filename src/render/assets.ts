@@ -898,6 +898,29 @@ export async function loadGltfRetry(
 }
 
 let glbLoading: Promise<boolean> | null = null;
+let menuLoading: Promise<boolean> | null = null;
+/** Reused when a menu is followed by a match; released once the pack is complete. */
+const loadedScenes = new Map<string, THREE.Group>();
+
+/** The menu draws only the castle and scenery, never the rest of the village. */
+export function loadMenuAssets(): Promise<boolean> {
+  if (glbLoading) return glbLoading;
+  menuLoading ??= loadAssetBatch(true).catch((err: unknown) => {
+    menuLoading = null;
+    throw err;
+  });
+  return menuLoading;
+}
+
+async function loadFullPack(): Promise<boolean> {
+  // A navigation can request the full pack while the menu is still loading.
+  // Finish that batch first so two builders cannot replace each other's cache.
+  // A failed menu batch can be retried as part of this full load.
+  await menuLoading?.catch(() => {});
+  const ok = await loadAssetBatch(false);
+  if (ok) loadedScenes.clear();
+  return ok;
+}
 
 /**
  * Fetch and prepare the building pack, once per page.
@@ -911,7 +934,7 @@ let glbLoading: Promise<boolean> | null = null;
  * A failure is not cached: the next screen to ask gets a fresh attempt.
  */
 export function loadGlbAssets(): Promise<boolean> {
-  glbLoading ??= loadGlbAssetsOnce().then(
+  glbLoading ??= loadFullPack().then(
     ok => {
       if (!ok) glbLoading = null;
       return ok;
@@ -924,14 +947,18 @@ export function loadGlbAssets(): Promise<boolean> {
   return glbLoading;
 }
 
-async function loadGlbAssetsOnce(): Promise<boolean> {
+async function loadAssetBatch(menuOnly: boolean): Promise<boolean> {
   {
     const loader = new GLTFLoader();
-    const files = new Set(Object.values(BUILDING_FILES));
+    const types = menuOnly ? [BuildingTypeId.storehouse] : BUILDING_TYPES;
+    const files = new Set(
+      types.map(type => BUILDING_FILES[type]).filter(f => f !== undefined),
+    );
     // The models we cut pieces out of. Usually already loaded as a shell of
     // their own; listed anyway so a piece can come from a model no building
     // happens to be using.
-    for (const p of Object.values(PACK_PIECES)) files.add(p.file);
+    if (!menuOnly)
+      for (const p of Object.values(PACK_PIECES)) files.add(p.file);
     const TREE_FILES = ['tree_single_A.gltf', 'tree_single_B.gltf'];
     const ROCK_FILES = [
       'rock_single_A.gltf',
@@ -959,8 +986,8 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       'forest/Tree_Bare_2_A_Color1.gltf',
       'forest/Tree_Bare_2_B_Color1.gltf',
     ];
-    const loaded = new Map<string, THREE.Group>();
-    await Promise.all(
+    const loaded = loadedScenes;
+    const results = await Promise.allSettled(
       [
         ...files,
         ...TREE_FILES,
@@ -968,9 +995,10 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         ...DOODAD_FILES,
         ...FOREST_BUSH_FILES,
         ...FOREST_DEAD_FILES,
-        ...DECOR_PROP_FILES.map(p => `${p}.gltf`),
-        ...GLB_PROP_FILES,
+        ...(menuOnly ? [] : DECOR_PROP_FILES.map(p => `${p}.gltf`)),
+        ...(menuOnly ? [] : GLB_PROP_FILES),
       ].map(async f => {
+        if (loaded.has(f)) return;
         const gltf = await loadGltfRetry(loader, `${DIR}${f}`);
         gltf.scene.traverse(o => {
           if (o instanceof THREE.Mesh) {
@@ -986,6 +1014,11 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         loaded.set(f, gltf.scene);
       }),
     );
+
+    // Drain the batch even on failure: a retry must not race late results
+    // from the previous batch when it publishes or clears the shared cache.
+    const failed = results.find(result => result.status === 'rejected');
+    if (failed) throw failed.reason;
 
     let natureMap: THREE.Texture | null = null;
     /** The forest pack ships its own palette sheet; keep it apart. */
@@ -1016,21 +1049,25 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       geo.scale(s, s, s);
       return geo;
     };
-    const trees = TREE_FILES.map(f => bakeNormalized(f));
-    const rocks = ROCK_FILES.map(f => bakeNormalized(f, true));
+    const trees = assets?.trees ?? TREE_FILES.map(f => bakeNormalized(f));
+    const rocks = assets?.rocks ?? ROCK_FILES.map(f => bakeNormalized(f, true));
     // Lily pads lie flat (span-normalized like rocks); reeds stand (height).
-    const lily = bakeNormalized('waterlily_A.gltf', true);
-    const reed = bakeNormalized('waterplant_A.gltf');
+    const lily = assets?.lily ?? bakeNormalized('waterlily_A.gltf', true);
+    const reed = assets?.reed ?? bakeNormalized('waterplant_A.gltf');
     // Shrubs are wider than tall — span-normalized, like the boulders.
     // Bare trunks are tall things, sized by height like the live trees.
-    const bushes = FOREST_BUSH_FILES.map(f =>
-      bakeNormalized(f, true, ScatterPackNs.forest),
-    );
-    const deadTrees = FOREST_DEAD_FILES.map(f =>
-      bakeNormalized(f, false, ScatterPackNs.forest),
-    );
-    const natureMaterial = new THREE.MeshLambertMaterial({map: natureMap});
-    const forestMaterial = new THREE.MeshLambertMaterial({map: forestMap});
+    const bushes =
+      assets?.bushes ??
+      FOREST_BUSH_FILES.map(f => bakeNormalized(f, true, ScatterPackNs.forest));
+    const deadTrees =
+      assets?.deadTrees ??
+      FOREST_DEAD_FILES.map(f =>
+        bakeNormalized(f, false, ScatterPackNs.forest),
+      );
+    const natureMaterial =
+      assets?.natureMaterial ?? new THREE.MeshLambertMaterial({map: natureMap});
+    const forestMaterial =
+      assets?.forestMaterial ?? new THREE.MeshLambertMaterial({map: forestMap});
 
     /** A prop clone scaled by footprint span, keeping its own y origin —
      * for props that are meant to sit into the ground rather than on it. */
@@ -1091,8 +1128,9 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       }
     };
 
-    const buildings = new Map<BuildingTypeId, THREE.Group>();
-    for (const type of BUILDING_TYPES) {
+    const buildings = new Map(assets?.buildings);
+    for (const type of types) {
+      if (buildings.has(type)) continue;
       const file = BUILDING_FILES[type];
       if (file === undefined) continue;
       const scene = loaded.get(file)!.clone();
@@ -1271,7 +1309,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
     // team-color split — they are UV-mapped into the pack's atlas like a
     // loaded model, so nothing downstream needs a special case.
     const pieces = new Map<string, THREE.Mesh>();
-    for (const [name, spec] of Object.entries(PACK_PIECES)) {
+    for (const [name, spec] of menuOnly ? [] : Object.entries(PACK_PIECES)) {
       const src = loaded.get(spec.file);
       const piece = src ? cutPackPiece(src, spec) : null;
       if (piece) pieces.set(name, piece);
@@ -1292,7 +1330,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       if (!packMaterial && o instanceof THREE.Mesh)
         packMaterial = o.material as THREE.Material;
     });
-    for (const type of BUILDING_TYPES) {
+    for (const type of types) {
       const build = BUILT_BUILDINGS[type];
       if (build === undefined) continue;
       const group = normalize(build(piece, packMaterial));
