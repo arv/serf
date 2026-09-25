@@ -91,20 +91,20 @@ function LedgerGroups() {
   );
 }
 
-/** Rules both shapes of the ledger share: the title, the columns and
- * their rows. */
+/** The ledger's lettering: its title and its column heads. */
+const HEADING_TYPE = `
+  color: #c8a15a;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-variant: small-caps; letter-spacing: 0.08em;
+`;
+
+/** Rules both shapes of the ledger share: the columns and their rows. */
 const GROUP_CSS = `
-  .econ-head h2, .ledger-head h2 {
-    font-size: 15px; color: #c8a15a;
-    font-family: Georgia, 'Times New Roman', serif;
-    font-variant: small-caps; letter-spacing: 0.08em;
-  }
   .econ-groups { display: flex; gap: 18px; min-height: 0; overflow-x: auto; }
   .econ-group { min-width: 118px; }
   .econ-group h3 {
-    margin: 0 0 8px; font-size: 14px; color: #c8a15a;
-    font-family: Georgia, 'Times New Roman', serif;
-    font-variant: small-caps; letter-spacing: 0.08em;
+    ${HEADING_TYPE}
+    margin: 0 0 8px; font-size: 14px;
     border-bottom: 1px solid #6b5230; padding-bottom: 4px;
   }
   .econ-row {
@@ -202,11 +202,12 @@ export function LedgerSheet(props: {
             opacity 160ms linear;
         }
         @media (prefers-reduced-motion: reduce) {
-          .ledger-sheet, .ledger-sheet.open, .ledger-content,
-          .ledger-sheet.open .ledger-content { transition: none; }
+          /* One override for the sheet and everything in it, so no
+             later, more specific rule can slip a transition past it. */
+          .ledger-sheet, .ledger-sheet * { transition: none !important; }
         }
         .ledger-head { display: flex; align-items: center; gap: 2px; }
-        .ledger-head h2 { margin: 0 auto 0 10px; }
+        .ledger-head h2 { ${HEADING_TYPE} margin: 0 auto 0 10px; font-size: 15px; }
         .ledger-sheet .econ-groups { flex-wrap: wrap; padding: 0 10px; }
       `}</style>
       <div class="ledger-content">
@@ -257,7 +258,7 @@ export function EconomyPanel() {
           display: flex; align-items: center; justify-content: space-between;
           gap: 18px; min-height: 26px;
         }
-        .econ-head h2 { margin: 0; }
+        .econ-head h2 { ${HEADING_TYPE} margin: 0; font-size: 15px; }
         #ui button.econ-close {
           flex: none; width: 26px; height: 26px; padding: 0;
           min-width: 0; min-height: 0;

@@ -197,6 +197,11 @@ const HUD_GOODS: GoodId[] = [
  * that slips off an edge for a moment. */
 const LEDGER_PEEK_OPEN_MS = 90;
 const LEDGER_PEEK_CLOSE_MS = 220;
+/** The longest press that still counts as a tap on the strip or the
+ * ledger. Holding is how a touch asks a chip for its tooltip (tooltip.tsx
+ * shows it at 260ms), and lifting from that must not also fold or unfold
+ * the ledger. */
+const LEDGER_TAP_MAX_MS = 250;
 
 export function Hud(props: {
   onSpeed: (speed: number) => void;
@@ -350,24 +355,35 @@ export function Hud(props: {
     (economyPanelOpen() ||
       (canHover() && peeking() && !peekHushed() && openPanel() === null));
   /**
-   * A touch has no hover to peek with, so a tap anywhere on the strip
-   * opens the ledger and another closes it — on the sheet's first row
-   * once the strip has unfolded into it, since that row now stands where
-   * the strip was. Not press-and-hold: holding a chip is already how a
-   * touch asks for its tooltip, and the phone sheet scrolls, which a
-   * finger pinned to the strip cannot do. Where the strip unfolds on
-   * hover, a mouse only pins from the ledger chip — anywhere else on the
-   * strip it is hovering, and the strip has already unfolded under it.
-   * Anywhere else a mouse click is a tap like any other.
+   * A touch has no hover to peek with, so a tap on the strip opens the
+   * ledger, and a tap on the strip or the unfolded sheet closes it. (The
+   * handler sits on .hud-resources, which holds just those two.) Not
+   * press-and-hold: holding a chip is already how a touch asks for its
+   * tooltip, and the phone sheet scrolls, which a finger pinned to the
+   * strip cannot do — so a long press is left to the tooltip. Where the
+   * strip unfolds on hover, a mouse only pins from the ledger chip —
+   * anywhere else it is hovering, and the strip has already unfolded
+   * under it. Anywhere else a mouse click is a tap like any other.
+   *
+   * A tap closes whatever is showing, pinned or peeked: toggling the pin
+   * instead would pin a sheet that only a resting mouse had opened, on a
+   * touchscreen laptop, in answer to a tap meant to close it.
    */
-  let stripPointer = '';
+  let press = {pointer: '', at: 0};
+  const pressStrip = (e: PointerEvent): void => {
+    press = {pointer: e.pointerType, at: e.timeStamp};
+  };
   const tapStrip = (e: MouseEvent): void => {
-    if (stripPointer === 'mouse' && docked() && canHover()) return;
-    const target = e.target as Element;
-    if (!target.closest('.strip, .ledger-head')) return;
+    if (press.pointer === 'mouse' && docked() && canHover()) return;
+    if (e.timeStamp - press.at > LEDGER_TAP_MAX_MS) return;
     // The ledger chip answers its own clicks (it stands on the sheet too).
-    if (target.closest('.ledger')) return;
-    setEconomyPanelOpen(!economyPanelOpen());
+    if ((e.target as Element).closest('.ledger')) return;
+    if (docked() ? ledgerOpen() : economyPanelOpen()) {
+      setEconomyPanelOpen(false);
+      if (peeking()) setPeekHushed(true);
+    } else {
+      setEconomyPanelOpen(true);
+    }
   };
   let stripEl: HTMLDivElement | undefined;
   // Phones start with the build card folded to a pill; arming a placement
@@ -1022,7 +1038,7 @@ export function Hud(props: {
               ? economyPanelOpen()
                 ? 'Pinned open. Click to let it fold away.'
                 : 'Every good the village owns, grouped by kind. Click to pin it open.'
-              : 'Every good the village owns, grouped by kind. Tap the strip to open it.'
+              : 'Every good the village owns, grouped by kind. Tap the strip to open it, and again to close it.'
           }
         />
       ))}
@@ -1314,10 +1330,11 @@ export function Hud(props: {
           opacity: 0;
           transition: opacity 80ms linear, background 0.15s, color 0.15s;
         }
+        /* One override for the strip and everything in it, so no later,
+           more specific rule can slip a transition past it. */
         @media (prefers-reduced-motion: reduce) {
           #ui .hud-resources > .strip,
-          #ui .hud-resources > .strip > *,
-          #ui .hud-resources > .strip.unfolded > * { transition: none; }
+          #ui .hud-resources > .strip * { transition: none !important; }
         }
         .hud-resources > .strip {
           pointer-events: auto; max-width: 100%;
@@ -2313,7 +2330,7 @@ export function Hud(props: {
           class="hud-resources"
           onPointerEnter={e => peek(e, true)}
           onPointerLeave={e => peek(e, false)}
-          onPointerDown={e => (stripPointer = e.pointerType)}
+          onPointerDown={pressStrip}
           onClick={tapStrip}
         >
           <div
