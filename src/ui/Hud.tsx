@@ -326,16 +326,25 @@ export function Hud(props: {
   const [peekHushed, setPeekHushed] = createSignal(false);
   let peekTimer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(peekTimer));
+  /** Where the pointer is headed while a hover-intent timer is pending
+   * (null once it has fired). */
+  let peekPending: boolean | null = null;
   const setPeek = (over: boolean): void => {
     clearTimeout(peekTimer);
+    peekPending = over;
     peekTimer = setTimeout(
       () => {
+        peekPending = null;
         setPeeking(over);
         if (!over) setPeekHushed(false);
       },
       over ? LEDGER_PEEK_OPEN_MS : LEDGER_PEEK_CLOSE_MS,
     );
   };
+  /** Whether the pointer is on the strip, counting one that has only just
+   * arrived: unpinning in the first moments after it did must hush the
+   * peek too, or the pending timer reopens what was just closed. */
+  const pointerOnStrip = (): boolean => peekPending ?? peeking();
   const peek = (e: PointerEvent, over: boolean): void => {
     if (e.pointerType === 'mouse') setPeek(over);
   };
@@ -343,7 +352,7 @@ export function Hud(props: {
     on(
       economyPanelOpen,
       (open, was) => {
-        if (was && !open && peeking()) setPeekHushed(true);
+        if (was && !open && pointerOnStrip()) setPeekHushed(true);
       },
       {defer: true},
     ),
@@ -387,7 +396,7 @@ export function Hud(props: {
     if (e.timeStamp - press.at > LEDGER_TAP_MAX_MS) return;
     if (docked() ? ledgerOpen() : economyPanelOpen()) {
       setEconomyPanelOpen(false);
-      if (peeking()) setPeekHushed(true);
+      if (pointerOnStrip()) setPeekHushed(true);
     } else {
       setEconomyPanelOpen(true);
     }
