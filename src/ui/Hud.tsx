@@ -1,6 +1,7 @@
 import {
   For,
   Show,
+  createComputed,
   createEffect,
   createSignal,
   on,
@@ -365,19 +366,25 @@ export function Hud(props: {
    * anywhere else it is hovering, and the strip has already unfolded
    * under it. Anywhere else a mouse click is a tap like any other.
    *
-   * A tap closes whatever is showing, pinned or peeked: toggling the pin
-   * instead would pin a sheet that only a resting mouse had opened, on a
-   * touchscreen laptop, in answer to a tap meant to close it.
+   * A tap closes whatever is showing, pinned or peeked — the ledger chip
+   * included: toggling the pin instead would pin a sheet that only a
+   * resting mouse had opened, on a touchscreen laptop, in answer to a tap
+   * meant to close it. The pin is the hovering mouse's and the
+   * keyboard's (a click with no press behind it), and only through the
+   * chip.
    */
   let press = {pointer: '', at: 0};
   const pressStrip = (e: PointerEvent): void => {
     press = {pointer: e.pointerType, at: e.timeStamp};
   };
   const tapStrip = (e: MouseEvent): void => {
-    if (press.pointer === 'mouse' && docked() && canHover()) return;
+    const onChip = (e.target as Element).closest('.ledger') !== null;
+    const keyboard = e.detail === 0;
+    if (keyboard || (press.pointer === 'mouse' && docked() && canHover())) {
+      if (onChip) setEconomyPanelOpen(!economyPanelOpen());
+      return;
+    }
     if (e.timeStamp - press.at > LEDGER_TAP_MAX_MS) return;
-    // The ledger chip answers its own clicks (it stands on the sheet too).
-    if ((e.target as Element).closest('.ledger')) return;
     if (docked() ? ledgerOpen() : economyPanelOpen()) {
       setEconomyPanelOpen(false);
       if (peeking()) setPeekHushed(true);
@@ -386,6 +393,26 @@ export function Hud(props: {
     }
   };
   let stripEl: HTMLDivElement | undefined;
+  /**
+   * The ledger chip that has keyboard focus goes out of reach when the
+   * fold turns — the unfolded strip is inert, the folded sheet hidden —
+   * so focus crosses to its twin on the other side rather than falling
+   * to the page. Read before the swap renders, moved once it has.
+   */
+  let stripChip: HTMLButtonElement | undefined;
+  let sheetChip: HTMLButtonElement | undefined;
+  createComputed(
+    on(
+      ledgerOpen,
+      open => {
+        const from = open ? stripChip : sheetChip;
+        const to = open ? sheetChip : stripChip;
+        if (from && document.activeElement === from)
+          queueMicrotask(() => to?.focus());
+      },
+      {defer: true},
+    ),
+  );
   // Phones start with the build card folded to a pill; arming a placement
   // folds it again so the map is visible while you aim the ghost.
   const [buildOpen, setBuildOpen] = createSignal(false);
@@ -1024,9 +1051,11 @@ export function Hud(props: {
    * styled as a chip, ruled off like population — it is not a good
    * either, it is where the other fourteen went. Where the strip unfolds
    * on hover this pins the ledger open (and unpins it); on a touch screen
-   * it toggles the ledger like a tap anywhere else on the strip. */
-  const LedgerChip = () => (
+   * it toggles the ledger like a tap anywhere else on the strip. Its
+   * clicks are tapStrip's, which knows which of the two a click is. */
+  const LedgerChip = (p: {ref: (el: HTMLButtonElement) => void}) => (
     <button
+      ref={p.ref}
       class="res ledger has"
       classList={{active: economyPanelOpen()}}
       aria-pressed={economyPanelOpen()}
@@ -1042,7 +1071,6 @@ export function Hud(props: {
           }
         />
       ))}
-      onClick={() => setEconomyPanelOpen(!economyPanelOpen())}
     >
       <LedgerIcon />
     </button>
@@ -2337,6 +2365,9 @@ export function Hud(props: {
             ref={stripEl}
             class="strip panel"
             classList={{unfolded: ledgerOpen()}}
+            // Hidden behind the sheet while unfolded: out of the tab
+            // order and the accessibility tree, not just faded.
+            inert={ledgerOpen()}
           >
             <For each={HUD_GOODS}>
               {good => (
@@ -2351,7 +2382,7 @@ export function Hud(props: {
               )}
             </For>
             <PopChip />
-            <LedgerChip />
+            <LedgerChip ref={el => (stripChip = el)} />
           </div>
           <Show when={docked()}>
             <LedgerSheet
@@ -2360,7 +2391,7 @@ export function Hud(props: {
               head={
                 <>
                   <PopChip />
-                  <LedgerChip />
+                  <LedgerChip ref={el => (sheetChip = el)} />
                 </>
               }
             />
