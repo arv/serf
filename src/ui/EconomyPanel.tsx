@@ -91,8 +91,14 @@ function LedgerGroups() {
   );
 }
 
-/** Rules both shapes of the ledger share: the columns and their rows. */
+/** Rules both shapes of the ledger share: the title, the columns and
+ * their rows. */
 const GROUP_CSS = `
+  .econ-head h2, .ledger-head h2 {
+    font-size: 15px; color: #c8a15a;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-variant: small-caps; letter-spacing: 0.08em;
+  }
   .econ-groups { display: flex; gap: 18px; min-height: 0; overflow-x: auto; }
   .econ-group { min-width: 118px; }
   .econ-group h3 {
@@ -196,14 +202,11 @@ export function LedgerSheet(props: {
             opacity 160ms linear;
         }
         @media (prefers-reduced-motion: reduce) {
-          .ledger-sheet, .ledger-sheet.open, .ledger-content { transition: none; }
+          .ledger-sheet, .ledger-sheet.open, .ledger-content,
+          .ledger-sheet.open .ledger-content { transition: none; }
         }
         .ledger-head { display: flex; align-items: center; gap: 2px; }
-        .ledger-head h2 {
-          margin: 0 auto 0 10px; font-size: 15px; color: #c8a15a;
-          font-family: Georgia, 'Times New Roman', serif;
-          font-variant: small-caps; letter-spacing: 0.08em;
-        }
+        .ledger-head h2 { margin: 0 auto 0 10px; }
         .ledger-sheet .econ-groups { flex-wrap: wrap; padding: 0 10px; }
       `}</style>
       <div class="ledger-content">
@@ -254,11 +257,7 @@ export function EconomyPanel() {
           display: flex; align-items: center; justify-content: space-between;
           gap: 18px; min-height: 26px;
         }
-        .econ-head h2 {
-          margin: 0; font-size: 15px; color: #c8a15a;
-          font-family: Georgia, 'Times New Roman', serif;
-          font-variant: small-caps; letter-spacing: 0.08em;
-        }
+        .econ-head h2 { margin: 0; }
         #ui button.econ-close {
           flex: none; width: 26px; height: 26px; padding: 0;
           min-width: 0; min-height: 0;

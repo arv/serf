@@ -342,32 +342,33 @@ export function Hud(props: {
       {defer: true},
     ),
   );
-  /** Whether the sheet should stand. A peek never opens over another
-   * panel: the tech tree and the ☰ menu drop into the same space. */
-  const ledgerWanted = (): boolean =>
-    economyPanelOpen() ||
-    (docked() &&
-      canHover() &&
-      peeking() &&
-      !peekHushed() &&
-      openPanel() === null);
+  /** Whether the ledger stands open (the docked sheet unfolded). A peek
+   * never opens over another panel: the tech tree and the ☰ menu drop
+   * into the same space. */
+  const ledgerOpen = (): boolean =>
+    docked() &&
+    (economyPanelOpen() ||
+      (canHover() && peeking() && !peekHushed() && openPanel() === null));
   /**
    * A touch has no hover to peek with, so a tap anywhere on the strip
-   * opens the ledger and another closes it. Not press-and-hold: holding a
-   * chip is already how a touch asks for its tooltip, and the phone sheet
-   * scrolls, which a finger pinned to the strip cannot do. A mouse only
-   * pins from the ledger chip — anywhere else on the strip it is hovering,
-   * and the strip has already unfolded under it.
+   * opens the ledger and another closes it — on the sheet's first row
+   * once the strip has unfolded into it, since that row now stands where
+   * the strip was. Not press-and-hold: holding a chip is already how a
+   * touch asks for its tooltip, and the phone sheet scrolls, which a
+   * finger pinned to the strip cannot do. Where the strip unfolds on
+   * hover, a mouse only pins from the ledger chip — anywhere else on the
+   * strip it is hovering, and the strip has already unfolded under it.
+   * Anywhere else a mouse click is a tap like any other.
    */
   let stripPointer = '';
   const tapStrip = (e: MouseEvent): void => {
-    if (stripPointer === 'mouse') return;
+    if (stripPointer === 'mouse' && docked() && canHover()) return;
+    const target = e.target as Element;
+    if (!target.closest('.strip, .ledger-head')) return;
     // The ledger chip answers its own clicks (it stands on the sheet too).
-    if ((e.target as Element).closest('.ledger')) return;
+    if (target.closest('.ledger')) return;
     setEconomyPanelOpen(!economyPanelOpen());
   };
-  /** Whether the ledger stands open (the docked sheet unfolded). */
-  const ledgerOpen = (): boolean => docked() && ledgerWanted();
   let stripEl: HTMLDivElement | undefined;
   // Phones start with the build card folded to a pill; arming a placement
   // folds it again so the map is visible while you aim the ghost.
@@ -1315,7 +1316,8 @@ export function Hud(props: {
         }
         @media (prefers-reduced-motion: reduce) {
           #ui .hud-resources > .strip,
-          #ui .hud-resources > .strip > * { transition: none; }
+          #ui .hud-resources > .strip > *,
+          #ui .hud-resources > .strip.unfolded > * { transition: none; }
         }
         .hud-resources > .strip {
           pointer-events: auto; max-width: 100%;
@@ -2311,13 +2313,13 @@ export function Hud(props: {
           class="hud-resources"
           onPointerEnter={e => peek(e, true)}
           onPointerLeave={e => peek(e, false)}
+          onPointerDown={e => (stripPointer = e.pointerType)}
+          onClick={tapStrip}
         >
           <div
             ref={stripEl}
             class="strip panel"
             classList={{unfolded: ledgerOpen()}}
-            onPointerDown={e => (stripPointer = e.pointerType)}
-            onClick={tapStrip}
           >
             <For each={HUD_GOODS}>
               {good => (
