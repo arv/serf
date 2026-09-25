@@ -1,4 +1,4 @@
-import {For, Show, type JSX} from 'solid-js';
+import {For, Show, onCleanup, onMount, type JSX} from 'solid-js';
 import type {Enum} from '../shared/enum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {GOODS, GOOD_KEYS} from '../sim/defs/goods';
@@ -51,27 +51,13 @@ if (import.meta.env.DEV) {
   }
 }
 
-/**
- * The view-transition name a good's icon or count carries, shared by its
- * chip on the goods strip and its row here: two elements answering to
- * one name across a transition are what the browser morphs one into the
- * other. Set as a custom property rather than as the name itself — the
- * name only switches on while a transition is being taken (see the
- * `ledger-vt` rules in Hud), and only on whichever of the pair is
- * standing, because a name two elements hold at once aborts the lot.
- */
-export function ledgerVt(
-  kind: 'icon' | 'name' | 'num',
-  good: GoodId,
-): JSX.CSSProperties {
-  return {'--vt': `ledger-${kind}-${GOOD_KEYS[good]}`};
-}
+/** How long the strip takes to unfold into the ledger, and to fold back.
+ * Hud times the strip's side of the swap with the same number. */
+export const LEDGER_UNFOLD_MS = 280;
+const UNFOLD_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 
-/** The five columns. `morph` is the goods whose icon and count arrive from
- * the strip (and so carry its names); the rest fade in with the sheet. */
-function LedgerGroups(props: {morph?: ReadonlySet<GoodId>}) {
-  const vt = (kind: 'icon' | 'name' | 'num', good: GoodId) =>
-    props.morph?.has(good) ? ledgerVt(kind, good) : undefined;
+/** The five columns. */
+function LedgerGroups() {
   return (
     <div class="econ-groups">
       <For each={GROUPS}>
@@ -85,17 +71,8 @@ function LedgerGroups(props: {morph?: ReadonlySet<GoodId>}) {
                   classList={{none: (stock()[good] ?? 0) === 0}}
                   {...tooltip(() => <GoodTip good={good} />)}
                 >
-                  <span class="vt" style={vt('icon', good)}>
-                    <GoodIcon good={good} size={14} />
-                  </span>
-                  {/* The words, not the stretching box around them: the
-                      strip's hidden twin is only as wide as the name, and
-                      a pair the same size slides without being scaled. */}
-                  <span class="name">
-                    <span class="vt" style={vt('name', good)}>
-                      {goodName(good)}
-                    </span>
-                  </span>
+                  <GoodIcon good={good} size={14} />
+                  <span class="name">{goodName(good)}</span>
                   <Show when={group.label === 'Tools'}>
                     <span class="want">
                       {(toolWants()[good] ?? 0) > 0
@@ -103,11 +80,7 @@ function LedgerGroups(props: {morph?: ReadonlySet<GoodId>}) {
                         : ''}
                     </span>
                   </Show>
-                  <span class="num">
-                    <span class="vt" style={vt('num', good)}>
-                      {stock()[good] ?? 0}
-                    </span>
-                  </span>
+                  <span class="num">{stock()[good] ?? 0}</span>
                 </div>
               )}
             </For>
@@ -134,11 +107,7 @@ const GROUP_CSS = `
   }
   .econ-row .name { flex: 1; min-width: 0; }
   .econ-row .num { min-width: 3ch; text-align: right; font-weight: 600; }
-  .econ-row .vt { display: inline-flex; }
-  /* On the pieces, not the row: a transition's snapshot of a named
-     element leaves out its ancestors' opacity, so a dimmed row's icon
-     and count flew in at full strength and dimmed on landing. */
-  .econ-row.none :is(.vt, .want) { opacity: 0.45; }
+  .econ-row.none { opacity: 0.45; }
   /* An open post waiting on this tool: the one number in here that
      is a task rather than a balance. Its slot is always cut, so a
      want appearing moves nothing. */
@@ -147,25 +116,87 @@ const GROUP_CSS = `
 
 /**
  * The ledger grown out of the goods strip — the shape it takes wherever
- * there is room (ROOMY). The strip and this sheet are one element in two
- * states: the sheet stands where the strip stood, its first row carries
- * the strip's own population and ledger chips (`head`), and the goods the
- * strip was showing fly down into their rows. Hud owns when it stands.
+ * there is room (ROOMY). It stands over the strip, centred on it, and
+ * stays mounted so that opening and closing are both transitions and
+ * either can turn back halfway.
+ *
+ * Folded, it is clipped to exactly the strip's rectangle (and hidden).
+ * Unfolding, the clip opens out to the whole sheet while the content —
+ * header row and all — slides down from under the strip, lifted by the
+ * same distance the bottom edge has still to travel, so it comes down
+ * with that edge rather than appearing inside the box. The strip keeps
+ * its own chips and fades them out over the top (see Hud); the sheet's
+ * first row carries its own copies of the population and ledger chips
+ * (`head`). Hud owns when it is open.
  */
 export function LedgerSheet(props: {
   head: JSX.Element;
-  morph: ReadonlySet<GoodId>;
+  open: boolean;
+  strip: HTMLElement | undefined;
 }) {
+  let el!: HTMLDivElement;
+  // The strip's rectangle, as insets from the sheet's: both are centred
+  // on the same point and hang from the same top, so a side and a bottom
+  // are all it takes. Kept current, because either can change size —
+  // a count growing a digit, a tool falling due.
+  onMount(() => {
+    const measure = (): void => {
+      const strip = props.strip;
+      if (!strip) return;
+      const side = (el.offsetWidth - strip.offsetWidth) / 2;
+      const below = el.offsetHeight - strip.offsetHeight;
+      el.style.setProperty('--fold-side', `${Math.max(0, side)}px`);
+      el.style.setProperty('--fold-below', `${Math.max(0, below)}px`);
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (props.strip) ro.observe(props.strip);
+    measure();
+    onCleanup(() => ro.disconnect());
+  });
   return (
-    <div class="ledger-sheet panel vt" style={{'--vt': 'ledger-sheet'}}>
+    <div ref={el} class="ledger-sheet panel" classList={{open: props.open}}>
       <style>{`
         ${GROUP_CSS}
         .ledger-sheet {
           position: absolute; top: 0; left: 50%; transform: translateX(-50%);
           box-sizing: border-box; width: max-content; max-width: 100%;
-          display: flex; flex-direction: column; gap: 8px;
-          padding: 5px 8px 14px; pointer-events: auto;
+          padding: 0; overflow: hidden;
           z-index: 20; /* modal layer — same shelf as the tech sheet */
+          visibility: hidden; pointer-events: none;
+          clip-path: inset(0 var(--fold-side, 0px) var(--fold-below, 0px) round 12px);
+          transition:
+            clip-path ${LEDGER_UNFOLD_MS}ms ${UNFOLD_EASE},
+            visibility 0s ${LEDGER_UNFOLD_MS}ms;
+        }
+        /* Open, the clip stands clear of the box so its shadow shows. */
+        .ledger-sheet.open {
+          visibility: visible; pointer-events: auto;
+          clip-path: inset(-24px -24px -32px round 14px);
+          transition: clip-path ${LEDGER_UNFOLD_MS}ms ${UNFOLD_EASE};
+        }
+        /* Lifted, the content's last rows sit inside the strip's own
+           rectangle — where the strip's chips are — so it also fades:
+           in as it starts down, crossing the chips as they fade out;
+           out as it heads back up, as they return. The curve does most
+           of its travel early, so both fades sit at the front. */
+        .ledger-content {
+          display: flex; flex-direction: column; gap: 8px;
+          padding: 5px 8px 14px;
+          opacity: 0;
+          transform: translateY(calc(-1 * var(--fold-below, 0px)));
+          transition:
+            transform ${LEDGER_UNFOLD_MS}ms ${UNFOLD_EASE},
+            opacity 100ms linear;
+        }
+        .ledger-sheet.open .ledger-content {
+          opacity: 1; transform: none;
+          transition:
+            transform ${LEDGER_UNFOLD_MS}ms ${UNFOLD_EASE},
+            opacity 160ms linear;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ledger-sheet, .ledger-sheet.open, .ledger-content { transition: none; }
         }
         .ledger-head { display: flex; align-items: center; gap: 2px; }
         .ledger-head h2 {
@@ -175,23 +206,21 @@ export function LedgerSheet(props: {
         }
         .ledger-sheet .econ-groups { flex-wrap: wrap; padding: 0 10px; }
       `}</style>
-      <div class="ledger-head">
-        <h2 class="ledger-title vt" style={{'--vt': 'ledger-title'}}>
-          The Ledger
-        </h2>
-        {props.head}
-      </div>
-      <div class="ledger-body vt" style={{'--vt': 'ledger-body'}}>
-        <LedgerGroups morph={props.morph} />
+      <div class="ledger-content">
+        <div class="ledger-head">
+          <h2>The Ledger</h2>
+          {props.head}
+        </div>
+        <LedgerGroups />
       </div>
     </div>
   );
 }
 
 /** The ledger on a phone: a sheet of its own under the strip, which
- * stays put above it — only the goods it was showing fly down into their
- * rows. Opened by a tap on the strip; closed by another, or by ✕. */
-export function EconomyPanel(props: {morph: ReadonlySet<GoodId>}) {
+ * stays put above it. Opened by a tap on the strip; closed by another,
+ * or by ✕. */
+export function EconomyPanel() {
   return (
     <>
       {/* Scrim + sheet, the tech tree's arrangement — see TechTreePanel
@@ -253,7 +282,7 @@ export function EconomyPanel(props: {morph: ReadonlySet<GoodId>}) {
             ✕
           </button>
         </div>
-        <LedgerGroups morph={props.morph} />
+        <LedgerGroups />
       </div>
     </>
   );
