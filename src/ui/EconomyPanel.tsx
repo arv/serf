@@ -176,12 +176,12 @@ export function LedgerSheet(props: {
         .ledger-sheet .econ-groups { flex-wrap: wrap; padding: 0 10px; }
       `}</style>
       <div class="ledger-head">
-        <h2 class="vt" style={{'--vt': 'ledger-title'}}>
+        <h2 class="ledger-title vt" style={{'--vt': 'ledger-title'}}>
           The Ledger
         </h2>
         {props.head}
       </div>
-      <div class="vt" style={{'--vt': 'ledger-body'}}>
+      <div class="ledger-body vt" style={{'--vt': 'ledger-body'}}>
         <LedgerGroups morph={props.morph} />
       </div>
     </div>

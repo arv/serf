@@ -56,6 +56,13 @@ import {
   SpeakerOffIcon,
   SwordsIcon,
 } from './icons';
+import {
+  MORPH_EASE_CSS,
+  MORPH_MS,
+  ledgerMorphing,
+  measureLedgerMorph,
+  morphLedger,
+} from './ledgerMorph';
 import {Minimap, type MinimapSource} from './Minimap';
 import * as MinimapMode from './minimapModeEnum.ts';
 import {MissionPanel, continueTarget} from './MissionPanel';
@@ -199,39 +206,6 @@ const HUD_GOODS_SET: ReadonlySet<GoodId> = new Set(HUD_GOODS);
 const LEDGER_PEEK_OPEN_MS = 90;
 const LEDGER_PEEK_CLOSE_MS = 220;
 
-/**
- * Run `update` as a view transition between the goods strip and the
- * ledger sheet: the elements the two share a name with (see ledgerVt)
- * morph from one to the other, the sheet's own box grows or shrinks
- * around them, and the rest of the sheet fades.
- *
- * The page itself is left out of the capture (`html.ledger-vt` names the
- * root `none`), which is what keeps the world rendering live under the
- * morph instead of freezing into a crossfaded screenshot for its length.
- * The class is also what switches the names on — they are custom
- * properties the rest of the time, so nothing outside a transition pays
- * for the stacking contexts a name makes.
- *
- * `settled` runs once the last of any overlapping morphs is over.
- */
-let ledgerMorphs = 0;
-function morphLedger(
-  opening: boolean,
-  update: () => void,
-  settled: () => void,
-): void {
-  const root = document.documentElement;
-  root.classList.add('ledger-vt');
-  root.classList.toggle('ledger-vt-open', opening);
-  ledgerMorphs++;
-  const t = document.startViewTransition(update);
-  void t.finished.finally(() => {
-    if (--ledgerMorphs > 0) return;
-    root.classList.remove('ledger-vt', 'ledger-vt-open');
-    settled();
-  });
-}
-
 export function Hud(props: {
   onSpeed: (speed: number) => void;
   onPlace: (type: BuildingTypeId | null) => void;
@@ -370,7 +344,7 @@ export function Hud(props: {
     // the strip reports a leave the pointer never made — the sheet would
     // fold itself away under a pointer resting on it. The morph's end
     // looks again instead (recheckPeek).
-    if (e.pointerType !== 'mouse' || ledgerMorphs > 0) return;
+    if (e.pointerType !== 'mouse' || ledgerMorphing()) return;
     setPeek(over);
   };
   // Where the mouse last was, for that look: nothing reports the pointer
@@ -429,8 +403,14 @@ export function Hud(props: {
       // Read the wish again inside the update: a transition started while
       // another runs skips that one, and the state it lands on must be the
       // latest, not the one this effect was woken for.
-      const update = (): void => {
-        setLedgerShown(ledgerWanted());
+      // The plan is measured while the sheet stands: after the swap
+      // when opening, before it when closing.
+      const update = () => {
+        const show = ledgerWanted();
+        const before =
+          resourcesEl && !show ? measureLedgerMorph(resourcesEl) : null;
+        setLedgerShown(show);
+        return resourcesEl && show ? measureLedgerMorph(resourcesEl) : before;
       };
       if (noMotion() || typeof document.startViewTransition !== 'function')
         update();
@@ -1364,7 +1344,7 @@ export function Hud(props: {
         }
 
         /* ——— The strip ⇄ ledger morph ———
-           See morphLedger. Names live in --vt, and --vt must not inherit:
+           See ledgerMorph.ts. Names live in --vt, and --vt must not inherit:
            an element carrying a name hands it to nothing inside it, or
            the first unnamed .vt below would claim the same one and the
            browser would refuse the whole transition. Only the strip's
@@ -1380,20 +1360,63 @@ export function Hud(props: {
           view-transition-name: var(--vt);
         }
         html.ledger-vt::view-transition-group(*) {
-          animation-duration: 280ms;
-          animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+          animation-duration: ${MORPH_MS}ms;
+          animation-timing-function: ${MORPH_EASE_CSS};
         }
-        /* What has no twin on the strip — the title, the other fourteen
-           goods, the column heads — waits for the box to have grown
-           most of the way around it before it shows, and on the way
-           back leaves first, so it is never seen outside the box. */
-        html.ledger-vt-open::view-transition-new(ledger-title),
+        /* The body — the other fourteen goods, the column heads —
+           slides down with the box's bottom edge, clipped at the header
+           line: see ledgerMorph.ts for the numbers. Timed exactly as the
+           groups are, or its edge and the box's would part mid-flight. */
+        @keyframes ledger-unfold-body {
+          from {
+            transform: translateY(var(--unfold-drop, 0px));
+            clip-path: inset(var(--unfold-body-top, 0px) var(--unfold-body-right, 0px) 0 var(--unfold-body-left, 0px));
+          }
+          to { transform: none; clip-path: inset(0); }
+        }
+        @keyframes ledger-fold-body {
+          from { transform: none; clip-path: inset(0); }
+          to {
+            transform: translateY(var(--unfold-drop, 0px));
+            clip-path: inset(var(--unfold-body-top, 0px) var(--unfold-body-right, 0px) 0 var(--unfold-body-left, 0px));
+          }
+        }
         html.ledger-vt-open::view-transition-new(ledger-body) {
-          animation-delay: 120ms; animation-duration: 160ms;
+          animation-name: ledger-unfold-body;
         }
-        html.ledger-vt:not(.ledger-vt-open)::view-transition-old(ledger-title),
         html.ledger-vt:not(.ledger-vt-open)::view-transition-old(ledger-body) {
-          animation-duration: 100ms;
+          animation-name: ledger-fold-body;
+        }
+        html.ledger-vt::view-transition-new(ledger-body),
+        html.ledger-vt::view-transition-old(ledger-body) {
+          animation-duration: ${MORPH_MS}ms;
+          animation-timing-function: ${MORPH_EASE_CSS};
+          animation-fill-mode: both;
+        }
+        /* The title shares the header row with the goods on their way
+           across to their columns, so it keeps out of their way: in once
+           they have all gone down into their rows, out before they come
+           back up. And like everything else in the sheet it is clipped
+           by the box's sides, so it is never seen outside them. */
+        @keyframes ledger-title-in { from { opacity: 0; } }
+        @keyframes ledger-title-out { to { opacity: 0; } }
+        @keyframes ledger-unfold-title {
+          from { clip-path: inset(0 var(--unfold-title-right, 0px) 0 var(--unfold-title-left, 0px)); }
+          to { clip-path: inset(0); }
+        }
+        @keyframes ledger-fold-title {
+          from { clip-path: inset(0); }
+          to { clip-path: inset(0 var(--unfold-title-right, 0px) 0 var(--unfold-title-left, 0px)); }
+        }
+        html.ledger-vt-open::view-transition-new(ledger-title) {
+          animation:
+            ledger-title-in 160ms linear 100ms both,
+            ledger-unfold-title ${MORPH_MS}ms ${MORPH_EASE_CSS} both;
+        }
+        html.ledger-vt:not(.ledger-vt-open)::view-transition-old(ledger-title) {
+          animation:
+            ledger-title-out 40ms linear both,
+            ledger-fold-title ${MORPH_MS}ms ${MORPH_EASE_CSS} both;
         }
         /* A label starts (and ends) from under its good's count — on the
            strip the count sits where the name will unfold — so it is
