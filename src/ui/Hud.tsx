@@ -59,7 +59,7 @@ import {
 import {Minimap, type MinimapSource} from './Minimap';
 import * as MinimapMode from './minimapModeEnum.ts';
 import {MissionPanel, continueTarget} from './MissionPanel';
-import {buildingName, seatName, techName} from './names';
+import {buildingName, goodName, seatName, techName} from './names';
 import {SelectionPanel} from './SelectionPanel';
 import {Key} from './shortcut';
 import {REPLAY_GEAR, SPEED_GEARS} from './speedControl';
@@ -1350,6 +1350,18 @@ export function Hud(props: {
         .hud-resources > .strip.stowed,
         .hud-resources .res.stowed { visibility: hidden; }
         .hud-resources .res .vt { display: inline-flex; }
+        /* Beside its icon, out of the flow, and set exactly as the
+           ledger row sets it so the two boxes match. */
+        .hud-resources .res .icon { position: relative; }
+        .hud-resources .res .twin-name {
+          position: absolute; left: calc(100% + 7px); top: 50%;
+          transform: translateY(-50%);
+          visibility: hidden; white-space: nowrap;
+          font-size: 12.5px; font-weight: 400;
+        }
+        @media ${COMPACT} {
+          .hud-resources .res .twin-name { font-size: 13.5px; }
+        }
 
         /* ——— The strip ⇄ ledger morph ———
            See morphLedger. Names live in --vt, and --vt must not inherit:
@@ -1383,6 +1395,19 @@ export function Hud(props: {
         html.ledger-vt:not(.ledger-vt-open)::view-transition-old(ledger-body) {
           animation-duration: 100ms;
         }
+        /* A label starts (and ends) from under its good's count — on the
+           strip the count sits where the name will unfold — so it is
+           kept faint across that stretch: in a beat after the flight
+           has cleared the count, out before it gets back there. */
+        html.ledger-vt :is(.twin-name, .econ-row .name .vt) {
+          view-transition-class: ledger-name;
+        }
+        html.ledger-vt-open::view-transition-new(*.ledger-name) {
+          animation-delay: 60ms; animation-duration: 200ms;
+        }
+        html.ledger-vt:not(.ledger-vt-open)::view-transition-old(*.ledger-name) {
+          animation-duration: 110ms;
+        }
         .hud-resources > .strip {
           pointer-events: auto; max-width: 100%;
           display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px;
@@ -1392,8 +1417,11 @@ export function Hud(props: {
           display: inline-flex; align-items: center; gap: 3px;
           padding: 3px 9px; border-radius: 8px;
           font-size: 13.5px; font-weight: 500; color: #e9e6dd;
-          opacity: 0.35;
         }
+        /* An empty good greys out piece by piece rather than as a chip,
+           for the ledger rows' reason (see .econ-row.none): the pieces
+           are what fly, and they carry only their own opacity. */
+        .hud-resources span.res:not(.has) .vt { opacity: 0.35; }
         /* Three digits' worth of slot per good. This strip sits dead
            centre and every count in it changes on its own, so without
            a fixed slot one barn filling past 99 walks every chip
@@ -1412,7 +1440,6 @@ export function Hud(props: {
            the strip still, not which end the digits start from. */
         .hud-resources span.res .num { min-width: 3ch; text-align: left; }
         .hud-resources span.res:hover { background: rgba(255, 255, 255, 0.06); }
-        .hud-resources span.res.has { opacity: 1; }
         /* Heads and beds. Ruled off from the goods because it is not one —
            it is the ceiling everything else is spent under. */
         .hud-resources span.res.pop {
@@ -2397,8 +2424,18 @@ export function Hud(props: {
                   }}
                   {...tooltip(() => <GoodTip good={good} />)}
                 >
-                  <span class="vt" style={ledgerVt('icon', good)}>
+                  <span class="vt icon" style={ledgerVt('icon', good)}>
                     <GoodIcon good={good} />
+                    {/* The ledger row's label, here but never seen: the
+                        twin it needs to fly out from beside the icon
+                        rather than fade in where it lands. */}
+                    <span
+                      class="vt twin-name"
+                      aria-hidden="true"
+                      style={ledgerVt('name', good)}
+                    >
+                      {goodName(good)}
+                    </span>
                   </span>{' '}
                   <span class="num">
                     <span class="vt" style={ledgerVt('num', good)}>

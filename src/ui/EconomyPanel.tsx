@@ -61,7 +61,7 @@ if (import.meta.env.DEV) {
  * standing, because a name two elements hold at once aborts the lot.
  */
 export function ledgerVt(
-  kind: 'icon' | 'num',
+  kind: 'icon' | 'name' | 'num',
   good: GoodId,
 ): JSX.CSSProperties {
   return {'--vt': `ledger-${kind}-${GOOD_KEYS[good]}`};
@@ -70,7 +70,7 @@ export function ledgerVt(
 /** The five columns. `morph` is the goods whose icon and count arrive from
  * the strip (and so carry its names); the rest fade in with the sheet. */
 function LedgerGroups(props: {morph?: ReadonlySet<GoodId>}) {
-  const vt = (kind: 'icon' | 'num', good: GoodId) =>
+  const vt = (kind: 'icon' | 'name' | 'num', good: GoodId) =>
     props.morph?.has(good) ? ledgerVt(kind, good) : undefined;
   return (
     <div class="econ-groups">
@@ -88,7 +88,14 @@ function LedgerGroups(props: {morph?: ReadonlySet<GoodId>}) {
                   <span class="vt" style={vt('icon', good)}>
                     <GoodIcon good={good} size={14} />
                   </span>
-                  <span class="name">{goodName(good)}</span>
+                  {/* The words, not the stretching box around them: the
+                      strip's hidden twin is only as wide as the name, and
+                      a pair the same size slides without being scaled. */}
+                  <span class="name">
+                    <span class="vt" style={vt('name', good)}>
+                      {goodName(good)}
+                    </span>
+                  </span>
                   <Show when={group.label === 'Tools'}>
                     <span class="want">
                       {(toolWants()[good] ?? 0) > 0
@@ -128,7 +135,10 @@ const GROUP_CSS = `
   .econ-row .name { flex: 1; min-width: 0; }
   .econ-row .num { min-width: 3ch; text-align: right; font-weight: 600; }
   .econ-row .vt { display: inline-flex; }
-  .econ-row.none { opacity: 0.45; }
+  /* On the pieces, not the row: a transition's snapshot of a named
+     element leaves out its ancestors' opacity, so a dimmed row's icon
+     and count flew in at full strength and dimmed on landing. */
+  .econ-row.none :is(.vt, .want) { opacity: 0.45; }
   /* An open post waiting on this tool: the one number in here that
      is a task rather than a balance. Its slot is always cut, so a
      want appearing moves nothing. */
