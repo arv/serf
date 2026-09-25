@@ -1,8 +1,10 @@
 import {
   For,
   Show,
+  createComputed,
   createEffect,
   createSignal,
+  on,
   onCleanup,
   onMount,
   type JSX,
@@ -27,7 +29,7 @@ import type {TechId} from '../sim/defs/techs';
 import type {UnitTypeId} from '../sim/defs/units';
 import * as MatchState from '../sim/matchStateEnum.ts';
 import {AdminPanel} from './AdminPanel';
-import {COMPACT, NARROW, SHORT, useMedia} from './breakpoints';
+import {COMPACT, NARROW, ROOMY, SHORT, useMedia} from './breakpoints';
 import {
   BUILD_GROUPS,
   buildKey,
@@ -35,7 +37,7 @@ import {
   buildUnlocked,
   tabForScroll,
 } from './buildMenu';
-import {EconomyPanel} from './EconomyPanel';
+import {EconomyPanel, LEDGER_UNFOLD_MS, LedgerSheet} from './EconomyPanel';
 import {fullscreen} from './fullscreen';
 import * as HudPanel from './hudPanelEnum.ts';
 import {
@@ -190,6 +192,18 @@ const HUD_GOODS: GoodId[] = [
   GoodId.silver,
 ];
 
+/** Hover intent for the ledger, ms. Opening waits long enough that a
+ * pointer crossing the strip on its way to the menu does not throw the
+ * sheet open under it; closing waits long enough to forgive a pointer
+ * that slips off an edge for a moment. */
+const LEDGER_PEEK_OPEN_MS = 90;
+const LEDGER_PEEK_CLOSE_MS = 220;
+/** The longest press that still counts as a tap on the strip or the
+ * ledger. Holding is how a touch asks a chip for its tooltip (tooltip.tsx
+ * shows it at 260ms), and lifting from that must not also fold or unfold
+ * the ledger. */
+const LEDGER_TAP_MAX_MS = 250;
+
 export function Hud(props: {
   onSpeed: (speed: number) => void;
   onPlace: (type: BuildingTypeId | null) => void;
@@ -297,6 +311,117 @@ export function Hud(props: {
   // an iPad on a Folio, or any tablet with a Bluetooth keyboard, types
   // without ever gaining a pointer.
   const hasFinePointer = useMedia('(any-pointer: fine)');
+  /**
+   * The ledger. Where there is room the goods strip IS the ledger's
+   * folded state: resting the pointer on it unfolds the full account in
+   * place (a peek, gone when the pointer leaves), and its ledger chip
+   * pins it open. A phone keeps the separate sheet — nothing hovers
+   * there, and the sheet wants the whole screen anyway.
+   */
+  const docked = useMedia(ROOMY);
+  const canHover = useMedia('(hover: hover) and (pointer: fine)');
+  const [peeking, setPeeking] = createSignal(false);
+  // Unpinned (the chip, or Esc) with the pointer still on it: the peek
+  // stands down until the pointer leaves, or unpinning would do nothing.
+  const [peekHushed, setPeekHushed] = createSignal(false);
+  let peekTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(peekTimer));
+  /** Where the pointer is headed while a hover-intent timer is pending
+   * (null once it has fired). */
+  let peekPending: boolean | null = null;
+  const setPeek = (over: boolean): void => {
+    clearTimeout(peekTimer);
+    peekPending = over;
+    peekTimer = setTimeout(
+      () => {
+        peekPending = null;
+        setPeeking(over);
+        if (!over) setPeekHushed(false);
+      },
+      over ? LEDGER_PEEK_OPEN_MS : LEDGER_PEEK_CLOSE_MS,
+    );
+  };
+  /** Whether the pointer is on the strip, counting one that has only just
+   * arrived: unpinning in the first moments after it did must hush the
+   * peek too, or the pending timer reopens what was just closed. */
+  const pointerOnStrip = (): boolean => peekPending ?? peeking();
+  const peek = (e: PointerEvent, over: boolean): void => {
+    if (e.pointerType === 'mouse') setPeek(over);
+  };
+  createEffect(
+    on(
+      economyPanelOpen,
+      (open, was) => {
+        if (was && !open && pointerOnStrip()) setPeekHushed(true);
+      },
+      {defer: true},
+    ),
+  );
+  /** Whether the ledger stands open (the docked sheet unfolded). A peek
+   * never opens over another panel: the tech tree and the ☰ menu drop
+   * into the same space. */
+  const ledgerOpen = (): boolean =>
+    docked() &&
+    (economyPanelOpen() ||
+      (canHover() && peeking() && !peekHushed() && openPanel() === null));
+  /**
+   * A touch has no hover to peek with, so a tap on the strip opens the
+   * ledger, and a tap on the strip or the unfolded sheet closes it. (The
+   * handler sits on .hud-resources, which holds just those two.) Not
+   * press-and-hold: holding a chip is already how a touch asks for its
+   * tooltip, and the phone sheet scrolls, which a finger pinned to the
+   * strip cannot do — so a long press is left to the tooltip. Where the
+   * strip unfolds on hover, a mouse only pins from the ledger chip —
+   * anywhere else it is hovering, and the strip has already unfolded
+   * under it. Anywhere else a mouse click is a tap like any other.
+   *
+   * A tap closes whatever is showing, pinned or peeked — the ledger chip
+   * included: toggling the pin instead would pin a sheet that only a
+   * resting mouse had opened, on a touchscreen laptop, in answer to a tap
+   * meant to close it. The pin is the hovering mouse's and the
+   * keyboard's (a click with no press behind it), and only through the
+   * chip.
+   */
+  let press = {pointer: '', at: 0};
+  const pressStrip = (e: PointerEvent): void => {
+    press = {pointer: e.pointerType, at: e.timeStamp};
+  };
+  const tapStrip = (e: MouseEvent): void => {
+    const onChip = (e.target as Element).closest('.ledger') !== null;
+    const keyboard = e.detail === 0;
+    if (keyboard || (press.pointer === 'mouse' && docked() && canHover())) {
+      if (onChip) setEconomyPanelOpen(!economyPanelOpen());
+      return;
+    }
+    if (e.timeStamp - press.at > LEDGER_TAP_MAX_MS) return;
+    if (docked() ? ledgerOpen() : economyPanelOpen()) {
+      setEconomyPanelOpen(false);
+      if (pointerOnStrip()) setPeekHushed(true);
+    } else {
+      setEconomyPanelOpen(true);
+    }
+  };
+  let stripEl: HTMLDivElement | undefined;
+  /**
+   * The ledger chip that has keyboard focus goes out of reach when the
+   * fold turns — the unfolded strip is inert, the folded sheet hidden —
+   * so focus crosses to its twin on the other side rather than falling
+   * to the page. Read before the swap renders, moved once it has.
+   */
+  let stripChip: HTMLButtonElement | undefined;
+  let sheetChip: HTMLButtonElement | undefined;
+  createComputed(
+    on(
+      ledgerOpen,
+      open => {
+        const from = open ? stripChip : sheetChip;
+        const to = open ? sheetChip : stripChip;
+        if (from && document.activeElement === from)
+          queueMicrotask(() => to?.focus());
+      },
+      {defer: true},
+    ),
+  );
   // Phones start with the build card folded to a pill; arming a placement
   // folds it again so the map is visible while you aim the ghost.
   const [buildOpen, setBuildOpen] = createSignal(false);
@@ -910,6 +1035,56 @@ export function Hud(props: {
         ? 'The room plays on. Your seat is held.'
         : 'The village ends here. Anything unsaved is lost.';
 
+  /** Heads and beds — on the strip, and on the ledger's first row when
+   * the strip has unfolded into it. */
+  const PopChip = () => (
+    <span
+      class="res pop has"
+      classList={{full: population().pop >= population().cap}}
+      {...tooltip(() => (
+        <TextTip
+          title="Population"
+          body={
+            population().pop >= population().cap
+              ? 'Every bed taken. Workers and soldiers occupy beds too.'
+              : `Serfs, workers and soldiers. The castle sleeps ${BUILDING_DEFS[BuildingType.storehouse].housing}, each house adds ${BUILDING_DEFS[BuildingType.house].housing}.`
+          }
+        />
+      ))}
+    >
+      <PopIcon /> <span class="num">{population().pop}</span>/
+      <span class="num cap">{population().cap}</span>
+    </span>
+  );
+  /** The ledger chip: the rest of the goods live behind it. A button
+   * styled as a chip, ruled off like population — it is not a good
+   * either, it is where the other fourteen went. Where the strip unfolds
+   * on hover this pins the ledger open (and unpins it); on a touch screen
+   * it toggles the ledger like a tap anywhere else on the strip. Its
+   * clicks are tapStrip's, which knows which of the two a click is. */
+  const LedgerChip = (p: {ref: (el: HTMLButtonElement) => void}) => (
+    <button
+      ref={p.ref}
+      class="res ledger has"
+      classList={{active: economyPanelOpen()}}
+      aria-pressed={economyPanelOpen()}
+      {...tooltip(() => (
+        <TextTip
+          title="The Ledger"
+          body={
+            docked() && canHover()
+              ? economyPanelOpen()
+                ? 'Pinned open. Click to let it fold away.'
+                : 'Every good the village owns, grouped by kind. Click to pin it open.'
+              : 'Every good the village owns, grouped by kind. Tap the strip to open it, and again to close it.'
+          }
+        />
+      ))}
+    >
+      <LedgerIcon />
+    </button>
+  );
+
   return (
     <>
       <style>{`
@@ -1151,8 +1326,54 @@ export function Hud(props: {
         .hud-resources {
           grid-column: 1; grid-row: 1;
           display: flex; justify-content: center; min-width: 0;
+          position: relative; /* the ledger sheet stands over the strip */
         }
-        .hud-resources > div {
+        /* ——— The strip unfolding into the ledger ———
+           The sheet (EconomyPanel's LedgerSheet) stands over the strip
+           and grows out of its rectangle. The strip stays underneath,
+           still sizing this row, but gives up its panel the moment the
+           sheet appears — the sheet starts as exactly that rectangle in
+           exactly that dress, so the swap is invisible — and its chips
+           fade out over the sheet as the ledger slides in beneath them.
+           Folding back, the chips return as the box closes on them and
+           the panel comes back once the sheet has gone. The strip is on
+           top throughout — until the fold is over, and only then back
+           down under the phone scrims where it normally sits — so it is
+           made untouchable while unfolded: the pointer belongs to the
+           sheet under it. */
+        #ui .hud-resources > .strip {
+          position: relative; z-index: 0;
+          transition:
+            z-index 0s ${LEDGER_UNFOLD_MS}ms,
+            background-color 0s ${LEDGER_UNFOLD_MS}ms,
+            border-color 0s ${LEDGER_UNFOLD_MS}ms,
+            box-shadow 0s ${LEDGER_UNFOLD_MS}ms,
+            backdrop-filter 0s ${LEDGER_UNFOLD_MS}ms,
+            -webkit-backdrop-filter 0s ${LEDGER_UNFOLD_MS}ms;
+        }
+        #ui .hud-resources > .strip.unfolded {
+          z-index: 21; pointer-events: none;
+          background-color: transparent; border-color: transparent;
+          box-shadow: none;
+          backdrop-filter: none; -webkit-backdrop-filter: none;
+          transition: none;
+        }
+        #ui .hud-resources > .strip > * {
+          transition:
+            opacity 120ms linear 60ms,
+            background 0.15s, color 0.15s;
+        }
+        #ui .hud-resources > .strip.unfolded > * {
+          opacity: 0;
+          transition: opacity 80ms linear, background 0.15s, color 0.15s;
+        }
+        /* One override for the strip and everything in it, so no later,
+           more specific rule can slip a transition past it. */
+        @media (prefers-reduced-motion: reduce) {
+          #ui .hud-resources > .strip,
+          #ui .hud-resources > .strip * { transition: none !important; }
+        }
+        .hud-resources > .strip {
           pointer-events: auto; max-width: 100%;
           display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px;
           padding: 5px 8px; border-radius: 12px;
@@ -1902,7 +2123,7 @@ export function Hud(props: {
           /* Full width now, so the goods wrap onto a second row instead of
              running off the edge — nothing is hidden and there's no
              invisible scroll to discover. */
-          .hud-resources > div {
+          .hud-resources > .strip {
             width: 100%;
             flex-wrap: wrap;
             justify-content: flex-start;
@@ -1973,7 +2194,7 @@ export function Hud(props: {
         @media ${SHORT} {
           /* The goods strip is read at a glance and never touched, so
              it is the one thing that can afford to be small. */
-          .hud-resources > div { padding: 3px 6px; }
+          .hud-resources > .strip { padding: 3px 6px; }
           .hud-resources span.res { padding: 2px 7px; font-size: 12.5px; gap: 2px; }
           .hud-resources span.res .num,
           .hud-resources span.res.pop .num { min-width: 2.5ch; }
@@ -2142,8 +2363,21 @@ export function Hud(props: {
       `}</style>
 
       <div class="hud-top">
-        <div class="hud-resources">
-          <div class="panel">
+        <div
+          class="hud-resources"
+          onPointerEnter={e => peek(e, true)}
+          onPointerLeave={e => peek(e, false)}
+          onPointerDown={pressStrip}
+          onClick={tapStrip}
+        >
+          <div
+            ref={stripEl}
+            class="strip panel"
+            classList={{unfolded: ledgerOpen()}}
+            // Hidden behind the sheet while unfolded: out of the tab
+            // order and the accessibility tree, not just faded.
+            inert={ledgerOpen()}
+          >
             <For each={HUD_GOODS}>
               {good => (
                 <span
@@ -2156,40 +2390,21 @@ export function Hud(props: {
                 </span>
               )}
             </For>
-            <span
-              class="res pop has"
-              classList={{full: population().pop >= population().cap}}
-              {...tooltip(() => (
-                <TextTip
-                  title="Population"
-                  body={
-                    population().pop >= population().cap
-                      ? 'Every bed taken. Workers and soldiers occupy beds too.'
-                      : `Serfs, workers and soldiers. The castle sleeps ${BUILDING_DEFS[BuildingType.storehouse].housing}, each house adds ${BUILDING_DEFS[BuildingType.house].housing}.`
-                  }
-                />
-              ))}
-            >
-              <PopIcon /> <span class="num">{population().pop}</span>/
-              <span class="num cap">{population().cap}</span>
-            </span>
-            {/* The ledger: the rest of the goods live behind this chip.
-              A button styled as a chip, ruled off like population — it
-              is not a good either, it is where the other twelve went. */}
-            <button
-              class="res ledger has"
-              classList={{active: economyPanelOpen()}}
-              {...tooltip(() => (
-                <TextTip
-                  title="The Ledger"
-                  body="Every good the village owns, grouped by kind."
-                />
-              ))}
-              onClick={() => setEconomyPanelOpen(!economyPanelOpen())}
-            >
-              <LedgerIcon />
-            </button>
+            <PopChip />
+            <LedgerChip ref={el => (stripChip = el)} />
           </div>
+          <Show when={docked()}>
+            <LedgerSheet
+              open={ledgerOpen()}
+              strip={stripEl}
+              head={
+                <>
+                  <PopChip />
+                  <LedgerChip ref={el => (sheetChip = el)} />
+                </>
+              }
+            />
+          </Show>
         </div>
 
         <div class="hud-chrome">
@@ -2777,7 +2992,7 @@ export function Hud(props: {
         </Show>
       </div>
 
-      <Show when={economyPanelOpen()}>
+      <Show when={economyPanelOpen() && !docked()}>
         <EconomyPanel />
       </Show>
       <Show when={techPanelOpen()}>
