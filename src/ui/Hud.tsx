@@ -1902,11 +1902,7 @@ export function Hud(props: {
            phone keeps a margin either side. */
         #ui .wood-card {${WOOD_TOKENS}
           box-sizing: border-box;
-          /* Ink, not the signpost's parchment: a caption can be light on
-             the wood, but a card's copy is paragraphs of instructions,
-             and parchment on this tan is about 2.5:1. Ink is 5:1 at the
-             plank's darkest. */
-          color: var(--ink);
+          color: var(--parchment);
           font: 800 16px/1.4 'Nunito', system-ui, sans-serif;
           background:
             url("data:image/svg+xml,${WOOD_GRAIN}") center / 520px 260px,
@@ -1925,7 +1921,7 @@ export function Hud(props: {
           line-height: 1.05;
           letter-spacing: 0.01em;
         }
-        #ui .wood-card p { margin: 0; }
+        #ui .wood-card p { margin: 0; text-shadow: var(--note-drop); }
         /* Gold is what the card is asking for; .stone marks the other
            ways out. The size of the signpost's small Play. */
         #ui .wood-card button {${CHUNKY_BIG}${CHUNKY_GOLD}
