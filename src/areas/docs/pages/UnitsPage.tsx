@@ -1,6 +1,6 @@
 import {For, type JSX} from 'solid-js';
 import {UNIT_DEFS, type UnitTypeId} from '../../../sim/defs/units';
-import {unitName} from '../../../ui/names';
+import {unitClassName, unitName} from '../../../ui/names';
 import {DocLink} from '../components';
 import {ALL_UNITS, RAIDER_UNITS} from '../data';
 import {ModelCard} from '../preview/ModelCard';
@@ -14,7 +14,9 @@ function UnitTile(props: {id: UnitTypeId}): JSX.Element {
       <span class="t-name">{unitName(props.id)}</span>
       <span class="t-sub">
         {def.hp} hp · {def.speed} tiles/s
-        {def.combat ? ` · ${def.combat.class}` : ' · civilian'}
+        {def.combat
+          ? ` · ${unitClassName(def.combat.class).toLowerCase()}`
+          : ' · civilian'}
       </span>
     </DocLink>
   );
