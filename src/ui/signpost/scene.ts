@@ -31,6 +31,7 @@ import * as PlayerKind from '../../sim/playerKindEnum.ts';
 import * as Terrain from '../../sim/terrainEnum.ts';
 import * as TileResource from '../../sim/tileResourceEnum.ts';
 import {createWorld} from '../../sim/world';
+import {CREAM, INK} from '../woodStyle';
 import {makeSky, SKY} from './sky';
 
 /**
@@ -386,12 +387,12 @@ function labelTexture(text: string, aspect: number): THREE.CanvasTexture {
   g.lineJoin = 'round';
   const x = c.width / 2;
   const y = 100 + px * 0.04;
-  g.strokeStyle = g.fillStyle = '#3b1d10';
+  g.strokeStyle = g.fillStyle = INK;
   g.lineWidth = px * 0.2;
   g.strokeText(text, x, y + px * 0.07);
   g.fillText(text, x, y + px * 0.07);
   g.strokeText(text, x, y);
-  g.fillStyle = '#fff4dc';
+  g.fillStyle = CREAM;
   g.fillText(text, x, y);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;

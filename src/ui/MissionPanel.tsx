@@ -97,7 +97,7 @@ export function MissionPanel(props: {onSpeed: (speed: number) => void}) {
         #ui .hud-mission .hint-actions .mute:hover { color: #e5c469; background: transparent; }
 
         .hud-briefing p { white-space: pre-wrap; }
-        .hud-briefing .mission-no { color: #b6b3a6; font-size: 12px; margin: 0 0 2px; }
+        .hud-briefing .mission-no { font-size: 14px; margin: 0 0 6px; opacity: 0.85; }
       `}</style>
 
       {/* The commission, over a still valley: main.ts boots a fresh mission
@@ -106,7 +106,7 @@ export function MissionPanel(props: {onSpeed: (speed: number) => void}) {
       <Show when={briefingOpen() && def()}>
         {d => (
           <div class="hud-end hud-briefing">
-            <div class="panel end-card">
+            <div class="wood-card end-card">
               <p class="mission-no">A commission from the crown</p>
               <h1>{d().title}</h1>
               <p>{d().briefing}</p>
