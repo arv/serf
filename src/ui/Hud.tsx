@@ -123,6 +123,14 @@ import {
   TooltipLayer,
   tooltip,
 } from './tooltip';
+import {
+  CHUNKY_BIG,
+  CHUNKY_GOLD,
+  CHUNKY_STONE,
+  COMIC_LETTERING,
+  WOOD_TOKENS,
+  chunkyButton,
+} from './woodStyle';
 
 type GoodId = Enum<typeof GoodId>;
 
@@ -203,6 +211,20 @@ const LEDGER_PEEK_CLOSE_MS = 220;
  * shows it at 260ms), and lifting from that must not also fold or unfold
  * the ledger. */
 const LEDGER_TAP_MAX_MS = 250;
+
+/** The wood-card's grain, URL-encoded for a data: URL. Fractal noise
+ * stretched forty-fold along the board reads as long streaks of grain;
+ * the matrix turns it into dark wood, see-through where the noise is low,
+ * so the plank's own gradient shows between the streaks. */
+const WOOD_GRAIN = encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' width='520' height='260'>` +
+    `<filter id='g'>` +
+    `<feTurbulence type='fractalNoise' baseFrequency='0.004 0.16' numOctaves='3' seed='7' stitchTiles='stitch'/>` +
+    `<feColorMatrix values='0 0 0 0 0.42  0 0 0 0 0.2  0 0 0 0 0.1  2.6 0 0 0 -1.3'/>` +
+    `</filter>` +
+    `<rect width='100%' height='100%' filter='url(#g)' opacity='0.55'/>` +
+    `</svg>`,
+);
 
 export function Hud(props: {
   onSpeed: (speed: number) => void;
@@ -993,6 +1015,8 @@ export function Hud(props: {
     const o = outcome();
     return o.state === MatchState.over && o.winner === myPlayerId();
   };
+  /** The commission a won campaign card offers to continue to, if any. */
+  const nextMission = () => (won() ? continueTarget() : undefined);
   /**
    * The one end-of-match card on screen. These states can genuinely overlap
    * — a tab that watched the storehouse fall and then slept past the room's
@@ -1825,10 +1849,18 @@ export function Hud(props: {
              may sit on top of the card that says so. */
           z-index: 35;
         }
-        .end-card { padding: 30px 44px; text-align: center; }
-        .end-card h1 {
-          margin: 0 0 8px; font-size: 26px; font-weight: 600; color: #e5c469;
+        /* Scrolls rather than spilling off a short screen: a won
+           commission's six buttons fold into three rows, and a phone held
+           sideways has under 400px to put them in. */
+        .end-card {
+          padding: 28px min(44px, calc(0.07 * var(--screen-w))) 30px;
+          text-align: center;
+          max-width: min(580px, calc(0.9 * var(--screen-w)));
+          max-height: calc(var(--screen-h) - 24px);
+          overflow-y: auto;
         }
+        .end-card h1 { margin: 0 0 10px; }
+        .end-card p { margin: 0; }
         /* The choices at the foot of a card read as one row, and the
            gutter between them has to be a real number: the tags sit on
            their own source lines, so the markup leaves no space at all
@@ -1838,8 +1870,9 @@ export function Hud(props: {
            Side margins rather than a flex row on the card, because the
            buttons are the card's own children beside the copy, and it
            is inline flow that folds them onto a second line when the
-           row outgrows the screen. */
-        .end-card button { margin: 18px 6px 0; padding: 8px 24px; font-size: 14px; }
+           row outgrows the screen. The top margin clears the ledge of
+           the row above. */
+        .end-card button { margin: 20px 6px 0; }
         /* The "really leave?" card — a real <dialog>, so the browser does
            the modality itself: the page behind goes inert, focus is held
            to the two buttons, and the scrim is the ::backdrop. #ui's
@@ -1847,15 +1880,64 @@ export function Hud(props: {
            card opts back in. */
         #ui dialog.confirm-card {
           pointer-events: auto;
-          padding: 26px 36px; text-align: center; max-width: min(380px, calc(0.86 * var(--screen-w)));
+          padding: 26px min(36px, calc(0.07 * var(--screen-w)));
+          text-align: center;
+          max-width: min(420px, calc(0.9 * var(--screen-w)));
         }
         .confirm-card::backdrop { background: rgba(8, 10, 8, 0.6); }
-        .confirm-card h1 {
-          margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #e5c469;
+        .confirm-card h1 { margin: 0 0 10px; }
+        .confirm-card p { margin: 0; }
+        .confirm-actions {
+          display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 22px;
         }
-        .confirm-card p { margin: 0; color: #b6b3a6; }
-        .confirm-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
-        .confirm-actions button { padding: 8px 22px; font-size: 14px; }
+
+        /* ——— A board off the signpost ———
+           The start screen's look, carried into the match for the cards
+           that stop it: a plank of the sign's warm wood with its grain,
+           and on it the signpost's own palette, lettering and chunky
+           buttons (woodStyle.ts). The grain is fractal noise stretched
+           along the board rather than the 3D sign's carved bump map.
+           Border-box, so a card's max-width is the whole board and a
+           phone keeps a margin either side. */
+        #ui .wood-card {${WOOD_TOKENS}
+          box-sizing: border-box;
+          color: var(--parchment);
+          font: 800 16px/1.4 'Nunito', system-ui, sans-serif;
+          background:
+            url("data:image/svg+xml,${WOOD_GRAIN}") center / 520px 260px,
+            linear-gradient(#dba373, #c98659);
+          border: 3px solid #8e4f31;
+          border-radius: 18px;
+          box-shadow:
+            inset 0 3px 0 rgba(255, 236, 200, 0.35),
+            inset 0 -6px 0 rgba(110, 52, 26, 0.35),
+            0 6px 0 #6b3620,
+            0 14px 34px rgba(0, 0, 0, 0.45);
+        }
+        #ui .wood-card h1 {${COMIC_LETTERING}
+          font-size: 34px;
+          line-height: 1.05;
+          letter-spacing: 0.01em;
+        }
+        #ui .wood-card p { text-shadow: var(--note-drop); }
+        /* Gold is what the card is asking for; .stone marks the other
+           ways out. The size of the signpost's small Play. */
+        #ui .wood-card button {${CHUNKY_BIG}${CHUNKY_GOLD}
+          min-height: 0;
+          font: 400 22px/1.1 var(--comic), sans-serif;
+          padding: 7px 20px 9px;
+          border-radius: 16px;
+        }
+        #ui .wood-card button.stone {${CHUNKY_STONE}}
+        ${chunkyButton('#ui .wood-card button')}
+        /* Ink, not the lettering's cream: cream on the light wood is
+           too faint to say where Enter lands. */
+        #ui .wood-card button:focus-visible {
+          outline: 3px solid var(--ink); outline-offset: 3px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          #ui .wood-card button { transition: none; }
+        }
 
         /* ——— Progressive layer ———
            One HUD, adapting to what the device can do. Desktop keeps
@@ -3031,7 +3113,7 @@ export function Hud(props: {
 
       <Show when={endCard() === 'gone'}>
         <div class="hud-end">
-          <div class="panel end-card">
+          <div class="wood-card end-card">
             <h1>The match is gone</h1>
             <p>
               The server no longer knows this match. A room stands for a few
@@ -3047,18 +3129,20 @@ export function Hud(props: {
 
       <Show when={endCard() === 'eliminated'}>
         <div class="hud-end">
-          <div class="panel end-card">
+          <div class="wood-card end-card">
             <h1>Defeat</h1>
             <p>Your castle has fallen. The valley fights on without you.</p>
             <button onClick={() => setSpectating(true)}>Watch the rest</button>
-            <button onClick={() => setQuitConfirm(true)}>Quit to menu</button>
+            <button class="stone" onClick={() => setQuitConfirm(true)}>
+              Quit to menu
+            </button>
           </div>
         </div>
       </Show>
 
       <Show when={endCard() === 'outcome'}>
         <div class="hud-end">
-          <div class="panel end-card">
+          <div class="wood-card end-card">
             <h1>{won() ? 'Victory' : 'Defeat'}</h1>
             <p>
               {won()
@@ -3069,7 +3153,7 @@ export function Hud(props: {
                     : 'Every other seat is beaten.'
                 : 'The valley is lost.'}
             </p>
-            <Show when={won() ? continueTarget() : undefined}>
+            <Show when={nextMission()}>
               {next => (
                 <button
                   onClick={() => {
@@ -3092,6 +3176,9 @@ export function Hud(props: {
               )}
             </Show>
             <button
+              // Gold is the card's one answer: a won commission's is
+              // Continue, so Play again steps back to stone beside it.
+              classList={{stone: nextMission() !== undefined}}
               onClick={() => {
                 sessionStorage.removeItem('serf-load-pending');
                 if (netMode()) {
@@ -3114,7 +3201,7 @@ export function Hud(props: {
                 a multiplayer loss already has its own spectator path, and
                 a won room is winding down. */}
             <Show when={!netMode()}>
-              <button onClick={() => setObserving(true)}>
+              <button class="stone" onClick={() => setObserving(true)}>
                 Observe the rest
               </button>
             </Show>
@@ -3125,7 +3212,9 @@ export function Hud(props: {
                 Multiplayer records on the server, which hands each seat
                 its copy — but only for a decided match, which this card
                 is the proof of. */}
-            <button onClick={() => props.onSaveReplay()}>Save replay</button>
+            <button class="stone" onClick={() => props.onSaveReplay()}>
+              Save replay
+            </button>
             {/* The other thing to do with the recording: watch it, without
                 filing it. The match just played is staged in a scratch slot
                 and playback opens on it — so the whole game is there to
@@ -3134,7 +3223,7 @@ export function Hud(props: {
                 the server's, handed out for saving, and a room winding
                 down is not a screen to walk away from into playback. */}
             <Show when={!netMode()}>
-              <button onClick={() => props.onWatchReplay()}>
+              <button class="stone" onClick={() => props.onWatchReplay()}>
                 Watch replay
               </button>
             </Show>
@@ -3142,7 +3231,7 @@ export function Hud(props: {
                 there is nothing left to abandon — the only thing this
                 card holds that the menu doesn't is the unsaved replay,
                 and its button sits right here. */}
-            <button onClick={() => goto(location.pathname)}>
+            <button class="stone" onClick={() => goto(location.pathname)}>
               Quit to menu
             </button>
           </div>
@@ -3151,13 +3240,13 @@ export function Hud(props: {
 
       <Show when={endCard() === 'replayOver'}>
         <div class="hud-end">
-          <div class="panel end-card">
+          <div class="wood-card end-card">
             <h1>Replay over</h1>
             <p>The recording ends here.</p>
             <button onClick={() => goto(location.search, {force: true})}>
               Watch again
             </button>
-            <button onClick={() => goto(location.pathname)}>
+            <button class="stone" onClick={() => goto(location.pathname)}>
               Back to the menu
             </button>
           </div>
@@ -3166,7 +3255,7 @@ export function Hud(props: {
 
       <Show when={quitConfirm()}>
         <dialog
-          class="panel confirm-card"
+          class="wood-card confirm-card"
           aria-labelledby="quit-title"
           // A <dialog> in the DOM is merely closed; modality is asked for.
           // Deferred a tick because refs run before Solid puts the element
@@ -3181,7 +3270,7 @@ export function Hud(props: {
           <h1 id="quit-title">Leave the match?</h1>
           <p>{quitStakes()}</p>
           <div class="confirm-actions">
-            <button onClick={() => setQuitConfirm(false)}>
+            <button class="stone" onClick={() => setQuitConfirm(false)}>
               Stay{hasKeyboard() ? ' (Esc)' : ''}
             </button>
             <button
