@@ -6,19 +6,28 @@
  *
  * The look is the signpost's, not the glass HUD's: Lilita One lettering in
  * cream with a thick ink outline, chunky gold buttons that sink onto a
- * ledge without their foot moving, cream panels outlined in ink.
+ * ledge without their foot moving, cream panels outlined in ink. Its
+ * palette, lettering and buttons live in woodStyle.ts, shared with the
+ * HUD's wood cards.
  */
+import {
+  CHUNKY_BIG,
+  CHUNKY_GOLD,
+  CHUNKY_SMALL,
+  CHUNKY_STONE,
+  COMIC_LETTERING,
+  INK_RING,
+  WOOD_TOKENS,
+  chunkyButton,
+} from '../woodStyle';
+
 export const SIGNPOST_STYLE = `
 /* ——— The page around the signpost ———
    #menu is the menu's own root (index.html): fixed over the canvas, zoomed
    by --ui-scale like every other screen. Here it holds only the chrome —
    title, corner icons, footer, build line — and lets every other click
    through to the world beneath it. */
-#menu, #signpost-3d {
-  --comic: 'Lilita One';
-  --ink: #3b1d10;
-  --cream: #fff4dc;
-}
+#menu, #signpost-3d {${WOOD_TOKENS}}
 #menu {
   zoom: var(--ui-scale);
   --safe-top: calc(var(--safe-top-raw) / var(--ui-scale));
@@ -47,14 +56,7 @@ export const SIGNPOST_STYLE = `
 
 /* Outlined comic lettering: the stroke is painted under the fill, the
    drop below is the same ink again. */
-#menu .comic, #signpost-3d .comic {
-  font-family: var(--comic), sans-serif;
-  font-weight: 400;
-  color: var(--cream);
-  -webkit-text-stroke: 0.18em var(--ink);
-  paint-order: stroke fill;
-  text-shadow: 0 0.09em 0 var(--ink);
-}
+#menu .comic, #signpost-3d .comic {${COMIC_LETTERING}}
 
 #menu .sp-title {
   position: fixed;
@@ -86,7 +88,7 @@ export const SIGNPOST_STYLE = `
   font-size: 15px;
   letter-spacing: 0.08em;
   color: var(--ink);
-  background: linear-gradient(#ffd66b, #f0a33a);
+  background: var(--gold);
   border: 3px solid var(--ink);
   border-radius: 10px;
 }
@@ -121,7 +123,7 @@ export const SIGNPOST_STYLE = `
   color: var(--cream);
   -webkit-text-stroke: 5px var(--ink);
   paint-order: stroke fill;
-  background: linear-gradient(#ffd66b, #f0a33a);
+  background: var(--gold);
   border: 3px solid var(--ink);
   border-radius: 12px;
   outline: 3px solid var(--cream);
@@ -285,73 +287,25 @@ export const SIGNPOST_STYLE = `
       }
       #signpost-3d .face .sub {
         font-size: 16px;
-        color: #ffe9c2;
-        text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
+        color: var(--parchment);
+        text-shadow: var(--note-drop);
         white-space: nowrap;
       }
       #signpost-3d .face button {
         font: inherit;
         cursor: pointer;
       }
-      /* Chunky button: flat fill, thick ink outline, a solid ledge under it
-         that it sinks into when pressed. */
+      /* The chunky buttons (woodStyle.ts): Play and its kin in gold at
+         full weight; Back and Invite in stone, a notch thinner. Their
+         sinking, lighting and wearing out are the shared rules'. */
       #signpost-3d .go,
 #signpost-3d .back {
         font-family: var(--comic), sans-serif !important;
         font-size: 26px;
         padding: 8px 20px 10px;
-        border: 4px solid var(--ink);
         border-radius: 16px;
-        color: var(--cream);
-        -webkit-text-stroke: 6px var(--ink);
-        paint-order: stroke fill;
-        background: linear-gradient(#ffd66b, #f0a33a);
-        box-shadow:
-          inset 0 3px 0 rgba(255, 255, 255, 0.45),
-          inset 0 -5px 0 rgba(160, 80, 20, 0.45),
-          0 6px 0 var(--ink);
-        transition:
-          transform 0.06s ease,
-          box-shadow 0.06s ease;
-      }
-      /* Outlined button text: the crisp stroke draws the outline; under it a
-         ring of shadows, reaching just past the stroke, fills each letter's
-         hole. The stroke alone only just meets itself in the middle of an
-         o, and where its two soft edges meet the gold shows through as a
-         dot. */
-      #signpost-3d .go,
-#signpost-3d .back,
-#signpost-3d .invite,
-#signpost-3d .seg button[aria-pressed='true'] {
-        --ring: 3.4px;
-        text-shadow:
-          calc(var(--ring) * 1) calc(var(--ring) * 0) 0 var(--ink),
-          calc(var(--ring) * 0.966) calc(var(--ring) * 0.259) 0 var(--ink),
-          calc(var(--ring) * 0.866) calc(var(--ring) * 0.5) 0 var(--ink),
-          calc(var(--ring) * 0.707) calc(var(--ring) * 0.707) 0 var(--ink),
-          calc(var(--ring) * 0.5) calc(var(--ring) * 0.866) 0 var(--ink),
-          calc(var(--ring) * 0.259) calc(var(--ring) * 0.966) 0 var(--ink),
-          calc(var(--ring) * 0) calc(var(--ring) * 1) 0 var(--ink),
-          calc(var(--ring) * -0.259) calc(var(--ring) * 0.966) 0 var(--ink),
-          calc(var(--ring) * -0.5) calc(var(--ring) * 0.866) 0 var(--ink),
-          calc(var(--ring) * -0.707) calc(var(--ring) * 0.707) 0 var(--ink),
-          calc(var(--ring) * -0.866) calc(var(--ring) * 0.5) 0 var(--ink),
-          calc(var(--ring) * -0.966) calc(var(--ring) * 0.259) 0 var(--ink),
-          calc(var(--ring) * -1) calc(var(--ring) * 0) 0 var(--ink),
-          calc(var(--ring) * -0.966) calc(var(--ring) * -0.259) 0 var(--ink),
-          calc(var(--ring) * -0.866) calc(var(--ring) * -0.5) 0 var(--ink),
-          calc(var(--ring) * -0.707) calc(var(--ring) * -0.707) 0 var(--ink),
-          calc(var(--ring) * -0.5) calc(var(--ring) * -0.866) 0 var(--ink),
-          calc(var(--ring) * -0.259) calc(var(--ring) * -0.966) 0 var(--ink),
-          calc(var(--ring) * -0) calc(var(--ring) * -1) 0 var(--ink),
-          calc(var(--ring) * 0.259) calc(var(--ring) * -0.966) 0 var(--ink),
-          calc(var(--ring) * 0.5) calc(var(--ring) * -0.866) 0 var(--ink),
-          calc(var(--ring) * 0.707) calc(var(--ring) * -0.707) 0 var(--ink),
-          calc(var(--ring) * 0.866) calc(var(--ring) * -0.5) 0 var(--ink),
-          calc(var(--ring) * 0.966) calc(var(--ring) * -0.259) 0 var(--ink);
-      }
-      #signpost-3d .back {
-        --ring: 2.9px;
+        ${CHUNKY_BIG}
+        ${CHUNKY_GOLD}
       }
       #signpost-3d .go.small {
         font-size: 22px;
@@ -361,47 +315,10 @@ export const SIGNPOST_STYLE = `
         margin-left: auto;
         font-size: 17px;
         padding: 3px 12px 5px;
-        border-width: 3px;
-        -webkit-text-stroke: 5px var(--ink);
-        background: linear-gradient(#b9c6cc, #7f8c92);
-        box-shadow:
-          inset 0 2px 0 rgba(255, 255, 255, 0.4),
-          inset 0 -3px 0 rgba(40, 50, 55, 0.35),
-          0 4px 0 var(--ink);
+        ${CHUNKY_SMALL}
+        ${CHUNKY_STONE}
       }
-      #signpost-3d .go:hover,
-#signpost-3d .back:hover {
-        filter: brightness(1.08);
-      }
-      /* Pressed: the button sinks by exactly the ledge it loses, so its
-         bottom edge — the ledge's foot — stays where it was. */
-      #signpost-3d .go:active {
-        transform: translateY(5px);
-        box-shadow:
-          inset 0 3px 0 rgba(255, 255, 255, 0.45),
-          inset 0 -5px 0 rgba(160, 80, 20, 0.45),
-          0 1px 0 var(--ink);
-      }
-      #signpost-3d .back:active {
-        transform: translateY(3px);
-        box-shadow:
-          inset 0 2px 0 rgba(255, 255, 255, 0.4),
-          inset 0 -3px 0 rgba(40, 50, 55, 0.35),
-          0 1px 0 var(--ink);
-      }
-      /* Not yours to press — a joiner's Begin, Host with the network down:
-         the gold goes to worn wood, and it neither lights nor sinks. */
-      #signpost-3d .go:disabled {
-        cursor: default;
-        color: #f3e6cb;
-        background: linear-gradient(#d8c29c, #b59b72);
-        filter: none;
-        transform: none;
-        box-shadow:
-          inset 0 3px 0 rgba(255, 255, 255, 0.3),
-          inset 0 -5px 0 rgba(90, 60, 30, 0.3),
-          0 6px 0 var(--ink);
-      }
+      ${chunkyButton('#signpost-3d .go, #signpost-3d .back, #signpost-3d .invite')}
       /* Campaign: the commissions as stops on a trail. */
       /* Room above the stops for the heading, and below them before the
          mission: the board's contents are centred, so the heading moves
@@ -432,30 +349,15 @@ export const SIGNPOST_STYLE = `
         padding: 0;
         border-radius: 50%;
         border: 4px solid var(--ink);
-        background: linear-gradient(#ffd66b, #f0a33a);
+        background: var(--gold);
         font-family: var(--comic), sans-serif !important;
         font-size: 24px;
         color: var(--cream);
         /* Outline as a ring of shadows rather than -webkit-text-stroke: the
            stroke joins corners with a miter, and the sharp top of a 4 threw
            a spike out of it. A ring is round everywhere. */
-        text-shadow:
-          2.6px 0px 0 var(--ink),
-          2.4px 0.99px 0 var(--ink),
-          1.84px 1.84px 0 var(--ink),
-          0.99px 2.4px 0 var(--ink),
-          0px 2.6px 0 var(--ink),
-          -0.99px 2.4px 0 var(--ink),
-          -1.84px 1.84px 0 var(--ink),
-          -2.4px 0.99px 0 var(--ink),
-          -2.6px 0px 0 var(--ink),
-          -2.4px -0.99px 0 var(--ink),
-          -1.84px -1.84px 0 var(--ink),
-          -0.99px -2.4px 0 var(--ink),
-          -0px -2.6px 0 var(--ink),
-          0.99px -2.4px 0 var(--ink),
-          1.84px -1.84px 0 var(--ink),
-          2.4px -0.99px 0 var(--ink);
+        --ring: 2.6px;
+        text-shadow: ${INK_RING};
         box-shadow:
           inset 0 3px 0 rgba(255, 255, 255, 0.45),
           0 4px 0 var(--ink);
@@ -508,8 +410,8 @@ export const SIGNPOST_STYLE = `
       }
       #signpost-3d .pick .d {
         font-size: 16px;
-        color: #ffe9c2;
-        text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
+        color: var(--parchment);
+        text-shadow: var(--note-drop);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -613,7 +515,7 @@ export const SIGNPOST_STYLE = `
         box-sizing: border-box;
         border: 3px solid var(--ink);
         border-radius: 8px;
-        background: linear-gradient(#ffd66b, #f0a33a);
+        background: var(--gold);
         box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45);
         /* A little overshoot: it lands, rather than parks. */
         transition: translate 0.28s cubic-bezier(0.3, 1.35, 0.55, 1);
@@ -636,6 +538,7 @@ export const SIGNPOST_STYLE = `
         -webkit-text-stroke: 4px var(--ink);
         paint-order: stroke fill;
         --ring: 2.4px;
+        text-shadow: ${INK_RING};
       }
       /* The chosen option, held down (mouse or finger): the outline stays
          put, the gold reads as pushed in — its light turned upside down, a
@@ -879,7 +782,7 @@ export const SIGNPOST_STYLE = `
         filter: brightness(1.05);
       }
       #signpost-3d .ticket.sel {
-        background: linear-gradient(#ffd66b, #f0a33a);
+        background: var(--gold);
       }
       #signpost-3d .ticket.sel .meta {
         color: var(--ink);
@@ -890,8 +793,8 @@ export const SIGNPOST_STYLE = `
       }
       #signpost-3d .rooms .none {
         font-size: 16px;
-        color: #ffe9c2;
-        text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
+        color: var(--parchment);
+        text-shadow: var(--note-drop);
       }
       #signpost-3d .refresh {
         flex: none;
@@ -903,7 +806,7 @@ export const SIGNPOST_STYLE = `
         color: var(--ink);
         border: 3px solid var(--ink);
         border-radius: 50%;
-        background: linear-gradient(#b9c6cc, #7f8c92);
+        background: var(--stone);
         box-shadow:
           inset 0 2px 0 rgba(255, 255, 255, 0.4),
           0 3px 0 var(--ink);
@@ -964,8 +867,8 @@ export const SIGNPOST_STYLE = `
         text-align: center;
         font-size: 15px;
         line-height: 1.25;
-        color: #ffe9c2;
-        text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
+        color: var(--parchment);
+        text-shadow: var(--note-drop);
       }
       #signpost-3d .face.council header {
         grid-area: 1 / 3;
@@ -1078,27 +981,9 @@ export const SIGNPOST_STYLE = `
         font-family: var(--comic), sans-serif !important;
         font-size: 18px;
         padding: 3px 12px 5px;
-        border: 3px solid var(--ink);
         border-radius: 12px;
-        color: var(--cream);
-        -webkit-text-stroke: 5px var(--ink);
-        paint-order: stroke fill;
-        background: linear-gradient(#b9c6cc, #7f8c92);
-        box-shadow:
-          inset 0 2px 0 rgba(255, 255, 255, 0.4),
-          inset 0 -3px 0 rgba(40, 50, 55, 0.35),
-          0 4px 0 var(--ink);
-        --ring: 2.9px;
-      }
-      #signpost-3d .invite:hover {
-        filter: brightness(1.08);
-      }
-      #signpost-3d .invite:active {
-        translate: 0 3px;
-        box-shadow:
-          inset 0 2px 0 rgba(255, 255, 255, 0.4),
-          inset 0 -3px 0 rgba(40, 50, 55, 0.35),
-          0 1px 0 var(--ink);
+        ${CHUNKY_SMALL}
+        ${CHUNKY_STONE}
       }
       #signpost-3d .code-row .seg {
         flex: 0 1 260px;
@@ -1512,7 +1397,7 @@ export const SIGNPOST_STYLE = `
       }
       /* A file dragged over the board: the board says it will take it. */
       #signpost-3d .face.shelf .main.dropping {
-        outline: 4px dashed #ffe9c2;
+        outline: 4px dashed var(--parchment);
         outline-offset: 4px;
       }
       #signpost-3d .files {
@@ -1553,7 +1438,7 @@ export const SIGNPOST_STYLE = `
         filter: brightness(1.05);
       }
       #signpost-3d .file .pick.sel {
-        background: linear-gradient(#ffd66b, #f0a33a);
+        background: var(--gold);
       }
       #signpost-3d .file .pick:disabled {
         cursor: default;
@@ -1586,7 +1471,7 @@ export const SIGNPOST_STYLE = `
         color: var(--ink);
         border: 3px solid var(--ink);
         border-radius: 50%;
-        background: linear-gradient(#b9c6cc, #7f8c92);
+        background: var(--stone);
         box-shadow:
           inset 0 2px 0 rgba(255, 255, 255, 0.4),
           0 3px 0 var(--ink);
@@ -1605,8 +1490,8 @@ export const SIGNPOST_STYLE = `
         margin: 0;
         font-size: 16px;
         line-height: 1.3;
-        color: #ffe9c2;
-        text-shadow: 0 2px 0 rgba(59, 29, 16, 0.6);
+        color: var(--parchment);
+        text-shadow: var(--note-drop);
       }
       #signpost-3d .face.shelf .note {
         color: #ffe39a;
