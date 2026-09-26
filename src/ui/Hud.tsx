@@ -1017,6 +1017,11 @@ export function Hud(props: {
   };
   /** The commission a won campaign card offers to continue to, if any. */
   const nextMission = () => (won() ? continueTarget() : undefined);
+  // The wood cards set their copy in Nunito, which only the start screen's
+  // boards ask for, and index.html declares it font-display: block. A match
+  // entered straight from a link would fetch it when its first card opens,
+  // with the card's words invisible until it lands; ask for it up front.
+  onMount(() => void document.fonts.load('800 16px Nunito'));
   /**
    * The one end-of-match card on screen. These states can genuinely overlap
    * — a tab that watched the storehouse fall and then slept past the room's
@@ -1859,7 +1864,6 @@ export function Hud(props: {
           max-height: calc(var(--screen-h) - 24px);
           overflow-y: auto;
         }
-        .end-card p { margin: 0; }
         /* The choices at the foot of a card read as one row, and the
            gutter between them has to be a real number: the tags sit on
            their own source lines, so the markup leaves no space at all
@@ -1884,7 +1888,6 @@ export function Hud(props: {
           max-width: min(420px, calc(0.9 * var(--screen-w)));
         }
         .confirm-card::backdrop { background: rgba(8, 10, 8, 0.6); }
-        .confirm-card p { margin: 0; }
         .confirm-actions {
           display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 22px;
         }
@@ -1918,7 +1921,7 @@ export function Hud(props: {
           line-height: 1.05;
           letter-spacing: 0.01em;
         }
-        #ui .wood-card p { text-shadow: var(--note-drop); }
+        #ui .wood-card p { margin: 0; text-shadow: var(--note-drop); }
         /* Gold is what the card is asking for; .stone marks the other
            ways out. The size of the signpost's small Play. */
         #ui .wood-card button {${CHUNKY_BIG}${CHUNKY_GOLD}

@@ -97,7 +97,8 @@ export function MissionPanel(props: {onSpeed: (speed: number) => void}) {
         #ui .hud-mission .hint-actions .mute:hover { color: #e5c469; background: transparent; }
 
         .hud-briefing p { white-space: pre-wrap; }
-        .hud-briefing .mission-no { font-size: 14px; margin: 0 0 6px; opacity: 0.85; }
+        /* #ui-prefixed to outrank the wood card's own paragraph reset. */
+        #ui .hud-briefing .mission-no { font-size: 14px; margin: 0 0 6px; opacity: 0.85; }
       `}</style>
 
       {/* The commission, over a still valley: main.ts boots a fresh mission
