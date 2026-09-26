@@ -16,8 +16,9 @@ type GoodId = Enum<typeof GoodId>;
  * already filled the strip wall to wall (the comment over `.hud-resources`
  * tells that story), and the six tools would have pushed it to two rows on
  * every laptop — so the strip keeps the handful worth glancing at every
- * few seconds, and the full account lives here, a hover or a tap away,
- * the same arrangement Settlers used.
+ * few seconds, plus whatever more its row has room for, and the full
+ * account lives here, a hover or a tap away, the same arrangement
+ * Settlers used.
  *
  * Display order is this panel's own, NOT the GOODS array's: that array is
  * append-only (its index is the carry code), so new goods land at its
@@ -40,6 +41,11 @@ const GROUPS: {label: string; goods: GoodId[]}[] = [
     ],
   },
 ];
+
+/** Every good in the ledger's order — the order the strip lays out
+ * whichever of them it has room for, so a good sits with its kin there
+ * too. */
+export const LEDGER_ORDER: readonly GoodId[] = GROUPS.flatMap(g => g.goods);
 
 // The panel must account for every good — a new one someone forgets to
 // seat here should fail loudly in dev rather than silently not exist.
@@ -145,10 +151,18 @@ export function LedgerSheet(props: {
   // on the same point and hang from the same top, so a side and a bottom
   // are all it takes. Kept current, because either can change size —
   // a count growing a digit, a tool falling due.
+  //
+  // Never narrower than the strip. On a wide screen the strip carries
+  // every good it has room for and can outgrow the five columns here;
+  // a sheet narrower than it would have to fold *in* at the sides as it
+  // unfolded down, and its head would land short of the chips it
+  // stands in for. At the strip's width it only ever grows downward,
+  // and the columns spread out across the extra.
   onMount(() => {
     const measure = (): void => {
       const strip = props.strip;
       if (!strip) return;
+      el.style.minWidth = `${strip.offsetWidth}px`;
       const side = (el.offsetWidth - strip.offsetWidth) / 2;
       const below = el.offsetHeight - strip.offsetHeight;
       el.style.setProperty('--fold-side', `${Math.max(0, side)}px`);
@@ -209,6 +223,10 @@ export function LedgerSheet(props: {
         .ledger-head { display: flex; align-items: center; gap: 2px; }
         .ledger-head h2 { ${HEADING_TYPE} margin: 0 auto 0 10px; font-size: 15px; }
         .ledger-sheet .econ-groups { flex-wrap: wrap; padding: 0 10px; }
+        /* Spread, not grown: where the sheet is too narrow and a column
+           wraps to a row of its own, growing stretched it the whole
+           width, its counts a sheet away from their names. */
+        .ledger-sheet .econ-groups { justify-content: space-between; }
       `}</style>
       <div class="ledger-content">
         <div class="ledger-head">
