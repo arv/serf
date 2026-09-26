@@ -163,12 +163,10 @@ const AudioGlyph = (
 
 /** A typeface's card shows the typeface. A fresh element per card: one
  * element shared between cards can only sit in one of them. */
-const typeGlyph = (family?: string, weight?: number): JSX.Element => (
+const typeGlyph = (family: string, weight: number): JSX.Element => (
   <span
     class="c-aa"
-    style={
-      family ? {'font-family': `'${family}'`, 'font-weight': weight} : undefined
-    }
+    style={{'font-family': `'${family}'`, 'font-weight': weight}}
   >
     Aa
   </span>
@@ -246,11 +244,10 @@ const CREDITS: Credit[] = [
     links: [{label: 'kenney.nl', href: 'https://kenney.nl'}],
   },
   {
-    // This page is already set in it.
-    art: typeGlyph(),
+    art: typeGlyph('Space Grotesk', 500),
     name: 'Space Grotesk — Florian Karsten',
     what:
-      'The typeface. Nearly every word in the game — this one included — ' +
+      'The game’s typeface: nearly every word on the HUD and its panels ' +
       'is set in Space Grotesk.',
     license: {label: 'OFL 1.1', href: 'https://openfontlicense.org'},
     links: [
@@ -265,7 +262,8 @@ const CREDITS: Credit[] = [
     name: 'Lilita One — Juan Montoreano',
     what:
       'The start screen’s lettering: the words painted on the signpost’s ' +
-      'arrows, and the headings and buttons on its boards.',
+      'arrows, the headings and buttons on its boards, and the headings ' +
+      'of this field guide.',
     license: {label: 'OFL 1.1', href: 'https://openfontlicense.org'},
     links: [
       {
@@ -277,7 +275,7 @@ const CREDITS: Credit[] = [
   {
     art: typeGlyph('Nunito', 800),
     name: 'Nunito — Vernon Adams',
-    what: 'The small print on the signpost’s boards.',
+    what: 'The small print on the signpost’s boards, and the words of this field guide.',
     license: {label: 'OFL 1.1', href: 'https://openfontlicense.org'},
     links: [
       {

@@ -1,8 +1,8 @@
 import {GOLD} from '../../ui/gold';
 
 /**
- * The shelf's one sheet, wearing the same glass-and-gold language as the
- * field guide's. Two rules exist to undo the game's globals, for the same
+ * The shelf's one sheet, in the HUD's glass-and-gold language. Two rules
+ * exist to undo the game's globals, for the same
  * reason DOCS_STYLE has them: index.html locks the document to
  * overflow:hidden and user-select:none because a game owns its gestures,
  * and this is a page to read and scroll.
