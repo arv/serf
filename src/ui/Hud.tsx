@@ -38,7 +38,12 @@ import {
   buildUnlocked,
   tabForScroll,
 } from './buildMenu';
-import {EconomyPanel, LEDGER_UNFOLD_MS, LedgerSheet} from './EconomyPanel';
+import {
+  EconomyPanel,
+  LEDGER_ORDER,
+  LEDGER_UNFOLD_MS,
+  LedgerSheet,
+} from './EconomyPanel';
 import {fullscreen} from './fullscreen';
 import * as HudPanel from './hudPanelEnum.ts';
 import {
@@ -208,6 +213,46 @@ const HUD_GOODS: GoodId[] = [
   GoodId.iron,
   GoodId.silver,
 ];
+/**
+ * The rest, in the order the strip takes them on as its row allows —
+ * five goods is what a laptop can promise, and on a wide screen, or a
+ * phone whose strip is the whole width of the glass, that left most of
+ * the row as empty glass beside the chips. Arms first, because a
+ * village arming for a fight counts spears; then wheat, the grain every
+ * loaf and barrel starts from; gold; ale ahead of flour, since flour is
+ * only ever on its way to becoming bread; water; the tools last, since
+ * their wants already have a chip of their own in the centre rail.
+ * Where each one *sits* is the ledger's order (LEDGER_ORDER), not this
+ * one: a good joins its kin on the strip, not the end of the queue.
+ */
+const STRIP_EXTRAS: GoodId[] = [
+  GoodId.spear,
+  GoodId.sword,
+  GoodId.bow,
+  GoodId.wheat,
+  GoodId.gold,
+  GoodId.ale,
+  GoodId.flour,
+  GoodId.water,
+  GoodId.axe,
+  GoodId.pickaxe,
+  GoodId.scythe,
+  GoodId.hammer,
+  GoodId.cauldron,
+  GoodId.rod,
+];
+
+// Every good once between the two lists, the way the ledger checks its
+// columns: a good left off would never reach the strip however wide the
+// screen, and one on both would be counted into a slot it never fills.
+if (import.meta.env.DEV) {
+  const listed = [...HUD_GOODS, ...STRIP_EXTRAS];
+  if (
+    listed.length !== LEDGER_ORDER.length ||
+    !LEDGER_ORDER.every(g => listed.includes(g))
+  )
+    throw new Error('Hud: HUD_GOODS + STRIP_EXTRAS must list every good once');
+}
 
 /** Hover intent for the ledger, ms. Opening waits long enough that a
  * pointer crossing the strip on its way to the menu does not throw the
@@ -433,6 +478,110 @@ export function Hud(props: {
     }
   };
   let stripEl: HTMLDivElement | undefined;
+  let resourcesEl: HTMLDivElement | undefined;
+  /**
+   * How many goods the strip shows: HUD_GOODS always — they wrap to a
+   * second row sooner than go — and then as many of STRIP_EXTRAS as fit
+   * in the rows the strip already takes. On a laptop that is the one row
+   * beside the chrome; on a phone held upright, where the five goods
+   * alone push population and the ledger onto a second row, it is that
+   * second row filled out rather than left mostly glass. Never a row
+   * more than the five need: a good is not worth a band of map.
+   *
+   * This keeps to "Standing still": every good's chip is cut to the same
+   * three-digit slot, so the count depends on the window and the type,
+   * not the stock — it changes when the player resizes, not when a barn
+   * fills. (A count past 999 does outgrow its slot, and then a good
+   * gives way rather than the strip wrapping.) Measured in the strip's own CSS pixels (the rects
+   * divided by the HUD's zoom), which are what its padding, gaps and
+   * margins are written in.
+   */
+  const [stripGoodCount, setStripGoodCount] = createSignal(HUD_GOODS.length);
+  const stripGoods = (): GoodId[] => {
+    const shown = new Set([
+      ...HUD_GOODS,
+      ...STRIP_EXTRAS.slice(0, stripGoodCount() - HUD_GOODS.length),
+    ]);
+    return LEDGER_ORDER.filter(g => shown.has(g));
+  };
+  const fitStrip = (): void => {
+    if (!stripEl || !resourcesEl) return;
+    // Where the browser cannot say, the row's own layout width against
+    // its rect tells the same thing.
+    const zoom =
+      stripEl.currentCSSZoom ??
+      (resourcesEl.getBoundingClientRect().width / resourcesEl.offsetWidth ||
+        1);
+    const width = (el: Element): number =>
+      el.getBoundingClientRect().width / zoom;
+    const px = (v: string): number => parseFloat(v) || 0;
+    const style = getComputedStyle(stripEl);
+    const gap = px(style.columnGap);
+    const chips = [...stripEl.children];
+    const goods = chips.filter(el => el.classList.contains('good'));
+    if (goods.length === 0) return;
+    // Every good's chip is the same slot, so one width stands for all of
+    // them, shown or not.
+    const good = goods.reduce((sum, el) => sum + width(el), 0) / goods.length;
+    // Population and the ledger chip, rules and all: they follow the
+    // goods on whatever row the goods leave them.
+    const tail = chips
+      .filter(el => !el.classList.contains('good'))
+      .map(el => {
+        const own = getComputedStyle(el);
+        return width(el) + px(own.marginLeft) + px(own.marginRight);
+      });
+    // The row inside the panel's own frame, a pixel short so rounding
+    // never tips the last chip over.
+    const row =
+      width(resourcesEl) -
+      px(style.paddingLeft) -
+      px(style.paddingRight) -
+      px(style.borderLeftWidth) -
+      px(style.borderRightWidth) -
+      1;
+    // flex-wrap's own line breaking, replayed: each chip goes on the row
+    // it is on unless it would overhang it.
+    const rows = (n: number): number => {
+      let count = 1;
+      let used = 0;
+      for (const w of [...Array<number>(n).fill(good), ...tail]) {
+        if (used > 0 && used + gap + w > row) {
+          count++;
+          used = w;
+        } else {
+          used += (used > 0 ? gap : 0) + w;
+        }
+      }
+      return count;
+    };
+    const budget = rows(HUD_GOODS.length);
+    const most = HUD_GOODS.length + STRIP_EXTRAS.length;
+    let n = HUD_GOODS.length;
+    while (n < most && rows(n + 1) <= budget) n++;
+    setStripGoodCount(n);
+  };
+  onMount(() => {
+    // The row's width, fitted at once. The strip's own size moves too —
+    // the face arriving, a coarse pointer's padding, a count outgrowing
+    // its slot — but fitStrip resizes the strip itself, and answering
+    // that in the same callback is a notification at the same depth,
+    // which the browser reports as a loop. So the strip's changes are
+    // fitted a frame later instead.
+    const row = new ResizeObserver(fitStrip);
+    let frame = 0;
+    const strip = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fitStrip);
+    });
+    if (resourcesEl) row.observe(resourcesEl);
+    if (stripEl) strip.observe(stripEl);
+    onCleanup(() => {
+      cancelAnimationFrame(frame);
+      row.disconnect();
+      strip.disconnect();
+    });
+  });
   /**
    * The ledger chip that has keyboard focus goes out of reach when the
    * fold turns — the unfolded strip is inert, the folded sheet hidden —
@@ -1096,7 +1245,7 @@ export function Hud(props: {
   );
   /** The ledger chip: the rest of the goods live behind it. A button
    * styled as a chip, ruled off like population — it is not a good
-   * either, it is where the other fourteen went. Where the strip unfolds
+   * either, it is where the other goods went. Where the strip unfolds
    * on hover this pins the ledger open (and unpins it); on a touch screen
    * it toggles the ledger like a tap anywhere else on the strip. Its
    * clicks are tapStrip's, which knows which of the two a click is. */
@@ -1426,11 +1575,13 @@ export function Hud(props: {
            centre and every count in it changes on its own, so without
            a fixed slot one barn filling past 99 walks every chip
            sideways — the most-watched row on screen, twitching at
-           whatever rate the village happens to produce. (Seven chips
-           now — five goods, population, the ledger — the rest of the
-           goods live in the EconomyPanel.) Wrapping settles for the
-           same reason: the break lands in the same place every time,
-           because the widths never move.
+           whatever rate the village happens to produce. (Five goods
+           at the least, and more where the row has room — see
+           fitStrip — then population and the ledger; the rest of the
+           goods live in the EconomyPanel.) The same slot is what lets
+           fitStrip count chips once per resize rather than per tick,
+           and why wrapping settles: the break lands in the same place
+           every time, because the widths never move.
 
            The digits sit at the left of that slot, against their icon:
            right-aligned, a lone 0 stood two blank characters away from
@@ -2454,6 +2605,7 @@ export function Hud(props: {
 
       <div class="hud-top">
         <div
+          ref={resourcesEl}
           class="hud-resources"
           onPointerEnter={e => peek(e, true)}
           onPointerLeave={e => peek(e, false)}
@@ -2468,10 +2620,10 @@ export function Hud(props: {
             // order and the accessibility tree, not just faded.
             inert={ledgerOpen()}
           >
-            <For each={HUD_GOODS}>
+            <For each={stripGoods()}>
               {good => (
                 <span
-                  class="res"
+                  class="res good"
                   classList={{has: (stock()[good] ?? 0) > 0}}
                   {...tooltip(() => <GoodTip good={good} />)}
                 >
