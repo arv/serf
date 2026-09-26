@@ -7,7 +7,12 @@ import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
 import * as UnitClass from '../../../sim/defs/unitClassEnum.ts';
 import {COUNTER_TABLE, UNIT_DEFS, WEAPON_OF} from '../../../sim/defs/units';
 import * as UnitTypeId from '../../../sim/defs/unitTypeIdEnum.ts';
-import {buildingName, techName, unitName} from '../../../ui/names';
+import {
+  buildingName,
+  techName,
+  unitClassName,
+  unitName,
+} from '../../../ui/names';
 import {CostList, DocLink, GoodChip, Section, Stat, Stats} from '../components';
 import {ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs} from '../data';
 import {UNIT_DESC} from '../descriptions';
@@ -106,7 +111,7 @@ export function UnitPage(props: {id: UnitTypeId}): JSX.Element {
           <Show when={def.combat}>
             {c => (
               <>
-                <Stat label="Class">{c().class}</Stat>
+                <Stat label="Class">{unitClassName(c().class)}</Stat>
                 <Stat label="Damage">
                   {c().damage} every {fmtSecs(c().cooldownTicks)}
                 </Stat>
@@ -127,7 +132,9 @@ export function UnitPage(props: {id: UnitTypeId}): JSX.Element {
                 <thead>
                   <tr>
                     <th></th>
-                    <For each={CLASSES}>{cls => <th>vs {cls}</th>}</For>
+                    <For each={CLASSES}>
+                      {cls => <th>vs {unitClassName(cls)}</th>}
+                    </For>
                   </tr>
                 </thead>
                 <tbody>

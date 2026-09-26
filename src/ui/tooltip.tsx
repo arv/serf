@@ -40,6 +40,7 @@ import {
   RESOURCE_NAMES,
   techDesc,
   techName,
+  unitClassName,
   unitName,
 } from './names';
 import {stock, techs} from './store';
@@ -556,25 +557,10 @@ export function BuildingTip(props: {type: BuildingTypeId}) {
   );
 }
 
-const CLASS_INFO: Record<
-  UnitClass,
-  {name: string; beats: UnitClass; losesTo: UnitClass}
-> = {
-  [UnitClass.heavy]: {
-    name: 'Heavy',
-    beats: UnitClass.light,
-    losesTo: UnitClass.ranged,
-  },
-  [UnitClass.light]: {
-    name: 'Light',
-    beats: UnitClass.ranged,
-    losesTo: UnitClass.heavy,
-  },
-  [UnitClass.ranged]: {
-    name: 'Ranged',
-    beats: UnitClass.heavy,
-    losesTo: UnitClass.light,
-  },
+const CLASS_INFO: Record<UnitClass, {beats: UnitClass; losesTo: UnitClass}> = {
+  [UnitClass.heavy]: {beats: UnitClass.light, losesTo: UnitClass.ranged},
+  [UnitClass.light]: {beats: UnitClass.ranged, losesTo: UnitClass.heavy},
+  [UnitClass.ranged]: {beats: UnitClass.heavy, losesTo: UnitClass.light},
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
@@ -603,16 +589,12 @@ export function UnitTip(props: {
 }) {
   const def = () => UNIT_DEFS[props.unit];
   const combat = () => def().combat;
-  const cls = () => {
-    const c = combat();
-    return c ? CLASS_INFO[c.class] : null;
-  };
   return (
     <>
       <div class="tip-title">
         {unitName(props.unit)}
-        <Show when={cls()}>
-          <span class="tag">{cls()!.name}</span>
+        <Show when={combat()}>
+          {c => <span class="tag">{unitClassName(c().class)}</span>}
         </Show>
       </div>
       {/* Only when there is one. The map is partial by design — a kind
@@ -627,17 +609,22 @@ export function UnitTip(props: {
         {combat() ? ` · ${combat()!.damage} dmg` : ''} · speed {def().speed}
       </div>
       <Show when={combat()}>
-        <div class="tip-line">
-          <span class="tip-good">
-            ×{COUNTER_TABLE[combat()!.class][cls()!.beats]} vs{' '}
-            {CLASS_INFO[cls()!.beats].name}
-          </span>
-          {' · '}
-          <span class="tip-bad">
-            ×{COUNTER_TABLE[combat()!.class][cls()!.losesTo]} vs{' '}
-            {CLASS_INFO[cls()!.losesTo].name}
-          </span>
-        </div>
+        {c => {
+          const info = () => CLASS_INFO[c().class];
+          return (
+            <div class="tip-line">
+              <span class="tip-good">
+                ×{COUNTER_TABLE[c().class][info().beats]} vs{' '}
+                {unitClassName(info().beats)}
+              </span>
+              {' · '}
+              <span class="tip-bad">
+                ×{COUNTER_TABLE[c().class][info().losesTo]} vs{' '}
+                {unitClassName(info().losesTo)}
+              </span>
+            </div>
+          );
+        }}
       </Show>
       <Show when={props.cost}>
         <CostLine label="Train" cost={props.cost!} />
