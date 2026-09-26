@@ -1,5 +1,7 @@
 import {For, type JSX} from 'solid-js';
-import {type BuildingTypeId, BUILDING_TYPES} from '../../../sim/defs/buildings';
+import type {Enum} from '../../../shared/enum.ts';
+import {BUILDING_DEFS, BUILDING_TYPES} from '../../../sim/defs/buildings';
+import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
 import {type UnitTypeId, UNIT_TYPES} from '../../../sim/defs/units';
 import {BUILD_KEYS} from '../../../ui/buildMenu';
 import {
@@ -16,15 +18,31 @@ import {
   COMMAND_KIND_NAMES,
 } from '../commandsDoc';
 import {DocLink, Section} from '../components';
+import {TRAINED_AT} from '../data';
 import {Prose} from '../prose';
 import {buildingHref, unitHref} from '../routes';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 export function CommandsPage(): JSX.Element {
   const buildKeys = BUILDING_TYPES.flatMap((b): [BuildingTypeId, string][] =>
     BUILD_KEYS[b] === undefined ? [] : [[b, BUILD_KEYS[b]]],
   );
-  const trainKeys = UNIT_TYPES.flatMap((u): [UnitTypeId, string][] =>
-    TRAIN_KEYS[u] === undefined ? [] : [[u, TRAIN_KEYS[u]]],
+  // Where each recruit drills is read off the defs rather than written out:
+  // the bow moved from the barracks to its own range once, and a
+  // hard-coded column said otherwise.
+  const trainKeys = UNIT_TYPES.flatMap(
+    (u): [UnitTypeId, string, BuildingTypeId][] => {
+      const at = TRAINED_AT.get(u);
+      const key = TRAIN_KEYS[u];
+      return at === undefined || key === undefined
+        ? []
+        : [[u, key, at.building]];
+    },
+  );
+  // The type-level half of canRally: any building that trains takes a flag.
+  const rallyAt = BUILDING_TYPES.filter(
+    b => BUILDING_DEFS[b].trains !== undefined,
   );
   return (
     <>
@@ -116,9 +134,7 @@ export function CommandsPage(): JSX.Element {
                       <b>B</b> → <b>{key}</b>
                     </td>
                     <td>
-                      <DocLink href={buildingHref(building)}>
-                        {buildingName(building)}
-                      </DocLink>
+                      <BuildingLink building={building} />
                     </td>
                   </tr>
                 )}
@@ -139,14 +155,16 @@ export function CommandsPage(): JSX.Element {
             </thead>
             <tbody>
               <For each={trainKeys}>
-                {([unit, key]) => (
+                {([unit, key, building]) => (
                   <tr>
                     <td>
                       <b>{key}</b>
                     </td>
-                    <td>Barracks</td>
                     <td>
-                      Train a{' '}
+                      <BuildingLink building={building} />
+                    </td>
+                    <td>
+                      Train {/^[AEIOU]/.test(unitName(unit)) ? 'an' : 'a'}{' '}
                       <DocLink href={unitHref(unit)}>{unitName(unit)}</DocLink>
                     </td>
                   </tr>
@@ -156,14 +174,25 @@ export function CommandsPage(): JSX.Element {
                 <td>
                   <b>{HIRE_KEY}</b>
                 </td>
-                <td>Castle</td>
+                <td>
+                  <BuildingLink building={BuildingTypeId.storehouse} />
+                </td>
                 <td>Hire a serf</td>
               </tr>
               <tr>
                 <td>
                   <b>{RALLY_KEY}</b>
                 </td>
-                <td>Barracks</td>
+                <td>
+                  <For each={rallyAt}>
+                    {(building, i) => (
+                      <>
+                        {i() > 0 && ' or '}
+                        <BuildingLink building={building} />
+                      </>
+                    )}
+                  </For>
+                </td>
                 <td>
                   Arm the rally flag, then plant it with the next map click
                 </td>
@@ -180,5 +209,13 @@ export function CommandsPage(): JSX.Element {
         </div>
       </Section>
     </>
+  );
+}
+
+function BuildingLink(props: {building: BuildingTypeId}): JSX.Element {
+  return (
+    <DocLink href={buildingHref(props.building)}>
+      {buildingName(props.building)}
+    </DocLink>
   );
 }

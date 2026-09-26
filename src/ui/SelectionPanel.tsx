@@ -1203,7 +1203,7 @@ export function SelectionPanel(props: {
                 {/* The rally flag: where fresh soldiers muster as they step
                     out of the door. The button arms the next click/tap the
                     way the squad card's Attack and Move do (desktop also
-                    takes a plain right-click with the barracks open); the
+                    takes a plain right-click with a training yard open); the
                     slot beside it holds either the armed hint or the
                     standing flag's note — one reserved line, so planting
                     or striking the flag never moves the queue below. */}
@@ -1212,7 +1212,7 @@ export function SelectionPanel(props: {
                     tip={() => (
                       <TextTip
                         title="Rally point"
-                        body="Then click a spot. Finished soldiers march there. Click the barracks to remove it."
+                        body="Then click a spot. Finished soldiers march there. Click this building to remove it."
                       />
                     )}
                   >
@@ -1299,7 +1299,7 @@ export function SelectionPanel(props: {
                                 }
                                 body={
                                   item().started
-                                    ? 'Stops the drill. Ingredients return to the barracks, he leaves a serf, training time is lost.'
+                                    ? 'Stops the drill. Ingredients return to this building, he leaves a serf, training time is lost.'
                                     : 'Waiting on ingredients and a recruit. Nothing spent until training starts.'
                                 }
                               />

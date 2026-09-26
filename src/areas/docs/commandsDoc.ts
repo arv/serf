@@ -93,7 +93,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.trainUnit]: {
     summary:
-      'Queue a soldier at the barracks. Ingredients are spent when training starts, not when queued.',
+      'Queue a soldier at the barracks or the archery range. Ingredients are spent when training starts, not when queued.',
     payload: 'buildingId, unit',
   },
   [CommandKind.cancelTraining]: {
@@ -103,7 +103,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   },
   [CommandKind.setRallyPoint]: {
     summary:
-      'Plant the barracks’ rally flag so fresh soldiers march there. Send no coordinates to take it down.',
+      'Plant the rally flag of a barracks or an archery range so fresh soldiers march there. Send no coordinates to take it down.',
     payload: 'buildingId, x?, y?',
   },
   [CommandKind.admin]: {

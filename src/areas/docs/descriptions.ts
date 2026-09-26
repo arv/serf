@@ -97,7 +97,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.barracks]:
     'Bread, a forged weapon and a walking serf make a knight or a spearman. The rally flag on its door is where the finished ones march.',
   [BuildingTypeId.archeryRange]:
-    'Bread, a bow and a serf make an archer, on a queue of its own. Bows and steel muster side by side rather than one behind the other.',
+    'Bread, a bow and a serf make an archer, on a queue of its own. Bows and steel muster side by side rather than one behind the other. Like the barracks, it flies a rally flag for the finished ones.',
   [BuildingTypeId.guardTower]: `${BUILDING_DEFS[BuildingTypeId.guardTower].garrison?.capacity ?? 0} archers on the roof, hitting harder and farther than the same number on the grass. Until one is free, the levy holds it with stones.`,
   [BuildingTypeId.roadSite]:
     'A single tile of paving, placed by the Masonry road pass rather than by hand. When it finishes, the trail beneath it is stone for good.',
