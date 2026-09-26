@@ -1859,7 +1859,6 @@ export function Hud(props: {
           max-height: calc(var(--screen-h) - 24px);
           overflow-y: auto;
         }
-        .end-card h1 { margin: 0 0 10px; }
         .end-card p { margin: 0; }
         /* The choices at the foot of a card read as one row, and the
            gutter between them has to be a real number: the tags sit on
@@ -1885,7 +1884,6 @@ export function Hud(props: {
           max-width: min(420px, calc(0.9 * var(--screen-w)));
         }
         .confirm-card::backdrop { background: rgba(8, 10, 8, 0.6); }
-        .confirm-card h1 { margin: 0 0 10px; }
         .confirm-card p { margin: 0; }
         .confirm-actions {
           display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 22px;
@@ -1915,6 +1913,7 @@ export function Hud(props: {
             0 14px 34px rgba(0, 0, 0, 0.45);
         }
         #ui .wood-card h1 {${COMIC_LETTERING}
+          margin: 0 0 10px;
           font-size: 34px;
           line-height: 1.05;
           letter-spacing: 0.01em;
@@ -1934,9 +1933,6 @@ export function Hud(props: {
            too faint to say where Enter lands. */
         #ui .wood-card button:focus-visible {
           outline: 3px solid var(--ink); outline-offset: 3px;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          #ui .wood-card button { transition: none; }
         }
 
         /* ——— Progressive layer ———

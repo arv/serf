@@ -85,15 +85,18 @@ export const CHUNKY_STONE = `
  * ink outline, cream lettering, a solid ledge under it that it sinks into
  * when pressed. Every button it matches needs a size and a finish above.
  *
- * `sel` goes inside :is(), so the rules weigh what its heaviest selector
- * does, plus the state they add.
+ * Each state is written out per selector rather than through :is(), which
+ * forgives a malformed selector by dropping it: a typo here should break
+ * the rule for everyone, not quietly unstyle one button. The list is split
+ * on its commas, so none of its selectors may hold one of their own.
  */
 export function chunkyButton(sel: string): string {
-  const is = `:is(${sel})`;
+  const selectors = sel.split(',').map(s => s.trim());
+  const on = (state = '') => selectors.map(s => s + state).join(', ');
   const bevel =
     'inset 0 var(--hi) 0 var(--lit), inset 0 calc(-1 * var(--lo)) 0 var(--shade)';
   return `
-${is} {
+${on()} {
   color: var(--cream);
   -webkit-text-stroke: var(--stroke) var(--ink);
   paint-order: stroke fill;
@@ -108,25 +111,25 @@ ${is} {
 }
 /* Restated under the pointer, so a host sheet's own button hover (the
    HUD's glass one) cannot repaint the face. */
-${is}:hover:not(:disabled) {
+${on(':hover:not(:disabled)')} {
   border-color: var(--ink);
   background: var(--face);
 }
-/* Lit only where a cursor hovers: a tap leaves a button in :hover, and a
-   lit face would stay stuck on after it. */
-@media (hover: hover) {
-  ${is}:hover:not(:disabled) { filter: brightness(1.08); }
+/* Lit only under a cursor, the HUD's test for one: a tap leaves a button
+   in :hover, and a lit face would stay stuck on after it. */
+@media not all and (pointer: coarse) {
+  ${on(':hover:not(:disabled)')} { filter: brightness(1.08); }
 }
 /* Pressed: the button sinks by exactly the ledge it loses, so its bottom
    edge — the ledge's foot — stays where it was. */
-${is}:active:not(:disabled) {
+${on(':active:not(:disabled)')} {
   transform: translateY(calc(var(--ledge) - 1px));
   box-shadow: ${bevel}, 0 1px 0 var(--ink);
 }
 /* Not yours to press: the finish goes to worn wood, and it neither lights
    nor sinks. Painted outright rather than through the finish's custom
    properties, so no finish rule, however it is written, paints over it. */
-${is}:disabled {
+${on(':disabled')} {
   cursor: default;
   color: #f3e6cb;
   border: var(--rim) solid var(--ink);
@@ -137,6 +140,11 @@ ${is}:disabled {
     inset 0 var(--hi) 0 rgba(255, 255, 255, 0.3),
     inset 0 calc(-1 * var(--lo)) 0 rgba(90, 60, 30, 0.3),
     0 var(--ledge) 0 var(--ink);
+}
+/* Reduced motion: the press still lands, it just doesn't travel. Here
+   rather than left to each screen, and after the base rule it undoes. */
+@media (prefers-reduced-motion: reduce) {
+  ${on()} { transition: none; }
 }
 `;
 }
