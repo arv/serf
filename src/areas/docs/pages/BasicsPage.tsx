@@ -69,7 +69,7 @@ export function BasicsPage(): JSX.Element {
           <Stat label="A lost worker returns after">
             {fmtSecs(WORKER_RESPAWN_TICKS)}
           </Stat>
-          <Stat label="Barracks queue">{TRAIN_QUEUE_CAP}</Stat>
+          <Stat label="Training queue">{TRAIN_QUEUE_CAP}</Stat>
           <Stat label="Smith queue">{FORGE_QUEUE_CAP}</Stat>
         </Stats>
       </Section>

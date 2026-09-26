@@ -2205,7 +2205,7 @@ export class Controls {
 
   /**
    * The selected building, if it can take a rally flag right now: yours,
-   * built, and of a kind that trains. Null is both "no barracks open" and
+   * built, and of a kind that trains. Null is both "no training yard open" and
    * "a replay takes no orders" — every rally path asks this first, so the
    * two gates are written once.
    */
@@ -2217,8 +2217,8 @@ export class Controls {
   }
 
   /**
-   * Plant the selected barracks' rally flag at this screen point — or take
-   * it down, when the point is the barracks itself: aiming the flag at its
+   * Plant the selected yard's rally flag at this screen point — or take
+   * it down, when the point is the yard itself: aiming the flag at its
    * own door is the "back to normal" gesture, and it needs one, because
    * the door is the one spot a flag cannot otherwise mean.
    */
@@ -2226,7 +2226,7 @@ export class Controls {
     const b = this.#rallyTarget();
     if (!b) return;
     // Its own walls count as its door: the flag comes down for a click
-    // anywhere the barracks is drawn, which is the same pixel that lights
+    // anywhere the yard is drawn, which is the same pixel that lights
     // it under the pointer.
     const onSelf = this.#buildingAt(px, py) === b.id;
     const target = this.#orderTarget(px, py);

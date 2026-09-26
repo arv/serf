@@ -144,7 +144,7 @@ const VILLAGE: Row[] = [
   },
   {
     label: 'Trains ahead',
-    value: s => `${s.barracksQueueDepth} in the barracks queue`,
+    value: s => `${s.barracksQueueDepth} in each training queue`,
   },
   {
     label: 'Holds back for research',
