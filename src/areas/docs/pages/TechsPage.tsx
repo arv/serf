@@ -12,7 +12,7 @@ import {buildingName, unitName} from '../../../ui/names';
 import {CostList, DocLink} from '../components';
 import {ALL_TECHS, fmtSecs} from '../data';
 import {Prose} from '../prose';
-import {buildingHref, techHref, unitHref} from '../routes';
+import {buildingHref, techAnchor, techHref, unitHref} from '../routes';
 
 type ModifierKey = Enum<typeof ModifierKey>;
 type TechBranch = Enum<typeof TechBranch>;
@@ -82,7 +82,7 @@ export function TechsPage(): JSX.Element {
               {id => {
                 const def = TECH_DEFS[id];
                 return (
-                  <article class="tech" id={`tech-${id}`}>
+                  <article class="tech" id={techAnchor(id)}>
                     <div class="t-head">
                       <span class="name">{def.name}</span>
                       <span class="meta">{fmtSecs(def.durationTicks)}</span>
@@ -98,7 +98,9 @@ export function TechsPage(): JSX.Element {
                           {(pre, i) => (
                             <>
                               {i() > 0 && ', '}
-                              <a href={`#tech-${pre}`}>{TECH_DEFS[pre].name}</a>
+                              <a href={`#${techAnchor(pre)}`}>
+                                {TECH_DEFS[pre].name}
+                              </a>
                             </>
                           )}
                         </For>
