@@ -4,12 +4,14 @@ import {AI_STRATEGIES} from '../sim/defs/aiStrategies.ts';
 import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {TECH_DEFS, type TechId} from '../sim/defs/techs';
+import * as UnitClass from '../sim/defs/unitClassEnum.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {isPlayerOwner} from '../sim/entities.ts';
 import type {TileResourceKind} from '../sim/map.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
 
 type GoodId = Enum<typeof GoodId>;
+type UnitClass = Enum<typeof UnitClass>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
@@ -64,6 +66,17 @@ const UNIT_PLURALS: Record<UnitTypeId, string> = {
 
 export function unitNamePlural(unit: UnitTypeId, n: number): string {
   return n === 1 ? UNIT_NAMES[unit] : UNIT_PLURALS[unit];
+}
+
+/** The arm of the triangle a soldier fights in. */
+const UNIT_CLASS_NAMES: Record<UnitClass, string> = {
+  [UnitClass.heavy]: 'Heavy',
+  [UnitClass.light]: 'Light',
+  [UnitClass.ranged]: 'Ranged',
+};
+
+export function unitClassName(cls: UnitClass): string {
+  return UNIT_CLASS_NAMES[cls];
 }
 
 const GOOD_NAMES: Record<GoodId, string> = {

@@ -4,7 +4,7 @@ import type {Recipe} from '../../sim/defs/buildings';
 import {type GoodAmounts, type GoodId, goodEntries} from '../../sim/defs/goods';
 import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
 import {GoodIcon} from '../../ui/icons';
-import {goodName} from '../../ui/names';
+import {RESOURCE_NAMES, goodName} from '../../ui/names';
 import {fmtPerMinute, fmtSecs} from './data';
 import {goodHref} from './routes';
 
@@ -112,9 +112,9 @@ export function RecipeView(props: {recipe: Recipe}): JSX.Element {
   if (r.kind === RecipeKind.gather) {
     return (
       <span>
-        works <b>{r.resource}</b> tiles within {r.radius} →{' '}
-        <GoodChip good={r.output} amount={1} /> · {fmtSecs(r.workTicks)} each ·{' '}
-        {fmtPerMinute(1, r.workTicks)}
+        works the <b>{RESOURCE_NAMES[r.resource] ?? 'ground'}</b> within{' '}
+        {r.radius} tiles → <GoodChip good={r.output} amount={1} /> ·{' '}
+        {fmtSecs(r.workTicks)} each · {fmtPerMinute(1, r.workTicks)}
       </span>
     );
   }

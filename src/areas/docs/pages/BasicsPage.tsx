@@ -25,6 +25,7 @@ import {
 import {BUILDING_DEFS} from '../../../sim/defs/buildings';
 import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
 import * as UnitClass from '../../../sim/defs/unitClassEnum.ts';
+import {unitClassName} from '../../../ui/names';
 import {CostList, Section, Stat, Stats} from '../components';
 import {fmtSecs} from '../data';
 import {Prose} from '../prose';
@@ -112,7 +113,9 @@ export function BasicsPage(): JSX.Element {
           <Stat label="Raiders per wave, at most">{RAID_CAP}</Stat>
           <For each={CLASSES}>
             {cls => (
-              <Stat label={`A ${cls} blow against a wall`}>
+              <Stat
+                label={`A ${unitClassName(cls).toLowerCase()} blow against a wall`}
+              >
                 ×{BUILDING_DAMAGE_MULT[cls]} of what it does to a man
               </Stat>
             )}

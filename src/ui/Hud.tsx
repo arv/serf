@@ -27,6 +27,7 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {goodEntries} from '../sim/defs/goods';
 import type {TechId} from '../sim/defs/techs';
 import type {UnitTypeId} from '../sim/defs/units';
+import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import * as MatchState from '../sim/matchStateEnum.ts';
 import {AdminPanel} from './AdminPanel';
 import {COMPACT, NARROW, ROOMY, SHORT, useMedia} from './breakpoints';
@@ -60,7 +61,7 @@ import {
 import {Minimap, type MinimapSource} from './Minimap';
 import * as MinimapMode from './minimapModeEnum.ts';
 import {MissionPanel, continueTarget} from './MissionPanel';
-import {buildingName, seatName, techName} from './names';
+import {buildingName, goodName, seatName, techName} from './names';
 import {SelectionPanel} from './SelectionPanel';
 import {Key} from './shortcut';
 import {REPLAY_GEAR, SPEED_GEARS} from './speedControl';
@@ -133,6 +134,14 @@ import {
 } from './woodStyle';
 
 type GoodId = Enum<typeof GoodId>;
+type HaulPhase = Enum<typeof HaulPhase>;
+
+/** The debug jobs table's words for a haul's phase. */
+const HAUL_PHASE_LABEL: Record<HaulPhase, string> = {
+  [HaulPhase.open]: 'open',
+  [HaulPhase.toPickup]: 'to pickup',
+  [HaulPhase.toDropoff]: 'to dropoff',
+};
 
 /** The gears' faces. The numbers themselves come from speedControl, which
  * is what the keyboard steps through too — a second list here would be a
@@ -2813,12 +2822,12 @@ export function Hud(props: {
                       {j => (
                         <tr>
                           <td>{j.id}</td>
-                          <td>{j.good}</td>
+                          <td>{goodName(j.good)}</td>
                           <td>
                             {j.from}→{j.to}
                           </td>
                           <td>{j.priority}</td>
-                          <td>{j.phase}</td>
+                          <td>{HAUL_PHASE_LABEL[j.phase]}</td>
                           <td>{j.serfId ?? '—'}</td>
                           <td>{j.age}</td>
                         </tr>

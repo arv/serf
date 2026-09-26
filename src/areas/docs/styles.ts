@@ -160,7 +160,7 @@ export const DOCS_STYLE = `
 #docs .anim-bar button.on { color: #f5e4b6; background: rgba(229,196,105,0.16); }
 #docs .anim-bar button:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: -2px; }
 
-/* Tech cards, anchored for #tech-<id> links. */
+/* Tech cards, anchored for #tech-<key> links (routes.ts techAnchor). */
 #docs .tech { padding: 14px 16px; margin-bottom: 10px; background: rgba(14,16,15,0.74);
   border: 1px solid rgba(255,255,255,0.09); border-radius: 16px; scroll-margin-top: 84px; }
 #docs .tech:target { border-color: rgba(229,196,105,0.55); }
