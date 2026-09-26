@@ -291,8 +291,8 @@ ${panels(' a')} { color: var(--link-paper); }
   box-shadow: inset 0 2px 0 rgba(255,255,255,0.45); }
 #docs .anim-bar button:active { translate: 0 2px; }
 
-/* Tech cards, anchored for #tech-<id> links. The one linked to wears a
-   gold ring round its ink. */
+/* Tech cards, anchored for #tech-<key> links (routes.ts techAnchor). The
+   one linked to wears a gold ring round its ink. */
 #docs .tech { padding: 12px 16px 14px; margin-bottom: 12px; scroll-margin-top: calc(96px + var(--safe-top)); }
 #docs .tech:target { box-shadow: var(--well-bevel), 0 0 0 4px #ffd66b, 0 4px 0 4px var(--well-ledge); }
 #docs .tech .t-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }

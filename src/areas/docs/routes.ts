@@ -96,5 +96,9 @@ export function goodHref(id: GoodId): string {
 }
 /** Techs share one page; a tech link is an anchor on it. */
 export function techHref(id: TechId): string {
-  return `/docs/techs#tech-${TECH_KEYS[id]}`;
+  return `/docs/techs#${techAnchor(id)}`;
+}
+/** The element id a tech's entry carries on the techs page. */
+export function techAnchor(id: TechId): string {
+  return `tech-${TECH_KEYS[id]}`;
 }
