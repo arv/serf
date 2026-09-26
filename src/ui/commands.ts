@@ -30,8 +30,8 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  * These are contextual, exactly as in Warcraft III and StarCraft II: the
  * letters mean what the current selection says they mean. That costs
  * nothing here because a building selection and a unit selection are
- * mutually exclusive — with a barracks open there is no squad for A to
- * attack-move, so A is free to be the Archer.
+ * mutually exclusive — with the archery range open there is no squad for A
+ * to attack-move, so A is free to be the Archer.
  */
 
 /** Which tech gates a trainable unit (mirrors unlockUnit effects). */
@@ -113,8 +113,8 @@ export function trainingForKey(
 export const HIRE_KEY = 'H';
 
 /**
- * Arm the rally flag, at the barracks that is selected: the next click on
- * the map plants it, and fresh soldiers march there as they step out of
+ * Arm the rally flag, at the training yard that is selected: the next click
+ * on the map plants it, and fresh soldiers march there as they step out of
  * the door. Y so it can live inside its own word (Rall**y**) — R belongs
  * to Research, which stays reachable with a barracks open.
  */
