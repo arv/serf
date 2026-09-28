@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Serf Valley — model lab: buildings on slopes</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #6aa63c;
+        font:
+          13px/1.35 system-ui,
+          sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      #labels {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+      #labels span {
+        position: absolute;
+        transform: translate(-50%, 0);
+        white-space: nowrap;
+        color: #fff;
+        background: rgb(0 0 0 / 0.55);
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-weight: 600;
+      }
+      #labels span.row {
+        background: rgb(20 40 90 / 0.75);
+        transform: translate(-100%, -50%);
+      }
+      #help {
+        position: fixed;
+        left: 10px;
+        bottom: 10px;
+        color: #fff;
+        background: rgb(0 0 0 / 0.55);
+        padding: 6px 10px;
+        border-radius: 4px;
+        max-width: 42em;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="labels"></div>
+    <div id="help"></div>
+    <script type="module" src="./_slopes.ts"></script>
+  </body>
+</html>

@@ -204,6 +204,32 @@ one under `?strip=mow` and the carried one under `?strip=walk`. `?marks=1` beads
 against the rows; `?rival=1` turns the seat red for the team roof.
 `w`/`h`/`zoom`/`fy` frame the shot as everywhere else.
 
+## Buildings on slopes
+
+`_slopes.html` is the one page whose ground is not flat. It builds a small
+map where the terrain tilts under each footprint and hands the roster to
+the real `BuildingSync` on a real `TerrainMesh`, so it shows exactly what a
+match draws on a hillside: whether a door meets the ground, whether a field
+follows it, whether a mine's rails or a yard's stock hang in the air (see
+`src/render/groundFit.ts`). Columns are building types (farm, archery range,
+storehouse, woodcutter, quarry, the three mines); rows are which way the
+ground falls — to the front, the back, the side, diagonally.
+
+```sh
+pnpm dev   # then /tools/modelLab/_slopes.html
+```
+
+The tilt is set as the height difference across the footprint's corners,
+the number the placement rule reads: `?diff=` for ordinary buildings
+(default 0.5, the steepest placement allows) and `?mine=` for mines
+(default 0.95, about the 99th percentile of mine sites on generated maps —
+placement does not limit a mine's slope). `?stock=0` empties the yards,
+`?site=<0..1>` shows construction sites at that progress instead.
+`?focus=col,row` frames one slot, `?pitch=` lowers the camera (12 or so
+shows daylight under anything that floats), `?yaw=` walks round it and
+`?clean=1` drops the labels for screenshots. Drag to orbit, right-drag to
+pan, wheel to zoom.
+
 ## The monument
 
 `_monument.html` is where the wonder was composed: a serf cast in gold on a

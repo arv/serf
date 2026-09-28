@@ -89,7 +89,7 @@ const FIELD: FieldInfo = {
   maxX: 33,
   minZ: 30.5,
   maxZ: 34,
-  padY: 0.05,
+  padLift: 0.05,
 };
 
 /** Publish a run of frames and hand back the body's yaw. */

@@ -7,6 +7,7 @@ import {
 } from '../sim/defs/buildings';
 import type {MapView} from '../sim/map';
 import {waterFacing} from '../sim/world';
+import {modelFacing, releaseFit, standOnGround} from './groundFit';
 import type {HeightField} from './heightField';
 import {eachMaterial} from './materials';
 import {makeGhostModel} from './models';
@@ -138,6 +139,27 @@ export class GhostPlacement {
     const cx = x + def.w / 2;
     const cz = y + def.h / 2;
     this.#group.position.set(cx, this.#heights.at(cx, cz), cz);
+    // Stood and bent exactly as the building will be (groundFit.ts): a
+    // mine turned down its hill, the farm's field laid over the slope.
+    if (this.#model) {
+      const facing = modelFacing(
+        this.#type,
+        x,
+        y,
+        def.w,
+        def.h,
+        undefined,
+        this.#heights,
+      );
+      standOnGround(
+        this.#type,
+        def.h,
+        this.#group,
+        this.#model,
+        facing,
+        this.#heights,
+      );
+    }
     if (def.nearWater) {
       this.#aimDeck(x, y, def.w, def.h, def.nearWater.radius, piers ?? []);
     }
@@ -213,6 +235,7 @@ export class GhostPlacement {
   }
 
   hide(): void {
+    if (this.#model) releaseFit(this.#model);
     if (this.#group) {
       this.#scene.remove(this.#group);
       this.#group = null;

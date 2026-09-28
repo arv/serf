@@ -26,6 +26,15 @@ import {
   type CharacterVisual,
 } from './characters';
 import type {FogQuery} from './fogOfWar';
+import {
+  fitsGround,
+  fitToGround,
+  GROUND_FIT,
+  modelFacing,
+  releaseFit,
+  seatOnGround,
+  standOnGround,
+} from './groundFit';
 import type {HeightField} from './heightField';
 import {eachMaterial, mapMaterials} from './materials';
 import {
@@ -100,8 +109,10 @@ export interface FieldInfo {
   maxX: number;
   minZ: number;
   maxZ: number;
-  /** World height of the worked pad's top — the field's deckY. */
-  padY: number;
+  /** How far the worked pad's top stands above the ground under it. The
+   * plot is draped over the terrain (groundFit.ts), so the soil is this
+   * high over the height field everywhere on it — the field's deckY. */
+  padLift: number;
 }
 
 /**
@@ -148,6 +159,7 @@ function volleyRangeOf(b: BuildingSnap): number {
 
 /** Reused for the post->root coordinate hop; buildings do not move. */
 const SCRATCH_POS = new THREE.Vector3();
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 /**
  * The farmstead's walk marks, gate first then the circuit in authored
@@ -273,6 +285,10 @@ interface BuildingVisual {
   mowMarks: THREE.Object3D[];
   /** Measured circuit, cached like pierLine — buildings do not move. */
   fieldInfo?: FieldInfo;
+  /** Quarter turns the model stands at (Building.facing's convention):
+   * the sim's for a shore building, downhill for a mine, else 0. Yard and
+   * doorstep stock turn with it. */
+  facing: number;
   staffed: boolean;
   /** Latest BuildingSnap.working — a convert batch actually ticking. */
   working: boolean;
@@ -978,6 +994,7 @@ export class BuildingSync {
     const cx = b.x + b.w / 2;
     const cz = b.y + b.h / 2;
     root.position.set(cx, this.#heights.at(cx, cz), cz);
+    const facing = this.#facingOf(b);
 
     let frame: THREE.Group | undefined;
     let model: THREE.Group;
@@ -985,9 +1002,13 @@ export class BuildingSync {
     if (b.state === BuildingState.site) {
       frame = makeSiteFrame(b.w, b.h);
       root.add(frame);
+      // The frame's posts and sills stand on the ground like the field
+      // does, fitted once the root has found its height below.
+      frame.userData[GROUND_FIT] = 'drape';
       const glb = makeGlbBuilding(b.type, b.owner);
       if (glb) {
         model = glb;
+        this.#standOnGround(b, root, model, facing);
         // Per-site material clones so the clip plane never touches the
         // shared templates or finished buildings.
         const plane = new THREE.Plane(
@@ -1017,12 +1038,17 @@ export class BuildingSync {
         model.traverse(o => {
           if (o instanceof THREE.Mesh) mapMaterials(o, clipped);
         });
-        // Note: root isn't in the scene yet, so this bbox is root-local —
-        // max.y IS the model height above its own base.
-        const bbox = new THREE.Box3().setFromObject(model);
-        clip = {plane, height: bbox.max.y, baseY: root.position.y};
-        plane.constant = root.position.y + 0.08;
+        // Read under the root, which carries no rotation or scale — so the
+        // box less the root's height IS the model's height over its base.
         root.add(model);
+        root.updateWorldMatrix(true, true);
+        const bbox = new THREE.Box3().setFromObject(model);
+        clip = {
+          plane,
+          height: bbox.max.y - root.position.y,
+          baseY: root.position.y,
+        };
+        plane.constant = root.position.y + 0.08;
         // No cosmetic builder here: the staffing system sends a real serf
         // who becomes the builder (and then the worker) — sceneSync
         // renders them hammering like any other unit.
@@ -1041,14 +1067,21 @@ export class BuildingSync {
     } else {
       // Roads are the one type without a GLB — their 'built' form is the
       // terrain itself, so the pile marker covers the site moment only.
-      model = makeGlbBuilding(b.type, b.owner) ?? makeRoadPile();
+      const glb = makeGlbBuilding(b.type, b.owner);
+      model = glb ?? makeRoadPile();
+      if (glb) this.#standOnGround(b, root, model, facing);
       root.add(model);
     }
 
-    // Shore buildings turn to face their water (Building.facing). Only the
-    // model turns, not the root: the footprint stays axis-aligned, and the
-    // root's own x/z rotation belongs to the collapse animation.
-    if (b.facing) model.rotation.y = (b.facing * Math.PI) / 2;
+    if (frame && fitsGround(b.type)) {
+      fitToGround(frame, this.#heights, root.position.y);
+    }
+
+    // Shore buildings turn to face their water (Building.facing), mines
+    // their door down the hill (#facingOf). Only the model turns, not the
+    // root: the footprint stays axis-aligned, and the root's own x/z
+    // rotation belongs to the collapse animation.
+    model.rotation.y = (facing * Math.PI) / 2;
 
     const shoal = model.getObjectByName('fisheryShoal') ?? undefined;
     if (shoal) {
@@ -1215,7 +1248,21 @@ export class BuildingSync {
       trainMats: trainMats.length > 0 ? trainMats : undefined,
       training: false,
       trainLevel: 0,
+      facing,
     };
+  }
+
+  #facingOf(b: BuildingSnap): number {
+    return modelFacing(b.type, b.x, b.y, b.w, b.h, b.facing, this.#heights);
+  }
+
+  #standOnGround(
+    b: BuildingSnap,
+    root: THREE.Group,
+    model: THREE.Object3D,
+    facing: number,
+  ): void {
+    standOnGround(b.type, b.h, root, model, facing, this.#heights);
   }
 
   /**
@@ -1373,9 +1420,9 @@ export class BuildingSync {
     gate!.getWorldPosition(SCRATCH_POS);
     const gateX = SCRATCH_POS.x;
     const gateZ = SCRATCH_POS.z;
-    // The marks sit ON the pad top, so any one of them is the field's
-    // standing height.
-    const padY = SCRATCH_POS.y;
+    // The marks sit ON the pad top, so any one of them is how far the
+    // soil stands over the ground the plot is draped on.
+    const padLift = SCRATCH_POS.y - v.root.position.y;
     const points: {x: number; z: number}[] = [];
     let minX = gateX;
     let maxX = gateX;
@@ -1402,7 +1449,7 @@ export class BuildingSync {
       maxX: maxX + M,
       minZ: minZ - M,
       maxZ: maxZ + M,
-      padY,
+      padLift,
     };
   }
 
@@ -1807,28 +1854,40 @@ export class BuildingSync {
     }
     if (stacks === 0) return true;
     const s = Math.min(b.w, b.h) * 1.06;
+    // The spots are the model's own, so they turn with it (a mine faces
+    // down its hill), and each stack is stood on the ground under it.
+    const turn = (v.facing * Math.PI) / 2;
     if (yard.tiered) {
       const pile = makeTieredPile(yard.good, stacks);
       if (!pile) return true; // assets missing; nothing to show
       const [x, z, rot] = yard.spots[0]!;
-      pile.position.set(x * s, 0, z * s);
-      pile.rotation.y = rot;
+      pile.position.set(x * s, 0, z * s).applyAxisAngle(Y_AXIS, turn);
+      pile.rotation.y = rot + turn;
       v.root.add(pile);
+      this.#seat(v, pile);
       v.piles = pile;
       return true;
     }
     const piles = new THREE.Group();
+    v.root.add(piles);
+    v.piles = piles;
     for (let i = 0; i < stacks; i++) {
       const [x, z, rot, f] = yard.spots[i]!;
       const item = glbYardProp(yard.prop!, yard.size * f * s);
       if (!item) return true; // assets missing; nothing to show
-      item.position.set(x * s, 0, z * s);
-      item.rotation.y = rot;
+      item.position.set(x * s, 0, z * s).applyAxisAngle(Y_AXIS, turn);
+      item.rotation.y = rot + turn;
       piles.add(item);
+      this.#seat(v, item);
     }
-    v.root.add(piles);
-    v.piles = piles;
     return true;
+  }
+
+  /** Stand one stack of stock on the ground under it — for a building
+   * that is itself stood on the ground (see standOnGround); the rest keep
+   * their stock at the root's level, as their model is. */
+  #seat(v: BuildingVisual, obj: THREE.Object3D): void {
+    if (fitsGround(v.type)) seatOnGround(obj, this.#heights);
   }
 
   /**
@@ -1945,11 +2004,14 @@ export class BuildingSync {
     // Just outside the front wall, Settlers-style — goods wait at the door
     // (they're ankle-high; carriers step over them). A salvage pile has no
     // wall to wait outside: its goods lie where the building stood.
-    piles.position.set(
-      0,
-      0,
-      b.type === BuildingTypeId.salvage ? 0 : b.h / 2 + 0.3,
-    );
+    // The doorstep turns with the model — a mine's door faces down its
+    // hill (#facingOf) — and each lane is stood on the ground under it.
+    const turn = (v.facing * Math.PI) / 2;
+    piles.position
+      .set(0, 0, b.type === BuildingTypeId.salvage ? 0 : b.h / 2 + 0.3)
+      .applyAxisAngle(Y_AXIS, turn);
+    piles.rotation.y = turn;
+    const stacks: THREE.Object3D[] = [];
     for (const [good, want] of chunks) {
       const held = lanes.get(good)!;
       want.forEach((n, k) => {
@@ -1959,8 +2021,13 @@ export class BuildingSync {
         if (tiered) {
           tiered.position.x = cx;
           piles.add(tiered);
+          stacks.push(tiered);
           return;
         }
+        // One group per lane, so the lane is seated as the stack it is:
+        // each prop seated on its own would pull a stack apart.
+        const stack = new THREE.Group();
+        stack.position.x = cx;
         for (let i = 0; i < n; i++) {
           const prop = makePileProp(good);
           const [x, y, z, yaw] = pileSlot(
@@ -1968,14 +2035,17 @@ export class BuildingSync {
             hash2(b.id * 31 + i, lane),
             hash2(b.id * 17 + i, lane + 9),
           );
-          prop.position.set(cx + x, y, z);
+          prop.position.set(x, y, z);
           prop.rotation.y = yaw;
-          piles.add(prop);
+          stack.add(prop);
         }
+        piles.add(stack);
+        stacks.push(stack);
       });
     }
     v.root.add(piles);
     v.piles = piles;
+    for (const stack of stacks) this.#seat(v, stack);
   }
 
   #hoverId = -1;
@@ -2153,6 +2223,10 @@ export class BuildingSync {
    * every material to carry their private clip plane, and hp bars, whose
    * per-building tinted fg material is theirs alone (quads are shared). */
   #freeGpu(v: BuildingVisual): void {
+    // The bent positions a slope gave this model are its own; the rest of
+    // its geometry is the template's (groundFit.ts).
+    releaseFit(v.model);
+    if (v.frame) releaseFit(v.frame);
     // The roof watch, whose skeletons are this visual's alone (see
     // disposeTree). Here rather than in #dispose because a razed tower
     // never goes through it — it sinks into the ground first, and the

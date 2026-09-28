@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {worldToScreen} from '../input/picking';
+import {releaseFit, standOnGround} from '../render/groundFit';
 import type {HeightField} from '../render/heightField';
 import {eachMaterial} from '../render/materials';
 import {makeGhostModel} from '../render/models';
@@ -22,6 +23,10 @@ export class StartMarkers {
   #heights: HeightField;
   #overlay: HTMLElement;
   #ghosts: THREE.Group[] = [];
+  /** What each ghost hangs under and is stood on the ground by — the same
+   * two levels a built storehouse has in BuildingSync, so the start marker
+   * sits on a slope exactly as the storehouse will (groundFit.ts). */
+  #roots: THREE.Group[] = [];
   #labels: HTMLSpanElement[] = [];
   /** Each ghost material's untinted color, for validity tinting. */
   #base = new Map<THREE.Material, THREE.Color>();
@@ -48,7 +53,10 @@ export class StartMarkers {
           });
         }
       });
-      this.#scene.add(ghost);
+      const root = new THREE.Group();
+      root.add(ghost);
+      this.#roots.push(root);
+      this.#scene.add(root);
 
       const label = document.createElement('span');
       label.textContent = `Player ${p + 1}`;
@@ -106,7 +114,7 @@ export class StartMarkers {
         camera,
         canvas,
         cx,
-        this.#heights.at(cx, cz) + 2.6,
+        this.#roots[p]!.position.y + 2.6,
         cz,
       );
       const label = this.#labels[p]!;
@@ -117,10 +125,16 @@ export class StartMarkers {
 
   #place(seat: number): void {
     const s = this.#starts[seat]!;
-    const ghost = this.#ghosts[seat]!;
-    const cx = s.x + START_W / 2;
-    const cz = s.y + START_W / 2;
-    ghost.position.set(cx, this.#heights.at(cx, cz), cz);
+    const root = this.#roots[seat]!;
+    root.position.set(s.x + START_W / 2, 0, s.y + START_W / 2);
+    standOnGround(
+      BuildingTypeId.storehouse,
+      START_W,
+      root,
+      this.#ghosts[seat]!,
+      0,
+      this.#heights,
+    );
   }
 
   #tint(seat: number, color: THREE.Color | null): void {
@@ -140,11 +154,13 @@ export class StartMarkers {
   }
 
   clear(): void {
+    for (const r of this.#roots) this.#scene.remove(r);
     for (const g of this.#ghosts) {
-      this.#scene.remove(g);
       // Ghost materials are per-instance clones (makeGhostModel clones on
       // build); free them — the editor rebuilds markers inside a live
-      // context. Geometry is the shared building GLB: leave it alone.
+      // context. Geometry is the shared building GLB, but for the positions
+      // a slope bent (releaseFit), which are this ghost's own.
+      releaseFit(g);
       g.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
           eachMaterial(obj, m => m.dispose());
@@ -153,6 +169,7 @@ export class StartMarkers {
     }
     for (const l of this.#labels) l.remove();
     this.#ghosts = [];
+    this.#roots = [];
     this.#labels = [];
     this.#base = new Map();
     this.#starts = [];

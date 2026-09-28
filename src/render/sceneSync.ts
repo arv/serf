@@ -1593,13 +1593,15 @@ export class SceneSync {
         // On the planks the deck carries him — the ground under a pier is
         // lake bed, and the height field would sink him to it. The farm's
         // pad is the same story a finger's height tall: on the worked
-        // plot the farmer stands on the soil, not in it.
+        // plot the farmer stands on the soil, not in it — and the plot is
+        // draped over the ground, so the soil is that finger above the
+        // ground wherever he is on it.
         const groundY = this.#heights.at(px, pz);
         const standY =
           pier && onDeck
             ? Math.max(groundY, pier.deckY)
             : field && onFieldPad
-              ? Math.max(groundY, field.padY)
+              ? groundY + field.padLift
               : groundY;
         visual.group.position.set(px, standY + bob, pz);
         // Behind a wall this frame? Then draw his edge over it. The

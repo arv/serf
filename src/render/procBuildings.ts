@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {hash2} from '../shared/math';
 import type {PieceFactory} from './assets';
+import {GROUND_ANCHOR, GROUND_FIT} from './groundFit';
 
 /**
  * Whole buildings we model ourselves, for slots no KayKit pack has a model
@@ -828,8 +829,22 @@ export function makeFarmstead(
   atlas = packMaterial;
   const g = new THREE.Group();
   field(g);
+  // The plot lies on the ground and follows it: on a slope the pad, the
+  // beds, the standing wheat and the fences all drape over the hill
+  // (groundFit.ts), where a rigid plot would hang its low edge in the air
+  // and bury its high one. The barn is the building — it stays square.
+  const plot = g.children.length;
   barn(g);
+  const barnEnd = g.children.length;
   fences(g);
+  g.children.forEach((c, i) => {
+    if (i < plot || i >= barnEnd) c.userData[GROUND_FIT] = 'drape';
+  });
+  // The farm stands at the ground in front of the barn's open bay.
+  const anchor = new THREE.Group();
+  anchor.name = GROUND_ANCHOR;
+  anchor.position.set(BNX, 0, BNZ + BND / 2);
+  g.add(anchor);
   marks(g);
   applyRamps(g);
   return g;

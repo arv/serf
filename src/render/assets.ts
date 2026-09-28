@@ -9,6 +9,7 @@ import {
 } from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
+import {GROUND_ANCHOR, GROUND_FIT} from './groundFit';
 import {makeBakehouse, makeFarmstead, makeMonument} from './procBuildings';
 import {
   makeAshlar,
@@ -699,6 +700,99 @@ function stripTrianglesInBox(
 }
 
 /**
+ * Lift whole pieces out of a baked mesh: every connected component whose
+ * bounds lie inside one of `boxes` moves to a mesh of its own, beside the
+ * source and under the same transform, tagged to lie on the ground
+ * (groundFit.ts). The
+ * pack bakes a building's yard into the building — a mine's rails, an
+ * archery range's butts and targets — and those have to follow a slope the
+ * walls must not.
+ *
+ * Components, not triangles: the pack duplicates vertices along hard edges,
+ * so pieces are joined by shared position as well as by shared index, and a
+ * piece is taken only if ALL of it is in one box. A box drawn loosely round
+ * a yard cannot then nick the foot of a wall that happens to pass through.
+ * Returns how many triangles moved.
+ */
+function liftGroundPieces(
+  mesh: THREE.Mesh,
+  boxes: THREE.Box3[],
+  name: string,
+): number {
+  const geo = mesh.geometry as THREE.BufferGeometry;
+  const index = geo.getIndex();
+  const pos = geo.getAttribute('position');
+  if (!index || !mesh.parent) return 0;
+  const parent = Array.from({length: pos.count}, (_, i) => i);
+  const find = (i: number): number => {
+    while (parent[i] !== i) i = parent[i] = parent[parent[i]!]!;
+    return i;
+  };
+  const join = (a: number, b: number): void => {
+    parent[find(a)] = find(b);
+  };
+  const byPos = new Map<string, number>();
+  for (let i = 0; i < pos.count; i++) {
+    const k = `${pos.getX(i).toFixed(4)},${pos.getY(i).toFixed(4)},${pos.getZ(i).toFixed(4)}`;
+    const seen = byPos.get(k);
+    if (seen === undefined) byPos.set(k, i);
+    else join(i, seen);
+  }
+  for (let i = 0; i < index.count; i += 3) {
+    join(index.getX(i), index.getX(i + 1));
+    join(index.getX(i + 1), index.getX(i + 2));
+  }
+  // Per component, the boxes that still hold every vertex seen so far.
+  const holds = new Map<number, THREE.Box3[]>();
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    const r = find(i);
+    v.fromBufferAttribute(pos, i);
+    holds.set(
+      r,
+      (holds.get(r) ?? boxes).filter(b => b.containsPoint(v)),
+    );
+  }
+  const inside = new Map<number, boolean>();
+  for (const [r, bs] of holds) inside.set(r, bs.length > 0);
+  const kept: number[] = [];
+  const taken: number[] = [];
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    (inside.get(find(a)) ? taken : kept).push(
+      a,
+      index.getX(i + 1),
+      index.getX(i + 2),
+    );
+  }
+  if (taken.length === 0) return 0;
+  const rest = geo.clone();
+  rest.setIndex(kept);
+  mesh.geometry = rest;
+  const lifted = geo.clone();
+  lifted.setIndex(taken);
+  const piece = new THREE.Mesh(lifted, mesh.material);
+  piece.name = name;
+  piece.castShadow = mesh.castShadow;
+  piece.receiveShadow = mesh.receiveShadow;
+  piece.position.copy(mesh.position);
+  piece.quaternion.copy(mesh.quaternion);
+  piece.scale.copy(mesh.scale);
+  piece.userData[GROUND_FIT] = 'drape';
+  mesh.parent.add(piece);
+  return taken.length / 3;
+}
+
+/** A GROUND_ANCHOR mark at a door, in a template's own (pre-normalize)
+ * units: where buildingSync reads the ground level the building stands at. */
+function markGroundAnchor(scene: THREE.Object3D, x: number, z: number): void {
+  const mark = new THREE.Group();
+  mark.name = GROUND_ANCHOR;
+  mark.position.set(x, 0, z);
+  scene.add(mark);
+}
+
+/**
  * Pieces cut back *out* of a pack model, for the buildings we model
  * ourselves (BUILT_BUILDINGS). Kay already drew a door; drawing a second
  * one that is nearly but not quite his is how a hand-built building starts
@@ -1125,6 +1219,10 @@ async function loadAssetBatch(menuOnly: boolean): Promise<boolean> {
         }
         if (!obj) continue;
         if (d.name) obj.name = d.name;
+        // Yard dressing stands on its own feet and meets the slope with
+        // them; anything given a height is up on the building and moves
+        // with it (groundFit.ts).
+        if (d.y === undefined) obj.userData[GROUND_FIT] = 'foot';
         obj.position.set(d.at[0], d.y ?? 0, d.at[1]);
         obj.rotation.y = d.rot ?? 0;
         group.add(obj);
@@ -1201,6 +1299,58 @@ async function loadAssetBatch(menuOnly: boolean): Promise<boolean> {
             }
           }
         });
+        // The track out of the adit is five sleepers and two rails baked
+        // into the mound (validated component by component: 84 triangles,
+        // nothing else inside the box). It lies on the ground, and on a
+        // slope the ground falls away under it, so it is lifted out to be
+        // draped there (groundFit.ts) while the mound stays rigid. The door
+        // is the level the mine stands at: a hole in a hill is entered
+        // from the ground in front of it.
+        const mound = scene.getObjectByName('building_mine_green');
+        if (mound instanceof THREE.Mesh) {
+          liftGroundPieces(
+            mound,
+            [
+              new THREE.Box3(
+                new THREE.Vector3(-0.17, -0.01, -0.05),
+                new THREE.Vector3(0.17, 0.06, 0.92),
+              ),
+            ],
+            'mineTrack',
+          );
+        }
+        markGroundAnchor(scene, 0, 0.5);
+      }
+      if (type === BuildingTypeId.archeryRange) {
+        // The range bakes its shooting lane into the building: the straw
+        // butt, two targets on their stands, the barrels and the arrow
+        // stock out front of the long shed. On a slope all of it has to
+        // follow the ground the tower and shed are stood above. Two boxes,
+        // validated component by component (28 pieces, 1162 triangles):
+        // the butt, which runs back under the shed's eaves, and everything
+        // standing clear in front of the shed's wall face (z 0.05) and west
+        // of the tower's step. One box round both took the shed's two
+        // arched windows with them — they sit in that wall face, and a
+        // draped window slides up and down its own wall.
+        const range = scene.getObjectByName('building_archeryrange_green');
+        if (range instanceof THREE.Mesh) {
+          liftGroundPieces(
+            range,
+            [
+              new THREE.Box3(
+                new THREE.Vector3(-0.85, -0.01, -0.12),
+                new THREE.Vector3(-0.59, 0.45, 0.72),
+              ),
+              new THREE.Box3(
+                new THREE.Vector3(-0.85, -0.01, 0.055),
+                new THREE.Vector3(0.165, 0.45, 0.72),
+              ),
+            ],
+            'rangeYard',
+          );
+        }
+        // The tower door, over its step.
+        markGroundAnchor(scene, 0.37, 0.28);
       }
       if (type === BuildingTypeId.well) {
         // The pack bakes a static windlass into the well's single mesh: an
