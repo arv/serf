@@ -938,7 +938,11 @@ export function SelectionPanel(props: {
                                   }}
                                 />
                                 <span class="unit">
-                                  <GoodIcon good={output()} size={13} />{' '}
+                                  <GoodIcon
+                                    good={output()}
+                                    size={13}
+                                    decorative
+                                  />{' '}
                                   <span class="label">
                                     {goodName(output())}
                                   </span>

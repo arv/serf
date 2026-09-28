@@ -77,7 +77,7 @@ function LedgerGroups() {
                   classList={{none: (stock()[good] ?? 0) === 0}}
                   {...tooltip(() => <GoodTip good={good} />)}
                 >
-                  <GoodIcon good={good} size={14} />
+                  <GoodIcon good={good} size={14} decorative />
                   <span class="name">{goodName(good)}</span>
                   <Show when={group.label === 'Tools'}>
                     <span class="want">

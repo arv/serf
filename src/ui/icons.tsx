@@ -16,7 +16,7 @@ const WOOD_TONE = '#b8733f';
 /** The bow's stave, stroked twice (dark rim, light core). */
 const BOW_STAVE = 'M15 5Q40 24 15 43';
 /** The tankard's handle, stroked twice (dark rim, light core). */
-const ALE_HANDLE = {x: 31, y: 20, width: 10, height: 14, rx: 5, fill: 'none'};
+const ALE_HANDLE = 'M31 25A5 5 0 0 1 41 25V29A5 5 0 0 1 31 29Z';
 
 /**
  * Good glyphs, from the HUD-restyle handoff: chunky fills in a 48-unit box,
@@ -162,8 +162,8 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
   // Tankard: mug, handle, foam head
   [GoodId.ale]: () => (
     <>
-      <rect {...ALE_HANDLE} stroke="#b8741f" stroke-width="6" />
-      <rect {...ALE_HANDLE} stroke="#e39a34" stroke-width="2" />
+      <path d={ALE_HANDLE} fill="none" stroke="#b8741f" stroke-width="6" />
+      <path d={ALE_HANDLE} fill="none" stroke="#e39a34" stroke-width="2" />
       <rect x="10" y="15" width="24" height="27" rx="4" fill="#e39a34" />
       <path d="M16 22V36" fill="none" stroke="#f7c26b" stroke-width="2.5" />
       <circle cx="14" cy="15" r="5.5" fill="#fff6e0" />
@@ -264,7 +264,7 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
         fill="#c9853f"
         transform="rotate(38 24 24)"
       />
-      <path d="M37 8V30" fill="none" stroke="#3d1f12" stroke-width="2" />
+      <path d="M37 8V33" fill="none" stroke="#3d1f12" stroke-width="2" />
       <path
         d="M37 33v3a3.5 3.5 0 0 1-7 0"
         fill="none"
