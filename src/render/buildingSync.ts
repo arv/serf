@@ -1859,7 +1859,7 @@ export class BuildingSync {
     const s = Math.min(b.w, b.h) * 1.06;
     // The spots are the model's own, so they turn with it (a mine faces
     // down its hill), and each stack is stood on the ground under it.
-    const turn = (v.facing * Math.PI) / 2;
+    const turn = this.#stockTurn(v);
     if (yard.tiered) {
       const pile = makeTieredPile(yard.good, stacks);
       if (!pile) return true; // assets missing; nothing to show
@@ -1885,6 +1885,14 @@ export class BuildingSync {
     v.piles = piles;
     for (const item of piles.children) this.#seat(v, item);
     return true;
+  }
+
+  /** The quarter turn a building's yard and doorstep stock stand at: the
+   * model's own for a building stood on the ground (a mine faces down its
+   * hill), none for the rest. A shore building's front is its jetty, and
+   * its goods keep waiting on the land side rather than on the planks. */
+  #stockTurn(v: BuildingVisual): number {
+    return fitsGround(v.type) ? (v.facing * Math.PI) / 2 : 0;
   }
 
   /** Stand one stack of stock on the ground under it — for a building
@@ -2010,7 +2018,7 @@ export class BuildingSync {
     // wall to wait outside: its goods lie where the building stood.
     // The doorstep turns with the model — a mine's door faces down its
     // hill (#facingOf) — and each lane is stood on the ground under it.
-    const turn = (v.facing * Math.PI) / 2;
+    const turn = this.#stockTurn(v);
     piles.position
       .set(0, 0, b.type === BuildingTypeId.salvage ? 0 : b.h / 2 + 0.3)
       .applyAxisAngle(Y_AXIS, turn);
@@ -2230,7 +2238,15 @@ export class BuildingSync {
     // The bent positions a slope gave this model are its own; the rest of
     // its geometry is the template's (groundFit.ts).
     releaseFit(v.model);
-    if (v.frame) releaseFit(v.frame);
+    // The site frame is this visual's alone (makeSiteFrame builds fresh
+    // geometry and materials for every site), and so are the cut copies a
+    // drape made of it — which releaseFit would leave on the GPU, since for
+    // a template they are shared. So it goes whole, drawn geometry and all.
+    v.frame?.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return;
+      (o.geometry as THREE.BufferGeometry).dispose();
+      eachMaterial(o, m => m.dispose());
+    });
     // The roof watch, whose skeletons are this visual's alone (see
     // disposeTree). Here rather than in #dispose because a razed tower
     // never goes through it — it sinks into the ground first, and the

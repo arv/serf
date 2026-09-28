@@ -78,9 +78,12 @@ export class StartMarkers {
   moveSeat(seat: number, spot: StartSpot, valid: boolean): void {
     const s = this.#starts[seat];
     if (!s) return;
+    // A drag reports every pointer move; the stand and bend reallocate
+    // every bent mesh (groundFit.ts), so they wait for a new tile.
+    const moved = s.x !== spot.x || s.y !== spot.y;
     s.x = spot.x;
     s.y = spot.y;
-    this.#place(seat);
+    if (moved) this.#place(seat);
     this.#tint(seat, valid ? null : INVALID);
   }
 

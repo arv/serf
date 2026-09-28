@@ -321,7 +321,9 @@ function fitMesh(
     if (rule.mode === 'drape') {
       dy = g - baseY;
     } else {
-      const w = Math.max(0, 1 - (V.y - rule.base) / BAND);
+      // Clamped at 1: anything authored below the base (sunk decor) moves
+      // with the base rather than being pulled further down than it.
+      const w = Math.min(1, Math.max(0, 1 - (V.y - rule.base) / BAND));
       const fall = g - rule.pivot;
       dy =
         rule.pivot -
