@@ -11,6 +11,13 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  * Tiny inline-SVG icon set — no emoji, no assets.
  */
 
+/** The log's body and every haft: one wood tone across the tools. */
+const WOOD_TONE = '#b8733f';
+/** The bow's stave, stroked twice (dark rim, light core). */
+const BOW_STAVE = 'M15 5Q40 24 15 43';
+/** The tankard's handle, stroked twice (dark rim, light core). */
+const ALE_HANDLE = {x: 31, y: 20, width: 10, height: 14, rx: 5, fill: 'none'};
+
 /**
  * Good glyphs, from the HUD-restyle handoff: chunky fills in a 48-unit box,
  * every shape ringed in one warm brown outline (see GoodIcon), so the goods
@@ -71,7 +78,7 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
   // Log with end-grain
   [GoodId.wood]: () => (
     <>
-      <rect x="5" y="15" width="34" height="18" rx="9" fill="#b8733f" />
+      <rect x="5" y="15" width="34" height="18" rx="9" fill={WOOD_TONE} />
       <path d="M12 20H28" fill="none" stroke="#dc9a5e" stroke-width="2.5" />
       <ellipse cx="37" cy="24" rx="6" ry="9" fill="#f0c48a" />
       <ellipse
@@ -140,51 +147,23 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
   // Spear: shaft + diamond head
   [GoodId.spear]: () => (
     <g transform="rotate(40 24 24)">
-      <rect x="22" y="15" width="4" height="31" rx="2" fill="#b8733f" />
+      <rect x="22" y="15" width="4" height="31" rx="2" fill={WOOD_TONE} />
       <path d="M24 1 31 13 24 19 17 13Z" fill="#d6dde2" />
     </g>
   ),
   // Bow: stave with string
   [GoodId.bow]: () => (
     <>
-      <path
-        d="M15 5Q40 24 15 43"
-        fill="none"
-        stroke="#9a5e28"
-        stroke-width="7"
-      />
-      <path
-        d="M15 5Q40 24 15 43"
-        fill="none"
-        stroke="#d6934a"
-        stroke-width="3"
-      />
+      <path d={BOW_STAVE} fill="none" stroke="#9a5e28" stroke-width="7" />
+      <path d={BOW_STAVE} fill="none" stroke="#d6934a" stroke-width="3" />
       <path d="M15 6V42" fill="none" stroke="#f4ecda" stroke-width="2" />
     </>
   ),
   // Tankard: mug, handle, foam head
   [GoodId.ale]: () => (
     <>
-      <rect
-        x="31"
-        y="20"
-        width="10"
-        height="14"
-        rx="5"
-        fill="none"
-        stroke="#b8741f"
-        stroke-width="6"
-      />
-      <rect
-        x="31"
-        y="20"
-        width="10"
-        height="14"
-        rx="5"
-        fill="none"
-        stroke="#e39a34"
-        stroke-width="2"
-      />
+      <rect {...ALE_HANDLE} stroke="#b8741f" stroke-width="6" />
+      <rect {...ALE_HANDLE} stroke="#e39a34" stroke-width="2" />
       <rect x="10" y="15" width="24" height="27" rx="4" fill="#e39a34" />
       <path d="M16 22V36" fill="none" stroke="#f7c26b" stroke-width="2.5" />
       <circle cx="14" cy="15" r="5.5" fill="#fff6e0" />
@@ -231,14 +210,14 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
   // bit's outline clears the top edge of the box.
   [GoodId.axe]: () => (
     <g transform="translate(0 1.5) rotate(-25 24 24)">
-      <rect x="21" y="8" width="5" height="37" rx="2.5" fill="#b8733f" />
+      <rect x="21" y="8" width="5" height="37" rx="2.5" fill={WOOD_TONE} />
       <path d="M25 9 38 4Q44 15 38 27L25 21Z" fill="#cdd5db" />
     </g>
   ),
   // Miner's pick: curved twin-spike head over a straight haft
   [GoodId.pickaxe]: () => (
     <>
-      <rect x="21.5" y="13" width="5" height="32" rx="2.5" fill="#b8733f" />
+      <rect x="21.5" y="13" width="5" height="32" rx="2.5" fill={WOOD_TONE} />
       <path d="M4 20Q24 2 44 20L41 23Q24 12 7 23Z" fill="#9aa3aa" />
     </>
   ),
@@ -246,14 +225,14 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
   // the blade tip's outline clears the right edge of the box.
   [GoodId.scythe]: () => (
     <g transform="translate(-1.5 0) rotate(12 24 24)">
-      <rect x="21" y="7" width="5" height="38" rx="2.5" fill="#b8733f" />
+      <rect x="21" y="7" width="5" height="38" rx="2.5" fill={WOOD_TONE} />
       <path d="M24 9Q38 1 46 13Q35 11 26 18Z" fill="#e3e9ed" />
     </g>
   ),
   // Smith's hammer: square steel head, straight haft
   [GoodId.hammer]: () => (
     <>
-      <rect x="21.5" y="18" width="5" height="27" rx="2.5" fill="#b8733f" />
+      <rect x="21.5" y="18" width="5" height="27" rx="2.5" fill={WOOD_TONE} />
       <rect x="10" y="6" width="28" height="14" rx="3.5" fill="#7d8b99" />
       <path d="M14 10H30" fill="none" stroke="#aab5c0" stroke-width="2.5" />
     </>
@@ -314,6 +293,7 @@ export function GoodIcon(props: {
       width={props.size ?? 14}
       height={props.size ?? 14}
       style={{'vertical-align': '-2px'}}
+      role={props.decorative === true ? undefined : 'img'}
       aria-hidden={props.decorative === true ? 'true' : undefined}
       aria-label={props.decorative === true ? undefined : goodName(props.good)}
     >
