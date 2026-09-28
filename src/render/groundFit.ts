@@ -31,9 +31,9 @@ import type {HeightField} from './heightField';
  *          rises instead the building is simply dug in, which is how a
  *          house on a hillside looks anyway.
  *
- * The bend writes a position attribute of the mesh's own, sharing every
- * other attribute with the template — a template's geometry is never
- * touched. releaseFit frees what a fit allocated.
+ * The bend writes position and normal attributes of the mesh's own,
+ * sharing every other attribute with the template — a template's geometry
+ * is never touched. releaseFit frees what a fit allocated.
  */
 
 export const GROUND_FIT = 'groundFit';
@@ -61,7 +61,15 @@ const EPS = 1e-4;
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const V = new THREE.Vector3();
+const N = new THREE.Vector3();
+const GRAD = new THREE.Vector3();
 const INV = new THREE.Matrix4();
+const NORMAL_TO_WORLD = new THREE.Matrix3();
+const NORMAL_TO_LOCAL = new THREE.Matrix3();
+
+/** Step the bend's slope is measured over, world units — well under a
+ * tile, so it reads the ground's own tilt rather than a neighbour's. */
+const SLOPE_STEP = 0.02;
 const BOX = new THREE.Box3();
 const MESH_BOX = new THREE.Box3();
 
@@ -233,8 +241,9 @@ export function releaseFit(model: THREE.Object3D): void {
 }
 
 /**
- * Free a geometry a fit allocated — its position buffer and nothing else.
- * Its index and every other attribute are the template's (or the template's
+ * Free a geometry a fit allocated — its position and normal buffers and
+ * nothing else. Its index and every other attribute are the template's (or
+ * the template's
  * cached tessellation), shared with every other instance of the building,
  * and three's dispose frees the GPU buffer of every attribute the geometry
  * holds: left on, they would be deleted out from under every building of
@@ -245,10 +254,14 @@ function disposeFitted(g: THREE.BufferGeometry): void {
   owned.delete(g);
   g.setIndex(null);
   for (const name of Object.keys(g.attributes)) {
-    if (name !== 'position') g.deleteAttribute(name);
+    if (!OWN_ATTRIBUTES.has(name)) g.deleteAttribute(name);
   }
   g.dispose();
 }
+
+/** The attributes a fitted geometry writes for itself; every other one is
+ * borrowed from the template. */
+const OWN_ATTRIBUTES = new Set(['position', 'normal']);
 
 /**
  * Stand a small rigid thing — a stack of stock, a pile of ore — on the
@@ -311,26 +324,58 @@ function fitMesh(
   const src =
     rule.mode === 'drape' ? tessellate(template, MAX_EDGE / scale) : template;
   const pos = src.getAttribute('position');
+  const nrm = src.getAttribute('normal') as
+    | THREE.BufferAttribute
+    | THREE.InterleavedBufferAttribute
+    | undefined;
   const out = new Float32Array(pos.count * 3);
+  const outN = nrm ? new Float32Array(nrm.count * 3) : null;
   INV.copy(mesh.matrixWorld).invert();
+  NORMAL_TO_WORLD.getNormalMatrix(mesh.matrixWorld);
+  NORMAL_TO_LOCAL.copy(NORMAL_TO_WORLD).invert();
+  /** How far the fit moves a world point up or down. */
+  const bend = (x: number, y: number, z: number): number => {
+    const g = heights.at(x, z);
+    if (rule.mode === 'drape') return g - baseY;
+    // Clamped at 1: anything authored below the base (sunk decor) moves
+    // with the base rather than being pulled further down than it.
+    const w = Math.min(1, Math.max(0, 1 - (y - rule.base) / BAND));
+    const fall = g - rule.pivot;
+    return (
+      rule.pivot -
+      baseY +
+      (rule.mode === 'building' ? Math.min(0, fall) : fall) * w
+    );
+  };
   let bent = src !== template;
   for (let i = 0; i < pos.count; i++) {
     V.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-    const g = heights.at(V.x, V.z);
-    let dy: number;
-    if (rule.mode === 'drape') {
-      dy = g - baseY;
-    } else {
-      // Clamped at 1: anything authored below the base (sunk decor) moves
-      // with the base rather than being pulled further down than it.
-      const w = Math.min(1, Math.max(0, 1 - (V.y - rule.base) / BAND));
-      const fall = g - rule.pivot;
-      dy =
-        rule.pivot -
-        baseY +
-        (rule.mode === 'building' ? Math.min(0, fall) : fall) * w;
-    }
+    const dy = bend(V.x, V.y, V.z);
     if (Math.abs(dy) > EPS) bent = true;
+    if (outN) {
+      // The bend moves points straight up or down by dy(x, y, z), which
+      // tilts every surface it bends: a pad laid over a slope has to face
+      // up the slope's own normal, or the sun lights it as level ground.
+      // For p' = p + (0, f(p), 0) the normal goes to n - grad f * n.y /
+      // (1 + df/dy) — exact for any bend, so a wall the bend only
+      // stretches keeps its normal, and the template's hard edges stay
+      // hard where recomputing from triangles would smooth them.
+      const h = SLOPE_STEP;
+      GRAD.set(
+        (bend(V.x + h, V.y, V.z) - bend(V.x - h, V.y, V.z)) / (2 * h),
+        (bend(V.x, V.y + h, V.z) - bend(V.x, V.y - h, V.z)) / (2 * h),
+        (bend(V.x, V.y, V.z + h) - bend(V.x, V.y, V.z - h)) / (2 * h),
+      );
+      N.fromBufferAttribute(nrm!, i).applyMatrix3(NORMAL_TO_WORLD);
+      // (1 + df/dy only nears 0 where a footed part's rise is as tall as
+      // its whole bend band — a fold, not a surface; kept off 0.)
+      N.addScaledVector(GRAD, -N.y / Math.max(1 + GRAD.y, 0.05))
+        .applyMatrix3(NORMAL_TO_LOCAL)
+        .normalize();
+      outN[i * 3] = N.x;
+      outN[i * 3 + 1] = N.y;
+      outN[i * 3 + 2] = N.z;
+    }
     V.y += dy;
     V.applyMatrix4(INV);
     out[i * 3] = V.x;
@@ -346,9 +391,10 @@ function fitMesh(
   const geo = new THREE.BufferGeometry();
   geo.setIndex(src.getIndex());
   for (const [name, attr] of Object.entries(src.attributes)) {
-    if (name !== 'position') geo.setAttribute(name, attr);
+    if (!OWN_ATTRIBUTES.has(name)) geo.setAttribute(name, attr);
   }
   geo.setAttribute('position', new THREE.BufferAttribute(out, 3));
+  if (outN) geo.setAttribute('normal', new THREE.BufferAttribute(outN, 3));
   for (const g of src.groups) geo.addGroup(g.start, g.count, g.materialIndex);
   geo.setDrawRange(src.drawRange.start, src.drawRange.count);
   geo.computeBoundingBox();

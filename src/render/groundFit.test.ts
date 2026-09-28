@@ -128,6 +128,76 @@ describe('fitToGround', () => {
     for (const v of verts) expect(v.y).toBeCloseTo(h.at(v.x, v.z), 5);
   });
 
+  it('turns a draped surface to face up its slope, in the model the fit is under', () => {
+    const h = plane(2, 0.2, -0.1);
+    const pad = new THREE.Mesh(
+      new THREE.PlaneGeometry(3, 3).rotateX(-Math.PI / 2),
+    );
+    pad.userData[GROUND_FIT] = 'drape';
+    const model = new THREE.Group();
+    // Turned and scaled like a real template, so the normals have to go to
+    // world space and back to be right.
+    model.rotation.y = Math.PI / 2;
+    model.scale.setScalar(1.5);
+    model.add(pad);
+    const baseY = h.at(12, 12);
+    stand(model, baseY);
+    fitToGround(model, h, baseY);
+    pad.updateWorldMatrix(true, false);
+    const toWorld = new THREE.Matrix3().getNormalMatrix(pad.matrixWorld);
+    const want = new THREE.Vector3(-0.2, 1, 0.1).normalize();
+    const nrm = (pad.geometry as THREE.BufferGeometry).getAttribute('normal');
+    for (let i = 0; i < nrm.count; i++) {
+      const n = new THREE.Vector3()
+        .fromBufferAttribute(nrm, i)
+        .applyMatrix3(toWorld)
+        .normalize();
+      expect(n.x).toBeCloseTo(want.x, 4);
+      expect(n.y).toBeCloseTo(want.y, 4);
+      expect(n.z).toBeCloseTo(want.z, 4);
+    }
+  });
+
+  it('owns its normals and borrows everything else from the template', () => {
+    const h = plane(3, -0.2, 0);
+    const geo = new THREE.BoxGeometry(2, 2, 2).translate(0, 1, 0);
+    const box = new THREE.Mesh(geo);
+    const model = new THREE.Group();
+    model.add(box);
+    const baseY = h.at(12, 12);
+    stand(model, baseY);
+    fitToGround(model, h, baseY);
+    const fitted = box.geometry as THREE.BufferGeometry;
+    expect(fitted).not.toBe(geo);
+    expect(fitted.getAttribute('normal')).not.toBe(geo.getAttribute('normal'));
+    expect(fitted.getAttribute('uv')).toBe(geo.getAttribute('uv'));
+    expect(fitted.getIndex()).toBe(geo.getIndex());
+    // A wall the bend only stretches stays facing exactly where it faced.
+    const before = geo.getAttribute('normal');
+    const after = fitted.getAttribute('normal');
+    for (let i = 0; i < before.count; i++) {
+      if (Math.abs(before.getY(i)) > 0.5) continue; // walls only
+      expect(after.getX(i)).toBeCloseTo(before.getX(i), 6);
+      expect(after.getY(i)).toBeCloseTo(before.getY(i), 6);
+      expect(after.getZ(i)).toBeCloseTo(before.getZ(i), 6);
+    }
+    // Freed on release; the template's own buffers are left alone.
+    let freed = 0;
+    fitted.addEventListener('dispose', () => freed++);
+    releaseFit(model);
+    expect(freed).toBe(1);
+    expect(box.geometry).toBe(geo);
+    expect(geo.getAttribute('normal')).toBe(before);
+    expect(geo.getAttribute('uv')).toBeDefined();
+    expect(geo.getIndex()).not.toBeNull();
+    // Only the fit's own buffers were on the geometry when it was freed.
+    expect(Object.keys(fitted.attributes).sort()).toEqual([
+      'normal',
+      'position',
+    ]);
+    expect(fitted.getIndex()).toBeNull();
+  });
+
   it("stretches a building's base down to falling ground and never lifts it", () => {
     // Ground falls toward +x: the -x wall is dug in, the +x wall hangs.
     const h = plane(3, -0.2, 0);
