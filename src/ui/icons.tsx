@@ -8,285 +8,271 @@ type GoodId = Enum<typeof GoodId>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
- * Tiny inline-SVG icon set — no emoji, no assets. Goods use their palette
- * color so the HUD reads like the world does.
+ * Tiny inline-SVG icon set — no emoji, no assets.
  */
 
-const GOOD_HEX: Record<GoodId, string> = {
-  [GoodId.water]: '#6da4cc',
-  [GoodId.wheat]: '#e3bd45',
-  [GoodId.wood]: '#ab8354',
-  [GoodId.stone]: '#a29a8a',
-  [GoodId.iron]: '#8d7d72',
-  [GoodId.silver]: '#c8ced6',
-  [GoodId.gold]: '#e0b74f',
-  [GoodId.sword]: '#c4cdd6',
-  [GoodId.spear]: '#c39c62',
-  [GoodId.bow]: '#b08d57',
-  [GoodId.ale]: '#d2963c',
-  [GoodId.flour]: '#e4dcc9',
-  [GoodId.food]: '#d9a860',
-  // Tools carry the color of their business end; hafts share one wood tone.
-  [GoodId.axe]: '#98a2ac',
-  [GoodId.pickaxe]: '#8d8078',
-  [GoodId.scythe]: '#c3cad2',
-  [GoodId.hammer]: '#77848e',
-  [GoodId.cauldron]: '#b0763f',
-  [GoodId.rod]: '#a08a5f',
-};
+/** The log's body and every haft: one wood tone across the tools. */
+const WOOD_TONE = '#b8733f';
+/** The bow's stave, stroked twice (dark rim, light core). */
+const BOW_STAVE = 'M15 5Q40 24 15 43';
+/** The tankard's handle, stroked twice (dark rim, light core). */
+const ALE_HANDLE = 'M31 25A5 5 0 0 1 41 25V29A5 5 0 0 1 31 29Z';
 
-/** Good glyphs. Some (from the glass-HUD design handoff) are authored in a
- * 24-unit box and scaled into the 16-unit one. */
-const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
-  // Droplet
-  [GoodId.water]: c => (
-    <path
-      d="M8 1.5C8 1.5 3.5 7 3.5 10a4.5 4.5 0 0 0 9 0C12.5 7 8 1.5 8 1.5Z"
-      fill={c}
-    />
-  ),
-  // Wheat ear: stalk + grain ellipses
-  [GoodId.wheat]: c => (
-    <g transform="scale(0.667)">
+/**
+ * Good glyphs, from the HUD-restyle handoff: chunky fills in a 48-unit box,
+ * every shape ringed in one warm brown outline (see GoodIcon), so the goods
+ * read as a set on the dark HUD glass and the field guide's parchment alike.
+ * Each glyph carries its own colors; a stroke or width set here overrides
+ * the shared outline for that shape only.
+ */
+const PATHS: Record<GoodId, () => JSX.Element> = {
+  // Droplet with a highlight
+  [GoodId.water]: () => (
+    <>
       <path
-        d="M12 22V8"
-        stroke={c}
-        stroke-width="2"
-        fill="none"
-        stroke-linecap="round"
+        d="M24 5C20 12 11 20 11 29A13 13 0 0 0 37 29C37 20 28 12 24 5Z"
+        fill="#4f9fe6"
       />
-      <ellipse cx="12" cy="5" rx="2.6" ry="3.6" fill={c} />
+      <ellipse cx="18.5" cy="29" rx="2.5" ry="5" fill="#c4e4ff" stroke="none" />
+    </>
+  ),
+  // Wheat ear: stalk + five grains
+  [GoodId.wheat]: () => (
+    <>
+      <rect x="22" y="14" width="4" height="30" rx="2" fill="#d9a52a" />
+      <ellipse cx="24" cy="10" rx="4.5" ry="6.5" fill="#f5c93f" />
       <ellipse
-        cx="7.4"
-        cy="10"
-        rx="2.4"
-        ry="3.2"
-        transform="rotate(-38 7.4 10)"
-        fill={c}
-      />
-      <ellipse
-        cx="16.6"
-        cy="10"
-        rx="2.4"
-        ry="3.2"
-        transform="rotate(38 16.6 10)"
-        fill={c}
+        cx="16.5"
+        cy="19"
+        rx="4.5"
+        ry="6.5"
+        fill="#f5c93f"
+        transform="rotate(-35 16.5 19)"
       />
       <ellipse
-        cx="7.4"
-        cy="15.5"
-        rx="2.4"
-        ry="3.2"
-        transform="rotate(-38 7.4 15.5)"
-        fill={c}
+        cx="31.5"
+        cy="19"
+        rx="4.5"
+        ry="6.5"
+        fill="#f5c93f"
+        transform="rotate(35 31.5 19)"
       />
       <ellipse
-        cx="16.6"
-        cy="15.5"
-        rx="2.4"
-        ry="3.2"
-        transform="rotate(38 16.6 15.5)"
-        fill={c}
+        cx="16.5"
+        cy="29"
+        rx="4.5"
+        ry="6.5"
+        fill="#f5c93f"
+        transform="rotate(-35 16.5 29)"
       />
-    </g>
+      <ellipse
+        cx="31.5"
+        cy="29"
+        rx="4.5"
+        ry="6.5"
+        fill="#f5c93f"
+        transform="rotate(35 31.5 29)"
+      />
+    </>
   ),
   // Log with end-grain
-  [GoodId.wood]: c => (
-    <g transform="scale(0.667)">
-      <rect x="3" y="9" width="18" height="6" rx="3" fill={c} />
-      <circle cx="18" cy="12" r="3" fill="#d4af7e" />
-      <circle cx="18" cy="12" r="1.3" fill={c} />
-    </g>
+  [GoodId.wood]: () => (
+    <>
+      <rect x="5" y="15" width="34" height="18" rx="9" fill={WOOD_TONE} />
+      <path d="M12 20H28" fill="none" stroke="#dc9a5e" stroke-width="2.5" />
+      <ellipse cx="37" cy="24" rx="6" ry="9" fill="#f0c48a" />
+      <ellipse
+        cx="37"
+        cy="24"
+        rx="2"
+        ry="3.5"
+        fill="none"
+        stroke="#c98a4e"
+        stroke-width="2"
+      />
+    </>
   ),
-  // Boulder
-  [GoodId.stone]: c => (
-    <path d="M3 12.5 2 10l2-4.5L8.5 4l4 1.5L14 9l-1.5 3.5H3Z" fill={c} />
+  // Boulder, lit from above
+  [GoodId.stone]: () => (
+    <>
+      <path d="M9 35 7 25 15 14 30 11 41 19V32L33 39H15Z" fill="#a4aaad" />
+      <path d="M16 16 29 13 35 18 19 21Z" fill="#d4d8da" stroke="none" />
+    </>
   ),
   // Ingot
-  [GoodId.iron]: c => <path d="M4.5 5.5h7L14 11.5H2L4.5 5.5Z" fill={c} />,
-  // Silver penny: round coin struck with a short cross
-  [GoodId.silver]: c => (
-    <g transform="scale(0.667)">
-      <circle cx="12" cy="12" r="8.4" fill={c} />
-      <path
-        d="M12 4.4v15.2M4.4 12h15.2"
-        stroke="#79818c"
-        stroke-width="1.5"
-        stroke-linecap="round"
-      />
-    </g>
+  [GoodId.iron]: () => (
+    <>
+      <path d="M8 36 14 20H34L40 36Z" fill="#737c84" />
+      <path d="M14 20H34L32 25H16Z" fill="#9aa3aa" stroke="none" />
+    </>
   ),
-  // Stack of gold coins
-  [GoodId.gold]: c => (
-    <g transform="scale(0.667)" stroke="#8a6a1e" stroke-width="0.9">
-      <ellipse cx="12" cy="16.8" rx="7.4" ry="2.9" fill={c} />
-      <ellipse cx="12" cy="12.6" rx="7.4" ry="2.9" fill={c} />
-      <ellipse cx="12" cy="8.4" rx="7.4" ry="2.9" fill={c} />
-    </g>
-  ),
-  // Straight sword: blade + crossguard + grip
-  [GoodId.sword]: c => (
-    <g transform="scale(0.667)" fill="none" stroke-linecap="round">
-      <path d="M19 5L9 15" stroke={c} stroke-width="2.6" />
-      <path d="M6.5 12.5l5 5" stroke="#a08356" stroke-width="2.4" />
-      <path d="M5 19l2.5-2.5" stroke="#a08356" stroke-width="2.4" />
-    </g>
-  ),
-  // Spear: straight shaft + leaf tip
-  [GoodId.spear]: c => (
-    <g>
-      <path d="M7.3 6.5 8 1.5l.7 5a1.6 1.6 0 0 1-1.4 0Z" fill={c} />
-      <path d="M8 6.5v8" stroke={c} stroke-width="1.4" stroke-linecap="round" />
-    </g>
-  ),
-  // Bow arc with string
-  [GoodId.bow]: c => (
-    <g stroke={c} stroke-width="1.4" fill="none" stroke-linecap="round">
-      <path d="M4.5 1.5C10 4 10 12 4.5 14.5" />
-      <path d="M4.5 1.5v13" stroke-width="0.8" />
-    </g>
-  ),
-  // Tankard: tapered mug, handle, foam head
-  [GoodId.ale]: c => (
-    <g transform="scale(0.667)">
-      <path
-        d="M6 7.5h9.5l-.8 12.2a1.6 1.6 0 0 1-1.6 1.5H8.4a1.6 1.6 0 0 1-1.6-1.5L6 7.5Z"
-        fill={c}
-      />
-      <path
-        d="M15.2 10.2h1.9a2.9 2.9 0 0 1 0 5.8h-1.9"
+  // Silver penny: milled rim and a glint
+  [GoodId.silver]: () => (
+    <>
+      <circle cx="24" cy="24" r="17" fill="#dfe5ea" />
+      <circle
+        cx="24"
+        cy="24"
+        r="11"
         fill="none"
-        stroke={c}
-        stroke-width="1.8"
+        stroke="#9fabb4"
+        stroke-width="3"
       />
       <path
-        d="M5.6 4.4h10.3a1.7 1.7 0 0 1 0 3.4H5.6a1.7 1.7 0 0 1 0-3.4Z"
-        fill="#f4ecd8"
+        d="M14 17Q17 12 22 10"
+        fill="none"
+        stroke="#ffffff"
+        stroke-width="2.5"
       />
-      <circle cx="8.5" cy="3.9" r="2" fill="#f4ecd8" />
-      <circle cx="13" cy="4.1" r="1.7" fill="#f4ecd8" />
+    </>
+  ),
+  // Stack of gold bars
+  [GoodId.gold]: () => (
+    <>
+      <rect x="8" y="30" width="32" height="10" rx="5" fill="#e0a92a" />
+      <rect x="10" y="21" width="30" height="10" rx="5" fill="#eeb92f" />
+      <rect x="8" y="12" width="32" height="10" rx="5" fill="#f7cf45" />
+      <path d="M14 16H28" fill="none" stroke="#fff0a8" stroke-width="2.5" />
+    </>
+  ),
+  // Straight sword: blade, gilt crossguard, grip and pommel
+  [GoodId.sword]: () => (
+    <g transform="rotate(45 24 24)">
+      <path d="M24 1 29 7V30H19V7Z" fill="#e3e9ed" />
+      <rect x="13" y="29" width="22" height="6" rx="3" fill="#d9a52a" />
+      <rect x="21.5" y="35" width="5" height="8" fill="#8a4f2a" />
+      <circle cx="24" cy="45" r="3" fill="#f5c93f" />
     </g>
+  ),
+  // Spear: shaft + diamond head
+  [GoodId.spear]: () => (
+    <g transform="rotate(40 24 24)">
+      <rect x="22" y="15" width="4" height="31" rx="2" fill={WOOD_TONE} />
+      <path d="M24 1 31 13 24 19 17 13Z" fill="#d6dde2" />
+    </g>
+  ),
+  // Bow: stave with string
+  [GoodId.bow]: () => (
+    <>
+      <path d={BOW_STAVE} fill="none" stroke="#9a5e28" stroke-width="7" />
+      <path d={BOW_STAVE} fill="none" stroke="#d6934a" stroke-width="3" />
+      <path d="M15 6V42" fill="none" stroke="#f4ecda" stroke-width="2" />
+    </>
+  ),
+  // Tankard: mug, handle, foam head
+  [GoodId.ale]: () => (
+    <>
+      <path d={ALE_HANDLE} fill="none" stroke="#b8741f" stroke-width="6" />
+      <path d={ALE_HANDLE} fill="none" stroke="#e39a34" stroke-width="2" />
+      <rect x="10" y="15" width="24" height="27" rx="4" fill="#e39a34" />
+      <path d="M16 22V36" fill="none" stroke="#f7c26b" stroke-width="2.5" />
+      <circle cx="14" cy="15" r="5.5" fill="#fff6e0" />
+      <circle cx="22" cy="12" r="6.5" fill="#fff6e0" />
+      <circle cx="30" cy="15" r="5.5" fill="#fff6e0" />
+    </>
   ),
   // Sack, tied at the neck — the mill's output, and how flour travels
-  [GoodId.flour]: c => (
-    <g transform="scale(0.667)">
+  [GoodId.flour]: () => (
+    <>
       <path
-        d="M9 6.6h6c2.2 2.4 3.4 5.6 3.4 8.6 0 3-2.6 4.6-6.4 4.6s-6.4-1.6-6.4-4.6c0-3 1.2-6.2 3.4-8.6Z"
-        fill={c}
+        d="M17 16Q10 24 10 32Q10 41 24 41Q38 41 38 32Q38 24 31 16Z"
+        fill="#f4ecda"
       />
+      <path d="M17 16 14 8Q19 11 24 8Q29 11 34 8L31 16Z" fill="#f4ecda" />
+      <rect x="15" y="14" width="18" height="5" rx="2.5" fill="#c9a36b" />
       <path
-        d="M8.8 6.6c1-1.2 1.6-2.2 1.6-3.2h3.2c0 1 .6 2 1.6 3.2H8.8Z"
-        fill="#b9ae96"
+        d="M16 30Q16 36 22 37"
+        fill="none"
+        stroke="#fffaf0"
+        stroke-width="2.5"
       />
-      <path
-        d="M9.6 14.6h4.8"
-        stroke="#b9ae96"
-        stroke-width="1.4"
-        stroke-linecap="round"
-      />
-    </g>
+    </>
   ),
   // Round loaf, slashed across the crust
-  [GoodId.food]: c => (
-    <g transform="scale(0.667)">
+  [GoodId.food]: () => (
+    <>
+      <ellipse cx="24" cy="27" rx="18" ry="12" fill="#e39a4a" />
       <path
-        d="M3.4 13.6c0-3.8 3.8-6.6 8.6-6.6s8.6 2.8 8.6 6.6c0 2.6-3.8 4.2-8.6 4.2s-8.6-1.6-8.6-4.2Z"
-        fill={c}
-      />
-      <path
-        d="M7.6 11.2l2 2.4M11.4 10.4l2 2.4M15.2 11.2l1.8 2.2"
-        stroke="#8f6533"
-        stroke-width="1.5"
-        stroke-linecap="round"
-      />
-    </g>
-  ),
-  // Felling axe: broad steel bit on a long haft
-  [GoodId.axe]: c => (
-    <g transform="scale(0.667)">
-      <path
-        d="M8 21.5 15 8"
-        stroke="#8a6a42"
-        stroke-width="2.2"
-        stroke-linecap="round"
+        d="M12 22Q24 14 36 22"
         fill="none"
+        stroke="#f5c07e"
+        stroke-width="2.5"
       />
       <path
-        d="M12.4 3.6c3.4-1.2 6.6-.2 8.4 2-1.2 3-3.4 5-6.4 6-1.8-2.6-2.4-5.4-2-8Z"
-        fill={c}
+        d="M15 25l3 5M22 23l3 5M29 25l3 5"
+        fill="none"
+        stroke="#b8672c"
+        stroke-width="3"
       />
+    </>
+  ),
+  // Felling axe: broad steel bit on a long haft. Dropped 1.5 so the tilted
+  // bit's outline clears the top edge of the box.
+  [GoodId.axe]: () => (
+    <g transform="translate(0 1.5) rotate(-25 24 24)">
+      <rect x="21" y="8" width="5" height="37" rx="2.5" fill={WOOD_TONE} />
+      <path d="M25 9 38 4Q44 15 38 27L25 21Z" fill="#cdd5db" />
     </g>
   ),
   // Miner's pick: curved twin-spike head over a straight haft
-  [GoodId.pickaxe]: c => (
-    <g transform="scale(0.667)">
-      <path
-        d="M12 7.5v14"
-        stroke="#8a6a42"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        fill="none"
-      />
-      <path
-        d="M3.4 8.6C6 4.4 9.6 2.6 12 2.6s6 1.8 8.6 6c-2.2-2-5.2-3-8.6-3s-6.4 1-8.6 3Z"
-        fill={c}
-      />
-    </g>
+  [GoodId.pickaxe]: () => (
+    <>
+      <rect x="21.5" y="13" width="5" height="32" rx="2.5" fill={WOOD_TONE} />
+      <path d="M4 20Q24 2 44 20L41 23Q24 12 7 23Z" fill="#9aa3aa" />
+    </>
   ),
-  // Scythe: long snath, blade swept out from the heel
-  [GoodId.scythe]: c => (
-    <g transform="scale(0.667)">
-      <path
-        d="M9 21.5 13 4.8"
-        stroke="#8a6a42"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        fill="none"
-      />
-      <path
-        d="M12.6 4.8c2.8-2.2 6.6-2.4 9-.6-1.8 3.4-5.2 5.2-9.2 4.8-.2-1.6-.2-3 .2-4.2Z"
-        fill={c}
-      />
+  // Scythe: long snath, blade swept out from the heel. Shifted 1.5 left so
+  // the blade tip's outline clears the right edge of the box.
+  [GoodId.scythe]: () => (
+    <g transform="translate(-1.5 0) rotate(12 24 24)">
+      <rect x="21" y="7" width="5" height="38" rx="2.5" fill={WOOD_TONE} />
+      <path d="M24 9Q38 1 46 13Q35 11 26 18Z" fill="#e3e9ed" />
     </g>
   ),
   // Smith's hammer: square steel head, straight haft
-  [GoodId.hammer]: c => (
-    <g transform="scale(0.667)">
-      <path
-        d="M12 9v12.5"
-        stroke="#8a6a42"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        fill="none"
-      />
-      <rect x="5.5" y="3.2" width="13" height="6" rx="1.4" fill={c} />
-    </g>
+  [GoodId.hammer]: () => (
+    <>
+      <rect x="21.5" y="18" width="5" height="27" rx="2.5" fill={WOOD_TONE} />
+      <rect x="10" y="6" width="28" height="14" rx="3.5" fill="#7d8b99" />
+      <path d="M14 10H30" fill="none" stroke="#aab5c0" stroke-width="2.5" />
+    </>
   ),
-  // Cauldron: round-bottomed copper pot on legs, dark rim
-  [GoodId.cauldron]: c => (
-    <g transform="scale(0.667)">
-      <path d="M4.5 8.5c1 7 3.5 10 7.5 10s6.5-3 7.5-10Z" fill={c} />
-      <ellipse cx="12" cy="8.2" rx="8.2" ry="2.1" fill="#7d5127" />
+  // Cauldron: round-bottomed copper pot on legs, lipped rim
+  [GoodId.cauldron]: () => (
+    <>
+      <rect x="12" y="33" width="5" height="10" rx="2" fill="#6e3a1f" />
+      <rect x="31" y="33" width="5" height="10" rx="2" fill="#6e3a1f" />
+      <path d="M9 18H39Q40 39 24 39Q8 39 9 18Z" fill="#c86a2e" />
+      <rect x="6" y="13" width="36" height="7" rx="3.5" fill="#e8914f" />
       <path
-        d="M8.4 18.2 7.4 21M15.6 18.2l1 2.8"
-        stroke={c}
-        stroke-width="1.6"
-        stroke-linecap="round"
+        d="M14 25Q15 32 20 34"
         fill="none"
+        stroke="#e8914f"
+        stroke-width="2.5"
       />
-    </g>
+    </>
   ),
-  // Fishing rod: bent cane, line and hook
-  [GoodId.rod]: c => (
-    <g fill="none" stroke-linecap="round">
-      <path d="M2.5 14.5C7 12 11 7.5 13 2" stroke={c} stroke-width="1.6" />
-      <path d="M13 2c.5 4 .2 7-.4 9.5" stroke="#d8d3c5" stroke-width="0.8" />
-      <path
-        d="M12.6 11.5a1.4 1.4 0 1 0 1.5 1.3"
-        stroke="#d8d3c5"
-        stroke-width="0.9"
+  // Fishing rod: cane, line, float and hook
+  [GoodId.rod]: () => (
+    <>
+      <rect
+        x="22"
+        y="3"
+        width="4"
+        height="44"
+        rx="2"
+        fill="#c9853f"
+        transform="rotate(38 24 24)"
       />
-    </g>
+      <path d="M37 8V33" fill="none" stroke="#3d1f12" stroke-width="2" />
+      <path
+        d="M37 33v3a3.5 3.5 0 0 1-7 0"
+        fill="none"
+        stroke="#b9c2c8"
+        stroke-width="2.5"
+      />
+      <circle cx="37" cy="26" r="4" fill="#e0573a" />
+    </>
   ),
 };
 
@@ -303,14 +289,22 @@ export function GoodIcon(props: {
 }) {
   return (
     <svg
-      viewBox="0 0 16 16"
+      viewBox="0 0 48 48"
       width={props.size ?? 14}
       height={props.size ?? 14}
       style={{'vertical-align': '-2px'}}
+      role={props.decorative === true ? undefined : 'img'}
       aria-hidden={props.decorative === true ? 'true' : undefined}
       aria-label={props.decorative === true ? undefined : goodName(props.good)}
     >
-      {PATHS[props.good](GOOD_HEX[props.good])}
+      <g
+        stroke="#7a4526"
+        stroke-width="2.2"
+        stroke-linejoin="round"
+        stroke-linecap="round"
+      >
+        {PATHS[props.good]()}
+      </g>
     </svg>
   );
 }
