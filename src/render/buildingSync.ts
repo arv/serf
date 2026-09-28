@@ -1611,7 +1611,10 @@ export class BuildingSync {
       // Ease-in sink: slow shudder first, then the drop.
       const sink = d.t * d.t;
       const {root} = d.visual;
-      root.position.y = d.baseY - sink * (d.visual.topY + 0.4);
+      // Down past the lowest ground under it too: the root stands at the
+      // door (groundFit.ts), and on a slope the base stretches below that.
+      const below = Math.max(0, -d.visual.modelBox.min.y);
+      root.position.y = d.baseY - sink * (d.visual.topY + 0.4 + below);
       root.rotation.x = d.tiltX * d.t;
       root.rotation.z = d.tiltZ * d.t;
       for (const p of d.puffs) {
@@ -1869,8 +1872,6 @@ export class BuildingSync {
       return true;
     }
     const piles = new THREE.Group();
-    v.root.add(piles);
-    v.piles = piles;
     for (let i = 0; i < stacks; i++) {
       const [x, z, rot, f] = yard.spots[i]!;
       const item = glbYardProp(yard.prop!, yard.size * f * s);
@@ -1878,8 +1879,11 @@ export class BuildingSync {
       item.position.set(x * s, 0, z * s).applyAxisAngle(Y_AXIS, turn);
       item.rotation.y = rot + turn;
       piles.add(item);
-      this.#seat(v, item);
     }
+    // Seated once they stand under the root, where the ground is read.
+    v.root.add(piles);
+    v.piles = piles;
+    for (const item of piles.children) this.#seat(v, item);
     return true;
   }
 

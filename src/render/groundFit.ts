@@ -63,6 +63,7 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const V = new THREE.Vector3();
 const INV = new THREE.Matrix4();
 const BOX = new THREE.Box3();
+const MESH_BOX = new THREE.Box3();
 
 /** The template geometry a fitted mesh was bent from. */
 const sources = new WeakMap<THREE.Mesh, THREE.BufferGeometry>();
@@ -225,11 +226,28 @@ export function releaseFit(model: THREE.Object3D): void {
     if (!(o instanceof THREE.Mesh)) return;
     const src = sources.get(o);
     if (src === undefined) return;
-    const g = o.geometry as THREE.BufferGeometry;
-    if (owned.has(g)) g.dispose();
+    disposeFitted(o.geometry as THREE.BufferGeometry);
     o.geometry = src;
     sources.delete(o);
   });
+}
+
+/**
+ * Free a geometry a fit allocated — its position buffer and nothing else.
+ * Its index and every other attribute are the template's (or the template's
+ * cached tessellation), shared with every other instance of the building,
+ * and three's dispose frees the GPU buffer of every attribute the geometry
+ * holds: left on, they would be deleted out from under every building of
+ * the type still standing. So they are taken off first.
+ */
+function disposeFitted(g: THREE.BufferGeometry): void {
+  if (!owned.has(g)) return;
+  owned.delete(g);
+  g.setIndex(null);
+  for (const name of Object.keys(g.attributes)) {
+    if (name !== 'position') g.deleteAttribute(name);
+  }
+  g.dispose();
 }
 
 /**
@@ -276,6 +294,19 @@ function fitMesh(
   baseY: number,
 ): void {
   const template = sources.get(mesh) ?? (mesh.geometry as THREE.BufferGeometry);
+  if (rule.mode === 'building') {
+    // Only the bottom band of a building bends: a mesh standing wholly
+    // above it (a roof, a chimney, a sign) is drawn from the template
+    // without sampling the ground under every one of its vertices.
+    if (!template.boundingBox) template.computeBoundingBox();
+    MESH_BOX.copy(template.boundingBox!).applyMatrix4(mesh.matrixWorld);
+    if (!MESH_BOX.isEmpty() && MESH_BOX.min.y >= rule.base + BAND) {
+      disposeFitted(mesh.geometry as THREE.BufferGeometry);
+      mesh.geometry = template;
+      sources.delete(mesh);
+      return;
+    }
+  }
   const scale = mesh.getWorldScale(V).x;
   const src =
     rule.mode === 'drape' ? tessellate(template, MAX_EDGE / scale) : template;
@@ -304,8 +335,7 @@ function fitMesh(
     out[i * 3 + 1] = V.y;
     out[i * 3 + 2] = V.z;
   }
-  const prev = mesh.geometry as THREE.BufferGeometry;
-  if (owned.has(prev)) prev.dispose();
+  disposeFitted(mesh.geometry as THREE.BufferGeometry);
   if (!bent) {
     mesh.geometry = template;
     sources.delete(mesh);

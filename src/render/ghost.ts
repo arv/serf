@@ -132,16 +132,19 @@ export class GhostPlacement {
       this.#group.visible
     )
       return;
+    // A verdict flipping on the same tile only retints: the stand and the
+    // bend below reallocate every bent mesh, so they wait for a new tile.
+    const moved = x !== this.#x || y !== this.#y || !this.#group.visible;
     this.#x = x;
     this.#y = y;
     this.#stamp = stamp;
     this.#group.visible = true;
     const cx = x + def.w / 2;
     const cz = y + def.h / 2;
-    this.#group.position.set(cx, this.#heights.at(cx, cz), cz);
+    if (moved) this.#group.position.set(cx, this.#heights.at(cx, cz), cz);
     // Stood and bent exactly as the building will be (groundFit.ts): a
     // mine turned down its hill, the farm's field laid over the slope.
-    if (this.#model) {
+    if (this.#model && moved) {
       const facing = modelFacing(
         this.#type,
         x,

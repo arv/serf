@@ -733,7 +733,9 @@ function liftGroundPieces(
   };
   const byPos = new Map<string, number>();
   for (let i = 0; i < pos.count; i++) {
-    const k = `${pos.getX(i).toFixed(4)},${pos.getY(i).toFixed(4)},${pos.getZ(i).toFixed(4)}`;
+    // Rounded to integers rather than toFixed, which spells -0 as "-0.0000"
+    // and would keep a vertex on an axis apart from its twin at +0.
+    const k = `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
     const seen = byPos.get(k);
     if (seen === undefined) byPos.set(k, i);
     else join(i, seen);
