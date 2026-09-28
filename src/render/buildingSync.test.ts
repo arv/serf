@@ -619,10 +619,11 @@ describe("the farm's field", () => {
     const f = fields[0]!;
     expect(f.bx).toBeCloseTo(11.5);
     expect(f.bz).toBeCloseTo(11.5);
-    // The gate stands on the open front edge, the pad's height under it.
+    // The gate stands on the open front edge, the pad a finger over the
+    // ground under it.
     expect(f.gateX).toBeCloseTo(11.5);
     expect(f.gateZ).toBeCloseTo(13.1);
-    expect(f.padY).toBeCloseTo(0.06);
+    expect(f.padLift).toBeCloseTo(0.06);
     // The circuit came out in authored order: a lane west to east, then
     // the next lane back — the serpentine the farmer ping-pongs.
     expect(f.points.length).toBe(4);
@@ -1509,7 +1510,12 @@ describe('the stock piles at a building door', () => {
     const piles = root.children.find(
       o => o instanceof THREE.Group && Math.abs(o.position.z - 1.8) < 1e-6,
     )!;
-    expect(piles.children.length).toBe(20);
+    // Each lane is one stack, stood on the ground as a whole; the units
+    // are its props.
+    expect(piles.children.length).toBe(3);
+    expect(
+      piles.children.reduce((n, lane) => n + lane.children.length, 0),
+    ).toBe(20);
   });
 
   it('keeps its neighbours still while a good spills over and drains back', () => {
