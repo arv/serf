@@ -438,6 +438,11 @@ const WALL_FACING = THREE.MathUtils.degToRad(130);
 /** How high the walk to the castle's wall arches at its middle: over the
  * trees, which stand about this tall. */
 const WALK_ARCH = 3;
+/** The ground the walk rides is the valley's lie, not every tile of it:
+ * this many tiles either side along the way, averaged, weighted to the
+ * middle. */
+const WALK_SMOOTH = 6;
+const WALK_SMOOTH_SAMPLES = 6;
 /** Stone left clear over the saves' list, under what is above it on the
  * wall (tiles). */
 const LIST_TOP_GAP = 0.1;
@@ -464,7 +469,10 @@ const BUTTERFLY = {
 /**
  * The menu's frame cap, on every device, as the old backdrop had it: a
  * menu left open has nothing to gain from 120 Hz and a battery to lose —
- * that drain is what makes a laptop throttle its graphics.
+ * that drain is what makes a laptop throttle its graphics. Lifted for the
+ * length of a transition: the lens on the move — sixty tiles round to the
+ * castle's wall in a couple of seconds — is the one thing here that a
+ * display's full rate shows, and at 30 it steps seven degrees a frame.
  */
 const MENU_FPS = 30;
 /** Half the width of ground the menu's shadows fall on (tiles). */
@@ -2001,6 +2009,11 @@ export async function startSignpost(
    * the end. `signPos`/`signQuat` are the lens at the signpost,
    * `stopPos`/`rockQuat` at the wall, `faceN` the way out of the wall;
    * `fly` how far along.
+   *
+   * The ground is bilinear over tiles — flat faces with creases between —
+   * and at sixty tiles a trip the lens crosses a crease most frames, so
+   * riding it as it is made the lens jog. It rides the ground smoothed
+   * along the way instead (groundAlong): a hill is a swell, not a step.
    */
   const castleAt = new THREE.Vector3();
   const walkToWall = (): void => {
@@ -2030,19 +2043,37 @@ export async function startSignpost(
     const dir = Math.cos(a1) * -ox + -Math.sin(a1) * -oz > 0 ? 1 : -1;
     const turn =
       dir * THREE.MathUtils.euclideanModulo(dir * (a1 - a0), Math.PI * 2);
+    /** The ground under the walk, `f` of the way along, smoothed over
+     * WALK_SMOOTH tiles of it either side (the way's ends, past them). */
+    const groundAlong = (f: number): number => {
+      const step =
+        WALK_SMOOTH / WALK_SMOOTH_SAMPLES / (radius * Math.abs(turn));
+      let sum = 0;
+      let weight = 0;
+      for (let k = -WALK_SMOOTH_SAMPLES; k <= WALK_SMOOTH_SAMPLES; k++) {
+        const ang = a0 + turn * THREE.MathUtils.clamp(f + k * step, 0, 1);
+        // Raised cosine: full in the middle, nothing at the edges, so a
+        // crease coming into the window is felt by degrees.
+        const w = 1 + Math.cos((k / (WALK_SMOOTH_SAMPLES + 1)) * Math.PI);
+        sum +=
+          w * under(mx + Math.sin(ang) * radius, mz + Math.cos(ang) * radius);
+        weight += w;
+      }
+      return sum / weight;
+    };
     const ang = a0 + turn * fly;
+    // Over the smoothed ground by the same height as the ends are over
+    // it, which lands exactly on each end; arching up over the trees on
+    // the way, down again at each end.
+    const h0 = signPos.y - groundAlong(0);
+    const h1 = stopPos.y - groundAlong(1);
     camera.position.set(
       mx + Math.sin(ang) * radius,
-      0,
+      groundAlong(fly) +
+        lerp(h0, h1, fly) +
+        Math.sin(fly * Math.PI) * WALK_ARCH,
       mz + Math.cos(ang) * radius,
     );
-    const h0 = signPos.y - under(signPos.x, signPos.z);
-    const h1 = stopPos.y - under(stopPos.x, stopPos.z);
-    // Arching up over the trees on the way, down again at each end.
-    camera.position.y =
-      under(camera.position.x, camera.position.z) +
-      lerp(h0, h1, fly) +
-      Math.sin(fly * Math.PI) * WALK_ARCH;
     // Off the signpost onto the castle, kept on the castle all the way,
     // and onto the wall at the end.
     castleAt.set(cx, faceAt.y + 0.6, cz);
@@ -2116,13 +2147,13 @@ export async function startSignpost(
     }
     flutterers.instanceMatrix.needsUpdate = true;
   };
-  const pacer = new FramePacer(MENU_FPS);
+  const pacer = new FramePacer(MENU_FPS, null);
   const loop = (now: number): void => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
     // At most one frame in flight — see GameRenderer.gpuReady — and at
-    // most MENU_FPS of them.
-    if (!renderer.gpuReady() || !pacer.due(now)) return;
+    // most MENU_FPS of them, except while something is on the move.
+    if (!renderer.gpuReady() || !pacer.due(now, tweens.size > 0)) return;
     const dt = Math.min((now - last) / 1000, 0.05);
     if (!still) {
       sky.drift(dt);
