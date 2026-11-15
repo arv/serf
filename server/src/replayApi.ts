@@ -19,6 +19,7 @@
  */
 
 import type {IncomingMessage, ServerResponse} from 'node:http';
+import {locateIp} from './geo.ts';
 import {clientIp, logEvent} from './log.ts';
 import {
   MAX_UPLOAD_BYTES,
@@ -235,10 +236,15 @@ async function handleUpload(
     return;
   }
   const {body} = read;
+  // The uploader IS the human in the recording — a client files its own
+  // match — so the address this request came from is where they played.
+  // Only the place it resolves to is kept.
+  const location = await locateIp(ip);
   const stored = await storeReplay(body, {
     source: sourceFrom(params),
     ending: endingFrom(params),
     nowMs: now,
+    location,
   });
   if (!stored.ok) {
     // Logged, because this is where a client that broke its recording
@@ -280,6 +286,9 @@ async function handleUpload(
       seats: summary.seats.length,
       mission: summary.mission ?? null,
       difficulty: summary.difficulty ?? null,
+      country: location?.country ?? null,
+      region: location?.region ?? null,
+      city: location?.city ?? null,
     },
   );
   sendJson(res, 201, {id: summary.id});

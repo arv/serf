@@ -64,6 +64,10 @@ export interface UploadedReplay {
   /** Absent on recordings filed before the shelf drew the distinction;
    * the page reads a missing one as `decided`. */
   ending?: ReplayEnding;
+  /** Roughly where the upload came from, by its address: the human the
+   * recording watches through. Absent when the server could not place it
+   * and on recordings filed before it tried. */
+  location?: {country: string; region?: string; city?: string};
 }
 
 /**

@@ -8,9 +8,11 @@
     "smoke": "node src/smoke.ts"
   },
   "dependencies": {
+    "geoip-lite": "^2.0.3",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/geoip-lite": "^1.4.4",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.5.0"
   }
