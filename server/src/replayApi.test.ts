@@ -12,6 +12,7 @@ import {
 import {REPLAY_VERSION} from '../../src/shared/replayVersion.ts';
 import * as CommandKind from '../../src/sim/commandKindEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import {setGeoLookup} from './geo.ts';
 import {setLogSink} from './log.ts';
 import {REPLAY_API_PREFIX, handleReplayApi} from './replayApi.ts';
 import {MAX_UPLOAD_BYTES, resetUploadBudgets} from './replayUploads.ts';
@@ -48,6 +49,9 @@ beforeEach(async () => {
   // The upload path logs a line per request; the suite is not where they
   // belong.
   setLogSink(() => undefined);
+  // Nowhere, unless a test says otherwise — and never the bundled
+  // database, which is a hundred megabytes this suite has no use for.
+  setGeoLookup(() => null);
   server = createServer((req, res) => {
     void handleReplayApi(req, res).catch(() => {
       res.writeHead(500);
@@ -61,6 +65,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   setLogSink(null);
+  setGeoLookup(null);
   await new Promise<void>(resolve => void server.close(() => resolve()));
   if (priorTrust === undefined) delete process.env.SERF_TRUST_PROXY;
   else process.env.SERF_TRUST_PROXY = priorTrust;
@@ -113,6 +118,34 @@ describe('uploading', () => {
     expect(replays[0]!.id).toBe(id);
     expect(replays[0]!.source).toBe('solo');
     expect(replays[0]!.endTick).toBe(400);
+  });
+
+  it('files where the upload came from, and not the address', async () => {
+    const asked: string[] = [];
+    setGeoLookup(ip => {
+      asked.push(ip);
+      return {country: 'SE', region: 'O', city: 'Gothenburg'};
+    });
+    await post(sampleReplay());
+    // The suite's own client, seen bare: the lookup is keyed on IPv4.
+    expect(asked).toEqual(['127.0.0.1']);
+    const raw = await (await fetch(`${base}${REPLAY_API_PREFIX}`)).text();
+    const {replays} = JSON.parse(raw) as {replays: {location?: unknown}[]};
+    expect(replays[0]!.location).toEqual({
+      country: 'SE',
+      region: 'O',
+      city: 'Gothenburg',
+    });
+    expect(raw).not.toContain('127.0.0.1');
+  });
+
+  it('files a recording it cannot place, without a location', async () => {
+    await post(sampleReplay());
+    const {replays} = (await (
+      await fetch(`${base}${REPLAY_API_PREFIX}`)
+    ).json()) as {replays: object[]};
+    expect(replays).toHaveLength(1);
+    expect(replays[0]).not.toHaveProperty('location');
   });
 
   it('believes the two labels only where they name a value', async () => {

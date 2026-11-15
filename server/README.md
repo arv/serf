@@ -105,6 +105,17 @@ summary the listing reads, which is why listing five hundred matches never
 opens a megabyte. Ids are `YYYYMMDD-HHMMSSsss-<rand>` in UTC, so the sort
 that orders the shelf is the sort that orders the prune.
 
+Each summary also carries a `location` — country, and region and city
+where known — for the address the upload came from, which is where the
+human in the recording was playing, since a client files its own match.
+It is looked up in a database bundled with the server (`geoip-lite`,
+MaxMind GeoLite data; `src/geo.ts`), so no address is sent anywhere, and
+only the place name is written: the address itself stays in the log line
+and never reaches the shelf. The database costs about 110 MB installed
+and roughly as much resident once the first upload loads it, and is as
+current as the package version. Loopback, private ranges and unlisted
+blocks get no location; IPv6 gets a country only.
+
 The reading half can be shut: set **`SERF_REPLAY_KEY`** and both `GET`s
 want a matching `?key=`. Uploading cannot be — every copy of the game
 would have to carry the secret, which is no secret at all. Left unset the
@@ -131,7 +142,7 @@ Every field each event carries, in full:
 | `room_join` | a human took a seat | `conn`, `ip`, `room`, `playerId`, `humans` |
 | `rejoin` | a token came back | `conn`, `ip`, `found`, `room`, `playerId` |
 | `match_start` | the host started a match | `conn`, `ip`, `room`, `visibility`, `humans`, `ai`, `seats`, `seed`, `size`, `bandits`, `difficulty`, `bots`, `matchesStarted`, `runningRooms` |
-| `replay_upload` | a client handed up a match's recording | `ip`, `ok`, and on success `id`, `source`, `ending`, `replayVersion`, `endTick`, `bytes`, `commands`, `seats`, `mission`, `difficulty` — on a refusal `reason` and `bytes` |
+| `replay_upload` | a client handed up a match's recording | `ip`, `ok`, and on success `id`, `source`, `ending`, `replayVersion`, `endTick`, `bytes`, `commands`, `seats`, `mission`, `difficulty`, `country`, `region`, `city` — on a refusal `reason` and `bytes` |
 
 `page_view` and `connect` also carry `forwardedFor` whenever it says
 something the `ip` does not: a chain of more than one hop, or a forwarded

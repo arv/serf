@@ -49,6 +49,7 @@ import {AI_STRATEGY_KEYS} from '../../src/sim/defs/aiStrategies.ts';
 import {DIFFICULTY_KEYS} from '../../src/sim/defs/difficulty.ts';
 import {MISSION_KEYS} from '../../src/sim/defs/missions.ts';
 import {PLAYER_KIND_KEYS} from '../../src/sim/player.ts';
+import type {GeoLocation} from './geo.ts';
 import {stateDir} from './persist.ts';
 
 /**
@@ -129,6 +130,12 @@ export interface ReplaySummary {
   commands: number;
   /** Lines said at the table. Multiplayer only; solo has nobody to talk to. */
   chat: number;
+  /** Roughly where the upload came from — which is where the human behind
+   * `seat` was sitting, since a client files its own match. A place name
+   * and never the address it was read off: the address is not stored.
+   * Absent when the database could not place it, and on every recording
+   * filed before the shelf asked. */
+  location?: GeoLocation;
 }
 
 /** Where the recordings live. Read per call, like persist.ts's own dir, so
@@ -175,6 +182,7 @@ function summarize(
     uploadedMs: number;
     source: ReplaySource;
     ending: ReplayEnding;
+    location?: GeoLocation | null;
   },
 ): ReplaySummary {
   const {config} = replay;
@@ -207,6 +215,7 @@ function summarize(
     })),
     commands,
     chat: replay.chat?.length ?? 0,
+    ...(opts.location ? {location: opts.location} : {}),
   };
 }
 
@@ -231,7 +240,12 @@ export type StoreResult =
  */
 export async function storeReplay(
   raw: string,
-  opts: {source: ReplaySource; ending: ReplayEnding; nowMs: number},
+  opts: {
+    source: ReplaySource;
+    ending: ReplayEnding;
+    nowMs: number;
+    location?: GeoLocation | null;
+  },
 ): Promise<StoreResult> {
   const replay = parseReplay(raw);
   if (replay === null) return {ok: false, reason: 'unreadable'};
@@ -242,6 +256,7 @@ export async function storeReplay(
     uploadedMs: opts.nowMs,
     source: opts.source,
     ending: opts.ending,
+    location: opts.location,
   });
   const dir = replayDir();
   // Whole file, then rename, the way the room snapshot is written: a
