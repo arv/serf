@@ -101,6 +101,9 @@ export interface SignpostScene {
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const easeInOut = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+/** The lens's trips to the shelves: off from rest and onto it with no
+ * jolt in speed or in how the speed changes. */
+const walkEase = (t: number): number => t * t * t * (t * (6 * t - 15) + 10);
 /** A small seeded generator: the sign's jitter and grain are the same on
  * every visit. */
 function seeded(start: number): () => number {
@@ -433,16 +436,25 @@ const ORBIT_RADIUS = 19;
 const EYE_HEIGHT = 1.6;
 const LOOK_HEIGHT = 1.6;
 /** How far round from the resting lens the saves' wall faces: off to the
- * back side, so the walk there is one circle of a sensible size. */
+ * back side, a third of the way round the keep and a little more. */
 const WALL_FACING = THREE.MathUtils.degToRad(130);
 /** How high the walk to the castle's wall arches at its middle: over the
  * trees, which stand about this tall. */
 const WALK_ARCH = 3;
+/** And the trip to the rock: a few tiles over the river, so barely — more
+ * was a hop. */
+const FLY_ARCH = 0.4;
 /** The ground the walk rides is the valley's lie, not every tile of it:
  * this many tiles either side along the way, averaged, weighted to the
  * middle. */
 const WALK_SMOOTH = 6;
 const WALK_SMOOTH_SAMPLES = 6;
+/** How far along the walk the lens starts to close in on the keep: before
+ * that it only swings round it. */
+const WALK_PUSH_FROM = 0.3;
+/** The walk's way is measured in this many steps, to be gone along by
+ * distance. */
+const WALK_STEPS = 64;
 /** Stone left clear over the saves' list, under what is above it on the
  * wall (tiles). */
 const LIST_TOP_GAP = 0.1;
@@ -514,7 +526,10 @@ const UI_SCALE = 0.45;
 
 const TURN_MS = 1150;
 const FLIP_MS = 900;
-/** The lens's trip from the signpost to the rock, and back. */
+/** The lens's trip from the signpost to the rock, and back. Both trips
+ * are eased softer than the signpost's turns (walkEase), their top speed
+ * under twice their mean where the cubic's is three times: with the whole
+ * valley swinging past, the cubic is a lunge. */
 const FLY_MS = 1600;
 /** The walk round to the castle's wall: longer, and taken slower. */
 const WALL_WALK_MS = 2400;
@@ -1545,9 +1560,9 @@ export async function startSignpost(
     // On this castle that is one of its banners, out of sight at the
     // back; any wall at all will do before none. Of those the lens can see
     // whole, the one facing about WALL_FACING round from the resting lens:
-    // straight away from it, the walk there (one circle, walkToWall) would
-    // have to go right round the keep; that far round, it sweeps out to the
-    // side and comes in to the wall head on.
+    // straight away from it, the walk there (walkRound) would have to go
+    // half round the keep, either way as good as the other; that far round,
+    // it is a third of a turn and plainly the one way.
     const framed = faces.map(frame).filter(fr => fr.w > 0.3 && fr.h > 0.6);
     const toRest = new THREE.Vector3(restX - bx, 0, restZ - bz).normalize();
     const facing = (fr: (typeof framed)[number]): number =>
@@ -1820,9 +1835,13 @@ export async function startSignpost(
     target = stops[shelf];
     events.onBoard(shelf);
     const f0 = fly;
-    await tween(target === stops.saves ? WALL_WALK_MS : FLY_MS, t => {
-      fly = lerp(f0, 1, t);
-    });
+    await tween(
+      target === stops.saves ? WALL_WALK_MS : FLY_MS,
+      t => {
+        fly = lerp(f0, 1, t);
+      },
+      walkEase,
+    );
     activate(target.board.el, true);
     busy = false;
   };
@@ -1833,9 +1852,13 @@ export async function startSignpost(
     activate(target.board.el, false);
     events.onBoard(null);
     const f0 = fly;
-    await tween(target === stops.saves ? WALL_WALK_MS : FLY_MS, t => {
-      fly = lerp(f0, 0, t);
-    });
+    await tween(
+      target === stops.saves ? WALL_WALK_MS : FLY_MS,
+      t => {
+        fly = lerp(f0, 0, t);
+      },
+      walkEase,
+    );
     shelfOpen = null;
     busy = false;
   };
@@ -1995,100 +2018,106 @@ export async function startSignpost(
   const signQuat = new THREE.Quaternion();
   const rockQuat = new THREE.Quaternion();
   const stopPos = new THREE.Vector3();
-  const keepQuat = new THREE.Quaternion();
   /**
-   * The trip to the castle's wall: round one circle, from the lens at the
-   * signpost (A) to the lens at the wall (B), arriving at B moving
-   * straight on to the wall. Of the circles through A, the one that meets
-   * the line in to the wall at B head on — its centre off to one side of
-   * B, along the wall — and round it the way that arrives moving toward
-   * the wall, however far round that is: out from the signpost, a wide
-   * sweep, and in. Along the ground: its height over the ground eases from
-   * the signpost's to the wall's. The lens turns off the signpost onto the
-   * castle and keeps to it, turning onto the wall — square to it — only at
-   * the end. `signPos`/`signQuat` are the lens at the signpost,
-   * `stopPos`/`rockQuat` at the wall, `faceN` the way out of the wall;
-   * `fly` how far along.
+   * The trip to a shelf: round the keep, as a hand would carry the lens —
+   * an arc round it, closing in (or out) to the shelf's distance as it
+   * goes. The angle round the keep swings over the whole way; the distance
+   * from it starts to change `pushFrom` of the way along. To the castle's
+   * wall that is late, so the lens leaves the signpost sideways and the
+   * last of the trip is all but a push in to the wall; to the rock, a few
+   * tiles round and hardly nearer, it is from the start. The lens turns as
+   * the angle does — from how it looked at the signpost to square on the
+   * shelf, by the share of the way round it has come — which on the way to
+   * the wall is what keeps the keep still while the valley swings behind
+   * it. `signPos`/`signQuat` are the lens at the signpost,
+   * `stopPos`/`rockQuat` at the shelf; `fly` is how far along, by distance
+   * travelled: its ease is the lens's speed, whatever shape the way is.
+   * `arch` is how high the trip rises at its middle.
    *
    * The ground is bilinear over tiles — flat faces with creases between —
-   * and at sixty tiles a trip the lens crosses a crease most frames, so
-   * riding it as it is made the lens jog. It rides the ground smoothed
-   * along the way instead (groundAlong): a hill is a swell, not a step.
+   * and the lens crosses a crease most frames, so riding it as it is made
+   * the lens jog. It rides the ground smoothed along the way instead
+   * (groundAlong): a hill is a swell, not a step.
    */
-  const castleAt = new THREE.Vector3();
-  const walkToWall = (): void => {
+  const walkLen = new Float64Array(WALK_STEPS + 1);
+  const walkAt = {x: 0, z: 0};
+  const walkRound = (pushFrom: number, arch: number): void => {
     const under = (x: number, z: number): number =>
       Math.max(heights.at(x, z), WATER_LEVEL);
-    // n: out of the wall; w: along it.
-    const nx = faceN.x;
-    const nz = faceN.z;
-    const nl = Math.hypot(nx, nz) || 1;
-    const ox = nx / nl;
-    const oz = nz / nl;
-    const wx = oz;
-    const wz = -ox;
-    // The centre C = B + w s, as far from A as from B.
-    const abx = signPos.x - stopPos.x;
-    const abz = signPos.z - stopPos.z;
-    const across = wx * abx + wz * abz;
-    const sgn = Math.abs(across) < 1e-3 ? 1e-3 : across;
-    const off = (abx * abx + abz * abz) / (2 * sgn);
-    const mx = stopPos.x + wx * off;
-    const mz = stopPos.z + wz * off;
-    const radius = Math.abs(off);
-    const a0 = Math.atan2(signPos.x - mx, signPos.z - mz);
-    const a1 = Math.atan2(stopPos.x - mx, stopPos.z - mz);
-    // Round the way that arrives moving in to the wall (against n): at an
-    // angle a the circle runs (cos a, -sin a) as a grows.
-    const dir = Math.cos(a1) * -ox + -Math.sin(a1) * -oz > 0 ? 1 : -1;
+    const a0 = Math.atan2(signPos.x - cx, signPos.z - cz);
+    const a1 = Math.atan2(stopPos.x - cx, stopPos.z - cz);
     const turn =
-      dir * THREE.MathUtils.euclideanModulo(dir * (a1 - a0), Math.PI * 2);
-    /** The ground under the walk, `f` of the way along, smoothed over
-     * WALK_SMOOTH tiles of it either side (the way's ends, past them). */
-    const groundAlong = (f: number): number => {
-      const step =
-        WALK_SMOOTH / WALK_SMOOTH_SAMPLES / (radius * Math.abs(turn));
+      THREE.MathUtils.euclideanModulo(a1 - a0 + Math.PI, Math.PI * 2) - Math.PI;
+    const r0 = Math.hypot(signPos.x - cx, signPos.z - cz);
+    const r1 = Math.hypot(stopPos.x - cx, stopPos.z - cz);
+    /** The share of the way round the keep, `s` along the way's own
+     * measure (not distance: see `along`). */
+    const round = (s: number): number => THREE.MathUtils.smootherstep(s, 0, 1);
+    /** Where the way is at `s`, into walkAt. */
+    const place = (s: number): void => {
+      const ang = a0 + turn * round(s);
+      const r = lerp(r0, r1, THREE.MathUtils.smootherstep(s, pushFrom, 1));
+      walkAt.x = cx + Math.sin(ang) * r;
+      walkAt.z = cz + Math.cos(ang) * r;
+    };
+    // How far along the way each step of `s` is, to go by distance.
+    place(0);
+    let fromX = walkAt.x;
+    let fromZ = walkAt.z;
+    walkLen[0] = 0;
+    for (let i = 1; i <= WALK_STEPS; i++) {
+      place(i / WALK_STEPS);
+      walkLen[i] =
+        walkLen[i - 1]! + Math.hypot(walkAt.x - fromX, walkAt.z - fromZ);
+      fromX = walkAt.x;
+      fromZ = walkAt.z;
+    }
+    const length = walkLen[WALK_STEPS]!;
+    /** The `s` that is `d` tiles along the way (its ends, past them). */
+    const along = (d: number): number => {
+      const want = THREE.MathUtils.clamp(d, 0, length);
+      let i = 1;
+      while (i < WALK_STEPS && walkLen[i]! < want) i++;
+      const before = walkLen[i - 1]!;
+      const seg = walkLen[i]! - before;
+      return (i - 1 + (seg > 0 ? (want - before) / seg : 0)) / WALK_STEPS;
+    };
+    /** The ground under the walk `d` tiles along, smoothed over
+     * WALK_SMOOTH tiles of it either side. */
+    const groundAlong = (d: number): number => {
+      const step = WALK_SMOOTH / WALK_SMOOTH_SAMPLES;
       let sum = 0;
       let weight = 0;
       for (let k = -WALK_SMOOTH_SAMPLES; k <= WALK_SMOOTH_SAMPLES; k++) {
-        const ang = a0 + turn * THREE.MathUtils.clamp(f + k * step, 0, 1);
+        place(along(d + k * step));
         // Raised cosine: full in the middle, nothing at the edges, so a
         // crease coming into the window is felt by degrees.
         const w = 1 + Math.cos((k / (WALK_SMOOTH_SAMPLES + 1)) * Math.PI);
-        sum +=
-          w * under(mx + Math.sin(ang) * radius, mz + Math.cos(ang) * radius);
+        sum += w * under(walkAt.x, walkAt.z);
         weight += w;
       }
       return sum / weight;
     };
-    const ang = a0 + turn * fly;
+    const d = fly * length;
+    const s = along(d);
     // Over the smoothed ground by the same height as the ends are over
-    // it, which lands exactly on each end; arching up over the trees on
-    // the way, down again at each end.
+    // it, which lands exactly on each end; arching up on the way, down
+    // again at each end.
     const h0 = signPos.y - groundAlong(0);
-    const h1 = stopPos.y - groundAlong(1);
-    camera.position.set(
-      mx + Math.sin(ang) * radius,
-      groundAlong(fly) +
-        lerp(h0, h1, fly) +
-        Math.sin(fly * Math.PI) * WALK_ARCH,
-      mz + Math.cos(ang) * radius,
+    const h1 = stopPos.y - groundAlong(length);
+    const y =
+      groundAlong(d) + lerp(h0, h1, fly) + Math.sin(fly * Math.PI) * arch;
+    place(s);
+    camera.position.set(walkAt.x, y, walkAt.z);
+    camera.quaternion.slerpQuaternions(signQuat, rockQuat, round(s));
+    // Tipped down by as much as the lens has risen over the keep, so the
+    // arch lifts the lens and not the keep out of the frame.
+    camera.rotateX(
+      -Math.atan2(
+        y - lerp(signPos.y, stopPos.y, fly),
+        Math.hypot(walkAt.x - cx, walkAt.z - cz),
+      ),
     );
-    // Off the signpost onto the castle, kept on the castle all the way,
-    // and onto the wall at the end.
-    castleAt.set(cx, faceAt.y + 0.6, cz);
-    camera.lookAt(castleAt);
-    keepQuat.copy(camera.quaternion);
-    camera.quaternion.slerpQuaternions(
-      signQuat,
-      keepQuat,
-      THREE.MathUtils.smoothstep(fly, 0, 0.35),
-    );
-    const onto = THREE.MathUtils.smoothstep(fly, 0.8, 1);
-    if (onto > 0) {
-      keepQuat.copy(camera.quaternion);
-      camera.quaternion.slerpQuaternions(keepQuat, rockQuat, onto);
-    }
   };
   const anchorQuat = new THREE.Quaternion();
   const listUp = new THREE.Vector3();
@@ -2240,27 +2269,9 @@ export async function startSignpost(
       }
       stopPos.copy(camera.position);
       rockQuat.copy(camera.quaternion);
-      if (target === stops.saves) walkToWall();
-      else {
-        // On the way: round the keep rather than through it — the angle
-        // round it swings over first, the distance from it closes in
-        // after — a little lifted mid-trip.
-        const a0 = Math.atan2(signPos.x - cx, signPos.z - cz);
-        const a1 = Math.atan2(stopPos.x - cx, stopPos.z - cz);
-        const turn =
-          THREE.MathUtils.euclideanModulo(a1 - a0 + Math.PI, Math.PI * 2) -
-          Math.PI;
-        const r0 = Math.hypot(signPos.x - cx, signPos.z - cz);
-        const r1 = Math.hypot(stopPos.x - cx, stopPos.z - cz);
-        const ang = a0 + turn * fly;
-        const r = lerp(r0, r1, fly * fly);
-        camera.position.set(
-          cx + Math.sin(ang) * r,
-          lerp(signPos.y, stopPos.y, fly) + Math.sin(fly * Math.PI) * 1.5,
-          cz + Math.cos(ang) * r,
-        );
-        camera.quaternion.slerpQuaternions(signQuat, rockQuat, fly);
-      }
+      // On the way: round the keep rather than through it.
+      if (target === stops.saves) walkRound(WALK_PUSH_FROM, WALK_ARCH);
+      else walkRound(0, FLY_ARCH);
     }
 
     hovered =
