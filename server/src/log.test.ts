@@ -163,6 +163,66 @@ describe('clientIp', () => {
     ).toBe('1.1.1.1');
   });
 
+  it('reads the visitor Cloudflare named, when Cloudflare was the hop', () => {
+    // Production as measured: Cloudflare, then the edge's own node. The
+    // player is in neither forwarded entry.
+    expect(
+      clientIp(
+        request({
+          'x-forwarded-for': '104.23.253.96, 152.233.47.65',
+          'cf-connecting-ip': '84.233.199.152',
+        }),
+      ),
+    ).toBe('84.233.199.152');
+    expect(
+      clientIp(
+        request({
+          'x-real-ip': '2606:4700::1',
+          'cf-connecting-ip': '2001:2042:fe57::1',
+        }),
+      ),
+    ).toBe('2001:2042:fe57::1');
+  });
+
+  it('will not take a typed CF-Connecting-IP from a caller who came another way', () => {
+    expect(
+      clientIp(
+        request({
+          'x-forwarded-for': '203.0.113.7',
+          'cf-connecting-ip': '198.51.100.4',
+        }),
+      ),
+    ).toBe('203.0.113.7');
+    // A Cloudflare address the caller prepended is not a hop the proxy saw.
+    expect(
+      clientIp(
+        request({
+          'x-forwarded-for': '104.23.253.96, 192.0.2.1, 203.0.113.7',
+          'cf-connecting-ip': '198.51.100.4',
+        }),
+      ),
+    ).toBe('203.0.113.7');
+  });
+
+  it("reads Railway's X-Real-IP ahead of the chain, which ends in its own edge", () => {
+    const priorRailway = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+    process.env.RAILWAY_VOLUME_MOUNT_PATH = '/data';
+    try {
+      expect(
+        clientIp(
+          request({
+            'x-real-ip': '84.233.199.152',
+            'x-forwarded-for': '79.127.178.82',
+          }),
+        ),
+      ).toBe('84.233.199.152');
+    } finally {
+      if (priorRailway === undefined)
+        delete process.env.RAILWAY_VOLUME_MOUNT_PATH;
+      else process.env.RAILWAY_VOLUME_MOUNT_PATH = priorRailway;
+    }
+  });
+
   it('reports forwardedFor only for a chain of more than one hop', () => {
     expect(clientFields(request({'user-agent': 'ua'}))).toEqual({
       ip: '10.0.0.9',
