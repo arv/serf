@@ -417,7 +417,8 @@ that would carry it survives an unload.
 
 The other end is `/all-replays`: a page listing every recording the server
 holds, newest first — when it arrived, whether it was played out or quit,
-how long it ran, who sat at the table, how many orders were given — with
+how long it ran, who sat at the table and roughly where the human was
+(by address, kept as a place name only), how many orders were given — with
 **Watch** on each row opening it in the ordinary replay screen
 (`?uploaded=<id>`, screened through the same `parseReplay` gate as any
 file off the player's own shelf). Nothing in the game links there; it is a

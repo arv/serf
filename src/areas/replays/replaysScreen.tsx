@@ -76,6 +76,23 @@ function opponents(row: UploadedReplay): string {
   return named.length > 0 ? named.join(', ') : 'nobody';
 }
 
+const COUNTRY_NAMES = new Intl.DisplayNames(['en'], {type: 'region'});
+
+/** Where the human sat, as the server placed their address: the city when
+ * it knew one, the country spelled out either way. A code the browser has
+ * no name for is printed as it came. */
+function place(row: UploadedReplay): string | undefined {
+  const at = row.location;
+  if (at === undefined) return undefined;
+  let country = at.country;
+  try {
+    country = COUNTRY_NAMES.of(at.country) ?? at.country;
+  } catch {
+    // Not a region code Intl recognises; the raw one still says something.
+  }
+  return at.city !== undefined ? `${at.city}, ${country}` : country;
+}
+
 /**
  * The parts of the shelf's own address that have to survive the hop into
  * playback.
@@ -125,6 +142,15 @@ function Row(props: {
               read as decided. */}
           {props.row.ending === 'abandoned' ? ' · quit' : ''}
         </span>
+        {/* Its own line: a place name is the longest thing in this column,
+            and sharing one with the labels above would ellipsize both. */}
+        <Show when={place(props.row)}>
+          {name => (
+            <span class="sub" title={name()}>
+              {name()}
+            </span>
+          )}
+        </Show>
       </div>
       <div class="cell what">
         <span class="strong">{billing(props.row)}</span>
