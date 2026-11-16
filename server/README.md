@@ -170,7 +170,8 @@ entry is the edge, not the visitor, which is what this used to log for
 everyone. When that peer is a Cloudflare address the request came through
 Cloudflare, and the visitor is read from `CF-Connecting-IP`; on any other
 request that header is the caller's own and is ignored. `X-Real-IP` is
-read only when no chain arrived at all, and then the socket peer. Run with nothing in front, none of that holds:
+read only when no chain arrived at all, and never on Railway, whose edge
+always sends one; then the socket peer. Run with nothing in front, none of that holds:
 the header is whatever the caller typed, so it is logged but not believed,
 and `ip` is the socket peer. Which case this is is decided by
 **`SERF_TRUST_PROXY`** (`1` to believe forwarded headers, `0` not to); left
