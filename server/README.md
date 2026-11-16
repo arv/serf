@@ -160,16 +160,17 @@ fields can never overwrite.
 
 `conn` is a per-process socket number that ties one connection's lines
 together. `ip` is read from a header only **when there is a proxy in
-front to have written it**, and which header depends on the proxy. A
-request that came through Cloudflare — one of the last two
-`X-Forwarded-For` hops, or `X-Real-IP`, is a Cloudflare address — is
-credited with `CF-Connecting-IP`. On Railway it is otherwise `X-Real-IP`,
-the header Railway's edge sets to the client: the forwarded chain there
-ends in the edge's own node, not the visitor, which is what this used to
-log for everyone. Behind any other proxy it is the rightmost
-`X-Forwarded-For` entry, the one worth believing because a client can
-prepend to that header but cannot append after the proxy, falling back to
-`X-Real-IP` and then the socket peer. Run with nothing in front, none of that holds:
+front to have written it**, and it is the one address that proxy itself
+recorded: the peer it accepted the request from. Behind most proxies that
+is the rightmost `X-Forwarded-For` entry, the one worth believing because
+a client can prepend to that header but cannot append after the proxy.
+On Railway it is the entry before that: the edge discards the incoming
+chain and writes its peer followed by its own node, so the rightmost
+entry is the edge, not the visitor, which is what this used to log for
+everyone. When that peer is a Cloudflare address the request came through
+Cloudflare, and the visitor is read from `CF-Connecting-IP`; on any other
+request that header is the caller's own and is ignored. `X-Real-IP` is
+read only when no chain arrived at all, and then the socket peer. Run with nothing in front, none of that holds:
 the header is whatever the caller typed, so it is logged but not believed,
 and `ip` is the socket peer. Which case this is is decided by
 **`SERF_TRUST_PROXY`** (`1` to believe forwarded headers, `0` not to); left

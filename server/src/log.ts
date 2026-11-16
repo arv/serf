@@ -109,7 +109,7 @@ function onRailway(): boolean {
 
 /**
  * Cloudflare's own addresses, as it publishes them
- * (https://www.cloudflare.com/ips/). A request whose last hops include one
+ * (https://www.cloudflare.com/ips/). A request the proxy accepted from one
  * of these came through Cloudflare, and only then is CF-Connecting-IP
  * something Cloudflare wrote rather than something the caller typed.
  */
@@ -150,17 +150,34 @@ function isCloudflare(ip: string | undefined): boolean {
 }
 
 /**
+ * The address the trusted proxy itself saw the request arrive from: the
+ * one hop in the forwarded chain that the caller had no hand in.
+ *
+ * On Railway that is the second entry from the end. Its edge discards
+ * whatever X-Forwarded-For arrived and writes two of its own: the peer it
+ * accepted, then its own node. Measured, not read off a page: a request
+ * sent with a made-up X-Forwarded-For was logged with the sender's real
+ * address followed by the edge's, and the made-up entry nowhere.
+ *
+ * Behind any other proxy (SERF_TRUST_PROXY) it is the last entry, the one
+ * that proxy appended. Everything to its left is the caller's own writing.
+ */
+function proxyPeer(req: IncomingMessage): string | undefined {
+  const chain = forwardedChain(req);
+  if (onRailway() && chain.length >= 2) return chain[chain.length - 2];
+  return chain[chain.length - 1];
+}
+
+/**
  * Whether Cloudflare was a hop this request really took, and so whether
  * the CF-* headers on it are Cloudflare's word rather than the caller's.
- * Read off what the proxy in front recorded — see clientIp — and never
- * true with no proxy to have recorded anything.
+ * True only when the peer the proxy recorded is an address Cloudflare
+ * owns — never on the strength of an entry the caller could have written,
+ * and never with no proxy to have recorded anything.
  */
 export function cameThroughCloudflare(req: IncomingMessage): boolean {
   if (!trustsProxyHeaders()) return false;
-  return (
-    isCloudflare(headerValue(req, 'x-real-ip')) ||
-    forwardedChain(req).slice(-2).some(isCloudflare)
-  );
+  return isCloudflare(proxyPeer(req));
 }
 
 /** One header as a single trimmed value, or undefined when it is absent,
@@ -177,41 +194,30 @@ function headerValue(req: IncomingMessage, name: string): string | undefined {
  * socket peer: the only address the process actually observed.
  *
  * Behind a proxy we believe, the peer is that proxy and the client rides
- * in a header. Which header depends on what is in front, and getting it
- * wrong is quiet: every line still carries an address, just not the
- * player's. Three arrangements, most specific first.
+ * in a header. The one entry worth believing is the peer the proxy itself
+ * recorded (proxyPeer). Getting the position wrong is quiet: every line
+ * still carries an address, just not the player's. On Railway the last
+ * entry is the edge's OWN node, which is how every production line came
+ * to name a CDN in Czechia whoever was playing, one player's game came to
+ * be filed under a village they had never heard of, and every player came
+ * to share one upload budget.
  *
- * Cloudflare in front of the proxy. Cloudflare writes the visitor's
- * address into CF-Connecting-IP, overwriting whatever arrived, so it is
- * believed — but only when the request demonstrably came through
- * Cloudflare, which is read off the hops the proxy itself recorded: one of
- * the last two forwarded entries, or X-Real-IP, is an address Cloudflare
- * owns. A caller who reaches the origin some other way can type the
+ * When that peer is Cloudflare, the visitor is one hop further out, in
+ * CF-Connecting-IP — which Cloudflare overwrites, so it is believed, but
+ * only then. A caller who reaches the origin some other way can type the
  * header but cannot make the proxy record a Cloudflare peer.
  *
- * Railway. Its edge sets X-Real-IP to the client and documents that as
- * the header to read. The forwarded chain there ends in the edge's OWN
- * address — measured: every production line named a CDN node in Czechia
- * whoever was playing, which is how one player's game came to be filed
- * under a village they had never heard of, and how every player came to
- * share one upload budget.
- *
- * Any other proxy (SERF_TRUST_PROXY). The rightmost forwarded entry is
- * the one the nearest proxy appended — a client can prepend anything it
- * likes, but it cannot append after the proxy has. X-Real-IP is only the
- * fallback here: nothing appends to it, so with a proxy not known to
- * overwrite it, one that arrives carrying a value is indistinguishable
- * from one the proxy wrote.
+ * X-Real-IP is only the fallback for a proxy that sent no chain at all:
+ * nothing appends to it, so one that arrives carrying a value is
+ * indistinguishable from one the proxy wrote.
  */
 export function clientIp(req: IncomingMessage): string {
   if (trustsProxyHeaders()) {
-    const chain = forwardedChain(req);
-    const real = headerValue(req, 'x-real-ip');
+    const peer = proxyPeer(req);
     const visitor = headerValue(req, 'cf-connecting-ip');
-    if (visitor !== undefined && cameThroughCloudflare(req)) return visitor;
-    if (real !== undefined && onRailway()) return real;
-    const last = chain[chain.length - 1];
-    if (last) return last;
+    if (visitor !== undefined && isCloudflare(peer)) return visitor;
+    if (peer) return peer;
+    const real = headerValue(req, 'x-real-ip');
     if (real !== undefined) return real;
   }
   return req.socket.remoteAddress ?? 'unknown';
