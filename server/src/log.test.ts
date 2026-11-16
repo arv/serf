@@ -241,6 +241,14 @@ describe('clientIp', () => {
       });
       expect(clientIp(direct)).toBe('203.0.113.7');
       expect(cameThroughCloudflare(direct)).toBe(false);
+      // A chain shorter than the edge's own two entries was not written
+      // by the edge, so a Cloudflare address in it vouches for nothing.
+      const short = request({
+        'x-forwarded-for': '104.16.0.1',
+        'cf-connecting-ip': '198.51.100.4',
+      });
+      expect(cameThroughCloudflare(short)).toBe(false);
+      expect(clientIp(short)).toBe('104.16.0.1');
     });
   });
 
