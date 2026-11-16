@@ -249,6 +249,8 @@ describe('clientIp', () => {
       });
       expect(cameThroughCloudflare(short)).toBe(false);
       expect(clientIp(short)).toBe('104.16.0.1');
+      // And with no chain at all, X-Real-IP is not the edge's either.
+      expect(clientIp(request({'x-real-ip': '198.51.100.4'}))).toBe('10.0.0.9');
     });
   });
 

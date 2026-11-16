@@ -210,9 +210,10 @@ function headerValue(req: IncomingMessage, name: string): string | undefined {
  * only then. A caller who reaches the origin some other way can type the
  * header but cannot make the proxy record a Cloudflare peer.
  *
- * X-Real-IP is only the fallback for a proxy that sent no chain at all:
- * nothing appends to it, so one that arrives carrying a value is
- * indistinguishable from one the proxy wrote.
+ * X-Real-IP is only the fallback for a configured proxy that sent no chain
+ * at all: nothing appends to it, so one that arrives carrying a value is
+ * indistinguishable from one the proxy wrote. Never on Railway, whose
+ * edge always sends a chain.
  */
 export function clientIp(req: IncomingMessage): string {
   if (trustsProxyHeaders()) {
@@ -220,8 +221,10 @@ export function clientIp(req: IncomingMessage): string {
     const visitor = headerValue(req, 'cf-connecting-ip');
     if (visitor !== undefined && cameThroughCloudflare(req)) return visitor;
     if (peer) return peer;
+    // Not on Railway: its edge always sends a chain, so a request with
+    // none did not come through it and the header is the caller's own.
     const real = headerValue(req, 'x-real-ip');
-    if (real !== undefined) return real;
+    if (real !== undefined && !onRailway()) return real;
   }
   return req.socket.remoteAddress ?? 'unknown';
 }
