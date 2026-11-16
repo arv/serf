@@ -1,6 +1,7 @@
 import type {IncomingMessage} from 'node:http';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {
+  cameThroughCloudflare,
   clientFields,
   clientIp,
   formatLogLine,
@@ -161,6 +162,96 @@ describe('clientIp', () => {
         request({'x-real-ip': '198.51.100.4', 'x-forwarded-for': '1.1.1.1'}),
       ),
     ).toBe('1.1.1.1');
+  });
+
+  /** Run `body` as a Railway deployment, which is told apart by its
+   * stamped variables and writes a chain of its own shape. */
+  function onRailway(body: () => void): void {
+    const priorRailway = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+    process.env.RAILWAY_VOLUME_MOUNT_PATH = '/data';
+    try {
+      body();
+    } finally {
+      if (priorRailway === undefined)
+        delete process.env.RAILWAY_VOLUME_MOUNT_PATH;
+      else process.env.RAILWAY_VOLUME_MOUNT_PATH = priorRailway;
+    }
+  }
+
+  it('reads the peer Railway recorded, not the edge node it signs off with', () => {
+    // As measured: the edge discards the incoming chain and writes the
+    // peer it accepted, then its own node. Reached directly, the peer is
+    // the player.
+    onRailway(() => {
+      expect(
+        clientIp(request({'x-forwarded-for': '78.71.7.20, 79.127.151.4'})),
+      ).toBe('78.71.7.20');
+    });
+  });
+
+  it('reads the visitor Cloudflare named, when Cloudflare was the peer', () => {
+    // Production as measured: Cloudflare, then the edge's own node. The
+    // player is in neither forwarded entry.
+    onRailway(() => {
+      expect(
+        clientIp(
+          request({
+            'x-forwarded-for': '104.23.253.96, 152.233.47.65',
+            'cf-connecting-ip': '84.233.199.152',
+          }),
+        ),
+      ).toBe('84.233.199.152');
+    });
+    // Behind a proxy that appends one entry, Cloudflare is the last.
+    expect(
+      clientIp(
+        request({
+          'x-forwarded-for': '2001:2042:fe57::1, 2606:4700::1',
+          'cf-connecting-ip': '2001:2042:fe57::1',
+        }),
+      ),
+    ).toBe('2001:2042:fe57::1');
+  });
+
+  it('will not take a typed CF-Connecting-IP from a caller who came another way', () => {
+    expect(
+      clientIp(
+        request({
+          'x-forwarded-for': '203.0.113.7',
+          'cf-connecting-ip': '198.51.100.4',
+        }),
+      ),
+    ).toBe('203.0.113.7');
+    // A Cloudflare address the caller typed is not the peer the proxy saw:
+    // not one hop to the left of it, and not in X-Real-IP either.
+    const typed = request({
+      'x-forwarded-for': '104.16.0.1, 203.0.113.7',
+      'x-real-ip': '104.16.0.2',
+      'cf-connecting-ip': '198.51.100.4',
+    });
+    expect(clientIp(typed)).toBe('203.0.113.7');
+    expect(cameThroughCloudflare(typed)).toBe(false);
+    // Nor on Railway, where a caller reaching the origin directly is the
+    // recorded peer whatever else it sent.
+    onRailway(() => {
+      const direct = request({
+        'x-forwarded-for': '203.0.113.7, 79.127.151.4',
+        'x-real-ip': '104.16.0.2',
+        'cf-connecting-ip': '198.51.100.4',
+      });
+      expect(clientIp(direct)).toBe('203.0.113.7');
+      expect(cameThroughCloudflare(direct)).toBe(false);
+      // A chain shorter than the edge's own two entries was not written
+      // by the edge, so a Cloudflare address in it vouches for nothing.
+      const short = request({
+        'x-forwarded-for': '104.16.0.1',
+        'cf-connecting-ip': '198.51.100.4',
+      });
+      expect(cameThroughCloudflare(short)).toBe(false);
+      expect(clientIp(short)).toBe('104.16.0.1');
+      // And with no chain at all, X-Real-IP is not the edge's either.
+      expect(clientIp(request({'x-real-ip': '198.51.100.4'}))).toBe('10.0.0.9');
+    });
   });
 
   it('reports forwardedFor only for a chain of more than one hop', () => {

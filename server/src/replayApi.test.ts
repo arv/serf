@@ -139,6 +139,24 @@ describe('uploading', () => {
     expect(raw).not.toContain('127.0.0.1');
   });
 
+  it('ignores location headers on an upload that did not cross Cloudflare', async () => {
+    // This suite is the directly exposed server: nothing vouches for a
+    // CF-* header, so a caller cannot file itself under a place it typed.
+    await fetch(`${base}${REPLAY_API_PREFIX}?source=solo`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'text/plain',
+        'cf-ipcountry': 'SE',
+        'cf-ipcity': 'Nowhere',
+      },
+      body: sampleReplay(),
+    });
+    const {replays} = (await (
+      await fetch(`${base}${REPLAY_API_PREFIX}`)
+    ).json()) as {replays: object[]};
+    expect(replays[0]).not.toHaveProperty('location');
+  });
+
   it('files a recording it cannot place, without a location', async () => {
     await post(sampleReplay());
     const {replays} = (await (

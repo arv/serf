@@ -19,8 +19,8 @@
  */
 
 import type {IncomingMessage, ServerResponse} from 'node:http';
-import {locateIp} from './geo.ts';
-import {clientIp, logEvent} from './log.ts';
+import {cloudflareLocation, locate} from './geo.ts';
+import {cameThroughCloudflare, clientIp, logEvent} from './log.ts';
 import {
   MAX_UPLOAD_BYTES,
   claimUploadSlot,
@@ -239,7 +239,10 @@ async function handleUpload(
   // The uploader IS the human in the recording — a client files its own
   // match — so the address this request came from is where they played.
   // Only the place it resolves to is kept.
-  const location = await locateIp(ip);
+  const location = await locate(
+    ip,
+    cameThroughCloudflare(req) ? cloudflareLocation(req.headers) : null,
+  );
   const stored = await storeReplay(body, {
     source: sourceFrom(params),
     ending: endingFrom(params),

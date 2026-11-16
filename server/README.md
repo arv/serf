@@ -108,13 +108,21 @@ that orders the shelf is the sort that orders the prune.
 Each summary also carries a `location` — country, and region and city
 where known — for the address the upload came from, which is where the
 human in the recording was playing, since a client files its own match.
-It is looked up in a database bundled with the server (`geoip-lite`,
-MaxMind GeoLite data; `src/geo.ts`), so no address is sent anywhere, and
-only the place name is written: the address itself stays in the log line
-and never reaches the shelf. The database costs about 110 MB installed
-and roughly as much resident once the first upload loads it, and is as
-current as the package version. Loopback, private ranges and unlisted
-blocks get no location; IPv6 gets a country only.
+Two sources, the better one winning (`src/geo.ts`). Where the request
+came through Cloudflare, its own headers are read: `CF-IPCountry`, which
+is on by default, and `CF-IPCity` / `CF-Region-Code`, which arrive only
+once the zone's **Add visitor location headers** managed transform is
+switched on (Rules → Transform Rules → Managed Transforms). That is the
+accurate one, and the only one that places IPv6 visitors. Otherwise, and
+for the city when Cloudflare named only a country, the address is looked
+up in a database bundled with the server (`geoip-lite`, MaxMind GeoLite
+data): the country is dependable, the city is often a neighbouring town
+or worse, and IPv6 is mostly unplaced. A database city is dropped when
+its country disagrees with Cloudflare's. No address is sent anywhere,
+and only the place name is written: the address itself stays in the log
+line and never reaches the shelf. The database costs about 110 MB
+installed and roughly as much resident once the first upload loads it.
+Loopback, private ranges and unlisted blocks get no location.
 
 The reading half can be shut: set **`SERF_REPLAY_KEY`** and both `GET`s
 want a matching `?key=`. Uploading cannot be — every copy of the game
@@ -151,11 +159,19 @@ fixed `level`, `time`, `message` and `event` keys, which an event's own
 fields can never overwrite.
 
 `conn` is a per-process socket number that ties one connection's lines
-together. `ip` is the rightmost `X-Forwarded-For` entry **when there is a
-proxy in front to have written it** — the hop Railway's edge appended,
-which is the one worth believing because a client can prepend to that
-header but cannot append after the proxy — falling back to `X-Real-IP`
-and then the socket peer. Run with nothing in front, none of that holds:
+together. `ip` is read from a header only **when there is a proxy in
+front to have written it**, and it is the one address that proxy itself
+recorded: the peer it accepted the request from. Behind most proxies that
+is the rightmost `X-Forwarded-For` entry, the one worth believing because
+a client can prepend to that header but cannot append after the proxy.
+On Railway it is the entry before that: the edge discards the incoming
+chain and writes its peer followed by its own node, so the rightmost
+entry is the edge, not the visitor, which is what this used to log for
+everyone. When that peer is a Cloudflare address the request came through
+Cloudflare, and the visitor is read from `CF-Connecting-IP`; on any other
+request that header is the caller's own and is ignored. `X-Real-IP` is
+read only when no chain arrived at all, and never on Railway, whose edge
+always sends one; then the socket peer. Run with nothing in front, none of that holds:
 the header is whatever the caller typed, so it is logged but not believed,
 and `ip` is the socket peer. Which case this is is decided by
 **`SERF_TRUST_PROXY`** (`1` to believe forwarded headers, `0` not to); left
