@@ -177,6 +177,9 @@ function proxyPeer(req: IncomingMessage): string | undefined {
  */
 export function cameThroughCloudflare(req: IncomingMessage): boolean {
   if (!trustsProxyHeaders()) return false;
+  // A Railway chain shorter than the two entries its edge always writes
+  // did not come through that edge, so nothing in it is the edge's word.
+  if (onRailway() && forwardedChain(req).length < 2) return false;
   return isCloudflare(proxyPeer(req));
 }
 
@@ -215,7 +218,7 @@ export function clientIp(req: IncomingMessage): string {
   if (trustsProxyHeaders()) {
     const peer = proxyPeer(req);
     const visitor = headerValue(req, 'cf-connecting-ip');
-    if (visitor !== undefined && isCloudflare(peer)) return visitor;
+    if (visitor !== undefined && cameThroughCloudflare(req)) return visitor;
     if (peer) return peer;
     const real = headerValue(req, 'x-real-ip');
     if (real !== undefined) return real;
