@@ -291,6 +291,11 @@ export class Seasons {
     return this.#shown;
   }
 
+  /** What the minimap needs of the season, kept current by update(): how
+   * much snow lies, and the unknown and water colors as the scene has
+   * them, as sRGB hex. One object, rewritten in place. */
+  readonly chart = {snow: 0, unknown: background, water};
+
   /** DEV: the tick the view has reached, for checking it glides. */
   get shown(): number {
     return this.#shown;
@@ -348,6 +353,9 @@ export class Seasons {
     col(this.#water.colors.shallow, 'shallow');
     col(this.#water.colors.mid, 'mid');
     col(this.#water.colors.deep, 'deep');
+    this.chart.snow = u.uSnow.value;
+    this.chart.unknown = col(SCRATCH_OUT, 'backdrop').getHex();
+    this.chart.water = col(SCRATCH_OUT, 'mid').getHex();
 
     const camera = this.#renderer.rig.camera;
     camera.getWorldDirection(air.uCentre.value);
@@ -507,6 +515,7 @@ interface Splice {
 }
 
 const SCRATCH = new THREE.Color();
+const SCRATCH_OUT = new THREE.Color();
 
 const VARYINGS = /* glsl */ `
   varying float vSeasonUp;

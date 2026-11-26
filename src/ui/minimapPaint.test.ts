@@ -103,4 +103,33 @@ describe('paintBase', () => {
     expect(asked[0]).toEqual([p0 + 0.5, p0 + 0.5]);
     expect(asked.at(-1)).toEqual([p0 + map.play - 0.5, p0 + map.play - 0.5]);
   });
+
+  it('is the summer chart under a season with no snow', () => {
+    const map = tinyMap();
+    const plain = new Uint8ClampedArray(map.play * map.play * 4);
+    const seasoned = new Uint8ClampedArray(map.play * map.play * 4);
+    paintBase(map, () => 0.5, plain);
+    paintBase(map, () => 0.5, seasoned, {snow: 0, unknown: background, water});
+    expect([...seasoned]).toEqual([...plain]);
+  });
+
+  it('snows the ground over, ices the water and turns the unknown', () => {
+    const map = tinyMap();
+    const p0 = playMin(map);
+    map.terrain[p0 * map.size + p0] = Terrain.Water;
+    map.resource[p0 * map.size + p0 + 1] = TileResource.Wood;
+    const season = {snow: 1, unknown: 0x2b3542, water: 0x86b0cb};
+    const out = new Uint8ClampedArray(map.play * map.play * 4);
+    paintBase(map, () => 1, out, season);
+    // Water is the scene's iced tone outright.
+    expect([out[0], out[1], out[2]]).toEqual(rgb(0x86b0cb));
+    // Meadow goes nearly white; a wood keeps more of its green than that.
+    const meadow = [out[8]!, out[9]!, out[10]!];
+    const wood = [out[4]!, out[5]!, out[6]!];
+    expect(Math.min(...meadow)).toBeGreaterThan(190);
+    expect(wood[2]).toBeLessThan(meadow[2]!);
+    // Unseen ground is winter's dark, not summer's.
+    paintBase(map, () => 0, out, season);
+    expect([out[0], out[1], out[2]]).toEqual(rgb(0x2b3542));
+  });
 });

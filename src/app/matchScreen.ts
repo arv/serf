@@ -1280,6 +1280,7 @@ export async function runMatch(
       fog,
       buildings: () => mirror.buildings.values(),
       units: () => init.reader.latest,
+      season: () => seasons.chart,
       viewQuad: out => renderer.rig.viewQuad(out),
       jumpTo: (x, z) => renderer.rig.focusOn(x, z),
       glideTo: (x, z) => renderer.rig.glideTo(x, z),
