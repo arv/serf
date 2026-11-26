@@ -1372,7 +1372,6 @@ export async function runMatch(
     fog.setEnabled(fogOn);
     if (turned) buildingSync.update(roster);
     seasons.update(simTick(), speed(), performance.now() / 1000);
-    sleds.update(performance.now() / 1000, speed(), seasons.chart.snow);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,
@@ -1443,6 +1442,9 @@ export async function runMatch(
     // air with the battle they belong to.
     arrows.update(speed() === 0 ? 0 : dt);
     // Everything above has had its say about this camera; draw it.
+    // After the units are posed: a sled is drawn from where its man is,
+    // and bends him into the rope.
+    sleds.update(performance.now() / 1000, speed(), seasons.chart.snow);
     renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);

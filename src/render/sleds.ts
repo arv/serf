@@ -30,6 +30,12 @@ const DRAWBAR = 0.5;
 const DRAWBAR_HEIGHT = 0.3;
 /** From the man's heels to the middle of the sled. */
 const ROPE = 1.05;
+/** How far a man leans into a loaded sled and an empty one, in radians,
+ * and where his hands close on the trace: behind his hips, in his own
+ * frame (he faces +z). */
+const LEAN_LOADED = 0.4;
+const LEAN_EMPTY = 0.18;
+const GRIP = new THREE.Vector3(0.1, 0.34, -0.2);
 /** How long an emptied sled stays with its serf before it is put away. */
 const KEEP_SECONDS = 25;
 /** Where the four loads sit on the deck. */
@@ -94,6 +100,61 @@ interface Sled {
   since: number;
   emptyFor: number;
   seen: boolean;
+  /** The man on the rope, the arms he pulls with, and how hard he is
+   * pulling right now: 0 standing, 1 with the sled moving behind him. */
+  man: THREE.Group;
+  arms: Arm[];
+  strain: number;
+}
+
+/** Shoulder to elbow to wrist, and which side of him it hangs on. */
+interface Arm {
+  upper: THREE.Object3D;
+  lower: THREE.Object3D;
+  hand: THREE.Object3D;
+  side: number;
+}
+
+/** A man's two arms, by the rig's own bone names. */
+function armsOf(man: THREE.Object3D): Arm[] {
+  const arms: Arm[] = [];
+  for (const [suffix, side] of [
+    ['l', 1],
+    ['r', -1],
+  ] as const) {
+    const bone = (part: string): THREE.Object3D | undefined => {
+      let found: THREE.Object3D | undefined;
+      man.traverse(obj => {
+        // The loader strips the dot from "upperarm.l".
+        if (obj.name.replace('.', '') === part + suffix) found = obj;
+      });
+      return found;
+    };
+    const upper = bone('upperarm');
+    const lower = bone('lowerarm');
+    const hand = bone('hand');
+    if (upper && lower && hand) arms.push({upper, lower, hand, side});
+  }
+  return arms;
+}
+
+/** Turn `bone` so that the limb from it to `child` points at `target`,
+ * `weight` of the way from where the walk had it. */
+function aim(
+  bone: THREE.Object3D,
+  child: THREE.Object3D,
+  target: THREE.Vector3,
+  weight: number,
+): void {
+  bone.getWorldPosition(FROM);
+  child.getWorldPosition(TO).sub(FROM).normalize();
+  WANT.copy(target).sub(FROM).normalize();
+  TURN.setFromUnitVectors(TO, WANT);
+  TURN.slerp(STILL, 1 - weight);
+  bone.getWorldQuaternion(WORLD).premultiply(TURN);
+  bone.parent!.getWorldQuaternion(PARENT).invert();
+  bone.quaternion.copy(PARENT.multiply(WORLD));
+  bone.updateMatrixWorld(true);
 }
 
 interface Puller {
@@ -227,6 +288,8 @@ export class Sleds {
       if (sled.seen) continue;
       this.#scene.remove(sled.group, sled.line);
       sled.line.geometry.dispose();
+      // Stand him up again: the lean was ours.
+      sled.man.rotation.x = 0;
       this.#sleds.delete(id);
     }
   }
@@ -270,13 +333,35 @@ export class Sleds {
       dz = Math.cos(man.rotation.y);
       sled.x = mx - dx * ROPE;
       sled.z = mz - dz * ROPE;
-    } else if (gap > ROPE) {
+    }
+    const pulling = gap > ROPE && gap <= ROPE * 3;
+    if (pulling) {
       const pull = (gap - ROPE) / gap;
       sled.x += dx * pull;
       sled.z += dz * pull;
       sled.since += gap - ROPE;
       sled.yaw = Math.atan2(dx, dz);
     }
+    // Into the rope: the whole man tips forward from his heels while the
+    // sled is moving, further the more is on it, and both hands go back to
+    // the trace behind his hips.
+    sled.strain += ((pulling ? 1 : 0) - sled.strain) * Math.min(dt * 5, 1);
+    man.rotation.order = 'YXZ';
+    man.rotation.x =
+      sled.strain * (sled.carrying > 0 ? LEAN_LOADED : LEAN_EMPTY);
+    man.updateMatrixWorld(true);
+    HANDS.set(mx, man.position.y + 0.36, mz);
+    if (sled.arms.length === 2 && sled.strain > 0.01) {
+      HANDS.set(0, 0, 0);
+      for (const arm of sled.arms) {
+        man.localToWorld(REACH.copy(GRIP).setX(GRIP.x * arm.side));
+        aim(arm.upper, arm.lower, REACH, sled.strain);
+        aim(arm.lower, arm.hand, REACH, sled.strain);
+        HANDS.add(arm.hand.getWorldPosition(FROM));
+      }
+      HANDS.multiplyScalar(0.5);
+    }
+
     const y = this.#floor(sled.x, sled.z);
     sled.group.position.set(sled.x, y, sled.z);
     sled.group.rotation.y = sled.yaw;
@@ -313,7 +398,7 @@ export class Sleds {
         sled.z + cos * DRAWBAR - sin * off,
       );
     }
-    points.setXYZ(1, mx, man.position.y + 0.36, mz);
+    points.setXYZ(1, HANDS.x, HANDS.y, HANDS.z);
     points.needsUpdate = true;
   }
 
@@ -342,12 +427,16 @@ export class Sleds {
       since: 0,
       emptyFor: 0,
       seen: true,
+      man,
+      arms: armsOf(man),
+      strain: 0,
     };
   }
 
   dispose(): void {
     this.convoy([]);
     for (const sled of this.#sleds.values()) {
+      sled.man.rotation.x = 0;
       this.#scene.remove(sled.group, sled.line);
       sled.line.geometry.dispose();
     }
@@ -361,3 +450,12 @@ export class Sleds {
 
 const SPOT = new THREE.Vector3();
 const MARK = new THREE.Matrix4();
+const HANDS = new THREE.Vector3();
+const REACH = new THREE.Vector3();
+const FROM = new THREE.Vector3();
+const TO = new THREE.Vector3();
+const WANT = new THREE.Vector3();
+const TURN = new THREE.Quaternion();
+const STILL = new THREE.Quaternion();
+const WORLD = new THREE.Quaternion();
+const PARENT = new THREE.Quaternion();
