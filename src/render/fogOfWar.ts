@@ -354,6 +354,13 @@ export class FogOfWar implements FogQuery {
     // stretch must be ready for it being switched back on.
     if (this.#dirty) this.#patchNewMaterials(scene);
     else if (this.#pending.length > 0) this.#patchPending();
+    // The unknown is the background's color, and the background is no
+    // longer one color for the whole match: the seasons turn it. Followed
+    // every frame, or winter's snow ends at a ring of summer's dark green.
+    if (scene.background instanceof THREE.Color)
+      this.#uniforms.uUnknown.value
+        .copy(scene.background)
+        .convertLinearToSRGB();
     if (!this.#enabled) return;
 
     this.#accum += dt;
