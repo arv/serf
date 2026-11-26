@@ -420,6 +420,24 @@ export class SceneSync {
   #reader: SabReader;
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
+
+  /** PROTOTYPE (sleds.ts): while set, a load rides a sled behind the serf
+   * rather than in his arms, and he walks rather than carries. */
+  towing = false;
+
+  /** Every unit on screen: its id, kind, group, and what it carries. */
+  eachUnit(
+    visit: (
+      id: number,
+      kind: number,
+      group: THREE.Group,
+      carrying: number,
+    ) => void,
+  ): void {
+    for (const [id, v] of this.#visuals) {
+      if (v.group.visible) visit(id, v.kind, v.group, v.carrying);
+    }
+  }
   #lastNow = 0;
   /** Animation clock: advances only while the game is running. */
   #animNow = 0;
@@ -1052,6 +1070,7 @@ export class SceneSync {
         }
         visual.carrying = carrying;
       }
+      if (visual.carryBox) visual.carryBox.visible = !this.towing;
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.
       let moving = false;
@@ -1415,7 +1434,7 @@ export class SceneSync {
         // as a release crossing that never happened.
         visual.shootT = undefined;
       } else if (visual.char) {
-        const heldCarry = carrying > 0;
+        const heldCarry = carrying > 0 && !this.towing;
         let key: AnimKey;
         // The gait is a Gait, not an AnimKey — the numbers collide
         // (Gait.walk === AnimKey.idle), so it goes through gaitAnimKey.

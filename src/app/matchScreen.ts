@@ -31,6 +31,7 @@ import {ScatterMesh} from '../render/scatterMesh';
 import {SceneSync} from '../render/sceneSync';
 import {Seasons} from '../render/seasons';
 import {SelectionFx} from '../render/selectionFx';
+import {Sleds} from '../render/sleds';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
 import {tileCount} from '../shared/grid';
@@ -552,6 +553,8 @@ export async function runMatch(
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights);
+  const sleds = new Sleds(renderer.scene, heights, sync);
+  teardown.push(() => sleds.dispose());
   sync.onCue = (cue, x, z, delaySec) => {
     playAt(cue, x, z, 1, delaySec);
     // The axe that files the sound also moves the tree. Riding the one
@@ -691,6 +694,7 @@ export async function runMatch(
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
       __seasons: seasons,
+      __sleds: sleds,
       __sync: sync,
       __buildings: buildingSync,
       __xray: {
@@ -1368,6 +1372,7 @@ export async function runMatch(
     fog.setEnabled(fogOn);
     if (turned) buildingSync.update(roster);
     seasons.update(simTick(), speed(), performance.now() / 1000);
+    sleds.update(performance.now() / 1000, speed(), seasons.chart.snow);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,

@@ -353,6 +353,7 @@ export class Seasons {
     col(this.#water.colors.shallow, 'shallow');
     col(this.#water.colors.mid, 'mid');
     col(this.#water.colors.deep, 'deep');
+    this.#water.frozen.value = u.uSnow.value;
     this.chart.snow = u.uSnow.value;
     this.chart.unknown = col(SCRATCH_OUT, 'backdrop').getHex();
     this.chart.water = col(SCRATCH_OUT, 'mid').getHex();
@@ -406,7 +407,9 @@ export class Seasons {
       if (lit && m.userData.ground) this.#splice(m, 'ground');
       else if (lit && m.userData.team && !m.transparent)
         this.#splice(m, 'team');
-      else if (lit && !m.transparent) this.#splice(m, 'solid');
+      // `dry` is what was put down a minute ago (sleds.ts): no snow yet.
+      else if (lit && !m.transparent && !m.userData.dry)
+        this.#splice(m, 'solid');
       else this.#seen.add(m);
     }
   };

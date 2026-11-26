@@ -20,6 +20,9 @@ export class WaterMesh {
   readonly mesh: THREE.Mesh;
   #time = {value: 0};
   #bed: THREE.DataTexture;
+  /** How far the lake has frozen over, 0 open water to 1 hard ice; the
+   * seasons write it. */
+  readonly frozen = {value: 0};
   /** Shore, mid-water and deep tones; live, so the seasons can ice them. */
   readonly colors = {
     shallow: new THREE.Color(waterShore),
@@ -64,6 +67,7 @@ export class WaterMesh {
     });
     material.onBeforeCompile = shader => {
       shader.uniforms.uTime = this.#time;
+      shader.uniforms.uFrozen = this.frozen;
       shader.uniforms.uBed = {value: bed};
       shader.uniforms.uMapSize = {value: size};
       shader.uniforms.uWaterLevel = {value: WATER_LEVEL};
@@ -86,6 +90,7 @@ export class WaterMesh {
           '#include <common>',
           /* glsl */ `#include <common>
           uniform float uTime;
+          uniform float uFrozen;
           uniform sampler2D uBed;
           uniform float uMapSize;
           uniform float uWaterLevel;
@@ -118,6 +123,13 @@ export class WaterMesh {
           // dry up the horizon. Where the margin mesh stands above the
           // waterline it occludes this surface; where it dips, open water
           // shows.
+          // How hard the ice is over water of this depth. The shallows
+          // take first and the deeps last, so a lake closes from its banks
+          // inward and opens from its middle out.
+          float iceAt(float d01) {
+            return smoothstep(d01 * 0.6, d01 * 0.6 + 0.4, uFrozen);
+          }
+
           float bedAt(vec2 w) {
             vec2 ov = max(max(-w, w - uMapSize), vec2(0.0));
             return mix(bedHeight(w), -1.6, smoothstep(0.0, 5.0, length(ov)));
@@ -169,11 +181,34 @@ export class WaterMesh {
             float r = ripple(p, uTime);
             col *= 1.0 + (r - 0.5) * 0.18;
 
+            float alpha = mix(0.24, 0.88, d01);
+            float iced = iceAt(d01);
+            if (iced > 0.0) {
+              // Glass with weather on it: a pale sheet, wind-packed drifts
+              // of snow lying across it, and cracks that show dark.
+              vec3 ice = mix(uMid, uShallow, 0.3 + 0.3 * vnoise(p * 0.9));
+              float seam = abs(vnoise(p * 1.7 + 13.0) - 0.5);
+              float fault = abs(vnoise(p * 0.55 + 71.0) - 0.5);
+              float crack = max(
+                1.0 - smoothstep(0.0, 0.03, seam),
+                (1.0 - smoothstep(0.0, 0.016, fault)) * 0.8);
+              // Ice that is still taking, or already going, is the ice to
+              // stay off: it reads darker and its cracks stand wide.
+              float thin = iced * (1.0 - iced) * 4.0;
+              ice = mix(ice, uDeep * 0.75, crack * (0.4 + 0.5 * thin));
+              ice = mix(ice, uDeep, thin * 0.35);
+              float drift = smoothstep(0.5, 0.72,
+                vnoise(p * 0.3 + 5.0) * 0.6 + vnoise(p * 1.1) * 0.4);
+              ice = mix(ice, vec3(0.9, 0.93, 0.97), drift * 0.8 * iced);
+              col = mix(col, ice, iced);
+              alpha = mix(alpha, 0.97, iced);
+            }
+
             diffuseColor.rgb = col;
             // No surf line: a bright rim traced around every lake reads as
             // an outline, not as water. The shore dissolves instead —
             // nearly clear where it laps the bank, opaque over the deeps.
-            diffuseColor.a = mix(0.24, 0.88, d01);
+            diffuseColor.a = alpha;
           }`,
         )
         .replace(
@@ -188,7 +223,8 @@ export class WaterMesh {
             // where the bed shows through instead.
             float g = vnoise(p * 5.2 + vec2(uTime * 0.15, -uTime * 0.11));
             float shimmer = smoothstep(0.82, 0.99, g) * smoothstep(0.12, 0.45, d01);
-            totalEmissiveRadiance += vec3(0.62, 0.82, 0.86) * shimmer * 0.11;
+            totalEmissiveRadiance +=
+              vec3(0.62, 0.82, 0.86) * shimmer * 0.11 * (1.0 - iceAt(d01));
           }`,
         );
     };
