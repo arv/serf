@@ -512,6 +512,9 @@ export async function runMatch(
   // coarse — ranges keep ranging, forests keep rolling, the sea stays
   // open, under the same water plane and fog band.
   const seasons = new Seasons(renderer, water);
+  // Pushed before the fog's so that, the list running in reverse, it runs
+  // after: see Seasons#dispose for why the order matters.
+  teardown.push(() => seasons.dispose());
   const marginMesh = new MarginMesh(init.map, heights);
   renderer.scene.add(marginMesh.mesh);
   const mist = new Mist(init.map);

@@ -107,6 +107,11 @@ const NUMBER_FIELDS = [
   'falling',
 ] as const satisfies readonly (keyof Key)[];
 
+/** How far the view's clock may run past the last tick the sim reported,
+ * and the gap past which it stops gliding and jumps. */
+const LEAD = 30 * TICKS_PER_SECOND;
+const JUMP = 3 * TICKS_PER_SECOND;
+
 /** Every flake there could be; `falling` says what share is in the air. */
 const FLAKES = 2600;
 
@@ -117,7 +122,25 @@ export class Seasons {
   #water: WaterMesh;
   #sun: THREE.DirectionalLight | undefined;
   #hemi: THREE.HemisphereLight | undefined;
+  /** Materials looked at and left alone. */
   #seen = new WeakSet<THREE.Material>();
+  /**
+   * Every material the seasons are spliced into, with what it had of its
+   * own beforehand and the two wrappers put in their place. A Map, as the
+   * fog's is and for the fog's reason: the GLB materials are cached for
+   * the life of the document, so a second match splicing one a first
+   * match left spliced declares everything twice and compiles nothing.
+   */
+  #spliced = new Map<THREE.Material, Splice>();
+  /** What a skinned mesh wears: units take no snow, whoever else shares
+   * the material. */
+  #units = new WeakSet<THREE.Material>();
+  /** Objects already listening for children, so the scene is only walked
+   * where it has grown (the fog's pattern; see FogOfWar#patchNewMaterials). */
+  #watched = new WeakSet<THREE.Object3D>();
+  #pending: THREE.Object3D[] = [];
+  #swept = false;
+  #points: THREE.Points;
   #yearTicks: number;
   /** The seasons the year walks through, in order. */
   #cycle: readonly Season[] = SEASONS;
@@ -151,7 +174,8 @@ export class Seasons {
       TICKS_PER_SECOND;
     const pinned = params.get('season') as Season;
     if (SEASONS.includes(pinned)) this.#cycle = [pinned];
-    renderer.scene.add(this.#makeAir());
+    this.#points = this.#makeAir();
+    renderer.scene.add(this.#points);
   }
 
   /** The snow in the air. */
@@ -178,12 +202,15 @@ export class Seasons {
           // Each flake has its own threshold, so the air fills and empties
           // one flake at a time rather than all at once.
           float mine = fract(position.z * 57.3);
-          gl_PointSize = mine < uFalling ? 3.0 * (0.7 + mine * 0.8) : 0.0;
+          gl_PointSize = 3.0 * (0.7 + mine * 0.8);
+          // A flake not in the air is put outside the view: a point of
+          // size zero is not promised to draw nothing.
+          if (mine >= uFalling) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         }`,
       fragmentShader: /* glsl */ `
         void main() {
           float d = length(gl_PointCoord - 0.5);
-          gl_FragColor = vec4(vec3(1.0), smoothstep(0.5, 0.15, d) * 0.85);
+          gl_FragColor = vec4(vec3(1.0), (1.0 - smoothstep(0.15, 0.5, d)) * 0.85);
         }`,
     });
     material.userData.noFog = true;
@@ -217,30 +244,44 @@ export class Seasons {
   #heard = -1;
   #shown = 0;
   #behind = 0;
-  #last = 0;
+  #last: number | undefined;
+  /** Match time for the falling snow, so it stops and hurries with the
+   * game. */
+  #airTime = 0;
 
   /** The sim reports its tick only now and then — a couple of times a
    * second — and a season that stepped with it would visibly judder. So
    * the view keeps its own clock, run at the match's speed every frame,
    * and each report only nudges it: the error is bled off over a second
-   * or so rather than jumped. A big gap (a seek, a resync) is jumped. */
-  #clock(tick: number, speed: number, seconds: number): number {
-    const dt = Math.min(Math.max(seconds - this.#last, 0), 0.25);
-    this.#last = seconds;
+   * or so rather than jumped.
+   *
+   * It is not trusted far on its own. With no word from the sim it runs
+   * LEAD ahead of the last tick heard and then waits there, so a match
+   * that has stopped does not go on turning; and found ahead, it waits
+   * for the sim rather than stepping back. Only a gap too big to be
+   * drift — a seek, a resync — is jumped. */
+  #clock(tick: number, speed: number, dt: number): number {
     if (tick !== this.#heard) {
       const first = this.#heard < 0;
       this.#heard = tick;
       this.#behind = tick - this.#shown;
-      if (first || Math.abs(this.#behind) > 3 * TICKS_PER_SECOND) {
+      if (first || this.#behind > JUMP || this.#behind < -(LEAD + JUMP)) {
         this.#shown = tick;
         this.#behind = 0;
       }
     }
     if (speed > 0) {
+      const run = dt * TICKS_PER_SECOND * speed;
       const mend = this.#behind * Math.min(dt * 1.5, 1);
-      this.#behind -= mend;
-      // Never backwards: a clock that is ahead only waits.
-      this.#shown += Math.max(dt * TICKS_PER_SECOND * speed + mend, 0);
+      // Never backwards, and never past the lead.
+      const step = Math.min(
+        Math.max(run + mend, 0),
+        Math.max(this.#heard + LEAD - this.#shown, 0),
+      );
+      // Only what was actually made up comes off the error: a clock held
+      // still has mended nothing.
+      this.#behind -= step - run;
+      this.#shown += step;
     }
     return this.#shown;
   }
@@ -251,9 +292,14 @@ export class Seasons {
   }
 
   update(tick: number, speed: number, seconds: number): void {
-    const phase = this.#phase(
-      this.preview ?? this.#clock(tick, speed, seconds),
-    );
+    // No frame before the first to measure from.
+    const dt =
+      this.#last === undefined
+        ? 0
+        : Math.min(Math.max(seconds - this.#last, 0), 0.25);
+    this.#last = seconds;
+    this.#airTime += dt * speed;
+    const phase = this.#phase(this.preview ?? this.#clock(tick, speed, dt));
     const n = this.#cycle.length;
     const from = KEYS[this.#cycle[Math.floor(phase) % n]!];
     const to = KEYS[this.#cycle[(Math.floor(phase) + 1) % n]!];
@@ -277,7 +323,7 @@ export class Seasons {
     u.uThaw.value = thaw ? 1 : 0;
 
     const air = this.#air;
-    air.uTime.value = seconds;
+    air.uTime.value = this.#airTime;
     air.uFalling.value = from.falling + (to.falling - from.falling) * inAir;
 
     const scene = this.#renderer.scene;
@@ -307,29 +353,59 @@ export class Seasons {
       .add(camera.position)
       .setY(0);
 
-    scene.traverse(this.#visit);
+    if (!this.#swept) {
+      this.#swept = true;
+      this.#pending.length = 0;
+      scene.traverse(this.#visit);
+    } else if (this.#pending.length > 0) {
+      for (const root of this.#pending) root.traverse(this.#visit);
+      this.#pending.length = 0;
+    }
   }
 
+  #onChildAdded = (event: {child: THREE.Object3D}): void => {
+    this.#pending.push(event.child);
+  };
+
   #visit = (obj: THREE.Object3D): void => {
+    if (!this.#watched.has(obj)) {
+      this.#watched.add(obj);
+      obj.addEventListener('childadded', this.#onChildAdded);
+    }
     const mesh = obj as THREE.Mesh;
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
-    if (!mat || obj instanceof THREE.SkinnedMesh) return;
+    if (!mat) return;
+    const unit = obj instanceof THREE.SkinnedMesh;
     for (const m of Array.isArray(mat) ? mat : [mat]) {
-      if (this.#seen.has(m)) continue;
-      this.#seen.add(m);
+      if (unit) {
+        // Whatever met this material first, a unit wearing it settles it.
+        this.#units.add(m);
+        this.#unsplice(m);
+        continue;
+      }
+      if (this.#units.has(m) || this.#spliced.has(m) || this.#seen.has(m))
+        continue;
       const lit =
         m instanceof THREE.MeshLambertMaterial ||
         m instanceof THREE.MeshStandardMaterial;
-      if (!lit) continue;
-      if (m.userData.ground) this.#splice(m, 'ground');
-      else if (!m.transparent) this.#splice(m, 'solid');
+      if (lit && m.userData.ground) this.#splice(m, 'ground');
+      else if (lit && !m.transparent) this.#splice(m, 'solid');
+      else this.#seen.add(m);
     }
   };
 
   #splice(material: THREE.Material, kind: Kind): void {
-    const previous = material.onBeforeCompile.bind(material);
-    material.onBeforeCompile = (shader, renderer) => {
+    // Both are stored to be assigned straight back onto this same material
+    // (see #unsplice), and the live call sites below bind before they call.
+    // oxlint-disable-next-line typescript/unbound-method
+    const {onBeforeCompile, customProgramCacheKey} = material;
+    const previous = onBeforeCompile.bind(material);
+    const previousKey = customProgramCacheKey.bind(material);
+    const hook: THREE.Material['onBeforeCompile'] = (shader, renderer) => {
       previous(shader, renderer);
+      // Still in the chain under a later wrapper (the fog's) after being
+      // unpicked: then it is a pass-through.
+      if (!this.#spliced.has(material)) return;
       Object.assign(shader.uniforms, this.#uniforms);
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>\n${VARYINGS}`)
@@ -347,10 +423,69 @@ export class Seasons {
           `#include <color_fragment>\n${FRAGMENT[kind]}`,
         );
     };
-    // The splice changes the program; the key has to say so.
-    material.customProgramCacheKey = () => `season:${kind}`;
+    // The splice changes the program, so the key has to say so — on top
+    // of whatever the material's own key already says (footprints.ts has
+    // the story of what a shared key costs).
+    const key = (): string =>
+      this.#spliced.has(material)
+        ? `${previousKey()}|season:${kind}`
+        : previousKey();
+    this.#spliced.set(material, {
+      hook,
+      key,
+      ownHook: Object.hasOwn(material, 'onBeforeCompile')
+        ? onBeforeCompile
+        : undefined,
+      ownKey: Object.hasOwn(material, 'customProgramCacheKey')
+        ? customProgramCacheKey
+        : undefined,
+    });
+    material.onBeforeCompile = hook;
+    material.customProgramCacheKey = key;
     material.needsUpdate = true;
   }
+
+  /** Take the seasons back out of a material. Where the splice is still
+   * the outermost thing on it, the material gets back exactly what it had;
+   * where something has since wrapped it, the splice stays in that chain
+   * and goes inert (see the hook). */
+  #unsplice(material: THREE.Material): void {
+    const was = this.#spliced.get(material);
+    if (!was) return;
+    this.#spliced.delete(material);
+    const bare = material as Partial<THREE.Material>;
+    if (material.onBeforeCompile === was.hook) {
+      if (was.ownHook) material.onBeforeCompile = was.ownHook;
+      else delete bare.onBeforeCompile;
+    }
+    if (material.customProgramCacheKey === was.key) {
+      if (was.ownKey) material.customProgramCacheKey = was.ownKey;
+      else delete bare.customProgramCacheKey;
+    }
+    material.needsUpdate = true;
+  }
+
+  /**
+   * Unpick every splice and take the snow out of the air, so the materials
+   * that outlive this match meet the next one as they were. To run AFTER
+   * the fog's own dispose: the fog hands each material back what it found
+   * there, which for most is this splice, and only then is this splice the
+   * outermost thing and able to be lifted off.
+   */
+  dispose(): void {
+    for (const material of this.#spliced.keys()) this.#unsplice(material);
+    this.#pending.length = 0;
+    this.#points.removeFromParent();
+    this.#points.geometry.dispose();
+    (this.#points.material as THREE.Material).dispose();
+  }
+}
+
+interface Splice {
+  hook: THREE.Material['onBeforeCompile'];
+  key: THREE.Material['customProgramCacheKey'];
+  ownHook: THREE.Material['onBeforeCompile'] | undefined;
+  ownKey: THREE.Material['customProgramCacheKey'] | undefined;
 }
 
 const SCRATCH = new THREE.Color();
@@ -409,7 +544,7 @@ const COVER = /* glsl */ `
     float s = uSnow * (1.0 + 2.0 * soft) - soft;
     float lies = smoothstep(last - soft, last + soft, s);
     float left = uThaw * (1.0 - lies) *
-      smoothstep(0.3, 0.0, last - s) * smoothstep(0.0, 0.12, uSnow);
+      (1.0 - smoothstep(0.0, 0.3, last - s)) * smoothstep(0.0, 0.12, uSnow);
     return vec2(lies, left);
   }
 `;
@@ -433,7 +568,7 @@ const FRAGMENT: Record<Kind, string> = {
       vec3 c = diffuseColor.rgb;
       float grassy =
         smoothstep(0.83, 0.92, c.g / max(c.r, 0.001)) *
-        smoothstep(0.78, 0.62, c.b / max(c.g, 0.001));
+        (1.0 - smoothstep(0.62, 0.78, c.b / max(c.g, 0.001)));
       vec2 cover = seasonCover(vSeasonAt, (1.0 - grassy) * 0.3);
       // Where the snow has just gone the ground is dark and wet.
       c *= 1.0 - 0.24 * cover.y;
