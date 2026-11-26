@@ -9,7 +9,7 @@ import type {Enum} from '../shared/enum.ts';
 import {clamp} from '../shared/math';
 import {playMin} from '../sim/map';
 import * as MinimapModeNs from './minimapModeEnum.ts';
-import {paintBase, ownerTint} from './minimapPaint';
+import {paintBase, ownerTint, type ChartSeason} from './minimapPaint';
 import {toasts} from './store';
 export type MinimapMode = Enum<typeof MinimapModeNs>;
 
@@ -29,6 +29,9 @@ export interface MinimapSource {
   buildings(): Iterable<BuildingSnap>;
   /** The newest published unit slot (the SAB reader's `latest`). */
   units(): SlotCopy;
+  /** What the season has done to the ground this moment, where there are
+   * seasons (Seasons.chart): the chart snows over with the valley. */
+  season?(): ChartSeason;
   /** The camera's ground footprint, from CameraRig.viewQuad. */
   viewQuad(out: Float64Array): Float64Array;
   /** Center the camera now — the drag that steers by the chart. */
@@ -167,7 +170,7 @@ export function Minimap(props: {
 
     if (now - lastPaint >= REPAINT_MS) {
       lastPaint = now;
-      paintBase(src.map, shade, img.data);
+      paintBase(src.map, shade, img.data, src.season?.());
       baseCtx.putImageData(img, 0, 0);
     }
     // Crisp tiles, not a blur: the chart is read by shape and color patch,

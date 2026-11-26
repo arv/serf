@@ -50,6 +50,35 @@ const ROAD = rgb(stoneRoad);
  * chart's dark matches the fog's dark on the map beside it. */
 const UNKNOWN = rgb(background);
 
+/** The snow that lies on the chart, a touch under the HUD's own white so
+ * the viewer's dots still read against it. */
+const SNOW: Rgb = [0xd9, 0xe2, 0xec];
+
+/**
+ * What the season does to the chart, as the scene has it this moment: how
+ * much snow lies (0..1), and the scene's own unknown and water colors,
+ * which the seasons turn. Absent, the chart is the printed summer one.
+ */
+export interface ChartSeason {
+  snow: number;
+  unknown: number;
+  water: number;
+}
+
+/** How much of the lying snow a tile shows: open ground nearly all of it,
+ * a wood only its dusting, a road what the carts have left. */
+function snowShare(
+  terrain: number,
+  resource: number,
+  pathLevel: number,
+): number {
+  if (terrain === Terrain.Rock) return 0.6;
+  if (resource === TileResource.Wood) return 0.4;
+  if (resource !== TileResource.None) return 0.5;
+  if (pathLevel === PathLevel.Road) return 0.35;
+  return 0.9;
+}
+
 /** Warm white, in the HUD's own key rather than a printer's #ffffff. */
 const VIEWER_TINT = 0xf7f4ea;
 
@@ -105,19 +134,30 @@ export function paintBase(
   map: MinimapTiles,
   shade: (x: number, z: number) => number,
   out: Uint8ClampedArray,
+  season?: ChartSeason,
 ): void {
   const p0 = playMin(map);
   const {size, play, terrain, resource, pathLevel} = map;
+  const unknown = season ? rgb(season.unknown) : UNKNOWN;
+  const iced = season ? rgb(season.water) : WATER;
+  const snow = season?.snow ?? 0;
   let o = 0;
   for (let z = 0; z < play; z++) {
     const row = (z + p0) * size + p0;
     for (let x = 0; x < play; x++) {
       const i = row + x;
-      const c = tileRgb(terrain[i]!, resource[i]!, pathLevel[i]!);
+      const t = terrain[i]!;
+      const c = tileRgb(t, resource[i]!, pathLevel[i]!);
       const l = shade(x + p0 + 0.5, z + p0 + 0.5);
-      out[o++] = UNKNOWN[0] + (c[0] - UNKNOWN[0]) * l;
-      out[o++] = UNKNOWN[1] + (c[1] - UNKNOWN[1]) * l;
-      out[o++] = UNKNOWN[2] + (c[2] - UNKNOWN[2]) * l;
+      // Water takes the scene's own tone, which winter ices; everything
+      // else takes its share of the snow.
+      const water = t === Terrain.Water;
+      const to = water ? iced : SNOW;
+      const k = water ? 1 : snow * snowShare(t, resource[i]!, pathLevel[i]!);
+      for (let ch = 0; ch < 3; ch++) {
+        const lit = c[ch]! + (to[ch]! - c[ch]!) * k;
+        out[o++] = unknown[ch]! + (lit - unknown[ch]!) * l;
+      }
       out[o++] = 255;
     }
   }

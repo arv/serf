@@ -20,6 +20,12 @@ export class WaterMesh {
   readonly mesh: THREE.Mesh;
   #time = {value: 0};
   #bed: THREE.DataTexture;
+  /** Shore, mid-water and deep tones; live, so the seasons can ice them. */
+  readonly colors = {
+    shallow: new THREE.Color(waterShore),
+    mid: new THREE.Color(water),
+    deep: new THREE.Color(waterDeep),
+  };
 
   constructor(map: MapView) {
     const size = map.size;
@@ -61,9 +67,9 @@ export class WaterMesh {
       shader.uniforms.uBed = {value: bed};
       shader.uniforms.uMapSize = {value: size};
       shader.uniforms.uWaterLevel = {value: WATER_LEVEL};
-      shader.uniforms.uShallow = {value: new THREE.Color(waterShore)};
-      shader.uniforms.uMid = {value: new THREE.Color(water)};
-      shader.uniforms.uDeep = {value: new THREE.Color(waterDeep)};
+      shader.uniforms.uShallow = {value: this.colors.shallow};
+      shader.uniforms.uMid = {value: this.colors.mid};
+      shader.uniforms.uDeep = {value: this.colors.deep};
 
       shader.vertexShader = shader.vertexShader
         .replace(

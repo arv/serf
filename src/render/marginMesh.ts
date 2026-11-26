@@ -135,6 +135,7 @@ export class MarginMesh {
         map: makeGroundTexture(size),
       }),
     );
+    (this.mesh.material as THREE.Material).userData.ground = true;
     this.mesh.receiveShadow = true;
   }
 

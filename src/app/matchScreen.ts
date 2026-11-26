@@ -29,6 +29,7 @@ import {GameRenderer} from '../render/renderer';
 import {RoadDecal} from '../render/roadDecal';
 import {ScatterMesh} from '../render/scatterMesh';
 import {SceneSync} from '../render/sceneSync';
+import {Seasons} from '../render/seasons';
 import {SelectionFx} from '../render/selectionFx';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
@@ -67,6 +68,7 @@ import {
   speed,
   setSpeed,
   fogEnabled,
+  simTick,
   placing,
   setMission,
   briefingOpen,
@@ -506,6 +508,10 @@ export async function runMatch(
   renderer.scene.add(grass.mesh);
   const water = new WaterMesh(init.map);
   renderer.scene.add(water.mesh);
+  const seasons = new Seasons(renderer, water);
+  // Pushed before the fog's so that, the list running in reverse, it runs
+  // after: see Seasons#dispose for why the order matters.
+  teardown.push(() => seasons.dispose());
   // The scenery ring past the play square: the same map tiles, drawn
   // coarse — ranges keep ranging, forests keep rolling, the sea stays
   // open, under the same water plane and fog band.
@@ -684,6 +690,7 @@ export async function runMatch(
     // straight back on the next frame. (The wardrobe has its own pair.)
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
+      __seasons: seasons,
       __sync: sync,
       __buildings: buildingSync,
       __xray: {
@@ -1273,6 +1280,7 @@ export async function runMatch(
       fog,
       buildings: () => mirror.buildings.values(),
       units: () => init.reader.latest,
+      season: () => seasons.chart,
       viewQuad: out => renderer.rig.viewQuad(out),
       jumpTo: (x, z) => renderer.rig.focusOn(x, z),
       glideTo: (x, z) => renderer.rig.glideTo(x, z),
@@ -1359,6 +1367,7 @@ export async function runMatch(
     fog.setOwner(viewerId());
     fog.setEnabled(fogOn);
     if (turned) buildingSync.update(roster);
+    seasons.update(simTick(), speed(), performance.now() / 1000);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,
