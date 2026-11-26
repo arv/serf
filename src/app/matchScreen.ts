@@ -1363,7 +1363,7 @@ export async function runMatch(
     fog.setOwner(viewerId());
     fog.setEnabled(fogOn);
     if (turned) buildingSync.update(roster);
-    seasons.update(simTick(), performance.now() / 1000);
+    seasons.update(simTick(), speed(), performance.now() / 1000);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,
