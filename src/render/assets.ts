@@ -1573,6 +1573,9 @@ function teamMaterial(color: number): THREE.MeshLambertMaterial {
   let m = teamMaterials.get(color);
   if (!m) {
     m = new THREE.MeshLambertMaterial({color});
+    // Whose it is has to outlast the winter: the seasons snow this slot
+    // lightly and in patches (seasons.ts), where a plain roof goes white.
+    m.userData.team = true;
     teamMaterials.set(color, m);
   }
   return m;

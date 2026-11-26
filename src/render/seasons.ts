@@ -115,7 +115,7 @@ const JUMP = 3 * TICKS_PER_SECOND;
 /** Every flake there could be; `falling` says what share is in the air. */
 const FLAKES = 2600;
 
-type Kind = 'ground' | 'solid';
+type Kind = 'ground' | 'solid' | 'team';
 
 export class Seasons {
   #renderer: GameRenderer;
@@ -404,6 +404,8 @@ export class Seasons {
         m instanceof THREE.MeshLambertMaterial ||
         m instanceof THREE.MeshStandardMaterial;
       if (lit && m.userData.ground) this.#splice(m, 'ground');
+      else if (lit && m.userData.team && !m.transparent)
+        this.#splice(m, 'team');
       else if (lit && !m.transparent) this.#splice(m, 'solid');
       else this.#seen.add(m);
     }
@@ -586,6 +588,20 @@ const SNOW = /* glsl */ `
 
 const FRAGMENT: Record<Kind, string> = {
   solid: SNOW,
+  // A seat's color — the roofs, mostly — is what says whose a building is,
+  // and a roof gone white says nothing. So the team slot takes its snow
+  // thin and in patches: plainly snowed on, with the color still the
+  // larger part of it.
+  team: /* glsl */ `
+    {
+      float lain = seasonNoise(vSeasonAt.xz * 2.4 + vSeasonAt.y);
+      float depth = mix(0.2, 0.62, smoothstep(0.4, 0.65, lain));
+      diffuseColor.rgb = mix(
+        diffuseColor.rgb, uSnowColor,
+        smoothstep(0.35, 0.8, vSeasonUp) *
+          seasonCover(vSeasonAt, 0.3).x * depth);
+    }
+  `,
   // The ground is painted once, in summer's colors, and told apart here by
   // what those colors are: grass is green-to-gold and saturated, where
   // trodden earth is browner and rock is grey. Grass takes the full depth
