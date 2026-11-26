@@ -132,6 +132,11 @@ export class Seasons {
    * match left spliced declares everything twice and compiles nothing.
    */
   #spliced = new Map<THREE.Material, Splice>();
+  /** Splices taken out while something else (the fog) was wrapped over
+   * them: inert, but still on the material until that wrapper comes off,
+   * and so still owed a lifting at dispose. */
+  #buried = new Map<THREE.Material, Splice>();
+  #disposed = false;
   /** What a skinned mesh wears: units take no snow, whoever else shares
    * the material. */
   #units = new WeakSet<THREE.Material>();
@@ -364,7 +369,9 @@ export class Seasons {
   }
 
   #onChildAdded = (event: {child: THREE.Object3D}): void => {
-    this.#pending.push(event.child);
+    // The listeners outlive the match on anything that does; they must not
+    // go on filling a list nobody will read.
+    if (!this.#disposed) this.#pending.push(event.child);
   };
 
   #visit = (obj: THREE.Object3D): void => {
@@ -453,10 +460,13 @@ export class Seasons {
     const was = this.#spliced.get(material);
     if (!was) return;
     this.#spliced.delete(material);
+    this.#buried.delete(material);
     const bare = material as Partial<THREE.Material>;
     if (material.onBeforeCompile === was.hook) {
       if (was.ownHook) material.onBeforeCompile = was.ownHook;
       else delete bare.onBeforeCompile;
+    } else if (!this.#disposed) {
+      this.#buried.set(material, was);
     }
     if (material.customProgramCacheKey === was.key) {
       if (was.ownKey) material.customProgramCacheKey = was.ownKey;
@@ -473,7 +483,15 @@ export class Seasons {
    * outermost thing and able to be lifted off.
    */
   dispose(): void {
+    this.#disposed = true;
     for (const material of this.#spliced.keys()) this.#unsplice(material);
+    // Those unpicked under the fog's wrapper: the fog has handed the hook
+    // back by now, so it can be lifted off like any other.
+    for (const [material, was] of this.#buried) {
+      this.#spliced.set(material, was);
+      this.#unsplice(material);
+    }
+    this.#buried.clear();
     this.#pending.length = 0;
     this.#points.removeFromParent();
     this.#points.geometry.dispose();

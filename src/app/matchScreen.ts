@@ -508,13 +508,13 @@ export async function runMatch(
   renderer.scene.add(grass.mesh);
   const water = new WaterMesh(init.map);
   renderer.scene.add(water.mesh);
-  // The scenery ring past the play square: the same map tiles, drawn
-  // coarse — ranges keep ranging, forests keep rolling, the sea stays
-  // open, under the same water plane and fog band.
   const seasons = new Seasons(renderer, water);
   // Pushed before the fog's so that, the list running in reverse, it runs
   // after: see Seasons#dispose for why the order matters.
   teardown.push(() => seasons.dispose());
+  // The scenery ring past the play square: the same map tiles, drawn
+  // coarse — ranges keep ranging, forests keep rolling, the sea stays
+  // open, under the same water plane and fog band.
   const marginMesh = new MarginMesh(init.map, heights);
   renderer.scene.add(marginMesh.mesh);
   const mist = new Mist(init.map);
