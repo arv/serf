@@ -27,10 +27,15 @@ import type {WaterMesh} from './waterMesh';
 const SEASONS = ['summer', 'winter'] as const;
 type Season = (typeof SEASONS)[number];
 
-/** Seconds in a year unless ?year says otherwise: four minutes a season. */
+/** Seconds in a year unless ?year says otherwise. */
 const YEAR_SECONDS = 480;
-/** The share of a season spent settled before it starts to turn. */
-const HOLD = 0.55;
+/** How much of the year each season has: six minutes of summer to two of
+ * winter. */
+const SHARE: Record<Season, number> = {summer: 0.75, winter: 0.25};
+/** The share of the year a season spends turning into the next, at the end
+ * of its own: the snow comes in summer's last 48 seconds and goes in
+ * winter's. */
+const TURN = 0.1;
 
 interface Key {
   sun: number;
@@ -191,10 +196,16 @@ export class Seasons {
   /** Where in the year a tick falls: the whole part is the season of the
    * cycle it is in, the fraction how far that one has turned into the next. */
   #phase(tick: number): number {
-    const n = this.#cycle.length;
-    const year = ((tick % this.#yearTicks) / this.#yearTicks) * n;
-    const into = year % 1;
-    return Math.floor(year) + THREE.MathUtils.smoothstep(into, HOLD, 1);
+    // A pinned season is the whole of its year and never turns.
+    if (this.#cycle.length === 1) return 0;
+    let into = (tick % this.#yearTicks) / this.#yearTicks;
+    let i = 0;
+    while (i < this.#cycle.length - 1 && into >= SHARE[this.#cycle[i]!]) {
+      into -= SHARE[this.#cycle[i]!];
+      i++;
+    }
+    const share = SHARE[this.#cycle[i]!];
+    return i + THREE.MathUtils.smoothstep(into, share - TURN, share);
   }
 
   /** DEV: a tick to show in place of the match's, for stepping through a
