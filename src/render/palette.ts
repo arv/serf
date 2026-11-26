@@ -14,102 +14,42 @@ type GoodId = Enum<typeof GoodId>;
  * puts on the screen.
  */
 
-/**
- * PROTOTYPE: ?season=spring|fall|winter repaints the valley in that
- * season's key so the look can be judged before any of the season design
- * is built. Summer is the printed game; ?winter is the old spelling.
- */
-export type Season = 'spring' | 'summer' | 'fall' | 'winter';
-function seasonFromUrl(): Season {
-  if (typeof location === 'undefined') return 'summer';
-  const params = new URLSearchParams(location.search);
-  const named = params.get('season');
-  if (named === 'spring' || named === 'fall' || named === 'winter') {
-    return named;
-  }
-  return params.has('winter') ? 'winter' : 'summer';
-}
-export const season = seasonFromUrl();
-/** A color that changes with the season; a season left out keeps summer's. */
-const s = (summer: number, others: Partial<Record<Season, number>>): number =>
-  others[season] ?? summer;
-
 // ——— World ———
 
 /** Base meadow green (ground planes, wardrobe fitting room). */
-export const grass = s(0x55a02a, {
-  spring: 0x6cbf3a,
-  fall: 0x9a9a3a,
-  winter: 0xe4ebf1,
-});
+export const grass = 0x55a02a;
 /** Olive meadow patches. */
-export const grassDry = s(0x8ba342, {
-  spring: 0x9cba4a,
-  fall: 0xb5903c,
-  winter: 0xd9dfe0,
-});
-export const water = s(0x2f7e96, {fall: 0x3a7688, winter: 0xa9c6d6});
-export const waterShore = s(0x58aec0, {winter: 0xd3e3ec});
+export const grassDry = 0x8ba342;
+export const water = 0x2f7e96;
+export const waterShore = 0x58aec0;
 /** The middle of the lake. */
-export const waterDeep = s(0x14526e, {winter: 0x7fa6bd});
+export const waterDeep = 0x14526e;
 /** Worn dirt. */
-export const earthTrail = s(0x9b7d4e, {winter: 0x9a8c7a});
+export const earthTrail = 0x9b7d4e;
 /** Pavers. */
 export const stoneRoad = 0x8f8878;
 
 // ——— Terrain painting: meadow hue range + bank/bed tones ———
 
 /** Vivid comic green. */
-export const grassLush = s(0x5bb02f, {
-  spring: 0x74cc40,
-  fall: 0x8f9e34,
-  winter: 0xeaf0f5,
-});
-export const grassOlive = s(0x7a9e44, {
-  spring: 0x8fbf4e,
-  fall: 0xa8963f,
-  winter: 0xdde5ec,
-});
+export const grassLush = 0x5bb02f;
+export const grassOlive = 0x7a9e44;
 /** Sun-dried patches. */
-export const grassGold = s(0xaaa04e, {
-  spring: 0xb9c95a,
-  fall: 0xc79a3c,
-  winter: 0xd8dcd2,
-});
+export const grassGold = 0xaaa04e;
 /** Trodden ground around buildings. */
-export const trampledEarth = s(0x8d7146, {fall: 0x86683f, winter: 0xa59a8a});
+export const trampledEarth = 0x8d7146;
 /** Mossy waterline. */
-export const bankMoss = s(0x3f6030, {
-  spring: 0x4a7a36,
-  fall: 0x5a5a2c,
-  winter: 0xb9c6cc,
-});
-export const riverbed = s(0x3c5638, {winter: 0x6f8c9c});
+export const bankMoss = 0x3f6030;
+export const riverbed = 0x3c5638;
 
 // ——— Scatter ———
 
 /** Bright young stalk. */
-export const stalk = s(0xa8c94f, {
-  spring: 0xb8dc58,
-  fall: 0xd2b24f,
-  winter: 0xcfd3bd,
-});
-export const stalkOld = s(0x7fa03c, {
-  spring: 0x8fb844,
-  fall: 0xb08a3a,
-  winter: 0xb5b59a,
-});
+export const stalk = 0xa8c94f;
+export const stalkOld = 0x7fa03c;
 /** Rich tuft green. */
-export const leaf = s(0x4f8f2a, {
-  spring: 0x5aa832,
-  fall: 0xb5762a,
-  winter: 0x5f7f52,
-});
-export const leafDark = s(0x2e6b1e, {
-  spring: 0x347a22,
-  fall: 0x8a4a1e,
-  winter: 0x3c5a3c,
-});
+export const leaf = 0x4f8f2a;
+export const leafDark = 0x2e6b1e;
 /** Warm grey. */
 export const rock = 0x8b8375;
 export const rockDark = 0x666055;
@@ -140,24 +80,12 @@ export const lantern = 0xffb23c;
 // ——— Atmosphere ———
 
 /** Hemisphere sky. */
-export const skyLight = s(0xcfe4f7, {
-  spring: 0xd6ecff,
-  fall: 0xe8dcc8,
-  winter: 0xd6e4ff,
-});
+export const skyLight = 0xcfe4f7;
 /** Green bounce light. */
-export const groundBounce = s(0x7f9a50, {
-  spring: 0x8cb058,
-  fall: 0xa08a50,
-  winter: 0xb4c4dc,
-});
-export const background = s(0x223526, {fall: 0x2e2a1e, winter: 0x2b3542});
+export const groundBounce = 0x7f9a50;
+export const background = 0x223526;
 /** Distant pale haze. */
-export const fog = s(0x9cc0a8, {
-  spring: 0xa8cdb4,
-  fall: 0xc9b99a,
-  winter: 0xc6d3e0,
-});
+export const fog = 0x9cc0a8;
 
 // ——— Verdicts ———
 

@@ -23,7 +23,6 @@ import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
 import {MarginMesh} from '../render/marginMesh';
 import {Mist} from '../render/mist';
-import {season} from '../render/palette';
 import {RallyFlag} from '../render/rallyFlag';
 import {SelectedReach} from '../render/reachOutline';
 import {GameRenderer} from '../render/renderer';
@@ -69,6 +68,7 @@ import {
   speed,
   setSpeed,
   fogEnabled,
+  simTick,
   placing,
   setMission,
   briefingOpen,
@@ -511,6 +511,7 @@ export async function runMatch(
   // The scenery ring past the play square: the same map tiles, drawn
   // coarse — ranges keep ranging, forests keep rolling, the sea stays
   // open, under the same water plane and fog band.
+  const seasons = new Seasons(renderer, water);
   const marginMesh = new MarginMesh(init.map, heights);
   renderer.scene.add(marginMesh.mesh);
   const mist = new Mist(init.map);
@@ -590,8 +591,6 @@ export async function runMatch(
   // whose scouting was never followed would light up as if it had been
   // born the moment it was looked at. A match keeps one — nothing there
   // moves the view off this client's own seat.
-  const seasons =
-    season === 'summer' ? undefined : new Seasons(renderer, season);
   const fog = new FogOfWar(
     config.myPlayerId,
     init.map,
@@ -688,6 +687,7 @@ export async function runMatch(
     // straight back on the next frame. (The wardrobe has its own pair.)
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
+      __seasons: seasons,
       __sync: sync,
       __buildings: buildingSync,
       __xray: {
@@ -1363,7 +1363,7 @@ export async function runMatch(
     fog.setOwner(viewerId());
     fog.setEnabled(fogOn);
     if (turned) buildingSync.update(roster);
-    seasons?.update(renderer, performance.now() / 1000);
+    seasons.update(simTick(), performance.now() / 1000);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,

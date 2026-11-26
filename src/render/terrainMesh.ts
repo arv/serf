@@ -264,7 +264,7 @@ export class TerrainMesh {
       vertexColors: true,
       map: makeGroundTexture(play),
     });
-    material.userData.noSnow = true;
+    material.userData.ground = true;
     this.#buildChunks(material);
   }
 
