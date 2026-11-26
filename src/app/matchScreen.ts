@@ -694,6 +694,7 @@ export async function runMatch(
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
       __seasons: seasons,
+      __host: host,
       __sleds: sleds,
       __sync: sync,
       __buildings: buildingSync,

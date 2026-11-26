@@ -850,8 +850,8 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to refuse now takes the building, so a command an old log had
 // dropped is executed, and the tailings a worked-out gold seam left behind
 // are gone with the one rule that read them (replayVersion.ts at length).
-const EXPECTED_VERSION = 76;
-const EXPECTED_HASH = '8644428cf4ef34ea8f9ea40945d75f2f';
+const EXPECTED_VERSION = 77;
+const EXPECTED_HASH = '08865ee404b599f94c42604a143e1c56';
 
 /**
  * Everything a replay's playback depends on, as raw source:

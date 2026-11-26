@@ -2,7 +2,7 @@ import {tileIdx, tileX, tileY} from '../../shared/grid.ts';
 import {TICKS_PER_SECOND} from '../defs/balance.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import {effectiveSpeed} from '../defs/units.ts';
-import {findPath, nearestWalkable, tileSpeedMult} from '../path.ts';
+import {findPath, nearestWalkable, shut, tileSpeedMult} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
 import {clearMarchSpeed, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
@@ -30,7 +30,8 @@ export function movementSystem(world: World): void {
     const here = tileIdx(Math.floor(unit.x), Math.floor(unit.y), size);
     // Trail wear: bump the tile the unit just left.
     if (unit.lastTile !== here) {
-      if (unit.lastTile >= 0) {
+      // Ice takes no wear: there is no trail to tread into a lake.
+      if (unit.lastTile >= 0 && !world.map.ice?.[unit.lastTile]) {
         world.map.wear[unit.lastTile] = world.map.wear[unit.lastTile]! + 1;
       }
       unit.lastTile = here;
@@ -45,7 +46,7 @@ export function movementSystem(world: World): void {
 
     while (budget > 0 && unit.pathIdx < path.length) {
       const next = path[unit.pathIdx]!;
-      if (world.map.blocked[next]) {
+      if (shut(world.map, next)) {
         routeAround(world, unit, path[path.length - 1]!);
         break;
       }
@@ -104,7 +105,7 @@ export function movementSystem(world: World): void {
  * here to remove. A plain move is released to idle, where wander and the job
  * dispatcher can pick the unit up again.
  */
-function routeAround(world: World, unit: Unit, goal: number): void {
+export function routeAround(world: World, unit: Unit, goal: number): void {
   const size = world.map.size;
   const ux = Math.floor(unit.x);
   const uy = Math.floor(unit.y);

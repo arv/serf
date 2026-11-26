@@ -37,6 +37,7 @@ import {
   constructionSystem,
   orderRepair,
 } from './systems/construction.ts';
+import {iceSystem} from './systems/ice.ts';
 import {
   abortJob,
   logisticsSystem,
@@ -133,6 +134,7 @@ export function tickWorld(
     }
   }
 
+  iceSystem(world);
   researchSystem(world);
   productionSystem(world, rng);
   logisticsSystem(world);

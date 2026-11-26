@@ -14,6 +14,7 @@ import type {Enum} from '../shared/enum.ts';
 import {clamp, hash2, lerp} from '../shared/math';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {WATER_LEVEL} from '../sim/map';
 import * as AnimKey from './animKeyEnum.ts';
 import {crossedRelease} from './arrows';
 import type {FieldInfo, PierInfo} from './buildingSync';
@@ -1615,7 +1616,9 @@ export class SceneSync {
         // plot the farmer stands on the soil, not in it — and the plot is
         // draped over the ground, so the soil is that finger above the
         // ground wherever he is on it.
-        const groundY = this.#heights.at(px, pz);
+        // Never below the waterline: out on a frozen lake the ground
+        // under him is lake bed, and the ice is what he stands on.
+        const groundY = Math.max(this.#heights.at(px, pz), WATER_LEVEL);
         const standY =
           pier && onDeck
             ? Math.max(groundY, pier.deckY)

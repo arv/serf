@@ -60,7 +60,11 @@ interface SaveFile {
      * readers below take either spelling for every grid anyway: a save is
      * an importable file, and a tolerant reader at that boundary is
      * cheap. */
-    map: Record<Exclude<keyof GameMap, 'size' | 'play'>, string | number[]>;
+    map: Record<
+      // The ice is the tick's, not the save's (GameMap.ice).
+      Exclude<keyof GameMap, 'size' | 'play' | 'ice' | 'iceBears'>,
+      string | number[]
+    >;
     units: unknown[];
     buildings: unknown[];
     jobs: unknown[];

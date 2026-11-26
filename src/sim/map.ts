@@ -67,6 +67,20 @@ export interface GameMap {
   resourceAmt: Uint8Array;
   /** 1 = not walkable (water, standing resources, building footprints). */
   blocked: Uint8Array;
+  /**
+   * PROTOTYPE: the lake tiles that will bear a man right now — 1 on every
+   * water tile of the play square while the ice is hard, 0 otherwise.
+   * `blocked` goes on saying water is not ground, so nothing is built,
+   * paved or sited on a lake in any season; only the pathfinder and the
+   * walk itself read this and step out onto it.
+   *
+   * Derived from the tick (systems/ice.ts rebuilds it when the season
+   * turns), so it is neither saved nor hashed nor copied: a world that
+   * arrives without one makes its own on its first tick.
+   */
+  ice?: Uint8Array;
+  /** What `ice` was last built for. */
+  iceBears?: boolean;
   /** Building entity id occupying the tile, -1 if none. */
   buildingAt: Int16Array;
   /** Trail wear from foot traffic; decays. */
