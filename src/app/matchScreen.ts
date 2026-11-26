@@ -23,6 +23,7 @@ import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
 import {MarginMesh} from '../render/marginMesh';
 import {Mist} from '../render/mist';
+import {winter as winterKey} from '../render/palette';
 import {RallyFlag} from '../render/rallyFlag';
 import {SelectedReach} from '../render/reachOutline';
 import {GameRenderer} from '../render/renderer';
@@ -32,6 +33,7 @@ import {SceneSync} from '../render/sceneSync';
 import {SelectionFx} from '../render/selectionFx';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
+import {Winter} from '../render/winter';
 import {tileCount} from '../shared/grid';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
@@ -588,6 +590,7 @@ export async function runMatch(
   // whose scouting was never followed would light up as if it had been
   // born the moment it was looked at. A match keeps one — nothing there
   // moves the view off this client's own seat.
+  const winter = winterKey ? new Winter(renderer) : undefined;
   const fog = new FogOfWar(
     config.myPlayerId,
     init.map,
@@ -1359,6 +1362,7 @@ export async function runMatch(
     fog.setOwner(viewerId());
     fog.setEnabled(fogOn);
     if (turned) buildingSync.update(roster);
+    winter?.update(renderer, performance.now() / 1000);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,

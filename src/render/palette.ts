@@ -14,42 +14,51 @@ type GoodId = Enum<typeof GoodId>;
  * puts on the screen.
  */
 
+/**
+ * PROTOTYPE: ?winter swaps the ground, water and sky to a snow key so the
+ * look can be judged before any of the season design is built.
+ */
+export const winter =
+  typeof location !== 'undefined' &&
+  new URLSearchParams(location.search).has('winter');
+const w = (summer: number, snow: number): number => (winter ? snow : summer);
+
 // ——— World ———
 
 /** Base meadow green (ground planes, wardrobe fitting room). */
-export const grass = 0x55a02a;
+export const grass = w(0x55a02a, 0xe4ebf1);
 /** Olive meadow patches. */
-export const grassDry = 0x8ba342;
-export const water = 0x2f7e96;
-export const waterShore = 0x58aec0;
+export const grassDry = w(0x8ba342, 0xd9dfe0);
+export const water = w(0x2f7e96, 0xa9c6d6);
+export const waterShore = w(0x58aec0, 0xd3e3ec);
 /** The middle of the lake. */
-export const waterDeep = 0x14526e;
+export const waterDeep = w(0x14526e, 0x7fa6bd);
 /** Worn dirt. */
-export const earthTrail = 0x9b7d4e;
+export const earthTrail = w(0x9b7d4e, 0x9a8c7a);
 /** Pavers. */
 export const stoneRoad = 0x8f8878;
 
 // ——— Terrain painting: meadow hue range + bank/bed tones ———
 
 /** Vivid comic green. */
-export const grassLush = 0x5bb02f;
-export const grassOlive = 0x7a9e44;
+export const grassLush = w(0x5bb02f, 0xeaf0f5);
+export const grassOlive = w(0x7a9e44, 0xdde5ec);
 /** Sun-dried patches. */
-export const grassGold = 0xaaa04e;
+export const grassGold = w(0xaaa04e, 0xd8dcd2);
 /** Trodden ground around buildings. */
-export const trampledEarth = 0x8d7146;
+export const trampledEarth = w(0x8d7146, 0xa59a8a);
 /** Mossy waterline. */
-export const bankMoss = 0x3f6030;
-export const riverbed = 0x3c5638;
+export const bankMoss = w(0x3f6030, 0xb9c6cc);
+export const riverbed = w(0x3c5638, 0x6f8c9c);
 
 // ——— Scatter ———
 
 /** Bright young stalk. */
-export const stalk = 0xa8c94f;
-export const stalkOld = 0x7fa03c;
+export const stalk = w(0xa8c94f, 0xcfd3bd);
+export const stalkOld = w(0x7fa03c, 0xb5b59a);
 /** Rich tuft green. */
-export const leaf = 0x4f8f2a;
-export const leafDark = 0x2e6b1e;
+export const leaf = w(0x4f8f2a, 0x5f7f52);
+export const leafDark = w(0x2e6b1e, 0x3c5a3c);
 /** Warm grey. */
 export const rock = 0x8b8375;
 export const rockDark = 0x666055;
@@ -80,12 +89,12 @@ export const lantern = 0xffb23c;
 // ——— Atmosphere ———
 
 /** Hemisphere sky. */
-export const skyLight = 0xcfe4f7;
+export const skyLight = w(0xcfe4f7, 0xd6e4ff);
 /** Green bounce light. */
-export const groundBounce = 0x7f9a50;
-export const background = 0x223526;
+export const groundBounce = w(0x7f9a50, 0xb4c4dc);
+export const background = w(0x223526, 0x2b3542);
 /** Distant pale haze. */
-export const fog = 0x9cc0a8;
+export const fog = w(0x9cc0a8, 0xc6d3e0);
 
 // ——— Verdicts ———
 
