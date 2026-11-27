@@ -55,6 +55,8 @@ interface UnitVisual {
   carrying: number;
   /** How many of it: one in his arms, or a sled's load. */
   load: number;
+  /** He has a sled in hand (BUFF.sled). */
+  sled: boolean;
   carryBox: THREE.Object3D | null;
   /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
@@ -427,9 +429,8 @@ export class SceneSync {
   #visuals = new Map<number, UnitVisual>();
 
   /** Set by sleds.ts once there is a sled to draw. From then on a serf
-   * moving more than one load has borrowed a sled (the sim lends one per
-   * such walk): his load rides behind him rather than in his arms, and he
-   * walks rather than carries. */
+   * with a sled in hand pulls it: his load rides behind him rather than in
+   * his arms, and he walks rather than carries. */
   sledsReady = false;
 
   /** Every unit on screen: its id, kind, group, what it carries and how
@@ -441,10 +442,12 @@ export class SceneSync {
       group: THREE.Group,
       carrying: number,
       load: number,
+      sled: boolean,
     ) => void,
   ): void {
     for (const [id, v] of this.#visuals) {
-      if (v.group.visible) visit(id, v.kind, v.group, v.carrying, v.load);
+      if (v.group.visible)
+        visit(id, v.kind, v.group, v.carrying, v.load, v.sled);
     }
   }
   #lastNow = 0;
@@ -975,6 +978,7 @@ export class SceneSync {
           kind: kindKey,
           carrying: 0,
           load: 0,
+          sled: false,
           carryBox: null,
           char: skinned.visual,
           outline: attachXrayOutline(skinned.group, owner),
@@ -1061,6 +1065,7 @@ export class SceneSync {
       // pack buckets, grain sacks, lumber, ingots, casks.
       const carrying = carryGood(latest.aux[a + 3]!);
       visual.load = carryLoad(latest.aux[a + 3]!);
+      visual.sled = (latest.aux[a + 10]! & BUFF.sled) !== 0;
       if (carrying !== visual.carrying) {
         if (visual.carryBox) {
           visual.carryBox.parent?.remove(visual.carryBox);
@@ -1082,10 +1087,11 @@ export class SceneSync {
         visual.carrying = carrying;
       }
       // Only a serf has a sled to put it on; a worker keeps his load.
+      // A man with a sled in hand pulls his load on it, whatever its size.
       const towed =
         (visual.kind & 0xff) === UnitTypeId.serf &&
         this.sledsReady &&
-        visual.load > 1;
+        visual.sled;
       if (visual.carryBox) visual.carryBox.visible = !towed;
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.

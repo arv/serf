@@ -5,7 +5,7 @@ import {WATER_LEVEL} from '../sim/map';
 import {gaitAnimKey, makeCharacter, playAnimation} from './characters';
 import type {CharacterVisual} from './characters';
 import type {HeightField} from './heightField';
-import {makeCarryProp} from './models';
+import {makeCarryProp, setSledModel} from './models';
 import type {SceneSync} from './sceneSync';
 
 /**
@@ -35,8 +35,6 @@ const ROPE = 1.05;
 const LEAN_LOADED = 0.4;
 const LEAN_EMPTY = 0.18;
 const GRIP = new THREE.Vector3(0.1, 0.34, -0.2);
-/** How long an emptied sled stays with its serf before it is put away. */
-const KEEP_SECONDS = 25;
 /** Where the four loads sit on the deck. */
 const BERTHS: readonly [number, number][] = [
   [-0.1, 0.17],
@@ -87,6 +85,8 @@ function loadModel(): void {
     gltf => {
       keepDry(gltf.scene);
       model = gltf.scene;
+      // The castle's shelf draws its sleds with it, parked at the door.
+      setSledModel(model);
     },
   );
 }
@@ -104,7 +104,6 @@ interface Sled {
   yaw: number;
   /** Ground covered since the runners last marked it. */
   since: number;
-  emptyFor: number;
   seen: boolean;
   /** The man on the rope, the arms he pulls with, and how hard he is
    * pulling right now: 0 standing, 1 with the sled moving behind him. */
@@ -281,8 +280,8 @@ export class Sleds {
 
     for (const sled of this.#sleds.values()) sled.seen = false;
     if (ready) {
-      this.#sync.eachUnit((id, kind, group, carrying, load) => {
-        if ((kind & 0xff) === UnitTypeId.serf)
+      this.#sync.eachUnit((id, kind, group, carrying, load, sled) => {
+        if ((kind & 0xff) === UnitTypeId.serf && sled)
           this.#pull(id, group, carrying, load, dt);
       });
     }
@@ -317,18 +316,12 @@ export class Sleds {
     load: number,
     dt: number,
   ): void {
-    // One load is carried, not pulled: a sled he still had from his last
-    // walk goes back to the castle.
-    if (load === 1) return;
     let sled = this.#sleds.get(id);
     if (!sled) {
-      // Only a walk the sim lent a sled to brings one out.
-      if (load < 2 || !model) return;
+      if (!model) return;
       sled = this.#make(man, model);
       this.#sleds.set(id, sled);
     }
-    sled.emptyFor = carrying > 0 ? 0 : sled.emptyFor + dt;
-    if (sled.emptyFor > KEEP_SECONDS) return;
     sled.seen = true;
 
     if (carrying !== sled.carrying || load !== sled.load) {
@@ -451,7 +444,6 @@ export class Sleds {
       z: man.position.z - Math.cos(yaw) * ROPE,
       yaw,
       since: 0,
-      emptyFor: 0,
       seen: true,
       man,
       arms: armsOf(man),

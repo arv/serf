@@ -100,6 +100,10 @@ export interface Unit {
   /** How many of it, when more than the one a pair of arms holds: a sled's
    * load (SLED_LOAD). Absent is one. Read it through `cargoOf`. */
   carryCount?: number;
+  /** A sled taken off the castle's shelf for a winter haul (SLED_LOAD),
+   * brought back when he has no haul left for it. A good like any other
+   * while he holds it: counted, saved, and dropped where he falls. */
+  sled?: true;
   /** Home building (resident workers). */
   homeId?: EntityId;
   /** Tile the unit occupied last tick — trail wear bookkeeping. */

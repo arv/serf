@@ -99,7 +99,7 @@ describe('sleds', () => {
       SLED_LOAD,
     ]);
     expect(sparesSleds(one.world, 0)).toBe(0);
-    // The sled is lent, not hauled: it never leaves the castle's shelf.
+    // Booked, not yet fetched: the sled is still on the castle's shelf.
     expect(store.stock[GoodId.sled]).toBe(0);
     expect(one.store.stock[GoodId.sled]).toBe(1);
     expect(checkInvariants(one.world).violations).toEqual([]);
@@ -239,5 +239,45 @@ describe('sleds', () => {
       most = Math.max(most, cargoOf(serf));
     }
     expect(most).toBe(1);
+  });
+
+  it('are fetched from the castle, and brought back after', () => {
+    const {world, store, site, start} = winterSite(1);
+    // Out by the site, away from the castle the sled is kept at.
+    const serf = addSerf(world, 22, 33);
+    let held = false;
+    let wentHome = false;
+    for (let i = 0; i < 3000 && (site.siteNeeds?.[GoodId.wood] ?? 0) > 0; i++) {
+      tickWorld(world, []);
+      if (serf.sled) {
+        held = true;
+        // While he has it, it is off the shelf.
+        expect(store.stock[GoodId.sled] ?? 0).toBe(0);
+      }
+      expect(checkInvariants(world).violations).toEqual([]);
+    }
+    expect(held).toBe(true);
+    // ...and once there is nothing left to haul four-up, it goes home.
+    for (let i = 0; i < 3000 && serf.sled; i++) {
+      tickWorld(world, []);
+      wentHome = true;
+    }
+    expect(wentHome).toBe(true);
+    expect(serf.sled).toBeUndefined();
+    expect(store.stock[GoodId.sled]).toBe(1);
+    expect(checkLedger(world, start)).toEqual([]);
+  });
+
+  it('fall where their hauler does', () => {
+    const {world, store, start} = winterSite(1);
+    const serf = addSerf(world, 28, 30);
+    for (let i = 0; i < 3000 && !serf.sled; i++) tickWorld(world, []);
+    expect(serf.sled).toBe(true);
+    killUnit(world, serf);
+    run(world, 2);
+    // Not back on the shelf: on the ground where he fell, for hauling home.
+    expect(store.stock[GoodId.sled] ?? 0).toBe(0);
+    expect(checkLedger(world, start)).toEqual([]);
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 });

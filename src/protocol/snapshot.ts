@@ -855,9 +855,11 @@ function workKindOf(w: World, u: Unit): number {
  */
 function buffsOf(w: World, u: Unit, action: number): number {
   if (action === ACTION.dead) return 0;
-  return (w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
-    ? BUFF.festival
-    : 0;
+  return (
+    ((w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
+      ? BUFF.festival
+      : 0) | (u.sled ? BUFF.sled : 0)
+  );
 }
 
 export function* unitSnapshots(w: World): Generator<UnitSnapshot> {

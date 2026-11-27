@@ -464,7 +464,23 @@ export const PILE_SCALE = 1.25;
  * that grow beside buildings — same look as the carried version, base on
  * the ground.
  */
+/** The sled as modelled (render/sleds.ts hands it over once loaded): a
+ * parked sled is drawn as the real thing, not as a carried proxy. */
+let sledModel: THREE.Object3D | undefined;
+export function setSledModel(model: THREE.Object3D): void {
+  sledModel = model;
+}
+
 export function makePileProp(good: GoodId): THREE.Group {
+  if (good === GoodId.sled && sledModel) {
+    // Parked side by side at the castle's door, nose out.
+    const g = new THREE.Group();
+    const sled = sledModel.clone();
+    sled.scale.setScalar(0.85);
+    sled.rotation.y = Math.PI / 2;
+    g.add(sled);
+    return g;
+  }
   const pack = PACK_CARRY[good];
   // Clone from the shared prototype cache (like makeCarryProp): building
   // a fresh carryProto per pile minted new geometries/materials each call,

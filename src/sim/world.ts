@@ -1264,6 +1264,10 @@ export function killUnit(world: World, unit: Unit): void {
     unit.carrying = undefined;
     unit.carryCount = undefined;
   }
+  if (unit.sled) {
+    drops[GoodId.sled] = (drops[GoodId.sled] ?? 0) + 1;
+    unit.sled = undefined;
+  }
   // The resident's tool was consumed when he took the post up, and until
   // now it was buried with him — the raid's second bite of damage. It
   // falls where he does instead (minted, mirroring unbindWorker's

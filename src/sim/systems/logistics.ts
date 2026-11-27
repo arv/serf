@@ -73,6 +73,7 @@ export function logisticsSystem(world: World): void {
     rehomeCarriedGoods(world);
     match(world);
   }
+  returnSleds(world);
   dispatch(world);
   progress(world);
 }
@@ -646,11 +647,87 @@ function nearestSupply(
 export function sparesSleds(world: World, owner: Owner): number {
   const castle = findStorehouse(world, owner);
   if (!castle) return 0;
+  let owned = castle.stock[GoodId.sled] ?? 0;
+  for (const u of world.units.values()) {
+    if (!u.dead && u.owner === owner && u.sled) owned++;
+  }
   let lent = 0;
   for (const job of world.jobs.values()) {
     if (job.owner === owner && loadOf(job) > 1) lent++;
   }
-  return (castle.stock[GoodId.sled] ?? 0) - lent;
+  return owned - lent;
+}
+
+/** A walk of more than one load needs a sled in the hauler's hands. */
+function needsSled(job: HaulJob, unit: Unit): boolean {
+  return loadOf(job) > 1 && !unit.sled;
+}
+
+/**
+ * Send a man just given a walk of several loads to the castle for a sled
+ * first, if he has none: the sleds are kept there. With none on the shelf
+ * the walk is split back into single loads and he goes straight for the
+ * first.
+ */
+function fetchSledFirst(world: World, job: HaulJob, serf: Unit): void {
+  if (!needsSled(job, serf)) return;
+  const castle = findStorehouse(world, job.owner);
+  if (!castle || (castle.stock[GoodId.sled] ?? 0) <= 0) {
+    unbatch(world, job);
+    return;
+  }
+  if (atBuilding(serf, castle)) return; // takes it on the spot (progress)
+  if (!walkToBuilding(world.map, serf, castle)) unbatch(world, job);
+}
+
+/** Split a walk of several loads back into walks of one: the same goods
+ * spoken for, by more jobs, nothing reserved or released. */
+function unbatch(world: World, job: HaulJob): void {
+  const extra = loadOf(job) - 1;
+  if (extra <= 0) return;
+  job.count = undefined;
+  for (let i = 0; i < extra; i++) {
+    world.jobs.set(world.nextJobId, {
+      id: world.nextJobId,
+      good: job.good,
+      from: job.from,
+      to: job.to,
+      owner: job.owner,
+      priority: job.priority,
+      createdTick: job.createdTick,
+      phase: HaulPhase.open,
+      ...(job.repair ? {repair: true as const} : {}),
+      ...(job.research ? {research: true as const} : {}),
+    });
+    world.nextJobId++;
+  }
+}
+
+/** Ticks a man walking a sled home is left alone by the wander pass. */
+const SLED_HOME_TICKS = 2000;
+
+/**
+ * Sleds go back to the castle between hauls. A man holding one with no
+ * haul to use it on walks it home and sets it on the shelf, where the
+ * next walk that wants one will find it. A haul given him on the way he
+ * takes, sled and all.
+ */
+function returnSleds(world: World): void {
+  for (const unit of world.units.values()) {
+    if (unit.dead || !unit.sled || unit.jobId !== undefined) continue;
+    if (unit.task.t !== UnitTaskKind.idle) continue;
+    const castle = findStorehouse(world, unit.owner);
+    if (!castle) continue;
+    if (atBuilding(unit, castle)) {
+      castle.stock[GoodId.sled] = (castle.stock[GoodId.sled] ?? 0) + 1;
+      unit.sled = undefined;
+      unit.task = {t: UnitTaskKind.idle, until: world.tick};
+      continue;
+    }
+    if (unit.path !== null && unit.task.until > world.tick) continue; // on his way
+    if (walkToBuilding(world.map, unit, castle))
+      unit.task = {t: UnitTaskKind.idle, until: world.tick + SLED_HOME_TICKS};
+  }
 }
 
 /**
@@ -667,13 +744,18 @@ export function sparesSleds(world: World, owner: Owner): number {
  * Only home to the castle: it takes anything, where a mill or a site asked
  * for a number and would be over-filled. Returns how many it added.
  */
-function topUpSled(world: World, job: HaulJob, from: Building): number {
+function topUpSled(
+  world: World,
+  job: HaulJob,
+  from: Building,
+  hauler: Unit,
+): number {
   if (!world.map.winter) return 0;
   const castle = findStorehouse(world, job.owner);
   if (!castle || castle.id !== job.to || from.id === castle.id) return 0;
   let room = SLED_LOAD - loadOf(job);
   if (room <= 0) return 0;
-  if (loadOf(job) === 1 && sparesSleds(world, job.owner) <= 0) return 0;
+  if (!hauler.sled) return 0;
   let added = 0;
   const take = (n: number): void => {
     from.stock[job.good] = (from.stock[job.good] ?? 0) - n;
@@ -1166,6 +1248,7 @@ function takeStandingJobs(
       serf.path = path;
       serf.pathIdx = 0;
       serf.task = {t: UnitTaskKind.haul};
+      fetchSledFirst(world, job, serf);
       if (idle.length === 0) break;
     }
   }
@@ -1539,6 +1622,7 @@ function dispatch(world: World): void {
       serf.path = path;
       serf.pathIdx = 0;
       serf.task = {t: UnitTaskKind.haul};
+      fetchSledFirst(world, job, serf);
       // And he is bound for this job's destination now, so a load sourced
       // there LATER IN THIS SAME PASS can wait for him like any other
       // inbound hand. The census is built once, before the queue is dealt,
@@ -1580,6 +1664,19 @@ function progress(world: World): void {
         abortJob(world, job, 'source vanished before pickup');
         continue;
       }
+      // A walk of several loads starts at the castle, where the sleds are.
+      if (needsSled(job, unit)) {
+        const castle = findStorehouse(world, job.owner);
+        if (!castle || (castle.stock[GoodId.sled] ?? 0) <= 0) {
+          unbatch(world, job); // somebody took the last one first
+        } else if (!atBuilding(unit, castle)) {
+          if (!walkToBuilding(world.map, unit, castle)) unbatch(world, job);
+          continue;
+        } else {
+          castle.stock[GoodId.sled] = (castle.stock[GoodId.sled] ?? 0) - 1;
+          unit.sled = true;
+        }
+      }
       // The walk ended, but did it arrive? A route lost to new construction
       // ends it short, and only a serf actually standing at the source may
       // draw from it — otherwise the good leaves the building by post.
@@ -1612,7 +1709,7 @@ function progress(world: World): void {
       }
       from.stock[job.good] = (from.stock[job.good] ?? 0) - load;
       releaseSource(world, job);
-      const taken = load + topUpSled(world, job, from);
+      const taken = load + topUpSled(world, job, from, unit);
       unit.carrying = job.good;
       unit.carryCount = taken > 1 ? taken : undefined;
       job.phase = HaulPhase.toDropoff;

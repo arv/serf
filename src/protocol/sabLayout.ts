@@ -49,7 +49,8 @@ export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3, hold: 4} as const;
  * redactPlayers), and the whole point of the mark is knowing whether the
  * men marching on you have been drinking.
  */
-export const BUFF = {festival: 1} as const;
+/** festival: the owner's festival is on. sled: a serf with a sled in hand. */
+export const BUFF = {festival: 1, sled: 2} as const;
 
 /** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
 export const WORK = {
