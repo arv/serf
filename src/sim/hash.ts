@@ -209,6 +209,7 @@ export function hashWorld(world: World): number {
     mixU32(j.to);
     mix(j.priority);
     mix(j.count ?? 1);
+    mixU32(j.via ?? 0);
   }
   for (const p of world.players) {
     mix(p.alive ? 1 : 0);

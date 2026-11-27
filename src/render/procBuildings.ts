@@ -1286,3 +1286,55 @@ function blazon(g: THREE.Group): void {
   );
   g.add(holder);
 }
+
+/**
+ * The relay post: a trodden square of boards to set loads down on, a post
+ * at one corner, and a flag on it so a hauler can find it across a field.
+ * Built from plain blocks rather than pack pieces — there is nothing in the
+ * pack this small — and one tile across, so `normalize` leaves it at the
+ * scale it was drawn.
+ */
+export function makeRelayPost(
+  _piece: PieceFactory,
+  _packMaterial: THREE.Material | null,
+): THREE.Group {
+  const g = new THREE.Group();
+  const block = (
+    color: number,
+    w: number,
+    h: number,
+    d: number,
+    x: number,
+    y: number,
+    z: number,
+  ): THREE.Mesh => {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshLambertMaterial({color}),
+    );
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    g.add(m);
+    return m;
+  };
+  // The boards: four planks laid across two bearers.
+  for (const z of [-0.3, 0.3]) block(0x4a3220, 1, 0.05, 0.08, 0, 0.025, z);
+  for (let i = 0; i < 4; i++) {
+    block(
+      i % 2 ? 0x8a6238 : 0xa57c4a,
+      0.23,
+      0.04,
+      0.9,
+      -0.36 + i * 0.24,
+      0.07,
+      0,
+    );
+  }
+  // The post, with a crossbar and its flag.
+  block(0x4a3220, 0.09, 1.5, 0.09, 0.4, 0.75, -0.4);
+  block(0x4a3220, 0.32, 0.05, 0.05, 0.27, 1.45, -0.4);
+  const flag = block(0xbf4342, 0.3, 0.22, 0.02, 0.25, 1.31, -0.4);
+  flag.rotation.y = 0.15;
+  return g;
+}

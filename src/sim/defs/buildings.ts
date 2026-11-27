@@ -131,6 +131,12 @@ export interface BuildingDef {
    * check that sites every other resource building cannot speak for it.
    */
   nearWater?: {radius: number};
+  /**
+   * A relay: a long haul may set its good down here for another serf to
+   * carry on (systems/logistics.ts). Holds goods only in transit, every one
+   * of them already promised to the walk that will take it onward.
+   */
+  relay?: boolean;
   /** Site demand priority (construction defaults to 1; road paving uses 3). */
   sitePriority?: HaulPriority;
   /** Footprint does not block movement (road sites). */
@@ -336,6 +342,18 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     housing: 10,
     // No resident and no recipe: like the abbey, the serf who raises it
     // walks away a serf again when the roof goes on.
+  },
+  [B.relayPost]: {
+    id: B.relayPost,
+    name: 'Relay Post',
+    w: 1,
+    h: 1,
+    // A post and a flag: cheaper than anything but a road.
+    cost: {[GoodId.wood]: 2},
+    buildTicks: 5 * S,
+    hp: 50,
+    sight: 4,
+    relay: true,
   },
   [B.well]: {
     id: B.well,
@@ -1199,6 +1217,7 @@ export const BUILDING_TYPES: readonly BuildingTypeId[] = [
   B.roadSite,
   B.salvage,
   B.monument,
+  B.relayPost,
 ];
 
 /** The spelling of each id, for docs URLs and the strategist's prompt. */
@@ -1221,6 +1240,7 @@ export const BUILDING_KEYS: Readonly<Record<BuildingTypeId, string>> = {
   [B.abbey]: 'abbey',
   [B.barracks]: 'barracks',
   [B.archeryRange]: 'archeryRange',
+  [B.relayPost]: 'relayPost',
   [B.guardTower]: 'guardTower',
   [B.roadSite]: 'roadSite',
   [B.salvage]: 'salvage',

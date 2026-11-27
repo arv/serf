@@ -96,6 +96,13 @@ export interface HaulJob {
    */
   count?: number;
   /**
+   * A relay post this walk sets its load down at on the way (chooseRelay
+   * in systems/logistics.ts). Arriving there, the job reopens with the
+   * post as its source for another serf to finish; the destination's
+   * claim is held the whole way.
+   */
+  via?: EntityId;
+  /**
    * This haul was booked by an ordered repair. Cancelling the repair stands
    * exactly these down and leaves everything else walking: a weaponsmith
    * mends with the same wood it forges from, and without the mark the two

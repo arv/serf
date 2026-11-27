@@ -26,3 +26,5 @@ export const sellForTheWoodcutter = 11 as const;
 export type sellForTheWoodcutter = typeof sellForTheWoodcutter;
 export const stockTheSleds = 12 as const;
 export type stockTheSleds = typeof stockTheSleds;
+export const placeRelayPost = 13 as const;
+export type placeRelayPost = typeof placeRelayPost;

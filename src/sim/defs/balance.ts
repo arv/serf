@@ -452,6 +452,18 @@ export const SLED_LOAD = 4;
  */
 export const SLED_STOCK = 3;
 
+/**
+ * Relay posts (BuildingDef.relay). A haul goes by way of one only when it
+ * is long (RELAY_MIN_HAUL tiles, centre to centre), when the post leaves
+ * each leg at least RELAY_MIN_LEG, and when the detour costs no more than
+ * RELAY_DETOUR of the direct walk. A post holds RELAY_CAP loads, counting
+ * those already on their way to it.
+ */
+export const RELAY_MIN_HAUL = 14;
+export const RELAY_MIN_LEG = 4;
+export const RELAY_DETOUR = 1.15;
+export const RELAY_CAP = 8;
+
 export function isWinter(tick: number): boolean {
   const into = tick % YEAR_TICKS;
   return into >= ICE_FROM * YEAR_TICKS && into < WINTER_UNTIL * YEAR_TICKS;

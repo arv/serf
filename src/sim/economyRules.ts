@@ -2,7 +2,7 @@ import type {Enum} from '../shared/enum.ts';
 import {tileX, tileY} from '../shared/grid.ts';
 import type {SimCommand} from './commands.ts';
 import type {AiStrategy} from './defs/aiStrategies.ts';
-import {FORGE_QUEUE_CAP, SLED_STOCK} from './defs/balance.ts';
+import {FORGE_QUEUE_CAP, RELAY_MIN_HAUL, SLED_STOCK} from './defs/balance.ts';
 import {
   BUILDING_DEFS,
   TOOL_GOODS,
@@ -850,6 +850,74 @@ const keepTheToolsComing: EconomyRule = {
   },
 };
 
+/** How many producers out past a long haul earn the seat one relay post,
+ * and the most posts it keeps. */
+const FAR_PER_RELAY = 4;
+const RELAY_POSTS_MAX = 2;
+
+/**
+ * A relay post halfway out to the far producers. A long haul sets its load
+ * down at a post for whoever is free nearer home to finish (chooseRelay in
+ * systems/logistics.ts), so a post is worth having once enough of the
+ * seat's posts stand a long haul from the castle: one per FAR_PER_RELAY of
+ * them, up to RELAY_POSTS_MAX. It goes on the line from the castle to the
+ * middle of the far producers, halfway along — where a walk from any of
+ * them home passes closest to it.
+ */
+const placeRelayPost: EconomyRule = {
+  id: EconomyRuleIdNs.placeRelayPost,
+  when: 'enough of the village stands a long haul from the castle',
+  phase: RulePhaseNs.production,
+  fire(ctx) {
+    const castle = ctx.mine.find(
+      b => BUILDING_DEFS[b.type as BuildingTypeId].storage,
+    );
+    if (!castle) return null;
+    const def = BUILDING_DEFS[BuildingTypeId.relayPost];
+    const posts = ctx.mine.filter(b => b.type === BuildingTypeId.relayPost);
+    if (posts.length >= RELAY_POSTS_MAX) return null;
+    if (posts.some(b => b.state !== BuildingState.built)) return null; // one at a time
+    const cx = castle.x + castle.w / 2;
+    const cy = castle.y + castle.h / 2;
+    let far = 0;
+    let sumX = 0;
+    let sumY = 0;
+    for (const b of ctx.mine) {
+      if (b.state !== BuildingState.built) continue;
+      const bdef = BUILDING_DEFS[b.type as BuildingTypeId];
+      if (!bdef.recipe && !bdef.recipeOptions) continue;
+      const bx = b.x + b.w / 2;
+      const by = b.y + b.h / 2;
+      const dx = Math.abs(bx - cx);
+      const dy = Math.abs(by - cy);
+      if (Math.max(dx, dy) + Math.min(dx, dy) / 2 < RELAY_MIN_HAUL) continue;
+      far++;
+      sumX += bx;
+      sumY += by;
+    }
+    if (far < FAR_PER_RELAY * (posts.length + 1)) return null;
+    const payable = goodEntries(def.cost).every(
+      ([good, n]) => (ctx.stock[good] ?? 0) >= n,
+    );
+    if (!payable) return null;
+    const mx = Math.floor((cx + sumX / far) / 2);
+    const my = Math.floor((cy + sumY / far) / 2);
+    const spot = findSpot(ctx.world, BuildingTypeId.relayPost, mx, my, 6);
+    if (!spot || ctx.razedNear(spot.x, spot.y)) return null;
+    return {
+      commands: [
+        {
+          kind: CommandKind.placeBuilding,
+          building: BuildingTypeId.relayPost,
+          x: spot.x,
+          y: spot.y,
+        },
+      ],
+      claims: [],
+    };
+  },
+};
+
 /**
  * Sleds for the winter haul: order one whenever the castle holds fewer than
  * SLED_STOCK and none is already on order. The AI keeps its anvils on a
@@ -1511,6 +1579,7 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   openReserveMine,
   keepTheToolsComing,
   stockTheSleds,
+  placeRelayPost,
   forgeTheCounter,
   holdTheGlutForge,
   handsBeforeSoldiers,
@@ -1575,6 +1644,7 @@ export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
   [EconomyRuleIdNs.keepTheQueueWarm]: 'keepTheQueueWarm',
   [EconomyRuleIdNs.garrisonIsEnough]: 'garrisonIsEnough',
   [EconomyRuleIdNs.stockTheSleds]: 'stockTheSleds',
+  [EconomyRuleIdNs.placeRelayPost]: 'placeRelayPost',
 };
 
 const ECONOMY_RULE_BY_KEY = new Map<string, EconomyRuleId>(

@@ -62,6 +62,7 @@ export const GROUP_DESC: Record<BuildGroupLabel, string> = {
     'Homes, the two trades that raise them, and the Smith that tools every other. With them go the Abbey and the silver mine that pays for its research and for every hand you hire.',
   Food: 'The bread chain end to end, from the well that waters it to the oven. Two stand outside it: the fishery, which needs no chain at all, and the brewery, which bids against the mill for the same wheat.',
   Arms: 'Iron out of the hillside, and the two yards that make soldiers of what the Smith forges. The tower and the deep gold seam come later, when there is something worth defending and something worth gilding.',
+  Haul: 'What helps the goods move rather than makes them: posts where a long haul is handed on.',
 };
 
 export const BUILDING_DESC: Record<BuildingTypeId, string> = {
@@ -73,6 +74,8 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.quarry]:
     'Works exposed rock into building stone. Like every gatherer, it needs something already in reach before it will go up.',
   [BuildingTypeId.house]: `${BUILDING_DEFS[BuildingTypeId.house].housing} more beds. Cheap on purpose, so the question is when rather than whether.`,
+  [BuildingTypeId.relayPost]:
+    'A place to set a load down halfway. A long haul that passes near one goes in two walks: the first serf leaves the good here, and whoever is free nearest the post carries it on. Every good on it is already promised onward.',
   [BuildingTypeId.well]:
     'A shaft and a windlass, with nobody posted to it. Whoever needs water comes and draws it.',
   [BuildingTypeId.wheatFarm]:
