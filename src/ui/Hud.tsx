@@ -240,6 +240,7 @@ const STRIP_EXTRAS: GoodId[] = [
   GoodId.hammer,
   GoodId.cauldron,
   GoodId.rod,
+  GoodId.sled,
 ];
 
 // Every good once between the two lists, the way the ledger checks its

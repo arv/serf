@@ -38,6 +38,7 @@ const GROUPS: {label: string; goods: GoodId[]}[] = [
       GoodId.hammer,
       GoodId.cauldron,
       GoodId.rod,
+      GoodId.sled,
     ],
   },
 ];
