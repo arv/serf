@@ -117,8 +117,22 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * a property of the seat rather than of any one change, and that this
  * file's strongest claim now rests on picking seeds the abbot happens not
  * to lose. That is a difficulty knob to answer (sim/defs/difficulty.ts),
- * not a pin. */
-const SEEDS = [143, 1003] as const;
+ * not a pin.
+ *
+ * 1003 out and 1031 in when every unit took half again his hit points and
+ * winter came with its sleds (replays 78 and 79): 1003 fell to
+ * hard-v-normal 2/8, losing two valleys outright, and took the pair to
+ * 6/16. The sweeps came first, on both trees, 24 seeds a range:
+ *
+ *   main         h-v-n 118/232 (50.9%) on 101, 133/234 (56.8%) on 1000
+ *   this branch  h-v-n 131/239 (54.8%) on 101, 125/229 (54.6%) on 1000
+ *
+ * Pooled 251/466 (53.9%) against 256/468 (54.7%): the tier did not move;
+ * one valley did. 1031 reads hard-v-normal 5/8, hard-v-easy 7/8 and
+ * normal-v-easy 6/7, and loses no valley in any pairing; 143 stays, at
+ * 5/7, 7/8 and 7/8. Of sixteen seeds read, 1003 and 129 were the only two
+ * at 2/8. */
+const SEEDS = [143, 1031] as const;
 /** Well past a decided duel at this size; the sweeps use 60k, and the
  * extra 20k buys suite time and nothing else. */
 const MAX_TICKS = 40_000;
