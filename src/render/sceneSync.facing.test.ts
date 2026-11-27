@@ -170,15 +170,19 @@ describe('a standing worker faces his work', () => {
     expect(yawAfter(idle, idle)).toBeCloseTo(0);
   });
 
-  // The pier, the rows and the windlass are placed by the render, which
-  // turns those workers on the frames it moves them and leaves the heading
-  // standing on the frames it does not: a farmer mid-stroke is holding the
-  // row he walked in along. Writing the sim's bearing over that would have
-  // him scything at the farm building for the length of every stroke.
+  // The pier and the rows are placed by the render, which turns those
+  // workers on the frames it moves them and leaves the heading standing on
+  // the frames it does not: a farmer mid-stroke is holding the row he
+  // walked in along. Writing the sim's bearing over that would have him
+  // scything at the farm building for the length of every stroke.
+  //
+  // The windlass is too, but only for a man on the well's crank side —
+  // anywhere else the render leaves him where he stands and the bearing is
+  // what turns him to the shaft. Both halves are in sceneSync.well.test.ts,
+  // which has a well to stand him beside.
   for (const [name, kind] of [
     ['fisherman', WORK.fish],
     ['farmer', WORK.mow],
-    ['hauler at a windlass', WORK.draw],
   ] as const) {
     it(`keeps the bearing off the ${name}, whose post the render turns`, () => {
       const stand = worker({

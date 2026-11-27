@@ -1,8 +1,9 @@
 import {tileX, tileY} from '../shared/grid.ts';
 import {exactDist} from '../shared/math.ts';
+import {buildingDef} from './defs/buildings.ts';
 import type {Building} from './entities.ts';
 import type {GameMap} from './map.ts';
-import {findPathToAdjacent} from './path.ts';
+import {findPath, findPathToAdjacent} from './path.ts';
 import type {Unit} from './units.ts';
 
 /**
@@ -78,6 +79,40 @@ export function walkToBuilding(map: GameMap, unit: Unit, b: Building): boolean {
       b.w,
       b.h,
     ),
+  );
+}
+
+/**
+ * The walk to a building a hauler is fetching from. A plain shelf is
+ * reached from any tile ringing it, like every other errand; a source that
+ * has to be worked to give anything up is worked from one side
+ * (BuildingDef.drawFrom — the well's crank), so the walk aims at that tile
+ * from the start. Only when it is shut or cut off does he settle for the
+ * rest of the ring, and draw from wherever that leaves him.
+ *
+ * Every walk to a source goes through here — the dispatch, a man taking a
+ * load from the doorstep he is standing on, and the re-plan of a walk that
+ * ended short — so all three put him on the same tile.
+ */
+export function findPathToSource(
+  map: GameMap,
+  sx: number,
+  sy: number,
+  b: Building,
+): number[] | null {
+  const from = buildingDef(b.type).drawFrom;
+  return (
+    (from && findPath(map, sx, sy, b.x + from[0], b.y + from[1])) ||
+    findPathToAdjacent(map, sx, sy, b.x, b.y, b.w, b.h)
+  );
+}
+
+/** Put the unit back on the road to the source it is fetching from. False
+ * when there is no way. */
+export function walkToSource(map: GameMap, unit: Unit, b: Building): boolean {
+  return walk(
+    unit,
+    findPathToSource(map, Math.floor(unit.x), Math.floor(unit.y), b),
   );
 }
 

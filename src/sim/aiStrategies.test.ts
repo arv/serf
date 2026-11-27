@@ -242,11 +242,14 @@ describe('the AI playbooks', () => {
     // every haul in the game, replay 58, and left the fletcher's SECOND
     // research past the budget on that valley — the four seats still play
     // four different games there, but Soldiery never lands, at 12k or at
-    // 26k). What is asserted is that the bow line is taken first and the
-    // other arm still bought, not the tick either lands on.
+    // 26k); 19 until water haulers walked round to the well's crank side,
+    // replay 79, and re-timed the raids — the warlord still digs his second
+    // seam there by 6k, and a raid takes one of the two down at 11.3k). What
+    // is asserted is that the bow line is taken first and the other arm
+    // still bought, not the tick either lands on.
     const world = playSeats(
       {
-        seed: 19,
+        seed: 22,
         players: [
           {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
           {kind: PlayerKind.ai, strategy: AiStrategyId.warlord},

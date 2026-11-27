@@ -20,6 +20,18 @@
  * directly.
  */
 /**
+ * 79: a hauler fetching water walks to the well's crank side. The well is
+ * the one source worked to give its goods up, and its windlass is wound
+ * from the east (BuildingDef.drawFrom), so a walk there now aims at that
+ * tile rather than whichever tile ringing the shaft the path met first,
+ * and settles for the rest of the ring only when it is shut or cut off
+ * (sim/arrival.ts findPathToSource). A man coming from the far side walks
+ * round the well; one already beside it on the wrong side steps round
+ * before he draws. Every water haul can end on a different tile, a few
+ * ticks later, so everything downstream of the bread chain re-times.
+ *
+ * 78's note follows.
+ *
  * 78: every unit carries half again his hit points (defs/units.ts) — serf
  * and worker 25 to 38, knight 80 to 120, spearman 45 to 68, archer 32 to
  * 48, bandit 40 to 60, bandit archer 30 to 45, marauder 70 to 105. Damage,
@@ -1458,4 +1470,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 78;
+export const REPLAY_VERSION = 79;

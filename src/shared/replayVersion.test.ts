@@ -858,8 +858,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // its state — so every logged command lands on the same world it did.
 // 78 for half again every unit's hit points: every fight between men
 // resolves on different ticks with different men left standing.
-const EXPECTED_VERSION = 78;
-const EXPECTED_HASH = '4bdf7c9f69c532a43173db489013ca95';
+// 79 for water haulers walking to the well's crank side: every water haul
+// can end on a different tile, a few ticks later (replayVersion.ts).
+const EXPECTED_VERSION = 79;
+const EXPECTED_HASH = '2489d5c8b8fd38e896376995ebe2de3a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

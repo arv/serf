@@ -1,5 +1,10 @@
 import type {Enum} from '../../shared/enum.ts';
-import {atBuilding, walkToBuilding} from '../arrival.ts';
+import {
+  atBuilding,
+  findPathToSource,
+  walkToBuilding,
+  walkToSource,
+} from '../arrival.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {
   DELIVERY_STAND,
@@ -1012,15 +1017,13 @@ function takeStandingJobs(
         // man already on the ring the pathfinder returns it empty without
         // a search — so this costs nothing in the ordinary case, and he
         // goes through arrival like everybody else rather than drawing
-        // from the shelf a tick early.
-        path = findPathToAdjacent(
+        // from the shelf a tick early. (At the well it is the few steps
+        // round to the crank, unless he is already standing at it.)
+        path = findPathToSource(
           world.map,
           Math.floor(cand.x),
           Math.floor(cand.y),
-          b.x,
-          b.y,
-          b.w,
-          b.h,
+          b,
         );
         if (path) {
           serf = cand;
@@ -1321,14 +1324,11 @@ function dispatch(world: World): void {
         }
         if (bestIdx < 0) break; // everybody near has already been refused
         const cand = idle[bestIdx]!;
-        path = findPathToAdjacent(
+        path = findPathToSource(
           world.map,
           Math.floor(cand.x),
           Math.floor(cand.y),
-          from.x,
-          from.y,
-          from.w,
-          from.h,
+          from,
         );
         if (path) {
           serf = cand;
@@ -1461,7 +1461,7 @@ function progress(world: World): void {
       // ends it short, and only a serf actually standing at the source may
       // draw from it — otherwise the good leaves the building by post.
       if (!atBuilding(unit, from)) {
-        if (!walkToBuilding(world.map, unit, from)) {
+        if (!walkToSource(world.map, unit, from)) {
           abortJob(world, job, 'no way back to the source');
         }
         continue;
