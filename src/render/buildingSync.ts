@@ -42,6 +42,7 @@ import {eachMaterial, mapMaterials} from './materials';
 import {
   makeGhostModel,
   hasCartModel,
+  makeParkedCart,
   makePileProp,
   makeSiteFrame,
   makeTieredPile,
@@ -2116,6 +2117,13 @@ export class BuildingSync {
     for (let r = 1; r <= 3; r++) {
       for (let x = b.x - r; x <= b.x + b.w - 1 + r; x++) take(x, b.y - r);
     }
+    // A castle hemmed in on all three sides still shows every cart it
+    // holds: further out, flanks and back together, until there is room.
+    for (let r = 4; r <= 10 && out.length < n; r++) {
+      for (let y = b.y - r + 1; y < yFront; y++) take(b.x + b.w - 1 + r, y);
+      for (let y = b.y - r + 1; y < yFront; y++) take(b.x - r, y);
+      for (let x = b.x - r; x <= b.x + b.w - 1 + r; x++) take(x, b.y - r);
+    }
     return out;
   }
 
@@ -2139,7 +2147,7 @@ export class BuildingSync {
     bays.forEach((i, k) => {
       const x = tileX(i, size) + 0.5 - cx;
       const z = tileY(i, size) + 0.5 - cz;
-      const cart = makePileProp(carts[k]!);
+      const cart = makeParkedCart(carts[k]!);
       // Nose away from the castle, on whichever side it stands.
       const side = Math.abs(x) * b.h >= Math.abs(z) * b.w;
       cart.rotation.y = side

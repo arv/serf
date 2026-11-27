@@ -3004,7 +3004,10 @@ export function Hud(props: {
                       {j => (
                         <tr>
                           <td>{j.id}</td>
-                          <td>{goodName(j.good)}</td>
+                          <td>
+                            {goodName(j.good)}
+                            {j.count !== undefined ? ` ×${j.count}` : ''}
+                          </td>
                           <td>
                             {j.from}→{j.to}
                           </td>

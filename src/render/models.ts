@@ -497,16 +497,24 @@ export function hasCartModel(good: GoodId): boolean {
  * that grow beside buildings — same look as the carried version, base on
  * the ground.
  */
-export function makePileProp(good: GoodId): THREE.Group {
+/**
+ * A cart parked by the castle (buildingSync lines them up along its side):
+ * the real thing once its model has loaded, the pile prop until then. Only
+ * the parked row, never a door pile: a Smith's shelf of new carts stacks
+ * its units in one lane, and five full-size barrows on top of each other
+ * are not a shelf.
+ */
+export function makeParkedCart(good: GoodId): THREE.Group {
   const cart = cartModels.get(good);
-  if (cart) {
-    // Parked (buildingSync lines them up along the castle's side).
-    const g = new THREE.Group();
-    const copy = cart.clone();
-    copy.scale.setScalar(0.85);
-    g.add(copy);
-    return g;
-  }
+  if (!cart) return makePileProp(good);
+  const g = new THREE.Group();
+  const copy = cart.clone();
+  copy.scale.setScalar(0.85);
+  g.add(copy);
+  return g;
+}
+
+export function makePileProp(good: GoodId): THREE.Group {
   const pack = PACK_CARRY[good];
   // Clone from the shared prototype cache (like makeCarryProp): building
   // a fresh carryProto per pile minted new geometries/materials each call,

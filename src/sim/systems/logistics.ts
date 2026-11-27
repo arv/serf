@@ -699,6 +699,13 @@ function unbatch(world: World, job: HaulJob): void {
   const extra = loadOf(job) - 1;
   if (extra <= 0) return;
   job.count = undefined;
+  // A hauler already winding at a well was given a bucket's time per load
+  // (progress); the loads leaving the walk take their time with them.
+  if (job.drawUntil !== undefined) {
+    const draw = world.buildings.get(job.from)?.type;
+    const per = draw === undefined ? undefined : buildingDef(draw).drawTicks;
+    if (per !== undefined) job.drawUntil -= per * extra;
+  }
   for (let i = 0; i < extra; i++) {
     world.jobs.set(world.nextJobId, {
       id: world.nextJobId,
