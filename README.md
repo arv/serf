@@ -80,6 +80,16 @@ pnpm dev
   cheaper than tearing it down and paying full price again, and the worker
   never leaves the post. The castle repairs too, out of the stores already
   inside it, against a notional price of its own (it cost nothing to raise).
+- **Winter**: a year is eight minutes and its last quarter is winter. While
+  the snow lies, everyone — serfs, soldiers and raiders alike — walks at
+  four fifths of his pace, except on stone: snow buries a worn trail, so in
+  winter only a paved road is still a road. In exchange a serf hauls by
+  sled, up to four of one good from one door to another in a single walk,
+  so winter is when a village moves what summer let it gather. The lakes
+  and the river freeze hard enough to walk on for most of it, and a haul, a
+  march or a raid takes the ice when the ice is the short way; nothing can
+  be built on it, and whoever is still out when it stops bearing is stood on
+  the nearest shore.
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
   A study is ordered, not bought: the bill goes on the Abbey and the serfs
   carry it there load by load, and the clock only starts once the last load

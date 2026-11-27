@@ -5,6 +5,7 @@ import {
   DELIVERY_STAND,
   JOB_BLOCKED_BACKOFF,
   MATCHER_INTERVAL,
+  SLED_LOAD,
   ABBEY_ALE_CAP,
   BARRACKS_ALE_CAP,
   EVAC_PRIORITY,
@@ -40,7 +41,7 @@ import {
 import * as HaulPhase from '../haulPhaseEnum.ts';
 import {findPathToAdjacent} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
-import type {Unit} from '../units.ts';
+import {cargoOf, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {
   applyRepairMaterial,
@@ -78,18 +79,27 @@ export function logisticsSystem(world: World): void {
 
 // --- Reservation accounting (the only two functions that release) ----------
 
+/** How many goods one walk of `job` moves: one, or a sled's load. */
+export function loadOf(job: HaulJob): number {
+  return job.count ?? 1;
+}
+
 function releaseSource(world: World, job: HaulJob): void {
   const from = world.buildings.get(job.from);
   if (from)
     from.reservedOut[job.good] = Math.max(
       0,
-      (from.reservedOut[job.good] ?? 0) - 1,
+      (from.reservedOut[job.good] ?? 0) - loadOf(job),
     );
 }
 
 function releaseDest(world: World, job: HaulJob): void {
   const to = world.buildings.get(job.to);
-  if (to) to.inbound[job.good] = Math.max(0, (to.inbound[job.good] ?? 0) - 1);
+  if (to)
+    to.inbound[job.good] = Math.max(
+      0,
+      (to.inbound[job.good] ?? 0) - loadOf(job),
+    );
 }
 
 /**
@@ -116,8 +126,9 @@ export function abortJob(
       // Nobody is left to carry it: the good is destroyed, ledgered so the
       // conservation check stays honest.
       world.ledger.consumed[serf.carrying] =
-        (world.ledger.consumed[serf.carrying] ?? 0) + 1;
+        (world.ledger.consumed[serf.carrying] ?? 0) + cargoOf(serf);
       serf.carrying = undefined;
+      serf.carryCount = undefined;
     }
     serf.jobId = undefined;
     serf.path = null;
@@ -639,6 +650,28 @@ function createJob(
   const dest = world.buildings.get(to)!;
   source.reservedOut[good] = (source.reservedOut[good] ?? 0) + 1;
   dest.inbound[good] = (dest.inbound[good] ?? 0) + 1;
+  // In winter a serf hauls by sled, and a sled takes SLED_LOAD of one good
+  // from one door to another. So a load wanted along a walk somebody has
+  // not set out on yet rides with it instead of becoming a walk of its own:
+  // the matcher goes on asking for goods one at a time, and the reservation
+  // above is the same either way.
+  if (world.map.winter) {
+    for (const job of world.jobs.values()) {
+      if (
+        job.phase === HaulPhase.open &&
+        job.good === good &&
+        job.from === from &&
+        job.to === to &&
+        job.priority === priority &&
+        job.repair === repair &&
+        job.research === research &&
+        loadOf(job) < SLED_LOAD
+      ) {
+        job.count = loadOf(job) + 1;
+        return;
+      }
+    }
+  }
   world.jobs.set(world.nextJobId, {
     id: world.nextJobId,
     good,
@@ -674,7 +707,14 @@ function rehomeCarriedGoods(world: World): void {
     if (serf.task.t !== UnitTaskKind.idle) continue; // let him finish the walk he was sent on
 
     const good = serf.carrying;
-    const to = deliveryTargetFor(world, serf.owner, good);
+    const cargo = cargoOf(serf);
+    // A sled's worth goes home: whoever wants this good was asked about one
+    // of it, and four set down at a door that has room for one is three
+    // too many.
+    const to =
+      cargo > 1
+        ? findStorehouse(world, serf.owner)
+        : deliveryTargetFor(world, serf.owner, good);
     if (!to) continue; // no storehouse (eliminated) — he keeps holding it
 
     const path = findPathToAdjacent(
@@ -700,6 +740,7 @@ function rehomeCarriedGoods(world: World): void {
       createdTick: world.tick,
       phase: HaulPhase.toDropoff,
       serfId: serf.id,
+      ...(cargo > 1 ? {count: cargo} : {}),
       // Marked by the bill he is actually walking into, for the same
       // reason the matcher marks its own: if that bill is torn up while
       // he walks, reconcile has to stand him down holding the good rather
@@ -717,7 +758,7 @@ function rehomeCarriedGoods(world: World): void {
           : {}),
     };
     world.jobs.set(job.id, job);
-    to.inbound[good] = (to.inbound[good] ?? 0) + 1;
+    to.inbound[good] = (to.inbound[good] ?? 0) + cargo;
     serf.jobId = job.id;
     serf.path = path;
     serf.pathIdx = 0;
@@ -1464,7 +1505,8 @@ function progress(world: World): void {
         }
         continue;
       }
-      if ((from.stock[job.good] ?? 0) < 1) {
+      const load = loadOf(job);
+      if ((from.stock[job.good] ?? 0) < load) {
         // Reservation should prevent this; reconcile will warn. Retry later.
         abortJob(world, job, 'source out of stock at pickup');
         continue;
@@ -1478,14 +1520,16 @@ function progress(world: World): void {
       const draw = buildingDef(from.type).drawTicks;
       if (draw !== undefined) {
         if (job.drawUntil === undefined) {
-          job.drawUntil = world.tick + draw;
+          // A bucket at a time, however many the sled holds.
+          job.drawUntil = world.tick + draw * load;
           continue;
         }
         if (world.tick < job.drawUntil) continue;
       }
-      from.stock[job.good] = (from.stock[job.good] ?? 0) - 1;
+      from.stock[job.good] = (from.stock[job.good] ?? 0) - load;
       releaseSource(world, job);
       unit.carrying = job.good;
+      unit.carryCount = load > 1 ? load : undefined;
       job.phase = HaulPhase.toDropoff;
 
       const to = world.buildings.get(job.to);
@@ -1529,8 +1573,9 @@ function progress(world: World): void {
       // building with the load inside rather than still on the road.
       // Nothing else deliver() looks at is a reservation.
       releaseDest(world, job);
-      deliver(world, to, job.good);
+      for (let i = loadOf(job); i > 0; i--) deliver(world, to, job.good);
       unit.carrying = undefined;
+      unit.carryCount = undefined;
       unit.jobId = undefined;
       // Left standing where he set it down, for DELIVERY_STAND ticks: the
       // doorstep is a claim on this building's own waiting load
@@ -1688,6 +1733,37 @@ function reconcile(world: World): void {
       (from.stock[job.good] ?? 0) < (from.reservedOut[job.good] ?? 0)
     ) {
       abortJob(world, job, 'reconcile: source stock below reservation');
+    }
+  }
+}
+
+/**
+ * The snow has gone and the sleds with it: every load booked four to a walk
+ * that nobody has yet picked up becomes four walks again. A serf already
+ * hauling his sled home finishes the walk he is on. Nothing is reserved or
+ * released here — the same goods are spoken for, by more jobs.
+ */
+export function splitSledLoads(world: World): void {
+  const batched = [...world.jobs.values()].filter(
+    job => loadOf(job) > 1 && job.phase !== HaulPhase.toDropoff,
+  );
+  for (const job of batched) {
+    const extra = loadOf(job) - 1;
+    job.count = undefined;
+    for (let i = 0; i < extra; i++) {
+      world.jobs.set(world.nextJobId, {
+        id: world.nextJobId,
+        good: job.good,
+        from: job.from,
+        to: job.to,
+        owner: job.owner,
+        priority: job.priority,
+        createdTick: job.createdTick,
+        phase: HaulPhase.open,
+        ...(job.repair ? {repair: true as const} : {}),
+        ...(job.research ? {research: true as const} : {}),
+      });
+      world.nextJobId++;
     }
   }
 }

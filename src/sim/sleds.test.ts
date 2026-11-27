@@ -1,0 +1,144 @@
+import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
+import {checkInvariants, checkLedger, countGoods} from './debug/invariants.ts';
+import {
+  ICE_FROM,
+  SLED_LOAD,
+  SNOW_SPEED,
+  WINTER_UNTIL,
+  YEAR_TICKS,
+  isWinter,
+} from './defs/balance.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as HaulPhase from './haulPhaseEnum.ts';
+import {tileSpeedMult, tileStepCost} from './path.ts';
+import * as PathLevel from './pathLevelEnum.ts';
+import {addSerf, addSite, addStorehouse, bareWorld} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
+import {cargoOf} from './units.ts';
+import {killUnit, type World} from './world.ts';
+
+const WINTER = ICE_FROM * YEAR_TICKS;
+const THAW = WINTER_UNTIL * YEAR_TICKS;
+
+function run(world: World, ticks: number): void {
+  for (let i = 0; i < ticks; i++) tickWorld(world, []);
+}
+
+/** A storehouse of wood and a woodcutter's site six wood short, in winter. */
+function winterSite() {
+  const world = bareWorld();
+  world.tick = WINTER;
+  const store = addStorehouse(world, 30, 30, {[GoodId.wood]: 10});
+  const site = addSite(world, 24, 30);
+  return {world, store, site, start: countGoods(world)};
+}
+
+describe('winter', () => {
+  it('lies from the first hard frost until the snow is half gone', () => {
+    expect(isWinter(0)).toBe(false);
+    expect(isWinter(WINTER - 1)).toBe(false);
+    expect(isWinter(WINTER)).toBe(true);
+    expect(isWinter(THAW - 1)).toBe(true);
+    expect(isWinter(THAW)).toBe(false);
+    expect(isWinter(YEAR_TICKS + WINTER)).toBe(true);
+  });
+
+  it('slows the walk everywhere but on stone', () => {
+    const {map} = bareWorld();
+    const grass = tileIdx(5, 5, map.size);
+    const trail = tileIdx(6, 5, map.size);
+    const road = tileIdx(7, 5, map.size);
+    map.pathLevel[trail] = PathLevel.Trail;
+    map.pathLevel[road] = PathLevel.Road;
+    const summer = [grass, trail, road].map(i => tileSpeedMult(map, i));
+    expect(summer).toEqual([1, 1.15, 1.35]);
+
+    map.winter = true;
+    // Snow buries the trail; the paving stays clear.
+    expect([grass, trail, road].map(i => tileSpeedMult(map, i))).toEqual([
+      SNOW_SPEED,
+      SNOW_SPEED,
+      1.35,
+    ]);
+    // And a route is priced the way it will be walked.
+    expect(tileStepCost(map, grass)).toBeCloseTo(1 / SNOW_SPEED);
+    expect(tileStepCost(map, trail)).toBeCloseTo(1 / SNOW_SPEED);
+    expect(tileStepCost(map, road)).toBe(0.72);
+  });
+});
+
+describe('sleds', () => {
+  it('book a load of one good along one walk as one job', () => {
+    const {world, store, site} = winterSite();
+    run(world, 1);
+
+    // Six wood is a full sled and two over; the hammer and the axe are one
+    // of each and ride alone. Summer books eight walks for the same site.
+    const wood = [...world.jobs.values()].filter(j => j.good === GoodId.wood);
+    expect(wood.map(j => j.count ?? 1).sort((a, b) => a - b)).toEqual([
+      2,
+      SLED_LOAD,
+    ]);
+    expect(world.jobs.size).toBe(4);
+    // The reservations are the goods', not the walks'.
+    expect(store.reservedOut[GoodId.wood]).toBe(6);
+    expect(site.inbound[GoodId.wood]).toBe(6);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('carry the whole load there in one trip', () => {
+    const {world, site, start} = winterSite();
+    const serf = addSerf(world, 28, 30);
+    let most = 0;
+    for (let i = 0; i < 400 && (site.siteNeeds?.[GoodId.wood] ?? 0) > 0; i++) {
+      tickWorld(world, []);
+      most = Math.max(most, cargoOf(serf));
+      expect(checkInvariants(world).violations).toEqual([]);
+    }
+    expect(most).toBe(SLED_LOAD);
+    expect(site.siteNeeds?.[GoodId.wood] ?? 0).toBe(0);
+    expect(checkLedger(world, start)).toEqual([]);
+  });
+
+  it('spill what they hold where the carrier falls', () => {
+    const {world, start} = winterSite();
+    const serf = addSerf(world, 28, 30);
+    for (let i = 0; i < 400 && cargoOf(serf) < SLED_LOAD; i++) {
+      tickWorld(world, []);
+    }
+    expect(cargoOf(serf)).toBe(SLED_LOAD);
+    killUnit(world, serf);
+    run(world, 30);
+    // Four on the ground or burned and ledgered, never three lost quietly.
+    expect(checkLedger(world, start)).toEqual([]);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('are unpacked into single walks when the snow goes', () => {
+    const {world, store, site} = winterSite();
+    run(world, 1);
+    expect(world.jobs.size).toBe(4);
+
+    world.tick = THAW;
+    run(world, 1);
+    const jobs = [...world.jobs.values()];
+    expect(jobs.every(j => (j.count ?? 1) === 1)).toBe(true);
+    expect(jobs.filter(j => j.good === GoodId.wood)).toHaveLength(6);
+    expect(jobs.every(j => j.phase === HaulPhase.open)).toBe(true);
+    expect(store.reservedOut[GoodId.wood]).toBe(6);
+    expect(site.inbound[GoodId.wood]).toBe(6);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('are not booked in summer', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 10});
+    addSite(world, 24, 30);
+    run(world, 1);
+    expect(world.jobs.size).toBe(8);
+    expect([...world.jobs.values()].every(j => j.count === undefined)).toBe(
+      true,
+    );
+  });
+});

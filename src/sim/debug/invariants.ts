@@ -3,6 +3,7 @@ import {GOODS, type GoodAmounts, GOOD_KEYS} from '../defs/goods.ts';
 import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import * as HaulPhase from '../haulPhaseEnum.ts';
+import {cargoOf} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import type {World} from '../world.ts';
 
@@ -34,11 +35,11 @@ export function checkInvariants(world: World): InvariantReport {
     }
     if (job.phase !== HaulPhase.toDropoff) {
       const m = expectOut.get(job.from) ?? {};
-      m[job.good] = (m[job.good] ?? 0) + 1;
+      m[job.good] = (m[job.good] ?? 0) + (job.count ?? 1);
       expectOut.set(job.from, m);
     }
     const m = expectIn.get(job.to) ?? {};
-    m[job.good] = (m[job.good] ?? 0) + 1;
+    m[job.good] = (m[job.good] ?? 0) + (job.count ?? 1);
     expectIn.set(job.to, m);
 
     if (job.phase !== HaulPhase.open) {
@@ -206,7 +207,7 @@ export function countGoods(world: World): GoodAmounts {
   }
   for (const u of world.units.values()) {
     if (!u.dead && u.carrying !== undefined) {
-      total[u.carrying] = (total[u.carrying] ?? 0) + 1;
+      total[u.carrying] = (total[u.carrying] ?? 0) + cargoOf(u);
     }
   }
   return total;

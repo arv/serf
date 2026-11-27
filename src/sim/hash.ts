@@ -58,6 +58,7 @@ export function hashWorld(world: World): number {
     // readout — but it is state the save and the clone both have to carry,
     // and the digest is what catches one of them dropping it.
     mixF64(u.maxHp);
+    mix(u.carryCount ?? 1);
     mixU32(u.owner);
     mix(u.dead ? 1 : 0);
     mixU32(u.pathIdx);
@@ -207,6 +208,7 @@ export function hashWorld(world: World): number {
     mixU32(j.from);
     mixU32(j.to);
     mix(j.priority);
+    mix(j.count ?? 1);
   }
   for (const p of world.players) {
     mix(p.alive ? 1 : 0);

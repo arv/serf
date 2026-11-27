@@ -97,6 +97,9 @@ export interface Unit {
   jobId?: number;
   /** Good physically on the unit's shoulders. */
   carrying?: GoodId;
+  /** How many of it, when more than the one a pair of arms holds: a sled's
+   * load (SLED_LOAD). Absent is one. Read it through `cargoOf`. */
+  carryCount?: number;
   /** Home building (resident workers). */
   homeId?: EntityId;
   /** Tile the unit occupied last tick — trail wear bookkeeping. */
@@ -268,4 +271,10 @@ export function fightOf(unit: Unit): FightStats | undefined {
  */
 export function takesUpRoom(unit: Unit): boolean {
   return fightOf(unit) !== undefined;
+}
+
+/** How many goods `unit` is carrying: none, the one in his arms, or a
+ * sled's worth. */
+export function cargoOf(unit: Pick<Unit, 'carrying' | 'carryCount'>): number {
+  return unit.carrying === undefined ? 0 : (unit.carryCount ?? 1);
 }

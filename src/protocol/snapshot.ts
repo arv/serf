@@ -38,7 +38,7 @@ import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
 import {builderHasWork} from '../sim/systems/construction.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
-import type {Unit} from '../sim/units.ts';
+import {cargoOf, type Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
 import type {World} from '../sim/world.ts';
 import type {BuildingSnap, JobSnap, PlayerSnap} from './messages.ts';
@@ -48,6 +48,7 @@ import {
   PROFESSION,
   WORK,
   type UnitSnapshot,
+  packCarry,
 } from './sabLayout.ts';
 import * as StaffingState from './staffingStateEnum.ts';
 
@@ -886,7 +887,10 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
           : Math.max(0, Math.min(255, Math.round((u.hp / u.maxHp) * 255))),
       // ...and the maximum itself, so a card can name the pair.
       maxHp: Math.min(255, Math.round(u.maxHp)),
-      carrying: action === ACTION.dead ? 0 : carryingCode(u.carrying),
+      carrying:
+        action === ACTION.dead
+          ? 0
+          : packCarry(carryingCode(u.carrying), cargoOf(u)),
       action,
       // Published whenever the unit has a post, not just mid-swing: the
       // renderer keeps the axe in the woodcutter's fist on the walk out

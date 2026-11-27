@@ -423,3 +423,26 @@ export function iceBears(tick: number): boolean {
     into < ICE_UNTIL * YEAR_TICKS + ICE_GRACE_TICKS
   );
 }
+
+/**
+ * PROTOTYPE: winter on the ground. While the snow lies — from the moment it
+ * has finished coming until it is half gone — everyone walks slower except
+ * on stone, and a serf hauls by sled.
+ *
+ * Snow buries a dirt trail, so a worn lane is worth nothing in winter and
+ * a paved one is worth everything: SNOW_SPEED is the pace on grass, trail
+ * and ice alike, and a road keeps its own. It slows soldiers and raiders
+ * with the rest; nobody is excused.
+ *
+ * A sled is what the season gives back: SLED_LOAD of one good from one
+ * door to another in a single walk. Summer is when a village gathers and
+ * winter is when it moves what it gathered.
+ */
+export const WINTER_UNTIL = 0.95;
+export const SNOW_SPEED = 0.8;
+export const SLED_LOAD = 4;
+
+export function isWinter(tick: number): boolean {
+  const into = tick % YEAR_TICKS;
+  return into >= ICE_FROM * YEAR_TICKS && into < WINTER_UNTIL * YEAR_TICKS;
+}

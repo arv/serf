@@ -1,8 +1,9 @@
 import {tileIdx, tileX, tileY} from '../../shared/grid.ts';
-import {iceBears} from '../defs/balance.ts';
+import {iceBears, isWinter} from '../defs/balance.ts';
 import {isLake, layIce} from '../ice.ts';
 import {nearestWalkable} from '../path.ts';
 import type {World} from '../world.ts';
+import {splitSledLoads} from './logistics.ts';
 import {routeAround} from './movement.ts';
 
 /**
@@ -22,8 +23,9 @@ export function iceSystem(world: World): void {
   // grid is not saved or copied, so a world that was loaded or cloned a
   // tick ago remembers nothing, and it has to pull the same men out of the
   // same water as the world it was taken from.
-  if (world.tick === 0 || iceBears(world.tick) || !iceBears(world.tick - 1))
-    return;
+  if (world.tick === 0) return;
+  if (!isWinter(world.tick) && isWinter(world.tick - 1)) splitSledLoads(world);
+  if (iceBears(world.tick) || !iceBears(world.tick - 1)) return;
 
   const size = map.size;
   for (const unit of world.units.values()) {

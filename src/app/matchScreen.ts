@@ -35,6 +35,7 @@ import {Sleds} from '../render/sleds';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
 import {tileCount} from '../shared/grid';
+import {isWinter} from '../sim/defs/balance';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
 import * as GameEventKind from '../sim/gameEventKindEnum.ts';
@@ -1445,7 +1446,12 @@ export async function runMatch(
     // Everything above has had its say about this camera; draw it.
     // After the units are posed: a sled is drawn from where its man is,
     // and bends him into the rope.
-    sleds.update(performance.now() / 1000, speed(), seasons.chart.snow);
+    sleds.update(
+      performance.now() / 1000,
+      speed(),
+      seasons.chart.snow,
+      isWinter(simTick()),
+    );
     renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);

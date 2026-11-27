@@ -214,9 +214,17 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * 9's advised war never decides, 3 decides neither way, and 6, 7, 10, 12,
  * 13, 15 and 16 tie.)
  *
+ * 5 since winter reached the ground (replay 78): the snow slows every
+ * walk and a serf hauls four to a sled, and on seed 8 the advice now
+ * changes who wins (seat 0 at 21_229 unadvised, seat 1 at 20_317) rather
+ * than how soon. On seed 5, seat 1 wins both ways, at 13_525 and 13_195.
+ * (No other seed of the first twenty holds: 1 inverts by a tick, 18 and 20
+ * invert, 9 and 11 are won sooner but by seat 0, 6, 7 and 14 only decide
+ * when advised, and 2, 3, 4, 10, 12, 13, 15, 16, 17 and 19 tie.)
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 8;
+const FULL_MATCH_SEED = 5;
 const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {

@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 78: winter on the ground. While the snow lies everyone walks at four
+ * fifths of his pace except on stone (SNOW_SPEED), so every walk in the
+ * last quarter of the year lands on a different tick; and a serf hauls by
+ * sled, up to four of one good along one walk (SLED_LOAD), so the board
+ * holds fewer, bigger jobs.
+ *
+ * 77's note follows.
+ *
  * 77: the lakes freeze. For the last quarter of every eight-minute year
  * the pathfinder takes water as ground (sim/systems/ice.ts), so any haul,
  * march or raid planned in winter may cross a lake it used to walk round.
@@ -1448,4 +1456,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 77;
+export const REPLAY_VERSION = 78;

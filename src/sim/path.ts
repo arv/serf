@@ -7,6 +7,7 @@ import {
   tileX,
   tileY,
 } from '../shared/grid.ts';
+import {SNOW_SPEED} from './defs/balance.ts';
 import type {GameMap} from './map.ts';
 import * as PathLevel from './pathLevelEnum.ts';
 
@@ -19,7 +20,7 @@ import * as PathLevel from './pathLevelEnum.ts';
  */
 export type PathMap = Pick<
   GameMap,
-  'blocked' | 'ice' | 'pathLevel' | 'size' | 'play'
+  'blocked' | 'ice' | 'winter' | 'pathLevel' | 'size' | 'play'
 >;
 
 /**
@@ -40,12 +41,17 @@ export function shut(map: PathMap, idx: number): boolean {
 }
 
 export function tileStepCost(map: PathMap, idx: number): number {
-  return LEVEL_COST[map.pathLevel[idx]!] ?? 1.0;
+  const level = map.pathLevel[idx]!;
+  // Under snow only stone is still a road: everything else costs what the
+  // slower walk costs, so a winter route bends toward the paving.
+  if (map.winter && level !== PathLevel.Road) return 1 / SNOW_SPEED;
+  return LEVEL_COST[level] ?? 1.0;
 }
 
 /** Movement speed multiplier for a tile (inverse of its cost advantage). */
 export function tileSpeedMult(map: PathMap, idx: number): number {
   const level = map.pathLevel[idx]!;
+  if (map.winter && level !== PathLevel.Road) return SNOW_SPEED;
   return level === PathLevel.Road
     ? 1.35
     : level === PathLevel.Trail
