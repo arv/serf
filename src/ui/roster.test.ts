@@ -94,20 +94,20 @@ describe('the selection roster', () => {
   });
 
   it('names an armoured soldier’s own maximum, not his kind’s', () => {
-    // Mail Armor and Gilded Arms muster a knight at 120 against a base of
-    // 80. The publish divides by his own number, so a whole man is a full
-    // byte either way — what the card must not do is print 80/80 over
-    // someone carrying 120, or call him whole after his first wound.
+    // Mail Armor and Gilded Arms muster a knight at 180 against a base of
+    // 120. The publish divides by his own number, so a whole man is a full
+    // byte either way — what the card must not do is print 120/120 over
+    // someone carrying 180, or call him whole after his first wound.
     const kindMax = UNIT_DEFS[UnitTypeId.knight].hp;
     const [whole] = rosterOf(
       [1],
-      source([{id: 1, kind: UnitTypeId.knight, pct: FULL, maxHp: 120}]),
+      source([{id: 1, kind: UnitTypeId.knight, pct: FULL, maxHp: 180}]),
     );
     expect(whole).toEqual({
       id: 1,
       kind: UnitTypeId.knight,
-      hp: 120,
-      maxHp: 120,
+      hp: 180,
+      maxHp: 180,
       holding: false,
     });
     expect(whole!.maxHp).toBeGreaterThan(kindMax);
@@ -119,24 +119,24 @@ describe('the selection roster', () => {
         {
           id: 1,
           kind: UnitTypeId.knight,
-          pct: Math.round((110 / 120) * FULL),
-          maxHp: 120,
+          pct: Math.round((170 / 180) * FULL),
+          maxHp: 180,
         },
       ]),
     );
-    expect(hurt!.hp).toBe(110);
-    expect(hurt!.maxHp).toBe(120);
+    expect(hurt!.hp).toBe(170);
+    expect(hurt!.maxHp).toBe(180);
     // ...and he sorts as the wounded man he is, ahead of the whole.
     expect(hurt!.hp).toBeLessThan(hurt!.maxHp);
   });
 
   it('never prints a living unit as having nothing left', () => {
-    // A knight on his last point of 80 is a byte of 3 — which rounds to
-    // one hitpoint, not to none. Reading "0/80" over a man still swinging
+    // A knight on his last point of 120 is a byte of 2 — which rounds to
+    // one hitpoint, not to none. Reading "0/120" over a man still swinging
     // is the lie that gets him abandoned.
     const [hurt] = rosterOf(
       [1],
-      source([{id: 1, kind: UnitTypeId.knight, pct: 3}]),
+      source([{id: 1, kind: UnitTypeId.knight, pct: 2}]),
     );
     expect(hurt!.hp).toBe(1);
     // A real zero is the byte a corpse carries, and says so.

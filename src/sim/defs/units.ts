@@ -69,8 +69,8 @@ export interface UnitDef {
  * A fifth of a bandit's output and slower than any weapon on the field.
  *
  * Two modes, two prices. Cut down one at a time on their errands, a serf
- * lands about three of these before he falls, so a bandit walks through
- * some seven of them before the last one's knife finishes him. Sent in
+ * lands about four of these before he falls, so a bandit walks through
+ * some eight of them before the last one's knife finishes him. Sent in
  * together under an A order they trade better — four take a bandit, seven
  * take a knight and three of those seven walk away — and still badly
  * enough that it is never the plan. It is an answer, not an army.
@@ -101,7 +101,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.serf]: {
     id: U.serf,
     speed: 1.5,
-    hp: 25,
+    hp: 38,
     sight: 6.5,
     militia: MILITIA,
   },
@@ -110,14 +110,14 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.worker]: {
     id: U.worker,
     speed: 1.4,
-    hp: 25,
+    hp: 38,
     sight: 6.5,
     militia: MILITIA,
   },
   [U.knight]: {
     id: U.knight,
     speed: 1.6,
-    hp: 80,
+    hp: 120,
     sight: 6.5,
     combat: {
       class: UnitClassNs.heavy,
@@ -130,7 +130,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.spearman]: {
     id: U.spearman,
     speed: 2.4,
-    hp: 45,
+    hp: 68,
     sight: 6.5,
     combat: {
       class: UnitClassNs.light,
@@ -143,14 +143,14 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.archer]: {
     id: U.archer,
     speed: 2.0,
-    // 32 rather than 35: the archer's staying power is what the kite is
-    // bought with, and until KITE_PLANT_TICKS (systems/combat.ts) the kite
+    // 48: 32 before every unit took half again, 35 before that. The
+    // archer's staying power is what the kite is bought with, and until KITE_PLANT_TICKS (systems/combat.ts) the kite
     // cost nothing at all. Hit points are the one dial that prices it
     // without reaching past the duel — damage, cooldown and range all also
     // set the tower garrison's output, the bandit archer's identity, or
-    // both. Still above the bandit archer's 30, which is the floor: a bow
+    // both. Still above the bandit archer's 45, which is the floor: a bow
     // off the village barracks must beat a bow off a camp.
-    hp: 32,
+    hp: 48,
     sight: 6.5,
     combat: {
       class: UnitClassNs.ranged,
@@ -163,7 +163,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.bandit]: {
     id: U.bandit,
     speed: 2.0,
-    hp: 40,
+    hp: 60,
     sight: 6.5,
     combat: {
       class: UnitClassNs.light,
@@ -176,7 +176,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.banditArcher]: {
     id: U.banditArcher,
     speed: 1.9,
-    hp: 30,
+    hp: 45,
     sight: 6.5,
     combat: {
       class: UnitClassNs.ranged,
@@ -189,7 +189,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   [U.marauder]: {
     id: U.marauder,
     speed: 1.5,
-    hp: 70,
+    hp: 105,
     sight: 6.5,
     combat: {
       class: UnitClassNs.heavy,

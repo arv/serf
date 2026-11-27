@@ -850,8 +850,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to refuse now takes the building, so a command an old log had
 // dropped is executed, and the tailings a worked-out gold seam left behind
 // are gone with the one rule that read them (replayVersion.ts at length).
-const EXPECTED_VERSION = 77;
-const EXPECTED_HASH = '936eb8d13436a1f7d9c675620535f7c8';
+// 78 for half again every unit's hit points: every fight between men
+// resolves on different ticks with different men left standing.
+const EXPECTED_VERSION = 78;
+const EXPECTED_HASH = 'a944be72b1da70d00bfb2da8acdbcecf';
 
 /**
  * Everything a replay's playback depends on, as raw source:

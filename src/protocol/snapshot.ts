@@ -878,7 +878,7 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       kind: u.kind,
       owner: u.owner, // numeric owner rides the aux byte raw
       // Against the man's own full health, not his kind's: armour research
-      // musters a knight at 120 where the kind says 80, and dividing by the
+      // musters a knight at 180 where the kind says 120, and dividing by the
       // kind left him reading untouched down to his last two thirds.
       hpPct:
         action === ACTION.dead
