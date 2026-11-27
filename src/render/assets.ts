@@ -241,7 +241,6 @@ const PIER_RUN =
   PIER_TILES / templateScale(BUILDING_DEFS[BuildingTypeId.fishery]);
 
 const DECOR_PROP_FILES = [
-  'wheelbarrow',
   'sack',
   'bucket_water',
   'barrel',
@@ -434,7 +433,9 @@ const GLB_PROP_FILES = [
 
 // No goods-shaped decor on producers whose live stock piles up outside:
 // the woodcutter's baked lumber pile read as planks that were never
-// hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
+// hauled. Tools and scenery (ore rocks) stay. Nor a wheelbarrow anywhere:
+// a barrow is a good now (render/barrows.ts), and one standing in a yard
+// would read as a barrow the castle does not have.
 /**
  * Openings a training building backs in something other than the usual dark
  * slate recess — see VoidPaint. Exported for the fixture that runs the
@@ -475,13 +476,6 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // feet on top of that were clutter, not story.
   [BuildingTypeId.mill]: [
     {prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5},
-  ],
-  // A wheelbarrow parked on the front apron, nose toward the rows —
-  // workaday scenery, like the mines' carts. The wheat itself is the
-  // model's own (standing rows) and the live stock piles buildingSync
-  // stands just off the open front edge.
-  [BuildingTypeId.wheatFarm]: [
-    {prop: 'wheelbarrow', at: [0.29, 0.43], size: 0.1, rot: 1.0},
   ],
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
@@ -584,7 +578,6 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   [BuildingTypeId.quarry]: [
     {make: () => makeSheerlegs(), at: [0.34, 0.44], size: 1, rot: -0.5},
     {make: () => makeAshlar(), at: [-0.38, 0.45], size: 1, rot: 0.35},
-    {prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85},
   ],
   [BuildingTypeId.ironMine]: [
     {make: () => makeOreChute(), at: [0.36, 0.42], size: 1, rot: -0.3},
@@ -630,7 +623,7 @@ interface Assets {
   natureMaterial: THREE.Material;
   /** The forest pack's own palette sheet. */
   forestMaterial: THREE.Material;
-  /** Loaded pack prop scenes (wheelbarrow, resource piles...). */
+  /** Loaded pack prop scenes (sacks, resource piles...). */
   props: Map<string, THREE.Group>;
   /**
    * The pack's own building material, kept for the templates built after
