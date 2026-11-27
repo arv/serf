@@ -44,7 +44,7 @@ describe('winter', () => {
     expect(isWinter(YEAR_TICKS + WINTER)).toBe(true);
   });
 
-  it('slows the walk everywhere but on stone', () => {
+  it('slows the walk everywhere, roads included', () => {
     const {map} = bareWorld();
     const grass = tileIdx(5, 5, map.size);
     const trail = tileIdx(6, 5, map.size);
@@ -55,16 +55,12 @@ describe('winter', () => {
     expect(summer).toEqual([1, 1.15, 1.35]);
 
     map.winter = true;
-    // Snow buries the trail; the paving stays clear.
-    expect([grass, trail, road].map(i => tileSpeedMult(map, i))).toEqual([
-      SNOW_SPEED,
-      SNOW_SPEED,
-      1.35,
-    ]);
-    // And a route is priced the way it will be walked.
-    expect(tileStepCost(map, grass)).toBeCloseTo(1 / SNOW_SPEED);
-    expect(tileStepCost(map, trail)).toBeCloseTo(1 / SNOW_SPEED);
-    expect(tileStepCost(map, road)).toBe(0.72);
+    // The snow buries the trail and the paving alike.
+    for (const i of [grass, trail, road]) {
+      expect(tileSpeedMult(map, i)).toBe(SNOW_SPEED);
+      // And a route is priced the way it will be walked.
+      expect(tileStepCost(map, i)).toBeCloseTo(1 / SNOW_SPEED);
+    }
   });
 });
 

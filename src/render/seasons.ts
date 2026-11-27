@@ -124,7 +124,7 @@ const JUMP = 3 * TICKS_PER_SECOND;
 /** Every flake there could be; `falling` says what share is in the air. */
 const FLAKES = 2600;
 
-type Kind = 'ground' | 'solid' | 'team';
+type Kind = 'ground' | 'solid' | 'team' | 'road';
 
 export class Seasons {
   #renderer: GameRenderer;
@@ -434,6 +434,7 @@ export class Seasons {
         m instanceof THREE.MeshLambertMaterial ||
         m instanceof THREE.MeshStandardMaterial;
       if (lit && m.userData.ground) this.#splice(m, 'ground');
+      else if (lit && m.userData.road) this.#splice(m, 'road');
       else if (lit && m.userData.team && !m.transparent)
         this.#splice(m, 'team');
       // `dry` is what was put down a minute ago (sleds.ts): no snow yet.
@@ -638,6 +639,16 @@ const FRAGMENT: Record<Kind, string> = {
   // what those colors are: grass is green-to-gold and saturated, where
   // trodden earth is browner and rock is grey. Grass takes the full depth
   // of snow; a trail keeps showing through, and is the first to thaw.
+  // The paving, which is a decal over the ground: snowed over as deep as
+  // the grass beside it, with only the faintest line of it left, and the
+  // first to show through again at the thaw.
+  road: /* glsl */ `
+    {
+      vec2 cover = seasonCover(vSeasonAt, 0.2);
+      diffuseColor.rgb *= 1.0 - 0.24 * cover.y;
+      diffuseColor.rgb = mix(diffuseColor.rgb, uSnowColor, cover.x * 0.9);
+    }
+  `,
   ground: /* glsl */ `
     {
       vec3 c = diffuseColor.rgb;

@@ -41,17 +41,16 @@ export function shut(map: PathMap, idx: number): boolean {
 }
 
 export function tileStepCost(map: PathMap, idx: number): number {
-  const level = map.pathLevel[idx]!;
-  // Under snow only stone is still a road: everything else costs what the
-  // slower walk costs, so a winter route bends toward the paving.
-  if (map.winter && level !== PathLevel.Road) return 1 / SNOW_SPEED;
-  return LEVEL_COST[level] ?? 1.0;
+  // Under snow there is no road: the paving is buried with the trails, every
+  // tile costs what the slower walk costs, and the shortest way is the way.
+  if (map.winter) return 1 / SNOW_SPEED;
+  return LEVEL_COST[map.pathLevel[idx]!] ?? 1.0;
 }
 
 /** Movement speed multiplier for a tile (inverse of its cost advantage). */
 export function tileSpeedMult(map: PathMap, idx: number): number {
+  if (map.winter) return SNOW_SPEED;
   const level = map.pathLevel[idx]!;
-  if (map.winter && level !== PathLevel.Road) return SNOW_SPEED;
   return level === PathLevel.Road
     ? 1.35
     : level === PathLevel.Trail

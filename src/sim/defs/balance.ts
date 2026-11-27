@@ -426,13 +426,13 @@ export function iceBears(tick: number): boolean {
 
 /**
  * PROTOTYPE: winter on the ground. While the snow lies — from the moment it
- * has finished coming until it is half gone — everyone walks slower except
- * on stone, and a serf hauls by sled.
+ * has finished coming until it is half gone — everyone walks slower, and a
+ * serf hauls by sled.
  *
- * Snow buries a dirt trail, so a worn lane is worth nothing in winter and
- * a paved one is worth everything: SNOW_SPEED is the pace on grass, trail
- * and ice alike, and a road keeps its own. It slows soldiers and raiders
- * with the rest; nobody is excused.
+ * The snow covers everything, roads included: SNOW_SPEED is the pace on
+ * grass, trail, paving and ice alike. A summer road network is worth
+ * nothing in winter, and a sled runs anywhere the snow lies. It slows
+ * soldiers and raiders with the rest; nobody is excused.
  *
  * A sled is what the season gives back: SLED_LOAD of one good from one
  * door to another in a single walk. Summer is when a village gathers and

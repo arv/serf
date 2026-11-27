@@ -82,9 +82,9 @@ pnpm dev
   inside it, against a notional price of its own (it cost nothing to raise).
 - **Winter**: a year is eight minutes and its last quarter is winter. While
   the snow lies, everyone — serfs, soldiers and raiders alike — walks at
-  four fifths of his pace, except on stone: snow buries a worn trail, so in
-  winter only a paved road is still a road. In exchange a serf hauls by
-  sled, up to four of one good from one door to another in a single walk,
+  four fifths of his pace, and the snow buries the paving with the trails,
+  so a road is no faster than open ground. In exchange a serf hauls by
+  sled, anywhere the snow lies, up to four of one good from one door to another in a single walk,
   so winter is when a village moves what summer let it gather. The lakes
   and the river freeze hard enough to walk on for most of it, and a haul, a
   march or a raid takes the ice when the ice is the short way; nothing can

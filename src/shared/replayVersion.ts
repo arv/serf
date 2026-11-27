@@ -21,8 +21,8 @@
  */
 /**
  * 78: winter on the ground. While the snow lies everyone walks at four
- * fifths of his pace except on stone (SNOW_SPEED), so every walk in the
- * last quarter of the year lands on a different tick; and a serf hauls by
+ * fifths of his pace, roads buried with the rest (SNOW_SPEED), so every
+ * walk in the last quarter of the year lands on a different tick; and a serf hauls by
  * sled, up to four of one good along one walk (SLED_LOAD), so the board
  * holds fewer, bigger jobs.
  *
