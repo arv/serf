@@ -88,6 +88,10 @@ const KAY = {
    * heads over stalks falling into their own shadow. The loaves below
    * take the same cell, which is the joke of the bread chain. */
   wheat: {cell: [1, 3], from: 0.16, to: 0.78},
+  /** The same crop in the spring, before it turns: the leaf-green ramp
+   * the pack paints its foliage in, its lightest tops falling into the
+   * dark of the stalks the way the gold does. */
+  shoots: {cell: [1, 4], from: 0.1, to: 0.85},
   /** Cut hay in the barn, straw-beige. */
   hay: {cell: [2, 3], from: 0.2, to: 0.65},
   /** Gilding: the bright top of the same gold ramp the wheat is painted
@@ -878,7 +882,13 @@ function field(g: THREE.Group): void {
   // the way his do. Merged to one mesh: a field is one draw, not sixty.
   // Knee-high on the villager; the ramp falls the gold into its own base
   // shadow, so a man in the lane beside it reads as IN the crop.
+  //
+  // The green crop it was in the spring stands inside it, every clump a
+  // size smaller than its gold one, so ripening is the gold coming up
+  // around the green and swallowing it (the seasons raise and cut both:
+  // buildingSync#cropFrame).
   const tufts: THREE.BufferGeometry[] = [];
+  const shoots: THREE.BufferGeometry[] = [];
   let n = 0;
   const row = (x0: number, x1: number, z: number): void => {
     const COUNT = Math.round((x1 - x0) / 0.095);
@@ -890,14 +900,21 @@ function field(g: THREE.Group): void {
       // clump ends, never the crowns.
       const w = pitch * 1.12;
       const d = 0.062 + hash2(n, 41) * 0.026;
-      const geo = frustumGeo(w * 0.66, d * 0.62, w, d, h);
-      geo.rotateY((hash2(n, 31) - 0.5) * 0.1);
-      geo.translate(
-        x0 + pitch * (i + 0.5),
-        PAD_TOP + 0.012,
-        z + (hash2(n, 37) - 0.5) * 0.014,
-      );
-      tufts.push(geo);
+      const place = (geo: THREE.BufferGeometry): THREE.BufferGeometry => {
+        geo.rotateY((hash2(n, 31) - 0.5) * 0.1);
+        geo.translate(
+          x0 + pitch * (i + 0.5),
+          PAD_TOP + 0.012,
+          z + (hash2(n, 37) - 0.5) * 0.014,
+        );
+        return geo;
+      };
+      tufts.push(place(frustumGeo(w * 0.66, d * 0.62, w, d, h)));
+      // Inside the gold at every height: narrower at the foot and at the
+      // crown, and lower.
+      const sw = w * 0.8;
+      const sd = d * 0.75;
+      shoots.push(place(frustumGeo(sw * 0.66, sd * 0.62, sw, sd, h * 0.8)));
       // Kay's tell: every few paces a taller tuft breaks the slab's top.
       if (hash2(n, 43) < 0.3) {
         const nub = new THREE.BoxGeometry(0.022, 0.05, 0.022).toNonIndexed();
@@ -915,7 +932,32 @@ function field(g: THREE.Group): void {
   };
   for (const z of ROWS_FRONT) row(ROW_X0, ROW_X1, z);
   for (const z of ROWS_BACK) row(BACK_X0, BACK_X1, z);
-  g.add(mesh(mergeGeometries(tufts), KAY.wheat));
+  g.add(crop(CROP_WHEAT, mergeGeometries(tufts), KAY.wheat));
+  g.add(crop(CROP_SHOOTS, mergeGeometries(shoots), KAY.shoots));
+}
+
+/** The standing crop's two meshes, by name, for buildingSync to raise and
+ * cut with the seasons. */
+export const CROP_WHEAT = 'cropWheat';
+export const CROP_SHOOTS = 'cropShoots';
+
+/**
+ * A crop mesh, carrying in `rise` how far it has to sink to be gone: the
+ * height of its tallest stalk over the model's ground. The seasons sink
+ * it into the plot rather than squash it — the plot is draped over the
+ * hill per vertex (groundFit.ts), and a scale would scale the drape with
+ * it, where a sink moves every vertex the same.
+ */
+function crop(
+  name: string,
+  geo: THREE.BufferGeometry,
+  paint: Paint,
+): THREE.Mesh {
+  const m = mesh(geo, paint);
+  m.name = name;
+  geo.computeBoundingBox();
+  m.userData.rise = geo.boundingBox!.max.y;
+  return m;
 }
 
 /**

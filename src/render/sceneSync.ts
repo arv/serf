@@ -1132,6 +1132,7 @@ export class SceneSync {
       const renderTurned =
         workKind === WORK.fish ||
         workKind === WORK.mow ||
+        workKind === WORK.sow ||
         workKind === WORK.draw;
       if (
         !moving &&
@@ -1335,15 +1336,18 @@ export class SceneSync {
       // walks him along the field's mowing circuit — step, stroke, step,
       // the working rhythm — and stands him mid-field when the farm
       // stalls. Render-side like the pier walk; the sim keeps him parked
-      // on whatever adjacent tile the path found.
+      // on whatever adjacent tile the path found. In the fall it is the
+      // same round with seed instead of a scythe: step, cast, step.
+      const sowing = workKind === WORK.sow;
       const field =
         !offScreen &&
         !dead &&
         !moving &&
         action !== ACTION.fight &&
-        workKind === WORK.mow
+        (workKind === WORK.mow || sowing)
           ? this.#nearestField(x, y)
           : null;
+      const stroke = sowing ? AnimKey.throwing : AnimKey.mow;
       let mowSwing = false;
       let mowStep = false;
       let onFieldPad = false;
@@ -1418,7 +1422,7 @@ export class SceneSync {
               visual.mowStepLeft = (visual.mowStepLeft ?? MOW_STEP) - step;
               if (visual.mowStepLeft <= 0) {
                 visual.mowStepLeft = MOW_STEP;
-                const clip = visual.char.actions.get(AnimKey.mow)?.getClip();
+                const clip = visual.char.actions.get(stroke)?.getClip();
                 // One full sweep, plus the crossfade's grace so the
                 // follow-through lands before the legs come back.
                 visual.mowSwingUntil =
@@ -1452,7 +1456,7 @@ export class SceneSync {
               : AnimKey.idle;
         else if (field)
           key = mowSwing
-            ? AnimKey.mow
+            ? stroke
             : mowStep
               ? gaitAnimKey(visual.char.gait)
               : AnimKey.idle;
@@ -1478,9 +1482,14 @@ export class SceneSync {
             visual.char,
             key,
             // Death holds its final pose from the top; a mowing stroke
-            // begins at its wind-up — a swing entered mid-arc reads as a
-            // twitch, and the stop's dwell is timed to the whole clip.
-            key === AnimKey.death || key === AnimKey.mow ? 0 : hash2(id, 3),
+            // (or a sower's cast) begins at its wind-up — a swing entered
+            // mid-arc reads as a twitch, and the stop's dwell is timed to
+            // the whole clip.
+            key === AnimKey.death ||
+              key === AnimKey.mow ||
+              key === AnimKey.throwing
+              ? 0
+              : hash2(id, 3),
           );
         }
         const fn = this.onCue;

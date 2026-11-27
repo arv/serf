@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import {
+  GROW_FROM,
   ICE_FROM,
   ICE_GRACE_TICKS,
   ICE_UNTIL,
+  SOW_FROM,
   TICKS_PER_SECOND,
   YEAR_TICKS,
 } from '../sim/defs/balance';
@@ -120,6 +122,37 @@ const ICE_BREAKING = 0.03;
  * and the gap past which it stops gliding and jumps. */
 const LEAD = 30 * TICKS_PER_SECOND;
 const JUMP = 3 * TICKS_PER_SECOND;
+
+/** Shares of the year the crop spends coming up green from the thaw,
+ * ripening gold at the end of the spring, and coming down at the end of
+ * the harvest. */
+const CROP_SHOOT = 0.05;
+const CROP_RIPEN = 0.06;
+const CROP_CUT = 0.04;
+
+/**
+ * How far the crop stands `into` the year (a share of it, 0 to 1), on the
+ * sim's own calendar (farmSeasonAt in sim/defs/balance.ts): the two
+ * heights the farmstead's meshes rise to, 0 cut to 1 full.
+ *
+ * Up green with the thaw, then gold coming up around the green and
+ * swallowing it, so the field is ripe as the harvest opens. It stands the
+ * summer through — the scythe is in it the whole time, but a field that
+ * shrank as it went would be a field sinking into the ground — and comes
+ * down over the harvest's last seconds, so the fall's sowing is done on
+ * bare beds and the snow lies on them.
+ */
+export function cropAt(into: number): {wheat: number; shoots: number} {
+  const ease = THREE.MathUtils.smoothstep;
+  if (into >= GROW_FROM)
+    return {
+      shoots: ease(into, GROW_FROM, GROW_FROM + CROP_SHOOT),
+      wheat: ease(into, 1 - CROP_RIPEN, 1),
+    };
+  if (into >= SOW_FROM) return {wheat: 0, shoots: 0};
+  const cut = 1 - ease(into, SOW_FROM - CROP_CUT, SOW_FROM);
+  return {wheat: cut, shoots: cut};
+}
 
 /** Every flake there could be; `falling` says what share is in the air. */
 const FLAKES = 2600;
@@ -303,8 +336,23 @@ export class Seasons {
 
   /** What the minimap needs of the season, kept current by update(): how
    * much snow lies, and the unknown and water colors as the scene has
-   * them, as sRGB hex. One object, rewritten in place. */
-  readonly chart = {snow: 0, unknown: background, water};
+   * them, as sRGB hex. One object, rewritten in place.
+   *
+   * And what the farms need of it: how far the gold wheat and the green
+   * crop inside it stand, 0 cut to 1 full (see #crop). */
+  readonly chart = {snow: 0, unknown: background, water, wheat: 1, shoots: 1};
+
+  /** How far the crop stands at `tick` (cropAt). A pinned season has no
+   * year to read it off, so it stands as that season's middle would. */
+  #crop(tick: number): {wheat: number; shoots: number} {
+    return cropAt(
+      this.#cycle.length === 1
+        ? this.#cycle[0] === 'summer'
+          ? 0.3
+          : 0.8
+        : (tick % this.#yearTicks) / this.#yearTicks,
+    );
+  }
 
   /**
    * How far the lakes have frozen over at `tick`, 0 open to 1 hard. Not the
@@ -384,6 +432,9 @@ export class Seasons {
     // frozen as its ground is white.
     this.#water.frozen.value = n === 1 ? u.uSnow.value : this.#frozen(shown);
     this.chart.snow = u.uSnow.value;
+    const crop = this.#crop(shown);
+    this.chart.wheat = crop.wheat;
+    this.chart.shoots = crop.shoots;
     this.chart.unknown = col(SCRATCH_OUT, 'backdrop').getHex();
     this.chart.water = col(SCRATCH_OUT, 'mid').getHex();
 

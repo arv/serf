@@ -15,6 +15,7 @@ import type {FogQuery} from './fogOfWar';
 import {HeightField} from './heightField';
 import {eachMaterial} from './materials';
 import {SITE_FRAME_H} from './models';
+import {CROP_SHOOTS, CROP_WHEAT} from './procBuildings';
 import {WALL_RENDER_ORDER} from './xrayOutline';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -64,6 +65,17 @@ vi.mock('./assets', () => ({
     // (makeFarmstead); farmFields() only needs their world positions.
     // Two lanes' worth, serpentine like the real circuit.
     if (type === BuildingTypeId.wheatFarm) {
+      // ...and its crop: the gold and the green inside it, each carrying
+      // how far it sinks to be gone (procBuildings.ts crop()).
+      for (const [name, rise] of [
+        ['cropWheat', 0.2],
+        ['cropShoots', 0.15],
+      ] as const) {
+        const crop = new THREE.Mesh(new THREE.BoxGeometry(2, rise, 2));
+        crop.name = name;
+        crop.userData.rise = rise;
+        group.add(crop);
+      }
       const gate = new THREE.Group();
       gate.name = 'mowGate';
       gate.position.set(0, 0.06, 1.6);
@@ -641,6 +653,31 @@ describe("the farm's field", () => {
     // Measured once: buildings do not move, so asking again returns the
     // cached line.
     expect(sync.farmFields()[0]).toBe(f);
+  });
+
+  it('raises and cuts its crop with the season', () => {
+    const {sync, scene} = makeSync();
+    sync.update([snap({type: BuildingTypeId.wheatFarm, w: 3, h: 3})]);
+    const wheat = scene.getObjectByName(CROP_WHEAT)!;
+    const shoots = scene.getObjectByName(CROP_SHOOTS)!;
+    const base = wheat.position.y;
+    sync.cropFrame(1, 1);
+    expect(wheat.visible).toBe(true);
+    expect(wheat.position.y).toBeCloseTo(base);
+    // Half grown is half its height under the plot, each by its own rise.
+    sync.cropFrame(0.5, 1);
+    expect(wheat.position.y).toBeCloseTo(base - 0.1);
+    expect(shoots.position.y).toBeCloseTo(base);
+    // Cut: sunk the whole way, and not drawn.
+    sync.cropFrame(0, 0);
+    expect(wheat.position.y).toBeCloseTo(base - 0.2);
+    expect(shoots.position.y).toBeCloseTo(base - 0.15);
+    expect(wheat.visible).toBe(false);
+    expect(shoots.visible).toBe(false);
+    // And back, from wherever it was left.
+    sync.cropFrame(1, 1);
+    expect(wheat.visible).toBe(true);
+    expect(wheat.position.y).toBeCloseTo(base);
   });
 
   it('is absent while the farm is still a site', () => {
