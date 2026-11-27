@@ -88,7 +88,7 @@ export function victorySystem(world: World): void {
       continue;
     }
     if (!world.players[b.owner]?.alive) continue;
-    endMatch(world, b.owner);
+    endMatch(world, b.owner, {x: b.x + b.w / 2, y: b.y + b.h / 2});
     return;
   }
 
@@ -123,7 +123,15 @@ export function victorySystem(world: World): void {
   }
 }
 
-function endMatch(world: World, winner: Owner | null): void {
-  world.outcome = {state: MatchState.over, winner};
+function endMatch(
+  world: World,
+  winner: Owner | null,
+  monument?: {x: number; y: number},
+): void {
+  world.outcome = {
+    state: MatchState.over,
+    winner,
+    ...(monument ? {monument} : {}),
+  };
   world.pendingEvents.push({kind: GameEventKind.gameOver, winner});
 }

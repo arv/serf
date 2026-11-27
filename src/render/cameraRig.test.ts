@@ -484,6 +484,41 @@ describe('CameraRig turn', () => {
     expect(rig.driving(at + 1000)).toBe(true); // filed, not yet applied
   });
 
+  it('a glide can close in as it travels, and lands centred at the new zoom', () => {
+    // The camera's run to the monument that ended a match: there, and
+    // closer. The middle of the ground quad is what the screen is centred
+    // on, and the camera's frustum height is the zoom.
+    const center = (): [number, number] => {
+      const q = rig.viewQuad(new Float64Array(8));
+      return [(q[0]! + q[4]!) / 2, (q[1]! + q[5]!) / 2];
+    };
+    const view = (): number => rig.camera.top - rig.camera.bottom;
+    const wide = view();
+    rig.glideTo(40, 44, 400, 10);
+    rig.tick(0.2);
+    // Mid-flight it is between the two, not snapped to either.
+    expect(view()).toBeLessThan(wide);
+    expect(view()).toBeGreaterThan(10);
+    rig.tick(0.2);
+    expect(view()).toBeCloseTo(10, 8);
+    expect(center()[0]).toBeCloseTo(40, 6);
+    expect(center()[1]).toBeCloseTo(44, 6);
+    // A glide that names no zoom leaves the player's own alone.
+    rig.glideTo(50, 50);
+    rig.tick(1);
+    expect(view()).toBeCloseTo(10, 8);
+  });
+
+  it('a hand on the zoom takes a closing glide back', () => {
+    rig.glideTo(40, 44, 400, 10);
+    rig.tick(0.1);
+    wheel(canvas, 100, false);
+    const taken = rig.camera.top - rig.camera.bottom;
+    rig.tick(1);
+    // The glide would have carried it on down to 10.
+    expect(rig.camera.top - rig.camera.bottom).toBeCloseTo(taken, 8);
+  });
+
   it('is under way while a key holds the camera, before the tick that moves it', () => {
     rig.tick(FRAME);
     const at = performance.now();
