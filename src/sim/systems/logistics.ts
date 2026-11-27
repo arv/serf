@@ -38,11 +38,13 @@ import {
   type EntityId,
   type Owner,
 } from '../entities.ts';
+import * as GameEventKind from '../gameEventKindEnum.ts';
 import * as HaulPhase from '../haulPhaseEnum.ts';
 import {findPathToAdjacent} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
 import {cargoOf, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {anyDelivered} from '../visibility.ts';
 import {
   applyRepairMaterial,
   settleResearchBill,
@@ -1799,7 +1801,17 @@ function deliver(world: World, to: Building, good: GoodId): void {
       to.inputs[good] = (to.inputs[good] ?? 0) + 1;
       return;
     }
+    const committed = anyDelivered(to);
     to.siteNeeds[good] = Math.max(0, (to.siteNeeds[good] ?? 0) - 1);
+    // The load that commits a monument is the one that puts it on every
+    // rival's map (visibility.ts), and a mark on a map nobody happens to
+    // be looking at is not a warning. Say so out loud, once.
+    if (to.type === BuildingTypeId.monument && !committed && anyDelivered(to)) {
+      world.pendingEvents.push({
+        kind: GameEventKind.monumentRising,
+        owner: to.owner,
+      });
+    }
     if (good === GoodId.hammer) {
       // Borrowed, not consumed: the hammer survives in the site's hands
       // and goes back on the shelf at completion. Losing the site is the

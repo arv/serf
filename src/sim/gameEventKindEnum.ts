@@ -14,3 +14,5 @@ export const damage = 5 as const;
 export type damage = typeof damage;
 export const heraldIncoming = 6 as const;
 export type heraldIncoming = typeof heraldIncoming;
+export const monumentRising = 7 as const;
+export type monumentRising = typeof monumentRising;

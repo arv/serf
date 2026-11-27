@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 79: wheelbarrows. From the thaw's end to the first hard frost a serf
+ * 80: wheelbarrows. From the thaw's end to the first hard frost a serf
  * with a barrow hauls two of one good along one walk (BARROW_LOAD, cartFor
  * in defs/balance.ts), so three quarters of the year book fewer, bigger
  * jobs, as winter already did with sleds; the Smith has a barrow recipe
@@ -28,13 +28,23 @@
  * (stockTheCarts). And a serf walking a cart home is no longer hired off
  * the road (systems/staffing.ts), which had lost sleds into barracks.
  *
- * 78's note follows.
+ * 79's note follows.
  *
- * 78: winter on the ground. While the snow lies everyone walks at four
+ * 79: winter on the ground. While the snow lies everyone walks at four
  * fifths of his pace, roads buried with the rest (SNOW_SPEED), so every
  * walk in the last quarter of the year lands on a different tick; and a serf hauls by
  * sled, up to four of one good along one walk (SLED_LOAD), so the board
  * holds fewer, bigger jobs.
+ *
+ * 78's note follows.
+ *
+ * 78: every unit carries half again his hit points (defs/units.ts) — serf
+ * and worker 25 to 38, knight 80 to 120, spearman 45 to 68, archer 32 to
+ * 48, bandit 40 to 60, bandit archer 30 to 45, marauder 70 to 105. Damage,
+ * cooldowns and every building's hit points stay where they were, so each
+ * fight between men takes half again as many blows, a tower and a wall
+ * fall to the same strokes as before, and every haul re-planned round a
+ * fight walks elsewhere. Old logs stop playing, which is the honest outcome.
  *
  * 77's note follows.
  *
@@ -1466,4 +1476,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 79;
+export const REPLAY_VERSION = 80;

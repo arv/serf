@@ -214,7 +214,13 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * 9's advised war never decides, 3 decides neither way, and 6, 7, 10, 12,
  * 13, 15 and 16 tie.)
  *
- * 5 since winter reached the ground (replay 78): the snow slows every
+ * Still 8 when every unit took half again his hit points (replay 78).
+ * Re-measured rather than assumed: the control now ends at 11_808 and the
+ * advised war at 10_679 — the advised tick unchanged, the control 438
+ * ticks sooner — so seat 1 still wins both ways, 1_129 ticks of gap and
+ * 10_192 under the bound.
+ *
+ * 5 since winter reached the ground (replay 79): the snow slows every
  * walk and a serf hauls four to a sled, and on seed 8 the advice now
  * changes who wins (seat 0 at 21_229 unadvised, seat 1 at 20_317) rather
  * than how soon. On seed 5, seat 1 wins both ways, at 13_525 and 13_195

@@ -718,7 +718,7 @@ describe('the scout that runs', () => {
     const errand = moves(brain.decide(world)).find(m => m.unitIds.length === 1);
     expect(errand).toBeDefined();
     const scout = world.units.get(errand!.unitIds[0]!)!;
-    scout.hp = 30; // under half of a knight's 80
+    scout.hp = 30; // under half of a knight's 120
     world.tick += 20;
     const flight = moves(brain.decide(world)).find(
       m => m.unitIds.length === 1 && m.unitIds[0] === scout.id,
