@@ -20,6 +20,12 @@
  * directly.
  */
 /**
+ * 77: the lakes freeze. For the last quarter of every eight-minute year
+ * the pathfinder takes water as ground (sim/systems/ice.ts), so any haul,
+ * march or raid planned in winter may cross a lake it used to walk round.
+ *
+ * 76's note follows.
+ *
  * 76: the Monument stands where its owner likes.
  *
  * It had a placement rule no other building has — a gold seam within four
@@ -1441,9 +1447,5 @@
  * 12 was two sim fixes that shipped together: the pathfinder's
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
- *
- * 77: the lakes freeze. For the last quarter of every eight-minute year
- * the pathfinder takes water as ground (sim/systems/ice.ts), so any haul,
- * march or raid planned in winter may cross a lake it used to walk round.
  */
 export const REPLAY_VERSION = 77;
