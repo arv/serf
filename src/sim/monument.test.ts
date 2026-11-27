@@ -4,8 +4,9 @@ import * as BuildingState from './buildingStateEnum.ts';
 import {BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
+import * as GameEventKind from './gameEventKindEnum.ts';
 import * as MatchState from './matchStateEnum.ts';
-import {addStorehouse, bareWorld} from './testUtils.ts';
+import {addSerf, addStorehouse, bareWorld} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import * as TileResource from './tileResourceEnum.ts';
 import {
@@ -107,7 +108,48 @@ describe('the monument', () => {
     expect(world.outcome.state).toBe(MatchState.playing);
     placeBuiltBuilding(world, BuildingTypeId.monument, 0, 32, 30);
     run(world, 2);
+    // The outcome says what decided it and where it stands (the middle of
+    // the three-tile plinth): the end card has nothing else to tell a
+    // monument win from a castle falling, and nowhere else to point.
+    expect(world.outcome).toEqual({
+      state: MatchState.over,
+      winner: 0,
+      monument: {x: 33.5, y: 31.5},
+    });
+  });
+
+  it('a match decided any other way names no monument', () => {
+    const world = valley();
+    destroyBuilding(world, [...world.buildings.values()][1]!);
+    run(world, 2);
     expect(world.outcome).toEqual({state: MatchState.over, winner: 0});
+  });
+
+  it('announces itself once, on the load that commits it', () => {
+    // The first delivery is what puts a site on every rival's map
+    // (visibility.ts) — and a mark on a map is only a warning to a player
+    // who is looking at it. The same load raises an event the client turns
+    // into a horn and a notice. Once: a notice per stone would be sixty.
+    const world = valley();
+    const store = [...world.buildings.values()][0]!;
+    store.stock[GoodId.stone] = 5;
+    // One pair of hands, so the loads land one at a time.
+    addSerf(world, 14, 12);
+    const site = placeSite(world, BuildingTypeId.monument, 0, 16, 10);
+    const rising = () =>
+      world.pendingEvents.filter(e => e.kind === GameEventKind.monumentRising);
+    // Placement alone says nothing: a site is free to put down.
+    run(world, 1);
+    expect(rising()).toEqual([]);
+    const owedAtFirst = site.siteNeeds![GoodId.stone]!;
+    for (let i = 0; i < 2000 && rising().length === 0; i++) run(world, 1);
+    // Whose, so the owner's own client can stay quiet — and not where.
+    expect(rising()).toEqual([{kind: GameEventKind.monumentRising, owner: 0}]);
+    expect(site.siteNeeds![GoodId.stone]).toBe(owedAtFirst - 1);
+    // The rest of the stone lands without another word.
+    run(world, 4000);
+    expect(site.siteNeeds![GoodId.stone]).toBe(owedAtFirst - 5);
+    expect(rising()).toHaveLength(1);
   });
 
   it('an unfinished one wins nothing, however long it stands', () => {

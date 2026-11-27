@@ -122,8 +122,8 @@ export interface UnitSnapshot {
   hpPct: number;
   /**
    * The unit's own full health in hitpoints, so a reader can turn `hpPct`
-   * back into the absolute pair a card prints ("104/120"). Saturated at 255
-   * by the producer (see above), which is well clear of the 120 a soldier
+   * back into the absolute pair a card prints ("164/180"). Saturated at 255
+   * by the producer (see above), which is well clear of the 180 a soldier
    * musters at today — a modifier that ever carried a man past a byte would
    * read as capped there, never as wrapped.
    */

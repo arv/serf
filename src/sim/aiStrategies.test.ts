@@ -87,7 +87,7 @@ describe('the AI playbooks', () => {
       expect(
         world.outcome,
         `${AI_STRATEGY_KEYS[id]} ended at tick ${world.tick}`,
-      ).toEqual({
+      ).toMatchObject({
         state: MatchState.over,
         winner: 0,
       });

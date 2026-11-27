@@ -392,6 +392,15 @@ export const [outcome, setOutcome] = createSignal<OutcomeSnap>({
   state: MatchState.playing,
 });
 
+/**
+ * The outcome card is standing back while the camera shows what decided
+ * the match. A finished monument ends it wherever the player happens to be
+ * looking, and a card dropped over that says "Defeat" about a village with
+ * every wall still up — so the camera goes to the stone first, and the
+ * card follows it (app/matchScreen.ts holds the clock).
+ */
+export const [outcomeReveal, setOutcomeReveal] = createSignal(false);
+
 /** Sandbox switches, mirrored from the sim (?admin panel). */
 export const [adminState, setAdminState] = createSignal({
   enabled: true,
@@ -565,6 +574,7 @@ export function resetMatchState(): void {
   setLastAlert(null);
   setChatOpen(false);
   setOutcome({state: MatchState.playing});
+  setOutcomeReveal(false);
   setAdminState({enabled: true, raidsEnabled: true, instantBuild: false});
   setDebugOpen(false);
   setDebugJobs([]);

@@ -764,7 +764,7 @@ describe('the campaign missions', () => {
       tickWorld(world, commands);
     }
 
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+    expect(world.outcome, `ended at tick ${world.tick}`).toMatchObject({
       state: MatchState.over,
       winner: 0,
     });

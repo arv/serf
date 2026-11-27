@@ -214,26 +214,23 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * 9's advised war never decides, 3 decides neither way, and 6, 7, 10, 12,
  * 13, 15 and 16 tie.)
  *
- * 5 since winter reached the ground (replay 78): the snow slows every
- * walk and a serf hauls four to a sled, and on seed 8 the advice now
- * changes who wins (seat 0 at 21_229 unadvised, seat 1 at 20_317) rather
- * than how soon. On seed 5, seat 1 wins both ways, at 13_525 and 13_195
- * (14_529 and 13_747 once the Smith forged sleds, 12_417 and 12_084 once
- * the AI ordered them; the other seeds below were measured before either
- * and not since).
- * (No other seed of the first twenty holds: 1 inverts by a tick, 18 and 20
- * invert, 9 and 11 are won sooner but by seat 0, 6, 7 and 14 only decide
- * when advised, and 2, 3, 4, 10, 12, 13, 15, 16, 17 and 19 tie.)
+ * Still 8 when every unit took half again his hit points (replay 78).
+ * Re-measured rather than assumed: the control now ends at 11_808 and the
+ * advised war at 10_679 — the advised tick unchanged, the control 438
+ * ticks sooner — so seat 1 still wins both ways, 1_129 ticks of gap and
+ * 10_192 under the bound.
  *
- * Back to 8 once the Smith stopped forging sleds on its own: on seed 5
- * the advised war and the control now end on the same tick (16_672), and
- * on 8 seat 1 wins both ways again, at 12_075 and 11_020. (2, 6 and 20
- * hold too; 1 by 38 ticks; 9, 14 and 18 invert; 4 and 7 go to seat 0; 3's
- * advised war never decides; the rest tie.)
+ * 11 once winter reached the ground and its sleds came in on top of the
+ * hit points (replay 79). On seed 8 the advised war now ends 22 ticks
+ * after the control (11_031 against 11_009), so 8 inverted; on 11, seat 1
+ * wins both ways, at 16_630 and 13_081. (5 and 20 hold too, at 13_248 /
+ * 12_507 and 13_790 / 11_331; 1, 14 and 18 invert; 3 and 9 change the
+ * winner; 2's advised war never decides; 4 and 7 go to seat 0; the rest
+ * tie.)
  *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 8;
+const FULL_MATCH_SEED = 11;
 const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {

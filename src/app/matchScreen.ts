@@ -57,7 +57,10 @@ import {
   setAdminState,
   setDebugJobs,
   setInvariantViolations,
+  outcome,
+  replayMode,
   setOutcome,
+  setOutcomeReveal,
   setSimTick,
   setPlayersMeta,
   setSelectedBuilding,
@@ -128,6 +131,14 @@ const GL_REASON_MAX = 160;
  * otherwise leak a worker for every match walked out of.
  */
 const QUIT_GRACE_MS = 2_000;
+/** The camera's run to the monument that ended a match, and how close it
+ * closes in: a three-tile plinth with its statue, and the ground round it
+ * that says whose village this is. */
+const MONUMENT_GLIDE_MS = 1_400;
+const MONUMENT_VIEW = 14;
+/** How long the outcome card stands back for it — the glide, and a few
+ * seconds of the thing itself. */
+const MONUMENT_HOLD_MS = 5_000;
 
 /**
  * A blank canvas, in the place of one that has been asked and refused.
@@ -885,6 +896,38 @@ export async function runMatch(
    * which is the one thing a quit needs to know about it. */
   let lastTick = 0;
 
+  /**
+   * A monument decided the match: say so, and go and look at it.
+   *
+   * It ends the match with nothing else on the board changed — a beaten
+   * seat still has its castle and its army, and may never have laid eyes
+   * on the thing — so the bare outcome card explains nothing. The fog is
+   * already off for a decided match (the loop below), which is what makes
+   * the stone there to look at.
+   *
+   * A recording is told and not taken: playback's camera belongs to
+   * whoever is watching, and it has no outcome card to hold back.
+   *
+   * Above onStructural for the reason `reported` is: the frames replayed
+   * at registration can carry the game-over, and the timer below must be
+   * out of its dead zone by then.
+   */
+  let revealTimer: ReturnType<typeof setTimeout> | undefined;
+  teardown.push(() => clearTimeout(revealTimer));
+  function showMonument(winner: number, at: {x: number; y: number}): void {
+    pushToast(
+      winner === viewerId()
+        ? 'Your Monument is finished!'
+        : `${seatName(winner, playersMeta())} has finished a Monument!`,
+      at,
+    );
+    if (replayMode()) return;
+    renderer.rig.glideTo(at.x, at.y, MONUMENT_GLIDE_MS, MONUMENT_VIEW);
+    setOutcomeReveal(true);
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => setOutcomeReveal(false), MONUMENT_HOLD_MS);
+  }
+
   // Every structural frame the screen takes in — and the one place a throw
   // out of one can be caught.
   //
@@ -1174,8 +1217,25 @@ export async function runMatch(
         pushToast(
           label ? `Objective complete: ${label}` : 'Objective complete',
         );
+      } else if (
+        event.kind === GameEventKind.monumentRising &&
+        event.owner !== viewerId() &&
+        !spectating
+      ) {
+        // The raid horn again: one sound means "look up, something is
+        // coming", and this is the one thing coming that no wall stops.
+        // That one is rising is the whole of the news: whose it is and
+        // where it stands are what scouting is for, so the notice names
+        // nobody and points nowhere.
+        play('raidHorn');
+        pushToast('A rival is raising a Monument!');
       } else if (event.kind === GameEventKind.gameOver) {
         play(event.winner === viewerId() ? 'victory' : 'defeat');
+        const at =
+          msg.outcome.state === MatchState.over
+            ? msg.outcome.monument
+            : undefined;
+        if (at && event.winner !== null) showMonument(event.winner, at);
       }
     }
     // After the loop, not before it: strikes in the frame that ended the
@@ -1355,8 +1415,14 @@ export async function runMatch(
     // server has already stopped filtering what it sends us. The viewed
     // seat's death, since it is the view being drawn: watching the
     // Warlord's last stand in a replay, the valley opens when he falls.
+    //
+    // A decided match lifts it for everyone, on the same reasoning and
+    // from the same server rule (server/src/sync.ts seesAll): nothing is
+    // left to hide, and a seat beaten by a monument it never scouted is
+    // owed a look at the thing that beat it.
     const fallen = playersMeta()[viewerId()]?.alive === false;
-    const fogOn = fogEnabled() && !fallen;
+    const fogOn =
+      fogEnabled() && !fallen && outcome().state !== MatchState.over;
     // The building pass is the exception that has to be told: it re-reads
     // its fog rule only when a roster lands, and the worker ships one only
     // when the roster CHANGES (simWorker's structural gate) — never at all
