@@ -58,6 +58,10 @@ export function hashWorld(world: World): number {
     // readout — but it is state the save and the clone both have to carry,
     // and the digest is what catches one of them dropping it.
     mixF64(u.maxHp);
+    // What he carries, how many of it, and the cart he carries it on: a man
+    // with wood and a man with stone deliver different goods, and a sled's
+    // four is not a pair of arms' one.
+    mix(u.carrying ?? 0);
     mix(u.carryCount ?? 1);
     mix(u.cart ?? 0);
     mixU32(u.owner);

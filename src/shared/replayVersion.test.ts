@@ -861,8 +861,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // 79 for winter on the ground: the snow slows every walk and a serf hauls
 // four to a sled.
 // 80 for wheelbarrows: summer hauls go two to a barrow (replayVersion.ts).
+// Still 80 when hashWorld learned to read the good a man is carrying (it
+// mixed how many and on what cart, never what): a test tool's digest, no
+// tick moves.
 const EXPECTED_VERSION = 80;
-const EXPECTED_HASH = 'a23bd1c7cc98f508871da05b5da3286b';
+const EXPECTED_HASH = '1aceb8aa7fcb53acb5ca6ee758021d36';
 
 /**
  * Everything a replay's playback depends on, as raw source:
