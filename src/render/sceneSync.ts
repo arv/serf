@@ -35,6 +35,7 @@ import {
 } from './characters';
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
+import type {IceHole, IceHoles} from './iceHoles';
 import {type ArmChain, findArm, ikReach} from './ik';
 import {makeCarryProp} from './models';
 import {goldOre} from './palette';
@@ -95,6 +96,8 @@ interface UnitVisual {
   /** Right-arm bone chain for the well-crank IK. undefined = not looked
    * up yet, null = this rig has no such bones. */
   arm?: ArmChain | null;
+  /** The left one, for the second fist on an ice auger. */
+  armL?: ArmChain | null;
   /** Mowing-walk state (the farmer on his field): which circuit point he
    * is walking toward, the ping-pong direction, ground left to cover
    * before the next stroke, and the anim-clock time his current stroke
@@ -498,6 +501,15 @@ export class SceneSync {
 
   setPiers(piers: PierInfo[]): void {
     this.#piers = piers;
+  }
+
+  /** The holes in a frozen lake (iceHoles.ts). Without them a fisherman
+   * fishes the ice as if it were water, which is what the editor's
+   * play-test and the model lab still do. */
+  #holes: IceHoles | null = null;
+
+  setIceHoles(holes: IceHoles): void {
+    this.#holes = holes;
   }
 
   /** Built wheat farms' fields (from the same structural feed). The
@@ -1106,6 +1118,20 @@ export class SceneSync {
       const workKind = latest.aux[a + 5]!;
       const dead = action === ACTION.dead;
       if (dead) moving = false; // corpses don't turn or bob
+      // A fisherman at his post on a lake that froze while nobody was
+      // looking has been fishing all along as far as the sim is concerned:
+      // his hole is already dug. Only a man the fog has not hidden gets
+      // here, so this tells no one about a hut they cannot see.
+      if (
+        offScreen &&
+        !moving &&
+        this.#holes &&
+        workKind === WORK.fish &&
+        action === ACTION.work
+      ) {
+        const pier = this.#nearestPier(x, y);
+        if (pier) this.#holes.finish(pier);
+      }
       // A fighter who has stopped to swing has no movement delta to face by,
       // so it would keep the yaw it walked in with and hack at the air beside
       // its enemy. The sim sends the bearing to whatever it is actually
@@ -1187,6 +1213,10 @@ export class SceneSync {
       let fishing = false;
       let onDeck = false;
       let pierStep = false;
+      // Winter: the hole his line wants, and whether he is at the end of
+      // the deck boring it rather than fishing.
+      let hole: IceHole | null = null;
+      let drilling = false;
       if (leaving && pier) {
         // Walking the planks off. Driven along the deck line itself rather
         // than from where he is drawn: the sim is walking him inland under
@@ -1231,6 +1261,13 @@ export class SceneSync {
           (curX - pier.baseX) * dirZ - (curZ - pier.baseZ) * dirX,
         );
         onDeck = along > -0.1 && drift < 0.3;
+        // On a frozen lake his line needs a hole (iceHoles.ts). Until it
+        // is bored his stand is the deck's very end, where the auger
+        // reaches down to the ice; after, it is the fishing spot and no
+        // other — a line walked down the planks would come out of it.
+        hole = this.#holes?.at(pier) ?? null;
+        const bore = hole && !hole.drilled ? hole : null;
+        const unbored = bore !== null;
         // The stand he casts from: the fishing spot, or PIER_PACE back down
         // the planks from it. Clamped off the landward end so a deck the fit
         // trimmed short still leaves him standing on boards.
@@ -1238,9 +1275,11 @@ export class SceneSync {
           pier.spotX - pier.baseX,
           pier.spotZ - pier.baseZ,
         );
-        const back = Math.min(visual.pierBack ?? 0, Math.max(0, reach - 0.25));
-        const standX = pier.spotX - dirX * back;
-        const standZ = pier.spotZ - dirZ * back;
+        const back = hole
+          ? 0
+          : Math.min(visual.pierBack ?? 0, Math.max(0, reach - 0.25));
+        const standX = bore ? bore.standX : pier.spotX - dirX * back;
+        const standZ = bore ? bore.standZ : pier.spotZ - dirZ * back;
         // Two legs, not a beeline: off the planks he converges on the
         // landward end first — a straight run at his stand would cut the
         // corner through open water. The door is that same end (the deck is
@@ -1253,7 +1292,8 @@ export class SceneSync {
         const dz = tz - curZ;
         const dist = Math.hypot(dx, dz);
         const arrived = dist < 0.08;
-        fishing = onDeck && !home && arrived;
+        drilling = onDeck && !home && arrived && unbored;
+        fishing = onDeck && !home && arrived && !unbored;
         if (post) {
           // The catch. A convert batch ends with ONE non-work tick before
           // the next begins — the same tick the farmer's mowWorkUntil
@@ -1268,7 +1308,9 @@ export class SceneSync {
           // simply the thing that stops arriving — so he keeps fishing at
           // his stand, which is what the sim says he is doing.
           const working = action === ACTION.work;
-          if (!working && !visual.pierHauling) {
+          // ...except through ice he has not yet bored: nothing he could
+          // have caught, so the batch edge goes by and he keeps at it.
+          if (!working && !visual.pierHauling && !unbored) {
             visual.pierHauling = true;
             visual.pierUntil = undefined;
           }
@@ -1303,10 +1345,11 @@ export class SceneSync {
           visual.pierOff = onDeck && along > 0.15 ? post : undefined;
           visual.pierOffAt = undefined;
         }
-        if (fishing) {
+        if (fishing || drilling) {
           visual.sepX = this.#sepTX[i] = standX - x;
           visual.sepY = this.#sepTY[i] = standZ - y;
           visual.group.rotation.y = pier.yaw; // face the water
+          if (drilling && hole) this.#holes?.drill(hole, dt);
         } else if (home && arrived) {
           // At the door with the catch: hold the spot and face the hut,
           // which is back down the deck line.
@@ -1464,7 +1507,11 @@ export class SceneSync {
         // Right tool for the job: mallet on sites, pickaxe at rock faces,
         // carried on the walk out too — a woodcutter heads to the trees
         // axe in fist. Only full hands stow it: cargo owns the grip.
-        setWorkTool(visual.char, heldCarry ? TOOL_STOWED : workKind);
+        // The rod is put by while both hands are on the auger.
+        setWorkTool(
+          visual.char,
+          heldCarry || drilling ? TOOL_STOWED : workKind,
+        );
         // Whether playAnimation below actually (re)starts the clip: a
         // state change, or the first frame back from a cull (which nulled
         // `current`). Read before the call — it sets `current` to key.
@@ -1681,6 +1728,21 @@ export class SceneSync {
         if (visual.arm) {
           crankWell.grip.getWorldPosition(IK_TARGET);
           ikReach(visual.arm, IK_TARGET);
+        }
+      }
+      // The auger likewise, with both fists: the left bears down on its
+      // knob and the right turns the brace — on the idle pose, the way the
+      // well's cranking hand is.
+      if (drilling && hole && visual.char) {
+        if (visual.arm === undefined) visual.arm = findArm(visual.group, 'r');
+        if (visual.armL === undefined) visual.armL = findArm(visual.group, 'l');
+        if (visual.arm) {
+          hole.grip.getWorldPosition(IK_TARGET);
+          ikReach(visual.arm, IK_TARGET, 4);
+        }
+        if (visual.armL) {
+          hole.knob.getWorldPosition(IK_TARGET);
+          ikReach(visual.armL, IK_TARGET, 4);
         }
       }
     }

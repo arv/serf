@@ -21,6 +21,7 @@ import {batteryFramePacer} from '../render/framePacer';
 import {GhostPlacement} from '../render/ghost';
 import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
+import {IceHoles} from '../render/iceHoles';
 import {MarginMesh} from '../render/marginMesh';
 import {Mist} from '../render/mist';
 import {RallyFlag} from '../render/rallyFlag';
@@ -566,6 +567,11 @@ export async function runMatch(
   const sync = new SceneSync(renderer.scene, init.reader, heights);
   const sleds = new Sleds(renderer.scene, heights, sync);
   teardown.push(() => sleds.dispose());
+  // The fishermen's holes in a frozen lake: where the ice is is the water
+  // mesh's to say, and the sync walks each man out to cut his.
+  const iceHoles = new IceHoles(renderer.scene, heights, water);
+  sync.setIceHoles(iceHoles);
+  teardown.push(() => iceHoles.dispose());
   sync.onCue = (cue, x, z, delaySec) => {
     playAt(cue, x, z, 1, delaySec);
     // The axe that files the sound also moves the tree. Riding the one
@@ -598,8 +604,10 @@ export async function runMatch(
   // that answer moves with the fog and with a rising site, not only with
   // the roster, so the frame loop reads it live (occluderBoxes).
   const feedWells = (): void => {
+    const piers = buildingSync.fisheryPiers();
     sync.setWells(buildingSync.wellCranks());
-    sync.setPiers(buildingSync.fisheryPiers());
+    sync.setPiers(piers);
+    iceHoles.setPiers(piers);
     sync.setFields(buildingSync.farmFields());
   };
   feedWells();
@@ -707,6 +715,7 @@ export async function runMatch(
       __seasons: seasons,
       __host: host,
       __sleds: sleds,
+      __iceHoles: iceHoles,
       __sync: sync,
       __buildings: buildingSync,
       __xray: {
@@ -1478,6 +1487,8 @@ export async function runMatch(
       speed() === 0,
       bounds,
     );
+    // After the sync: it is what turned the augers this frame.
+    iceHoles.update();
     buildingSync.highlight(
       controls.hoverBuilding,
       selectedBuilding()?.id ?? -1,

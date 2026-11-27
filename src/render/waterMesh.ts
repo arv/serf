@@ -3,6 +3,41 @@ import {WATER_LEVEL, type MapView} from '../sim/map';
 import {water, waterDeep, waterShore} from './palette';
 
 /**
+ * The depth band the water is shaded over: below DEPTH_FLOOR it is all
+ * shallows, past DEPTH_FLOOR + DEPTH_SPAN all deeps (normalized over the
+ * lake beds' actual shelving range, see worldgen).
+ */
+const DEPTH_FLOOR = 0.06;
+const DEPTH_SPAN = 1.15;
+/**
+ * Where on the lake's way to frozen water of a given depth takes: the
+ * shallowest at ICE_SHALLOW, the deepest ICE_DEEP_LAG later. Every depth
+ * is hard by the time the lake is.
+ */
+const ICE_SHALLOW = 0.2;
+const ICE_DEEP_LAG = 0.5;
+
+/** A number as a GLSL float literal: `1` would be an int, and GLSL will
+ * not mix the two. */
+const glsl = (n: number): string => n.toFixed(4);
+
+/**
+ * How hard the ice is, 0 to 1, over water `depth` deep while the lake is
+ * `frozen` of the way to hard — the shader's own rule (iceAt below), for
+ * whatever has to agree with the ice on screen: the fisherman's hole is
+ * cut where this says there is ice to cut.
+ */
+export function iceOver(depth: number, frozen: number): number {
+  if (depth <= 0) return 0;
+  const d01 = THREE.MathUtils.clamp((depth - DEPTH_FLOOR) / DEPTH_SPAN, 0, 1);
+  return THREE.MathUtils.smoothstep(
+    frozen,
+    ICE_SHALLOW + d01 * ICE_DEEP_LAG,
+    1,
+  );
+}
+
+/**
  * The water surface: one plane at the waterline, shaded against the terrain
  * beneath it. The bed heightfield rides along as a texture, so every pixel
  * knows how deep the water under it is — which is what makes it read as
@@ -129,7 +164,8 @@ export class WaterMesh {
           // whole until uFrozen is, which the seasons hold at 1 for exactly
           // as long as the sim lets a man walk on it.
           float iceAt(float d01) {
-            return smoothstep(0.2 + d01 * 0.5, 1.0, uFrozen);
+            return smoothstep(
+              ${glsl(ICE_SHALLOW)} + d01 * ${glsl(ICE_DEEP_LAG)}, 1.0, uFrozen);
           }
 
           float bedAt(vec2 w) {
@@ -173,7 +209,8 @@ export class WaterMesh {
             if (depth <= 0.0) discard;
             // Normalized over the bed's actual shelving range (see the
             // lake beds in worldgen), so the whole gradient gets used.
-            float d01 = clamp((depth - 0.06) / 1.15, 0.0, 1.0);
+            float d01 = clamp(
+              (depth - ${glsl(DEPTH_FLOOR)}) / ${glsl(DEPTH_SPAN)}, 0.0, 1.0);
 
             // Shallows glow, deeps go dark and saturated.
             vec3 col = mix(uShallow, uMid, smoothstep(0.0, 0.3, d01));
@@ -219,7 +256,8 @@ export class WaterMesh {
           {
             vec2 p = vWorldPos.xz;
             float depth = uWaterLevel - bedAt(p);
-            float d01 = clamp((depth - 0.06) / 1.15, 0.0, 1.0);
+            float d01 = clamp(
+              (depth - ${glsl(DEPTH_FLOOR)}) / ${glsl(DEPTH_SPAN)}, 0.0, 1.0);
             // Shimmer: a faster, finer field clipped near its peaks, so
             // only the crests catch the light. Fades out in the shallows,
             // where the bed shows through instead.
