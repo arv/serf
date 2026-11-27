@@ -125,14 +125,11 @@ export class WaterMesh {
           // shows.
           // How hard the ice is over water of this depth. The shallows
           // take first and the deeps last, so a lake closes from its banks
-          // inward and opens from its middle out — but all of it late in
-          // the snow's coming and early in its going, because the sim
-          // lets a man onto the ice only while the snow lies whole
-          // (iceBears in sim/defs/balance.ts), and ice that looks sound
-          // has to be ice that is.
+          // inward and opens from its middle out — and no depth of it is
+          // whole until uFrozen is, which the seasons hold at 1 for exactly
+          // as long as the sim lets a man walk on it.
           float iceAt(float d01) {
-            float from = 0.78 + d01 * 0.1;
-            return smoothstep(from, from + 0.12, uFrozen);
+            return smoothstep(0.2 + d01 * 0.5, 1.0, uFrozen);
           }
 
           float bedAt(vec2 w) {

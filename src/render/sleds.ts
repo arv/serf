@@ -262,6 +262,10 @@ export class Sleds {
   }
 
   update(seconds: number, speed: number, snow: number): void {
+    // Nothing asked for and nothing standing: a match without sleds pays
+    // for none of this.
+    if (!this.#enabled && this.#pullers.length === 0 && this.#sleds.size === 0)
+      return;
     const dt =
       this.#last === undefined
         ? 0

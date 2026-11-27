@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import {TICKS_PER_SECOND, YEAR_TICKS} from '../sim/defs/balance';
+import {
+  ICE_FROM,
+  ICE_GRACE_TICKS,
+  ICE_UNTIL,
+  TICKS_PER_SECOND,
+  YEAR_TICKS,
+} from '../sim/defs/balance';
 import {
   background,
   fog,
@@ -104,6 +110,11 @@ const NUMBER_FIELDS = [
   'snow',
   'falling',
 ] as const satisfies readonly (keyof Key)[];
+
+/** The share of the year a lake spends closing before it bears, and
+ * opening after it stops. */
+const ICE_FORMING = 0.05;
+const ICE_BREAKING = 0.03;
 
 /** How far the view's clock may run past the last tick the sim reported,
  * and the gap past which it stops gliding and jumps. */
@@ -295,6 +306,22 @@ export class Seasons {
    * them, as sRGB hex. One object, rewritten in place. */
   readonly chart = {snow: 0, unknown: background, water};
 
+  /**
+   * How far the lakes have frozen over at `tick`, 0 open to 1 hard. Not the
+   * snow's curve but the sim's own window (iceBears in sim/defs/balance.ts):
+   * hard for exactly as long as the ice bears, forming over the seconds
+   * before and breaking over the seconds after. Ice that looks sound is
+   * ice that is; what is still taking or already going looks it.
+   */
+  #frozen(tick: number): number {
+    const into = (tick % this.#yearTicks) / this.#yearTicks;
+    const until = ICE_UNTIL + ICE_GRACE_TICKS / YEAR_TICKS;
+    return (
+      THREE.MathUtils.smoothstep(into, ICE_FROM - ICE_FORMING, ICE_FROM) *
+      (1 - THREE.MathUtils.smoothstep(into, until, until + ICE_BREAKING))
+    );
+  }
+
   /** DEV: the tick the view has reached, for checking it glides. */
   get shown(): number {
     return this.#shown;
@@ -308,7 +335,8 @@ export class Seasons {
         : Math.min(Math.max(seconds - this.#last, 0), 0.25);
     this.#last = seconds;
     this.#airTime += dt * speed;
-    const phase = this.#phase(this.preview ?? this.#clock(tick, speed, dt));
+    const shown = this.preview ?? this.#clock(tick, speed, dt);
+    const phase = this.#phase(shown);
     const n = this.#cycle.length;
     const from = KEYS[this.#cycle[Math.floor(phase) % n]!];
     const to = KEYS[this.#cycle[(Math.floor(phase) + 1) % n]!];
@@ -352,7 +380,9 @@ export class Seasons {
     col(this.#water.colors.shallow, 'shallow');
     col(this.#water.colors.mid, 'mid');
     col(this.#water.colors.deep, 'deep');
-    this.#water.frozen.value = u.uSnow.value;
+    // A pinned season has no year to read the ice off: its lake is as
+    // frozen as its ground is white.
+    this.#water.frozen.value = n === 1 ? u.uSnow.value : this.#frozen(shown);
     this.chart.snow = u.uSnow.value;
     this.chart.unknown = col(SCRATCH_OUT, 'backdrop').getHex();
     this.chart.water = col(SCRATCH_OUT, 'mid').getHex();
