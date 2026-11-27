@@ -473,11 +473,10 @@ export function setSledModel(model: THREE.Object3D): void {
 
 export function makePileProp(good: GoodId): THREE.Group {
   if (good === GoodId.sled && sledModel) {
-    // Parked side by side at the castle's door, nose out.
+    // Parked (buildingSync lines them up along the castle's side).
     const g = new THREE.Group();
     const sled = sledModel.clone();
     sled.scale.setScalar(0.85);
-    sled.rotation.y = Math.PI / 2;
     g.add(sled);
     return g;
   }

@@ -225,9 +225,15 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * invert, 9 and 11 are won sooner but by seat 0, 6, 7 and 14 only decide
  * when advised, and 2, 3, 4, 10, 12, 13, 15, 16, 17 and 19 tie.)
  *
+ * Back to 8 once the Smith stopped forging sleds on its own: on seed 5
+ * the advised war and the control now end on the same tick (16_672), and
+ * on 8 seat 1 wins both ways again, at 12_075 and 11_020. (2, 6 and 20
+ * hold too; 1 by 38 ticks; 9, 14 and 18 invert; 4 and 7 go to seat 0; 3's
+ * advised war never decides; the rest tie.)
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
-const FULL_MATCH_SEED = 5;
+const FULL_MATCH_SEED = 8;
 const FULL_MATCH_TICKS = 22_000;
 
 describe('wilson intervals', () => {

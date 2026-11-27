@@ -539,6 +539,7 @@ export async function runMatch(
   renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights);
+  buildingSync.setMap(mirror.map);
   // Presentation cues flow render -> audio, injected like the fog: the
   // sync knows when and where, the audio layer knows whether and how loud.
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);

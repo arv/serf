@@ -9,7 +9,6 @@ import {
   YEAR_TICKS,
   isWinter,
 } from './defs/balance.ts';
-import {SLED_STOCK} from './defs/balance.ts';
 import {buildingDef} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
@@ -178,9 +177,9 @@ describe('sleds', () => {
     );
   });
 
-  it('are forged at the Smith from wood once every post has its tool', () => {
+  it('are forged at the Smith from wood, and only when ordered', () => {
     const world = bareWorld();
-    const store = addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 30, 30, {});
     const smith = placeBuiltBuilding(
       world,
       BuildingTypeId.weaponsmith,
@@ -189,15 +188,16 @@ describe('sleds', () => {
       30,
     );
     const def = buildingDef(smith.type);
-    const index = autoForgeIndex(world, smith, def);
-    expect(index).toBeDefined();
-    const recipe = def.recipeOptions![index!]!.recipe;
-    expect(recipe.outputs).toEqual({[GoodId.sled]: 1});
-    expect(Object.keys(recipe.inputs)).toEqual([String(GoodId.wood)]);
-
-    // Stocked up, the fire goes cold again.
-    store.stock[GoodId.sled] = SLED_STOCK;
+    // Every post served and not a sled in the village: auto still forges
+    // nothing. A village has the sleds somebody asked for.
     expect(autoForgeIndex(world, smith, def)).toBeUndefined();
+    const index = def.recipeOptions!.findIndex(
+      o => (o.recipe.outputs[GoodId.sled] ?? 0) > 0,
+    );
+    expect(index).toBeGreaterThanOrEqual(0);
+    const recipe = def.recipeOptions![index]!.recipe;
+    expect(recipe.inputs).toEqual({[GoodId.wood]: 2});
+    expect(def.recipeOptions![index]!.requiresTech).toBeUndefined();
   });
 
   it('take home whatever is waiting at the door, not just what was booked', () => {

@@ -81,18 +81,19 @@ pnpm dev
   never leaves the post. The castle repairs too, out of the stores already
   inside it, against a notional price of its own (it cost nothing to raise).
 - **Winter**: a year is eight minutes and its last quarter is winter. While
-  the snow lies, everyone — serfs, soldiers and raiders alike — walks at
-  four fifths of his pace, and the snow buries the paving with the trails,
-  so a road is no faster than open ground. In exchange a serf hauls by
-  sled, anywhere the snow lies — if the castle has one to lend: sleds
-  are forged at the Smith from two wood, and a Smith left on auto makes
-  three once every post has its tool. With a sled a serf moves up to four
-  of one good from one door to another in a single walk, so winter is when
-  a village moves what summer let it gather. The lakes
-  and the river freeze hard enough to walk on for most of it, and a haul, a
-  march or a raid takes the ice when the ice is the short way; nothing can
-  be built on it, and whoever is still out when it stops bearing is stood on
-  the nearest shore.
+  the snow lies, until the thaw begins, everyone — serfs, soldiers and
+  raiders alike — walks at four fifths of his pace, and the snow buries
+  the paving with the trails, so a road is no faster than open ground. In
+  exchange a serf can haul by sled: up to four of one good from one door
+  to another in a single walk, so winter is when a village moves what
+  summer let it gather. Sleds are forged at the Smith from two wood (a
+  village starts with none), and a Smith left on auto makes three once
+  every post has its tool. They are parked by the castle; a serf fetches
+  one for a haul and brings it back, and none are used in the thaw. The
+  lakes and the river freeze hard enough to walk on for most of it, and a
+  haul, a march or a raid takes the ice when the ice is the short way;
+  nothing can be built on it, and whoever is still out when it stops
+  bearing is stood on the nearest shore.
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
   A study is ordered, not bought: the bill goes on the Abbey and the serfs
   carry it there load by load, and the clock only starts once the last load

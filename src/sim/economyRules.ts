@@ -21,6 +21,7 @@ import type {Building, EntityId, Owner} from './entities.ts';
 import {countResourceNear, canWorkResourceNear} from './map.ts';
 import {findSpot, nearestClaimableResource} from './siting.ts';
 import {isUnitUnlocked} from './techHelpers.ts';
+import {cargoOf} from './units.ts';
 import type {World} from './world.ts';
 
 export type EconomyRuleId = Enum<typeof EconomyRuleIdNs>;
@@ -851,11 +852,9 @@ const keepTheToolsComing: EconomyRule = {
 };
 
 /**
- * Sleds for the winter haul: order one whenever the castle holds fewer than
- * SLED_STOCK and none is already on order. The AI keeps its anvils on a
- * standing weapons order, so the Smith's own auto (which turns to sleds
- * once every post has its tool) never reaches them; this is the same
- * thing said as an order. After keepTheToolsComing in the table, and it
+ * Sleds for the winter haul: order one whenever the seat owns fewer than
+ * SLED_STOCK and none is already on order. A Smith never makes one on its
+ * own, for the AI or anyone; this is the AI asking. After keepTheToolsComing in the table, and it
  * only orders where there is room, so a missing axe always goes first.
  * Claims nothing, for keepTheToolsComing's reason.
  */
@@ -864,7 +863,17 @@ const stockTheSleds: EconomyRule = {
   when: 'the castle has fewer sleds than a winter wants and none is ordered',
   phase: RulePhaseNs.production,
   fire(ctx) {
-    if ((ctx.stock[GoodId.sled] ?? 0) >= SLED_STOCK) return null;
+    // Every sled the seat owns: on the castle shelf, in a man's hands, new
+    // on a Smith's shelf or being carried home from it. Counting the shelf
+    // alone ordered another whenever one was out on a haul.
+    let owned = 0;
+    for (const b of ctx.mine) owned += b.stock[GoodId.sled] ?? 0;
+    for (const u of ctx.world.units.values()) {
+      if (u.dead || u.owner !== ctx.owner) continue;
+      if (u.sled) owned++;
+      if (u.carrying === GoodId.sled) owned += cargoOf(u);
+    }
+    if (owned >= SLED_STOCK) return null;
     const options = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!;
     const index = options.findIndex(
       o => (o.recipe.outputs[GoodId.sled] ?? 0) > 0,

@@ -4,7 +4,7 @@ import type {CueId} from '../audio/cues';
 import type {BuildingSnap} from '../protocol/messages';
 import * as StaffingState from '../protocol/staffingStateEnum.ts';
 import type {Enum} from '../shared/enum.ts';
-import {tileIdx} from '../shared/grid';
+import {tileIdx, tileX, tileY} from '../shared/grid';
 import {hash2} from '../shared/math';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import {buildingDef} from '../sim/defs/buildings';
@@ -13,6 +13,7 @@ import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {GOODS} from '../sim/defs/goods';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import type {MapView} from '../sim/map';
 import * as AnimKey from './animKeyEnum.ts';
 import {crossedRelease} from './arrows';
 import {glbYardProp, makeGlbBuilding} from './assets';
@@ -252,6 +253,8 @@ interface BuildingVisual {
   pct: number;
   /** Physical stock piles against the front wall. */
   piles?: THREE.Group;
+  /** The castle's sleds, parked on open tiles round it (#park). */
+  parked?: THREE.Group;
   /** Serialized pile contents — rebuilt only when the counts change. */
   pileKey: string;
   /** Which lanes each good's stacks stand in, in claim order, kept across
@@ -1976,9 +1979,16 @@ export class BuildingSync {
       } else {
         n = (b.stock[g] ?? 0) + (b.inputs[g] ?? 0);
       }
+      // The castle's sleds are parked in a row of their own along its
+      // side (below), not heaped in a door lane with the goods.
+      if (g === GoodId.sled && def.storage) continue;
       if (n > 0) shown.push([g, n]);
     }
-    const key = shown.map(([g, n]) => `${g}:${n}`).join('.');
+    const parked = def.storage ? (b.stock[GoodId.sled] ?? 0) : 0;
+    const bays = parked > 0 ? this.#parkingBays(b, parked) : [];
+    if (parked > 0) shown.push([GoodId.sled, -parked]);
+    const key =
+      shown.map(([g, n]) => `${g}:${n}`).join('.') + `|${bays.join(',')}`;
     if (key === v.pileKey) return;
     v.pileKey = key;
     // Lanes are sticky. Laying the stacks out by their index in `shown`
@@ -1989,7 +1999,9 @@ export class BuildingSync {
     // hands its lanes back for the next arrival to claim. A good that
     // outgrows one pile (pileChunks) claims another the same way, and
     // hands back its last-claimed first as it shrinks.
-    const chunks = new Map(shown.map(([g, n]) => [g, pileChunks(g, n)]));
+    const chunks = new Map(
+      shown.filter(([, n]) => n > 0).map(([g, n]) => [g, pileChunks(g, n)]),
+    );
     const lanes = v.pileLanes;
     for (const [g, held] of lanes) {
       const need = chunks.get(g)?.length ?? 0;
@@ -2058,6 +2070,79 @@ export class BuildingSync {
     v.root.add(piles);
     v.piles = piles;
     for (const stack of stacks) this.#seat(v, stack);
+    this.#park(v, b, bays);
+  }
+
+  /**
+   * The tiles round the castle its sleds are parked on, one sled a tile:
+   * open ground only — no building, tree, rock or water — so a house raised
+   * against the wall pushes the sleds along rather than through itself.
+   * Along the flanks first, nearest the walls, then behind; the front is
+   * left to the door piles. Deterministic, so every client parks the same
+   * sled on the same tile.
+   */
+  #parkingBays(b: BuildingSnap, n: number): number[] {
+    const map = this.#map;
+    if (!map) return [];
+    const size = map.size;
+    const out: number[] = [];
+    const take = (x: number, y: number): void => {
+      if (out.length >= n) return;
+      if (x < 0 || y < 0 || x >= size || y >= size) return;
+      const i = tileIdx(x, y, size);
+      if (map.blocked[i] || map.buildingAt[i]! >= 0) return;
+      out.push(i);
+    };
+    // The door's row and everything past it belong to the door piles.
+    const yFront = b.y + b.h;
+    // The flanks first, where the camera sees them; the back, behind the
+    // castle's own bulk, only when the flanks are full.
+    for (let r = 1; r <= 3; r++) {
+      for (let y = b.y - r + 1; y < yFront; y++) take(b.x + b.w - 1 + r, y);
+      for (let y = b.y - r + 1; y < yFront; y++) take(b.x - r, y);
+    }
+    for (let r = 1; r <= 3; r++) {
+      for (let x = b.x - r; x <= b.x + b.w - 1 + r; x++) take(x, b.y - r);
+    }
+    return out;
+  }
+
+  /** Draw the castle's parked sleds on their bays, noses out. */
+  #park(v: BuildingVisual, b: BuildingSnap, bays: number[]): void {
+    if (v.parked) {
+      v.root.remove(v.parked);
+      v.parked = undefined;
+    }
+    if (bays.length === 0 || !this.#map) return;
+    const size = this.#map.size;
+    const cx = b.x + b.w / 2;
+    const cz = b.y + b.h / 2;
+    const parked = new THREE.Group();
+    v.root.add(parked);
+    for (const i of bays) {
+      const x = tileX(i, size) + 0.5 - cx;
+      const z = tileY(i, size) + 0.5 - cz;
+      const sled = makePileProp(GoodId.sled);
+      // Nose away from the castle, on whichever side it stands.
+      const side = Math.abs(x) * b.h >= Math.abs(z) * b.w;
+      sled.rotation.y = side
+        ? x > 0
+          ? Math.PI / 2
+          : -Math.PI / 2
+        : z > 0
+          ? 0
+          : Math.PI;
+      sled.position.set(x, 0, z);
+      parked.add(sled);
+      seatOnGround(sled, this.#heights);
+    }
+    v.parked = parked;
+  }
+
+  #map: MapView | undefined;
+  /** The map the castle's sleds are parked on (#parkingBays). */
+  setMap(map: MapView): void {
+    this.#map = map;
   }
 
   #hoverId = -1;

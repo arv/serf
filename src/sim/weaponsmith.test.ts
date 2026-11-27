@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest';
 import * as CommandKind from './commandKindEnum.ts';
-import {SLED_STOCK} from './defs/balance.ts';
 import {OUTPUT_CAP} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
@@ -294,11 +293,6 @@ describe('the forge queue', () => {
 
   it('auto with every rack served forges nothing at all', () => {
     const {world, smith} = forgeWorld();
-    // ...and the castle already holding its sleds, which is what auto turns
-    // to once every post has its tool (SLED_STOCK).
-    [...world.buildings.values()].find(
-      b => b.type === BuildingTypeId.storehouse,
-    )!.stock[GoodId.sled] = SLED_STOCK;
     smith.inputs[GoodId.iron] = 4;
     smith.inputs[GoodId.wood] = 8;
     for (let i = 0; i < 400; i++) tickWorld(world, []);

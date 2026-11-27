@@ -426,9 +426,10 @@ export function iceBears(tick: number): boolean {
 }
 
 /**
- * PROTOTYPE: winter on the ground. While the snow lies — from the moment it
- * has finished coming until it is half gone — everyone walks slower, and a
- * serf hauls by sled.
+ * PROTOTYPE: winter on the ground. While the snow lies whole — from the
+ * moment it has finished coming until the thaw begins — everyone walks
+ * slower, and a serf hauls by sled. Not in the thaw: slush is no ground
+ * for a runner, and the sleds go home with the first of it.
  *
  * The snow covers everything, roads included: SNOW_SPEED is the pace on
  * grass, trail, paving and ice alike. A summer road network is worth
@@ -441,14 +442,13 @@ export function iceBears(tick: number): boolean {
  * count is how many haulers can go four-up at once. Summer is when a
  * village gathers and winter is when it moves what it gathered.
  */
-export const WINTER_UNTIL = 0.95;
+export const WINTER_UNTIL = ICE_UNTIL;
 export const SNOW_SPEED = 0.8;
 export const SLED_LOAD = 4;
 /**
- * How many sleds a Smith left on auto keeps the castle stocked with, once
- * no post is waiting on a tool. Every four-load walk borrows one sled for
- * its length, so this is how many haulers can be four-up at once; a player
- * who wants more orders them.
+ * How many sleds the AI keeps (stockTheSleds in economyRules.ts). A player
+ * orders his own at the Smith: auto never makes one, so a village has
+ * exactly the sleds somebody asked for.
  */
 export const SLED_STOCK = 3;
 
