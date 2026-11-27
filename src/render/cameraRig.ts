@@ -333,12 +333,15 @@ export class CameraRig {
    * the finger, so the map holds still under the selection band. */
   touchPanEnabled = true;
   /** In-flight glideTo tween; null when the camera is at rest or the
-   * player grabbed it back (any manual pan or focusOn cancels the glide). */
+   * player grabbed it back (any manual pan, zoom or focusOn cancels the
+   * glide). The view heights are equal on a glide that does not reframe. */
   #glide: {
     fromX: number;
     fromZ: number;
     toX: number;
     toZ: number;
+    fromView: number;
+    toView: number;
     t: number;
     dur: number;
   } | null = null;
@@ -485,6 +488,7 @@ export class CameraRig {
           this.#turnByWheel(travel * px);
           return;
         }
+        this.#glide = null;
         this.#viewHeight = clamp(
           this.#viewHeight * Math.exp(e.deltaY * px * 0.0012),
           MIN_VIEW,
@@ -584,6 +588,7 @@ export class CameraRig {
         if (touches.size === 2) {
           const d = spread();
           if (pinchDist > 0 && d > 0) {
+            this.#glide = null;
             this.#viewHeight = clamp(
               this.#viewHeight * (pinchDist / d),
               MIN_VIEW,
@@ -771,10 +776,13 @@ export class CameraRig {
    *
    * Written into the caller's object — this runs per pan and per frame.
    */
-  #footprintExt(out: {x: number; z: number}): {x: number; z: number} {
+  #footprintExt(
+    out: {x: number; z: number},
+    viewHeight = this.#viewHeight,
+  ): {x: number; z: number} {
     const aspect =
       this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
-    const halfH = this.#viewHeight / 2;
+    const halfH = viewHeight / 2;
     const halfW = halfH * aspect;
     const halfG = halfH / Math.sin(this.#pitch);
     const c = Math.abs(Math.cos(this.#yaw));
@@ -842,18 +850,28 @@ export class CameraRig {
   }
 
   /** Glide the camera to a spot instead of snapping — the toast's "take me
-   * there". Any manual pan or focusOn cancels the glide mid-flight. */
-  glideTo(x: number, z: number, durationMs = 400): void {
+   * there" — optionally reframing on the way, which is how the camera
+   * closes in on the monument that ended a match. Any manual pan, zoom or
+   * focusOn cancels the glide mid-flight. */
+  glideTo(x: number, z: number, durationMs = 400, viewHeight?: number): void {
     if (durationMs <= 0) {
-      this.focusOn(x, z);
+      this.focusOn(x, z, viewHeight);
       return;
     }
-    const ext = this.#footprintExt(EXT);
+    const toView =
+      viewHeight === undefined
+        ? this.#viewHeight
+        : clamp(viewHeight, MIN_VIEW, this.#maxView());
+    // Clamped for the view it lands in: how far the target may stray
+    // depends on how much ground the view covers (#panRange).
+    const ext = this.#footprintExt(EXT, toView);
     this.#glide = {
       fromX: this.#target.x,
       fromZ: this.#target.z,
       toX: this.#clampAxis(x, this.#target.x, ext.x),
       toZ: this.#clampAxis(z, this.#target.z, ext.z),
+      fromView: this.#viewHeight,
+      toView,
       t: 0,
       dur: durationMs / 1000,
     };
@@ -910,7 +928,12 @@ export class CameraRig {
       const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
       this.#target.x = glide.fromX + (glide.toX - glide.fromX) * e;
       this.#target.z = glide.fromZ + (glide.toZ - glide.fromZ) * e;
-      this.#apply();
+      if (glide.toView !== glide.fromView) {
+        this.#viewHeight = glide.fromView + (glide.toView - glide.fromView) * e;
+        this.resize(); // recomputes the frustum, then applies
+      } else {
+        this.#apply();
+      }
       if (glide.t >= glide.dur) this.#glide = null;
     }
     if (!this.#interactive) return;

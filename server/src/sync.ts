@@ -38,6 +38,7 @@ import {tileCount} from '../../src/shared/grid.ts';
 import type {EntityId} from '../../src/sim/entities.ts';
 import * as GameEventKind from '../../src/sim/gameEventKindEnum.ts';
 import {tileBlocks} from '../../src/sim/map.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import {SeatVision} from '../../src/sim/visibility.ts';
 import type {GameEvent, MapDelta, World} from '../../src/sim/world.ts';
 import type {Room, Seat} from './rooms.ts';
@@ -241,6 +242,20 @@ function snapLiveBuildings(world: World): Map<EntityId, BuildingSnap> {
   return out;
 }
 
+/**
+ * The fallen see everything: an eliminated seat can act on nothing, so
+ * there is nothing left to hide — and spectating a black map is no
+ * consolation prize. A decided match is the same case for every seat at
+ * once, and the one where it matters most: a seat beaten by a monument it
+ * never scouted is owed a look at the thing that beat it.
+ */
+function seesAll(world: World, seatId: number): boolean {
+  return (
+    world.outcome.state === MatchState.over ||
+    world.players[seatId]?.alive === false
+  );
+}
+
 /** Buildings this seat may see: its own and currently-observed ones live,
  * previously-seen ones frozen as they were left. */
 function buildingsFor(
@@ -251,10 +266,7 @@ function buildingsFor(
 ): BuildingSnap[] {
   const out: BuildingSnap[] = [];
   const shown = new Set<EntityId>();
-  // The fallen see everything: an eliminated seat can act on nothing, so
-  // there is nothing left to hide — and spectating a black map is no
-  // consolation prize.
-  const spectator = world.players[seatId]?.alive === false;
+  const spectator = seesAll(world, seatId);
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
     const own = b.owner === seatId;
@@ -372,7 +384,7 @@ export function sendHot(room: Room): void {
   for (const seat of room.seats) {
     const view = seat.view;
     if (!view || !seat.connected || !seat.ws || seat.hidden) continue;
-    const spectator = world.players[seat.playerId]?.alive === false;
+    const spectator = seesAll(world, seat.playerId);
     const mine: UnitSnapshot[] = [];
     for (const u of all) {
       const own = spectator || u.owner === seat.playerId;
@@ -422,7 +434,7 @@ export function sendStruct(
     }
     // Changes on ground we can see, plus ground we just walked into.
     // Spectators (eliminated seats) are owed everything.
-    const spectator = world.players[seat.playerId]?.alive === false;
+    const spectator = seesAll(world, seat.playerId);
     for (const d of deltas) {
       if (spectator || view.vision.visible[d.idx]) view.owedTiles.add(d.idx);
     }

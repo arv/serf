@@ -34,8 +34,12 @@ import type {World} from './world.ts';
  * The borrowed hammer is deliberately not counted: it is a loan every site
  * takes and gives back, so a hammer landing says a builder showed up, not
  * that anyone is committed to this.
+ *
+ * Exported for logistics, which announces a monument on the delivery that
+ * first makes this true: the reveal below and that announcement are one
+ * moment, so they share one definition of it.
  */
-function anyDelivered(b: {
+export function anyDelivered(b: {
   type: Parameters<typeof buildingDef>[0];
   siteNeeds?: Record<number, number | undefined>;
 }): boolean {

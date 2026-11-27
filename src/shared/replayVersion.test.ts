@@ -850,10 +850,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to refuse now takes the building, so a command an old log had
 // dropped is executed, and the tailings a worked-out gold seam left behind
 // are gone with the one rule that read them (replayVersion.ts at length).
+// Still 77 for the monument saying so: the first load into a monument site
+// raises an event (systems/logistics.ts) and a match a monument decides
+// records where it stood (MatchOutcome.monument, systems/victory.ts). Both
+// are things the sim tells the client and nothing a tick reads back —
+// events are drained by the host and the outcome is only ever tested for
+// its state — so every logged command lands on the same world it did.
 // 78 for half again every unit's hit points: every fight between men
 // resolves on different ticks with different men left standing.
 const EXPECTED_VERSION = 78;
-const EXPECTED_HASH = 'a944be72b1da70d00bfb2da8acdbcecf';
+const EXPECTED_HASH = '4bdf7c9f69c532a43173db489013ca95';
 
 /**
  * Everything a replay's playback depends on, as raw source:
