@@ -212,10 +212,11 @@ export type GameEvent =
   | {kind: GameEventKindNs.playerEliminated; player: Owner}
   | {kind: GameEventKindNs.gameOver; winner: Owner | null}
   | {kind: GameEventKindNs.objectiveComplete; index: number; player: Owner}
-  /** `owner`'s monument site took its first delivery, at this tile — the
-   * same moment it goes onto every rival's map (visibility.ts). Public:
-   * everyone but the owner is the audience. */
-  | {kind: GameEventKindNs.monumentRising; owner: Owner; x: number; y: number}
+  /** `owner`'s monument site took its first delivery — the same moment it
+   * goes onto every rival's map (visibility.ts). Public: everyone but the
+   * owner is the audience, and `owner` is there only so the owner's own
+   * client can tell. No place on purpose: finding it is the rivals' job. */
+  | {kind: GameEventKindNs.monumentRising; owner: Owner}
   /** A player's building or unit lost hp. One event per strike, addressed
    * to the victim's owner; the client aggregates them into alerts. */
   | {

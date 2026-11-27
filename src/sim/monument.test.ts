@@ -143,9 +143,8 @@ describe('the monument', () => {
     expect(rising()).toEqual([]);
     const owedAtFirst = site.siteNeeds![GoodId.stone]!;
     for (let i = 0; i < 2000 && rising().length === 0; i++) run(world, 1);
-    expect(rising()).toEqual([
-      {kind: GameEventKind.monumentRising, owner: 0, x: 17.5, y: 11.5},
-    ]);
+    // Whose, so the owner's own client can stay quiet — and not where.
+    expect(rising()).toEqual([{kind: GameEventKind.monumentRising, owner: 0}]);
     expect(site.siteNeeds![GoodId.stone]).toBe(owedAtFirst - 1);
     // The rest of the stone lands without another word.
     run(world, 4000);

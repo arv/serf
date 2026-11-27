@@ -1191,14 +1191,11 @@ export async function runMatch(
       ) {
         // The raid horn again: one sound means "look up, something is
         // coming", and this is the one thing coming that no wall stops.
-        // The toast knows the place, so a click (or Space) goes there and
-        // the chart ripples on it — the site is on the map from this same
-        // tick (sim/visibility.ts), but only for a player who looks.
+        // That one is rising is the whole of the news: whose it is and
+        // where it stands are what scouting is for, so the notice names
+        // nobody and points nowhere.
         play('raidHorn');
-        pushToast(
-          `${seatName(event.owner, playersMeta())} is raising a Monument!`,
-          {x: event.x, y: event.y},
-        );
+        pushToast('A rival is raising a Monument!');
       } else if (event.kind === GameEventKind.gameOver) {
         play(event.winner === viewerId() ? 'victory' : 'defeat');
         const at =

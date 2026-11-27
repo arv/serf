@@ -1564,8 +1564,6 @@ function deliver(world: World, to: Building, good: GoodId): void {
       world.pendingEvents.push({
         kind: GameEventKind.monumentRising,
         owner: to.owner,
-        x: to.x + to.w / 2,
-        y: to.y + to.h / 2,
       });
     }
     if (good === GoodId.hammer) {
