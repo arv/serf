@@ -272,6 +272,12 @@ export class Sleds {
     const sledding = this.#enabled && model !== undefined && snow > SLEDDING;
     this.#sync.towing = sledding;
     (this.#tracks.material as THREE.Material).opacity = 0.42 * snow;
+    // The marks go with the snow they were cut in: without this, last
+    // winter's lanes would fade back in with the next one's first fall.
+    if (snow === 0) {
+      this.#tracks.count = 0;
+      this.#trackAt = 0;
+    }
 
     for (const sled of this.#sleds.values()) sled.seen = false;
     if (sledding) {
