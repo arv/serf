@@ -862,7 +862,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // four to a sled.
 // 80 for wheelbarrows: summer hauls go two to a barrow (replayVersion.ts).
 const EXPECTED_VERSION = 80;
-const EXPECTED_HASH = '575f24df3054057fe9558645de8e31ad';
+const EXPECTED_HASH = 'd3776c05a715acfc276228f0cd2e77fd';
 
 /**
  * Everything a replay's playback depends on, as raw source:

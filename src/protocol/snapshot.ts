@@ -636,6 +636,7 @@ export function snapJobs(world: World, owner?: number): JobSnap[] {
       phase: j.phase,
       serfId: j.serfId,
       age: world.tick - j.createdTick,
+      ...(j.count !== undefined ? {count: j.count} : {}),
     });
   }
   return out;

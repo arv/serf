@@ -211,6 +211,8 @@ export interface JobSnap {
   phase: HaulPhase;
   serfId?: EntityId;
   age: number;
+  /** How many of `good` the walk moves, when more than one (a cart). */
+  count?: number;
 }
 
 /** Copies of the map's typed arrays for the main-thread mirror (worldgen). */

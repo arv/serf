@@ -19,7 +19,7 @@ import {ECONOMY_RULES, type RuleContext} from './economyRules.ts';
 import * as HaulPhase from './haulPhaseEnum.ts';
 import {tileSpeedMult, tileStepCost} from './path.ts';
 import * as PathLevel from './pathLevelEnum.ts';
-import {spareCarts} from './systems/logistics.ts';
+import {spareCarts, splitCartLoads} from './systems/logistics.ts';
 import {autoForgeIndex} from './systems/production.ts';
 import {
   addBuiltHut,
@@ -523,6 +523,38 @@ describe('the thaw', () => {
     expect(woodLoads(summer.world)).toEqual([1, 1, 1, 1, 1, 1]);
     expect(summer.store.reservedOut[GoodId.wood]).toBe(6);
     expect(checkInvariants(summer.world).violations).toEqual([]);
+  });
+});
+
+describe('a walk cut back to one load', () => {
+  it('gives the well back the draw time of the loads that left', () => {
+    const world = bareWorld();
+    const store = addStorehouse(world, 30, 30, {});
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 20, 30);
+    const draw = buildingDef(well.type).drawTicks!;
+    well.stock[GoodId.water] = 4;
+    well.reservedOut[GoodId.water] = 4;
+    store.inbound[GoodId.water] = 4;
+    const serf = addSerf(world, 20, 32);
+    const id = world.nextJobId++;
+    world.jobs.set(id, {
+      id,
+      good: GoodId.water,
+      from: well.id,
+      to: store.id,
+      owner: 0,
+      priority: 3,
+      createdTick: 0,
+      phase: HaulPhase.toPickup,
+      serfId: serf.id,
+      count: SLED_LOAD,
+      drawUntil: world.tick + draw * SLED_LOAD,
+    });
+    serf.jobId = id;
+    splitCartLoads(world);
+    // He stands at the windlass for the one bucket he still takes.
+    expect(world.jobs.get(id)!.drawUntil).toBe(world.tick + draw);
+    expect(world.jobs.size).toBe(SLED_LOAD);
   });
 });
 
