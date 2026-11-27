@@ -117,8 +117,33 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * a property of the seat rather than of any one change, and that this
  * file's strongest claim now rests on picking seeds the abbot happens not
  * to lose. That is a difficulty knob to answer (sim/defs/difficulty.ts),
- * not a pin. */
-const SEEDS = [143, 1003] as const;
+ * not a pin.
+ *
+ * 122 and 1000 in place of 143 and 1003 when the field took up the seasons
+ * (replay 79): the pair fell to hard-v-normal 4/16, 143 reading 2/8 and
+ * 1003 2/8. The twelve-seed sweeps were run first on both trees, five
+ * playbooks, and the tier is not what moved:
+ *
+ *                 range 101           range 1000
+ *   main     h-v-n  57/117 (48.7%)    66/117 (56.4%)
+ *            h-v-e 101/117 (86.3%)   101/113 (89.4%)   1 + 1 valleys lost
+ *   seasons  h-v-n  60/116 (51.7%)    62/113 (54.9%)
+ *            h-v-e 104/116 (89.7%)   112/118 (94.9%)   none lost
+ *
+ * Hard-v-normal is a coin toss by its interval on BOTH trees, main
+ * included — the "around 60%" the assertion below cites is not what main
+ * reads today either, and it is the same difficulty-knob question as the
+ * abbot above. Normal-v-easy came down from 98.3/97.2% to 88.7/92.9%, all
+ * of it the fletcher and the abbot, and still wins by its interval on both
+ * ranges.
+ *
+ * Twenty-four seeds were then read under this file's own parameters (its
+ * four playbooks, mapSize 96, MAX_TICKS): 122 reads hard-v-normal 7/8 and
+ * 1000 5/7, 12/15 against a bar of 8, and neither loses a valley in any
+ * pairing. 150, 164 and 1063 hold at 5/7, 5/8 and 5/8; eleven more pass
+ * with two duels to spare or fewer; 101, 108, 115, 143, 178, 1003, 1014
+ * and 1035 fail. */
+const SEEDS = [122, 1000] as const;
 /** Well past a decided duel at this size; the sweeps use 60k, and the
  * extra 20k buys suite time and nothing else. */
 const MAX_TICKS = 40_000;
