@@ -99,6 +99,7 @@ const GOOD_NAMES: Record<GoodId, string> = {
   [GoodId.hammer]: 'Hammer',
   [GoodId.cauldron]: 'Cauldron',
   [GoodId.rod]: 'Fishing Rod',
+  [GoodId.sled]: 'Sled',
 };
 
 export function goodName(good: GoodId): string {

@@ -4,7 +4,7 @@ import {Rng} from '../../shared/rng.ts';
 import {atBuilding, atTile, walkToBuilding, walkToTile} from '../arrival.ts';
 import {batchTicks} from '../batchTicks.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
-import {WOOD_MAX_AMT, REGROW_INTERVAL} from '../defs/balance.ts';
+import {REGROW_INTERVAL, SLED_STOCK, WOOD_MAX_AMT} from '../defs/balance.ts';
 import {
   BUILDING_DEFS,
   BUILDING_TYPES,
@@ -389,6 +389,9 @@ export function autoForgeIndex(
   // units to find them would cost more than the one batch of hindsight it
   // saves.
   let larder = 0;
+  // Every sled on a built shelf: the castle's, and any new one at the Smith
+  // waiting on a hauler.
+  let sledsOwned = 0;
   for (const ob of world.buildings.values()) {
     if (ob.dead || ob.owner !== owner) continue;
     if (ob.state === BuildingState.site) {
@@ -405,6 +408,7 @@ export function autoForgeIndex(
     if (ob.state !== BuildingState.built) continue;
     const stock = ob.stock;
     const reservedOut = ob.reservedOut;
+    sledsOwned += stock[GoodId.sled] ?? 0;
     larder +=
       Math.max(0, (stock[GoodId.food] ?? 0) - (reservedOut[GoodId.food] ?? 0)) +
       (RATION_OF[ob.type] === GoodId.food
@@ -463,7 +467,22 @@ export function autoForgeIndex(
     bestGap = gap;
     bestLarder = larderTool;
   }
-  return bestIndex < 0 ? undefined : bestIndex;
+  if (bestIndex >= 0) return bestIndex;
+  // Every post served: the fire turns to sleds, until the village has
+  // SLED_STOCK of them. After the posts and never before — a sled moves
+  // goods faster, a tool is what makes there be goods to move.
+  if (sledsOwned < SLED_STOCK) {
+    const index = def.recipeOptions?.findIndex(
+      o => (o.recipe.outputs[GoodId.sled] ?? 0) > 0,
+    );
+    if (
+      index !== undefined &&
+      index >= 0 &&
+      optionUnlocked(world, owner, def, index)
+    )
+      return index;
+  }
+  return undefined;
 }
 
 const TOOL_COUNT = TOOL_GOODS.length;

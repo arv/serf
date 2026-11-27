@@ -9,10 +9,11 @@ import {makeCarryProp} from './models';
 import type {SceneSync} from './sceneSync';
 
 /**
- * Winter as hauling season, drawn. While the snow lies a serf hauls by sled
- * (SLED_LOAD in sim/defs/balance.ts): what he is moving rides behind him,
- * as many of it as the sim says he has, he leans into the rope, and the
- * runners leave two lines in the snow.
+ * Winter as hauling season, drawn. A serf the sim has lent a sled (any walk
+ * of more than one load; SLED_LOAD and the castle's sleds in
+ * systems/logistics.ts) pulls it behind him with as many of his good on it
+ * as he has, leans into the rope, and the runners leave two lines in the
+ * snow. A man with one load carries it in his arms, winter or not.
  *
  * __sleds.convoy([[x, z], ...], count) walks a made-up line of sleds along
  * a route, out loaded and back empty, for judging a lane or a crossing
@@ -259,11 +260,8 @@ export class Sleds {
     return 0;
   }
 
-  /**
-   * `winter` is the sim's word on whether sleds are out (isWinter); `snow`
-   * is only how white the ground is drawn, for fading the tracks.
-   */
-  update(seconds: number, speed: number, snow: number, winter: boolean): void {
+  /** `snow` is how white the ground is drawn, for fading the tracks. */
+  update(seconds: number, speed: number, snow: number): void {
     const dt =
       this.#last === undefined
         ? 0
@@ -273,7 +271,6 @@ export class Sleds {
     // model is here he carries as he always did.
     const ready = model !== undefined;
     this.#sync.sledsReady = ready;
-    this.#sync.towing = ready && winter;
     (this.#tracks.material as THREE.Material).opacity = 0.42 * snow;
     // The marks go with the snow they were cut in: without this, last
     // winter's lanes would fade back in with the next one's first fall.
@@ -285,10 +282,8 @@ export class Sleds {
     for (const sled of this.#sleds.values()) sled.seen = false;
     if (ready) {
       this.#sync.eachUnit((id, kind, group, carrying, load) => {
-        if ((kind & 0xff) !== UnitTypeId.serf) return;
-        // In winter every serf has his sled; out of it, only the man still
-        // bringing a sled's worth home.
-        if (winter || load > 1) this.#pull(id, group, carrying, load, dt);
+        if ((kind & 0xff) === UnitTypeId.serf)
+          this.#pull(id, group, carrying, load, dt);
       });
     }
     // The made-up line walks whatever the season, so a route can be laid
@@ -322,10 +317,13 @@ export class Sleds {
     load: number,
     dt: number,
   ): void {
+    // One load is carried, not pulled: a sled he still had from his last
+    // walk goes back to the castle.
+    if (load === 1) return;
     let sled = this.#sleds.get(id);
     if (!sled) {
-      // A serf with nothing to move leaves his sled at home.
-      if (carrying === 0 || !model) return;
+      // Only a walk the sim lent a sled to brings one out.
+      if (load < 2 || !model) return;
       sled = this.#make(man, model);
       this.#sleds.set(id, sled);
     }
@@ -472,7 +470,7 @@ export class Sleds {
     this.#scene.remove(this.#tracks);
     this.#tracks.geometry.dispose();
     (this.#tracks.material as THREE.Material).dispose();
-    this.#sync.towing = false;
+    this.#sync.sledsReady = false;
   }
 }
 

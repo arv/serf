@@ -637,6 +637,22 @@ function nearestSupply(
   return best;
 }
 
+/**
+ * Sleds at `owner`'s castle that no walk has borrowed: every job moving
+ * more than one load holds one for its length, from booking to the door.
+ * The sled itself stays on the castle's shelf throughout — it is lent,
+ * not hauled — so this is the castle's count less the walks out on one.
+ */
+export function sparesSleds(world: World, owner: Owner): number {
+  const castle = findStorehouse(world, owner);
+  if (!castle) return 0;
+  let lent = 0;
+  for (const job of world.jobs.values()) {
+    if (job.owner === owner && loadOf(job) > 1) lent++;
+  }
+  return (castle.stock[GoodId.sled] ?? 0) - lent;
+}
+
 function createJob(
   world: World,
   good: GoodId,
@@ -650,26 +666,33 @@ function createJob(
   const dest = world.buildings.get(to)!;
   source.reservedOut[good] = (source.reservedOut[good] ?? 0) + 1;
   dest.inbound[good] = (dest.inbound[good] ?? 0) + 1;
-  // In winter a serf hauls by sled, and a sled takes SLED_LOAD of one good
-  // from one door to another. So a load wanted along a walk somebody has
-  // not set out on yet rides with it instead of becoming a walk of its own:
-  // the matcher goes on asking for goods one at a time, and the reservation
-  // above is the same either way.
+  // In winter a serf with a sled takes SLED_LOAD of one good from one door
+  // to another. So a load wanted along a walk somebody has not set out on
+  // yet rides with it instead of becoming a walk of its own — if there is a
+  // sled for it: a walk of one taking on its second load borrows one, and
+  // a sled already lent to the walk takes the third and fourth for free.
+  // The matcher goes on asking for goods one at a time, and the
+  // reservation above is the same either way.
   if (world.map.winter) {
+    let spare: number | undefined;
     for (const job of world.jobs.values()) {
       if (
-        job.phase === HaulPhase.open &&
-        job.good === good &&
-        job.from === from &&
-        job.to === to &&
-        job.priority === priority &&
-        job.repair === repair &&
-        job.research === research &&
-        loadOf(job) < SLED_LOAD
-      ) {
-        job.count = loadOf(job) + 1;
-        return;
+        job.phase !== HaulPhase.open ||
+        job.good !== good ||
+        job.from !== from ||
+        job.to !== to ||
+        job.priority !== priority ||
+        job.repair !== repair ||
+        job.research !== research ||
+        loadOf(job) >= SLED_LOAD
+      )
+        continue;
+      if (loadOf(job) === 1) {
+        spare ??= sparesSleds(world, dest.owner);
+        if (spare <= 0) continue;
       }
+      job.count = loadOf(job) + 1;
+      return;
     }
   }
   world.jobs.set(world.nextJobId, {

@@ -426,13 +426,10 @@ export class SceneSync {
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
 
-  /** Set by sleds.ts while the snow lies and there is a sled to draw: a
-   * serf's load rides behind him rather than in his arms, and he walks
-   * rather than carries. */
-  towing = false;
-  /** Set by sleds.ts once there is a sled to draw at all. A sled's worth
-   * is on a sled whatever the season: the man caught by the thaw four
-   * loads deep finishes his walk with it. */
+  /** Set by sleds.ts once there is a sled to draw. From then on a serf
+   * moving more than one load has borrowed a sled (the sim lends one per
+   * such walk): his load rides behind him rather than in his arms, and he
+   * walks rather than carries. */
   sledsReady = false;
 
   /** Every unit on screen: its id, kind, group, what it carries and how
@@ -1087,7 +1084,8 @@ export class SceneSync {
       // Only a serf has a sled to put it on; a worker keeps his load.
       const towed =
         (visual.kind & 0xff) === UnitTypeId.serf &&
-        (this.towing || (this.sledsReady && visual.load > 1));
+        this.sledsReady &&
+        visual.load > 1;
       if (visual.carryBox) visual.carryBox.visible = !towed;
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.

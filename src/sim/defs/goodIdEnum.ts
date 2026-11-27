@@ -57,3 +57,5 @@ export const cauldron = 18 as const;
 export type cauldron = typeof cauldron;
 export const rod = 19 as const;
 export type rod = typeof rod;
+export const sled = 20 as const;
+export type sled = typeof sled;

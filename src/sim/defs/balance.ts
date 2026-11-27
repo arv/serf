@@ -238,6 +238,7 @@ export const EVAC_PRIORITY: Readonly<Record<GoodId, HaulPriority>> = {
   [GoodId.hammer]: 3,
   [GoodId.cauldron]: 3,
   [GoodId.rod]: 3,
+  [GoodId.sled]: 3,
 };
 
 // Trails
@@ -435,12 +436,21 @@ export function iceBears(tick: number): boolean {
  * soldiers and raiders with the rest; nobody is excused.
  *
  * A sled is what the season gives back: SLED_LOAD of one good from one
- * door to another in a single walk. Summer is when a village gathers and
- * winter is when it moves what it gathered.
+ * door to another in a single walk. Sleds are forged at the Smith from
+ * wood, kept at the castle and lent one to a walk, so the village's sled
+ * count is how many haulers can go four-up at once. Summer is when a
+ * village gathers and winter is when it moves what it gathered.
  */
 export const WINTER_UNTIL = 0.95;
 export const SNOW_SPEED = 0.8;
 export const SLED_LOAD = 4;
+/**
+ * How many sleds a Smith left on auto keeps the castle stocked with, once
+ * no post is waiting on a tool. Every four-load walk borrows one sled for
+ * its length, so this is how many haulers can be four-up at once; a player
+ * who wants more orders them.
+ */
+export const SLED_STOCK = 3;
 
 export function isWinter(tick: number): boolean {
   const into = tick % YEAR_TICKS;

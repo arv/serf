@@ -252,6 +252,26 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
       />
     </>
   ),
+  // Sled: two runners curled up at the nose under a slatted deck
+  [GoodId.sled]: () => (
+    <>
+      <path
+        d="M6 36H34Q42 36 42 28"
+        fill="none"
+        stroke="#4a3220"
+        stroke-width="3.5"
+        stroke-linecap="round"
+      />
+      <rect x="9" y="24" width="4" height="12" rx="1.5" fill="#4a3220" />
+      <rect x="25" y="24" width="4" height="12" rx="1.5" fill="#4a3220" />
+      <rect x="5" y="19" width="31" height="7" rx="2" fill="#a57c4a" />
+      <path
+        d="M13 19V26M21 19V26M29 19V26"
+        stroke="#7d5a35"
+        stroke-width="1.5"
+      />
+    </>
+  ),
   // Fishing rod: cane, line, float and hook
   [GoodId.rod]: () => (
     <>

@@ -362,6 +362,19 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.93;
       break;
     }
+    case GoodId.sled: {
+      // A new sled carried home from the Smith on its side: two runners
+      // and the deck between them.
+      for (const sz of [-0.07, 0.07]) {
+        const runner = mesh(new THREE.BoxGeometry(0.5, 0.03, 0.025), wood);
+        runner.position.set(0, -0.05, sz);
+        add(runner);
+      }
+      const deck = mesh(new THREE.BoxGeometry(0.42, 0.02, 0.17), woodLight);
+      add(deck);
+      g.position.y = 0.9;
+      break;
+    }
   }
   return g;
 }

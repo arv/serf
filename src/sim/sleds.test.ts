@@ -9,14 +9,19 @@ import {
   YEAR_TICKS,
   isWinter,
 } from './defs/balance.ts';
+import {SLED_STOCK} from './defs/balance.ts';
+import {buildingDef} from './defs/buildings.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import * as HaulPhase from './haulPhaseEnum.ts';
 import {tileSpeedMult, tileStepCost} from './path.ts';
 import * as PathLevel from './pathLevelEnum.ts';
+import {sparesSleds} from './systems/logistics.ts';
+import {autoForgeIndex} from './systems/production.ts';
 import {addSerf, addSite, addStorehouse, bareWorld} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import {cargoOf} from './units.ts';
-import {killUnit, type World} from './world.ts';
+import {killUnit, placeBuiltBuilding, type World} from './world.ts';
 
 const WINTER = ICE_FROM * YEAR_TICKS;
 const THAW = WINTER_UNTIL * YEAR_TICKS;
@@ -25,11 +30,15 @@ function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
 }
 
-/** A storehouse of wood and a woodcutter's site six wood short, in winter. */
-function winterSite() {
+/** A storehouse of wood with `sleds` sleds on its shelf, and a
+ * woodcutter's site six wood short, in winter. */
+function winterSite(sleds = 2) {
   const world = bareWorld();
   world.tick = WINTER;
-  const store = addStorehouse(world, 30, 30, {[GoodId.wood]: 10});
+  const store = addStorehouse(world, 30, 30, {
+    [GoodId.wood]: 10,
+    [GoodId.sled]: sleds,
+  });
   const site = addSite(world, 24, 30);
   return {world, store, site, start: countGoods(world)};
 }
@@ -65,6 +74,31 @@ describe('winter', () => {
 });
 
 describe('sleds', () => {
+  it('are what makes a walk of more than one load', () => {
+    // No sled at the castle: winter or not, every load is its own walk.
+    const {world, store} = winterSite(0);
+    run(world, 1);
+    expect(world.jobs.size).toBe(8);
+    expect(sparesSleds(world, 0)).toBe(0);
+
+    // One sled: one walk goes four-up, the other two wood go one apiece.
+    const one = winterSite(1);
+    run(one.world, 1);
+    const wood = [...one.world.jobs.values()].filter(
+      j => j.good === GoodId.wood,
+    );
+    expect(wood.map(j => j.count ?? 1).sort((a, b) => a - b)).toEqual([
+      1,
+      1,
+      SLED_LOAD,
+    ]);
+    expect(sparesSleds(one.world, 0)).toBe(0);
+    // The sled is lent, not hauled: it never leaves the castle's shelf.
+    expect(store.stock[GoodId.sled]).toBe(0);
+    expect(one.store.stock[GoodId.sled]).toBe(1);
+    expect(checkInvariants(one.world).violations).toEqual([]);
+  });
+
   it('book a load of one good along one walk as one job', () => {
     const {world, store, site} = winterSite();
     run(world, 1);
@@ -136,5 +170,27 @@ describe('sleds', () => {
     expect([...world.jobs.values()].every(j => j.count === undefined)).toBe(
       true,
     );
+  });
+
+  it('are forged at the Smith from wood once every post has its tool', () => {
+    const world = bareWorld();
+    const store = addStorehouse(world, 30, 30, {});
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      20,
+      30,
+    );
+    const def = buildingDef(smith.type);
+    const index = autoForgeIndex(world, smith, def);
+    expect(index).toBeDefined();
+    const recipe = def.recipeOptions![index!]!.recipe;
+    expect(recipe.outputs).toEqual({[GoodId.sled]: 1});
+    expect(Object.keys(recipe.inputs)).toEqual([String(GoodId.wood)]);
+
+    // Stocked up, the fire goes cold again.
+    store.stock[GoodId.sled] = SLED_STOCK;
+    expect(autoForgeIndex(world, smith, def)).toBeUndefined();
   });
 });
