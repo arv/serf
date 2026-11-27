@@ -895,6 +895,38 @@ export async function runMatch(
    * which is the one thing a quit needs to know about it. */
   let lastTick = 0;
 
+  /**
+   * A monument decided the match: say so, and go and look at it.
+   *
+   * It ends the match with nothing else on the board changed — a beaten
+   * seat still has its castle and its army, and may never have laid eyes
+   * on the thing — so the bare outcome card explains nothing. The fog is
+   * already off for a decided match (the loop below), which is what makes
+   * the stone there to look at.
+   *
+   * A recording is told and not taken: playback's camera belongs to
+   * whoever is watching, and it has no outcome card to hold back.
+   *
+   * Above onStructural for the reason `reported` is: the frames replayed
+   * at registration can carry the game-over, and the timer below must be
+   * out of its dead zone by then.
+   */
+  let revealTimer: ReturnType<typeof setTimeout> | undefined;
+  teardown.push(() => clearTimeout(revealTimer));
+  function showMonument(winner: number, at: {x: number; y: number}): void {
+    pushToast(
+      winner === viewerId()
+        ? 'Your Monument is finished!'
+        : `${seatName(winner, playersMeta())} has finished a Monument!`,
+      at,
+    );
+    if (replayMode()) return;
+    renderer.rig.glideTo(at.x, at.y, MONUMENT_GLIDE_MS, MONUMENT_VIEW);
+    setOutcomeReveal(true);
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => setOutcomeReveal(false), MONUMENT_HOLD_MS);
+  }
+
   // Every structural frame the screen takes in — and the one place a throw
   // out of one can be caught.
   //
@@ -1255,34 +1287,6 @@ export async function runMatch(
       if (spectating) gatherAlerts.clear();
       else gatherAlerts.update(roster, viewerId());
     }
-  }
-
-  /**
-   * A monument decided the match: say so, and go and look at it.
-   *
-   * It ends the match with nothing else on the board changed — a beaten
-   * seat still has its castle and its army, and may never have laid eyes
-   * on the thing — so the bare outcome card explains nothing. The fog is
-   * already off for a decided match (the loop below), which is what makes
-   * the stone there to look at.
-   *
-   * A recording is told and not taken: playback's camera belongs to
-   * whoever is watching, and it has no outcome card to hold back.
-   */
-  let revealTimer: ReturnType<typeof setTimeout> | undefined;
-  teardown.push(() => clearTimeout(revealTimer));
-  function showMonument(winner: number, at: {x: number; y: number}): void {
-    pushToast(
-      winner === viewerId()
-        ? 'Your Monument is finished!'
-        : `${seatName(winner, playersMeta())} has finished a Monument!`,
-      at,
-    );
-    if (replayMode()) return;
-    renderer.rig.glideTo(at.x, at.y, MONUMENT_GLIDE_MS, MONUMENT_VIEW);
-    setOutcomeReveal(true);
-    clearTimeout(revealTimer);
-    revealTimer = setTimeout(() => setOutcomeReveal(false), MONUMENT_HOLD_MS);
   }
 
   const unmountHud = mountHud(host, {

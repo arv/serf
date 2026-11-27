@@ -1188,7 +1188,13 @@ export function Hud(props: {
         ? `${seatName(o.winner, playersMeta())} finished a Monument. The valley is lost.`
         : 'The valley is lost.';
     }
-    if (mission()) return 'Word goes to the crown.';
+    // A commission won on a monument says both: victorySystem lets the
+    // monument decide it ahead of the checklist, whether or not the
+    // commission asked for one.
+    if (mission())
+      return monument
+        ? 'Your Monument stands. Word goes to the crown.'
+        : 'Word goes to the crown.';
     if (monument) return 'Your Monument stands. The valley is yours.';
     return soloMode()
       ? 'The fields are yours to work.'
