@@ -280,4 +280,26 @@ describe('sleds', () => {
     expect(checkLedger(world, start)).toEqual([]);
     expect(checkInvariants(world).violations).toEqual([]);
   });
+
+  it('take a site its planks together, not a man a plank', () => {
+    // Four men at the castle door and a site six planks short: in summer
+    // that is six walks; with a sled on the shelf, one man takes four.
+    const {world, store, site, start} = winterSite(1);
+    const men = [0, 1, 2, 3].map(k => addSerf(world, 29 + k, 33));
+    const carriers = new Set<number>();
+    let most = 0;
+    for (let i = 0; i < 3000 && (site.siteNeeds?.[GoodId.wood] ?? 0) > 0; i++) {
+      tickWorld(world, []);
+      for (const m of men) {
+        if (m.carrying === GoodId.wood) carriers.add(m.id);
+        most = Math.max(most, cargoOf(m));
+      }
+      expect(checkInvariants(world).violations).toEqual([]);
+    }
+    expect(site.siteNeeds?.[GoodId.wood] ?? 0).toBe(0);
+    expect(most).toBe(SLED_LOAD);
+    expect(carriers.size).toBeLessThanOrEqual(3);
+    expect(store.stock[GoodId.wood]).toBe(4);
+    expect(checkLedger(world, start)).toEqual([]);
+  });
 });

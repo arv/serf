@@ -860,7 +860,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // resolves on different ticks with different men left standing.
 // 79 for winter on the ground and the sleds that work it.
 const EXPECTED_VERSION = 79;
-const EXPECTED_HASH = '4b857aee221a430ff07c8de31cd37ad7';
+const EXPECTED_HASH = '20cfcb41bf6ee9e02b560eda23d49455';
 
 /**
  * Everything a replay's playback depends on, as raw source:
