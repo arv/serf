@@ -126,7 +126,8 @@ describe('personalities read through the fog', () => {
     // point. Seeds 1..24 drew against it (warlord 0.057, abbot 0.068; they
     // read 0.076/0.026 the build before), while 25..48 read 0.113/0.061 and
     // 49..72 read 0.131/0.015 — the draw again, not the signal. So the pool
-    // widened again rather than moving: 1..48 reads 0.086/0.064.
+    // widened again rather than moving: 1..48 reads 0.086/0.064, and
+    // 0.105/0.044 once the AI orders sleds of its own.
     for (let seed = 1; seed <= 48; seed++) {
       const {warlord, abbot} = readsFor(seed, 18_000);
       for (const [k, n] of warlord)

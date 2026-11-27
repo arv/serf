@@ -2,7 +2,7 @@ import type {Enum} from '../shared/enum.ts';
 import {tileX, tileY} from '../shared/grid.ts';
 import type {SimCommand} from './commands.ts';
 import type {AiStrategy} from './defs/aiStrategies.ts';
-import {FORGE_QUEUE_CAP} from './defs/balance.ts';
+import {FORGE_QUEUE_CAP, SLED_STOCK} from './defs/balance.ts';
 import {
   BUILDING_DEFS,
   TOOL_GOODS,
@@ -851,6 +851,54 @@ const keepTheToolsComing: EconomyRule = {
 };
 
 /**
+ * Sleds for the winter haul: order one whenever the castle holds fewer than
+ * SLED_STOCK and none is already on order. The AI keeps its anvils on a
+ * standing weapons order, so the Smith's own auto (which turns to sleds
+ * once every post has its tool) never reaches them; this is the same
+ * thing said as an order. After keepTheToolsComing in the table, and it
+ * only orders where there is room, so a missing axe always goes first.
+ * Claims nothing, for keepTheToolsComing's reason.
+ */
+const stockTheSleds: EconomyRule = {
+  id: EconomyRuleIdNs.stockTheSleds,
+  when: 'the castle has fewer sleds than a winter wants and none is ordered',
+  phase: RulePhaseNs.production,
+  fire(ctx) {
+    if ((ctx.stock[GoodId.sled] ?? 0) >= SLED_STOCK) return null;
+    const options = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!;
+    const index = options.findIndex(
+      o => (o.recipe.outputs[GoodId.sled] ?? 0) > 0,
+    );
+    if (index < 0) return null;
+    const smiths = ctx.mine.filter(
+      b =>
+        b.type === BuildingTypeId.weaponsmith &&
+        b.state === BuildingState.built,
+    );
+    // One order at a time: a sled is quick, and the next is ordered when
+    // this one lands on the shelf.
+    if (smiths.some(b => b.forgeQueue?.some(o => o.recipeIndex === index)))
+      return null;
+    // A new sled waiting at a Smith for a hauler is a sled already made.
+    if (smiths.some(b => (b.stock[GoodId.sled] ?? 0) > 0)) return null;
+    const smith = smiths.find(
+      b => !b.paused && (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP,
+    );
+    if (!smith) return null;
+    return {
+      commands: [
+        {
+          kind: CommandKind.enqueueForge,
+          buildingId: smith.id,
+          recipeIndex: index,
+        },
+      ],
+      claims: [],
+    };
+  },
+};
+
+/**
  * The other half of `freeCappedHauler`: start a drained post back up.
  *
  * A halted gatherer recruits nobody for as long as it stands halted, so the
@@ -1462,6 +1510,7 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   sellForTheWoodcutter,
   openReserveMine,
   keepTheToolsComing,
+  stockTheSleds,
   forgeTheCounter,
   holdTheGlutForge,
   handsBeforeSoldiers,
@@ -1525,6 +1574,7 @@ export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
   [EconomyRuleIdNs.handsBeforeSoldiers]: 'handsBeforeSoldiers',
   [EconomyRuleIdNs.keepTheQueueWarm]: 'keepTheQueueWarm',
   [EconomyRuleIdNs.garrisonIsEnough]: 'garrisonIsEnough',
+  [EconomyRuleIdNs.stockTheSleds]: 'stockTheSleds',
 };
 
 const ECONOMY_RULE_BY_KEY = new Map<string, EconomyRuleId>(

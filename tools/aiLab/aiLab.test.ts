@@ -218,8 +218,9 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * walk and a serf hauls four to a sled, and on seed 8 the advice now
  * changes who wins (seat 0 at 21_229 unadvised, seat 1 at 20_317) rather
  * than how soon. On seed 5, seat 1 wins both ways, at 13_525 and 13_195
- * (14_529 and 13_747 once the Smith forged sleds; the other seeds below
- * were measured before that and not since).
+ * (14_529 and 13_747 once the Smith forged sleds, 12_417 and 12_084 once
+ * the AI ordered them; the other seeds below were measured before either
+ * and not since).
  * (No other seed of the first twenty holds: 1 inverts by a tick, 18 and 20
  * invert, 9 and 11 are won sooner but by seat 0, 6, 7 and 14 only decide
  * when advised, and 2, 3, 4, 10, 12, 13, 15, 16, 17 and 19 tie.)
