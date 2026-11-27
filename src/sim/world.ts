@@ -177,8 +177,15 @@ export interface World {
 
 export type MatchOutcome =
   | {state: MatchStateNs.playing}
-  /** winner null = the last player fell too (solo loss / mutual destruction). */
-  | {state: MatchStateNs.over; winner: Owner | null};
+  | {
+      state: MatchStateNs.over;
+      /** null = the last player fell too (solo loss / mutual destruction). */
+      winner: Owner | null;
+      /** The middle of the finished monument that decided it, in tiles.
+       * Absent when the match ended any other way — which makes this the
+       * one thing an end card can read to say HOW, and where to look. */
+      monument?: {x: number; y: number};
+    };
 
 export interface AdminState {
   /** Admin commands are honored at all (set once at world creation, so every
@@ -205,6 +212,11 @@ export type GameEvent =
   | {kind: GameEventKindNs.playerEliminated; player: Owner}
   | {kind: GameEventKindNs.gameOver; winner: Owner | null}
   | {kind: GameEventKindNs.objectiveComplete; index: number; player: Owner}
+  /** `owner`'s monument site took its first delivery — the same moment it
+   * goes onto every rival's map (visibility.ts). Public: everyone but the
+   * owner is the audience, and `owner` is there only so the owner's own
+   * client can tell. No place on purpose: finding it is the rivals' job. */
+  | {kind: GameEventKindNs.monumentRising; owner: Owner}
   /** A player's building or unit lost hp. One event per strike, addressed
    * to the victim's owner; the client aggregates them into alerts. */
   | {

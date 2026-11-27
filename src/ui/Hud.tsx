@@ -91,6 +91,7 @@ import {
   netStatus,
   openPanel,
   outcome,
+  outcomeReveal,
   placing,
   playersMeta,
   population,
@@ -1173,6 +1174,32 @@ export function Hud(props: {
     const o = outcome();
     return o.state === MatchState.over && o.winner === myPlayerId();
   };
+  /**
+   * The outcome card's one line. A monument is the only ending the card can
+   * name: it is the only one the outcome records (MatchOutcome.monument),
+   * and the one that most needs saying — it ends the match with the loser's
+   * castle standing and nothing on their screen changed.
+   */
+  const outcomeLine = (): string => {
+    const o = outcome();
+    const monument = o.state === MatchState.over && o.monument !== undefined;
+    if (!won()) {
+      return monument && o.winner !== null
+        ? `${seatName(o.winner, playersMeta())} finished a Monument. The valley is lost.`
+        : 'The valley is lost.';
+    }
+    // A commission won on a monument says both: victorySystem lets the
+    // monument decide it ahead of the checklist, whether or not the
+    // commission asked for one.
+    if (mission())
+      return monument
+        ? 'Your Monument stands. Word goes to the crown.'
+        : 'Word goes to the crown.';
+    if (monument) return 'Your Monument stands. The valley is yours.';
+    return soloMode()
+      ? 'The fields are yours to work.'
+      : 'Every other seat is beaten.';
+  };
   /** The commission a won campaign card offers to continue to, if any. */
   const nextMission = () => (won() ? continueTarget() : undefined);
   // The wood cards set their copy in Nunito, which only the start screen's
@@ -1197,8 +1224,9 @@ export function Hud(props: {
     // A replay's outcome was decided when it was recorded; the only card
     // playback owes is the one that says the recording has run out.
     if (replayMode()) return replayOver() ? 'replayOver' : undefined;
+    // Held back while the camera shows the monument that decided it.
     if (outcome().state === MatchState.over)
-      return observing() ? undefined : 'outcome';
+      return observing() || outcomeReveal() ? undefined : 'outcome';
     if (netMode() && netStatus()?.state === NetState.gone) return 'gone';
     if (eliminated() && !spectating()) return 'eliminated';
     return undefined;
@@ -3304,15 +3332,7 @@ export function Hud(props: {
         <div class="hud-end">
           <div class="wood-card end-card">
             <h1>{won() ? 'Victory' : 'Defeat'}</h1>
-            <p>
-              {won()
-                ? mission()
-                  ? 'Word goes to the crown.'
-                  : soloMode()
-                    ? 'The fields are yours to work.'
-                    : 'Every other seat is beaten.'
-                : 'The valley is lost.'}
-            </p>
+            <p>{outcomeLine()}</p>
             <Show when={nextMission()}>
               {next => (
                 <button

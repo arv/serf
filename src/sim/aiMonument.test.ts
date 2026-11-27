@@ -72,7 +72,7 @@ describe('the Mason', () => {
     // win is 26k ticks against the Mason's 63k): slower and slightly worse
     // is what an economic alternative is supposed to look like.
     const world = playOut(102, AiStrategyId.mason);
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+    expect(world.outcome, `ended at tick ${world.tick}`).toMatchObject({
       state: MatchState.over,
       winner: 0,
     });
