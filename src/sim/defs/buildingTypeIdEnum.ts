@@ -53,5 +53,3 @@ export const monument = 21 as const;
 export type monument = typeof monument;
 export const archeryRange = 22 as const;
 export type archeryRange = typeof archeryRange;
-export const relayPost = 23 as const;
-export type relayPost = typeof relayPost;

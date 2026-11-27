@@ -85,7 +85,7 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
  * Record over this type), so renaming a tab or adding one stops compiling
  * until the guide has been told what the new group is for.
  */
-export type BuildGroupLabel = 'Village' | 'Food' | 'Arms' | 'Haul';
+export type BuildGroupLabel = 'Village' | 'Food' | 'Arms';
 
 export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
   [
@@ -141,13 +141,6 @@ export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
         BuildingTypeId.goldMine,
         BuildingTypeId.monument,
       ],
-    },
-    // The carrying itself: what helps the goods move rather than makes
-    // them. A tab of its own because every other one is full, and because
-    // it is a different question — not what to make, but how it gets home.
-    {
-      label: 'Haul',
-      types: [BuildingTypeId.relayPost],
     },
   ];
 
@@ -220,8 +213,6 @@ export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
   // M belongs to the Mill, so the Monument takes the next letter of its own
   // name — the same fallback the Brewery and the Barracks took.
   [BuildingTypeId.monument]: 'O',
-  // R is the Brewery's and E the Fishery's, so the post takes its own P.
-  [BuildingTypeId.relayPost]: 'P',
 };
 
 /** The letter that arms this building, or '' for one the ribbon never offers. */

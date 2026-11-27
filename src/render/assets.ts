@@ -10,12 +10,7 @@ import {
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
 import {GROUND_ANCHOR, GROUND_FIT} from './groundFit';
-import {
-  makeBakehouse,
-  makeRelayPost,
-  makeFarmstead,
-  makeMonument,
-} from './procBuildings';
+import {makeBakehouse, makeFarmstead, makeMonument} from './procBuildings';
 import {
   makeAshlar,
   makeHeadframe,
@@ -119,7 +114,6 @@ const BUILT_BUILDINGS: Partial<
   // work: walkable lanes between the rows, and the mowing circuit
   // authored into the model as named marks (see makeFarmstead).
   [BuildingTypeId.wheatFarm]: makeFarmstead,
-  [BuildingTypeId.relayPost]: makeRelayPost,
 };
 
 /** Tints so buildings sharing a model read apart. Empty since the smiths

@@ -5,10 +5,6 @@ import {
   DELIVERY_STAND,
   JOB_BLOCKED_BACKOFF,
   MATCHER_INTERVAL,
-  RELAY_CAP,
-  RELAY_DETOUR,
-  RELAY_MIN_HAUL,
-  RELAY_MIN_LEG,
   SLED_LOAD,
   ABBEY_ALE_CAP,
   BARRACKS_ALE_CAP,
@@ -550,9 +546,7 @@ function walkDemands(
     // A salvage pile ships everything it holds — the whole point of the
     // wreck is that its goods go home on someone's shoulders (or into a
     // nearby site, which pulls from it as a supply directly).
-    // ...and so does a relay post anything left on it that no walk is
-    // coming for: a haul cancelled after it set its load down there.
-    if (b.type === BuildingTypeId.salvage || def.relay) {
+    if (b.type === BuildingTypeId.salvage) {
       for (const good of goodKeys(b.stock)) {
         if ((b.stock[good] ?? 0) > 0) evac.add(good);
       }
@@ -718,95 +712,6 @@ function topUpSled(world: World, job: HaulJob, from: Building): number {
     take(spare);
   }
   return added;
-}
-
-/** Centre-to-centre walking distance between two buildings, in tiles:
- * the larger of the two axes plus half the smaller, which is what an
- * eight-way walk across open ground costs near enough. */
-function between(a: Building, b: Building): number {
-  const ca = centerOf(a);
-  const cb = centerOf(b);
-  const dx = Math.abs(ca.x - cb.x);
-  const dy = Math.abs(ca.y - cb.y);
-  return Math.max(dx, dy) + Math.min(dx, dy) / 2;
-}
-
-/**
- * The relay post a walk from `from` to `to` should set its load down at,
- * if any: one of the owner's built posts that splits a long walk into two
- * real legs for little detour, and has room. Of several, the one with the
- * shortest way round, then the lowest id.
- */
-function chooseRelay(
-  world: World,
-  job: HaulJob,
-  from: Building,
-  to: Building,
-): Building | undefined {
-  const direct = between(from, to);
-  if (direct < RELAY_MIN_HAUL) return undefined;
-  let best: Building | undefined;
-  let bestWay = direct * RELAY_DETOUR;
-  for (const relay of world.buildings.values()) {
-    if (
-      relay.dead ||
-      relay.owner !== job.owner ||
-      relay.state !== BuildingState.built ||
-      !buildingDef(relay.type).relay ||
-      relay.id === from.id ||
-      relay.id === to.id
-    )
-      continue;
-    const first = between(from, relay);
-    const second = between(relay, to);
-    if (first < RELAY_MIN_LEG || second < RELAY_MIN_LEG) continue;
-    const way = first + second;
-    if (way > bestWay || (way === bestWay && best && relay.id > best.id))
-      continue;
-    if (relayLoad(world, relay) + loadOf(job) > RELAY_CAP) continue;
-    best = relay;
-    bestWay = way;
-  }
-  return best;
-}
-
-/** What a relay post holds and has coming: every load on it, and every
- * load on a serf's way to it. */
-function relayLoad(world: World, relay: Building): number {
-  let n = 0;
-  for (const good of goodKeys(relay.stock)) n += relay.stock[good] ?? 0;
-  for (const job of world.jobs.values()) {
-    if (job.via === relay.id && job.phase === HaulPhase.toDropoff)
-      n += loadOf(job);
-  }
-  return n;
-}
-
-/**
- * A serf has reached the relay post on his way: he sets the load down, and
- * the job goes back on the board with the post as its source, for whoever
- * is free nearest it to finish. The destination's claim is untouched — it
- * was the walk's all along — and the post's shelf is reserved for exactly
- * this job, so nothing else can take it.
- */
-function handOver(
-  world: World,
-  job: HaulJob,
-  unit: Unit,
-  relay: Building,
-): void {
-  const n = loadOf(job);
-  relay.stock[job.good] = (relay.stock[job.good] ?? 0) + n;
-  relay.reservedOut[job.good] = (relay.reservedOut[job.good] ?? 0) + n;
-  job.from = relay.id;
-  job.via = undefined;
-  job.phase = HaulPhase.open;
-  job.serfId = undefined;
-  job.drawUntil = undefined;
-  unit.carrying = undefined;
-  unit.carryCount = undefined;
-  unit.jobId = undefined;
-  unit.task = {t: UnitTaskKind.idle, until: world.tick + DELIVERY_STAND};
 }
 
 function createJob(
@@ -1717,17 +1622,14 @@ function progress(world: World): void {
         abortJob(world, job, 'destination vanished at pickup');
         continue;
       }
-      const relay = chooseRelay(world, job, from, to);
-      if (relay) job.via = relay.id;
-      const stop = relay ?? to;
       const path = findPathToAdjacent(
         world.map,
         Math.floor(unit.x),
         Math.floor(unit.y),
-        stop.x,
-        stop.y,
-        stop.w,
-        stop.h,
+        to.x,
+        to.y,
+        to.w,
+        to.h,
       );
       if (!path) {
         abortJob(world, job, 'no path to destination');
@@ -1739,26 +1641,6 @@ function progress(world: World): void {
       const to = world.buildings.get(job.to);
       if (!to || to.dead) {
         abortJob(world, job, 'destination vanished before dropoff');
-        continue;
-      }
-      if (job.via !== undefined) {
-        const relay = world.buildings.get(job.via);
-        if (!relay || relay.dead) {
-          // The post is gone: he carries it the whole way after all.
-          job.via = undefined;
-          if (!walkToBuilding(world.map, unit, to))
-            abortJob(world, job, 'no way on past a lost relay', true);
-          continue;
-        }
-        if (!atBuilding(unit, relay)) {
-          if (!walkToBuilding(world.map, unit, relay)) {
-            job.via = undefined;
-            if (!walkToBuilding(world.map, unit, to))
-              abortJob(world, job, 'no way to the relay or past it', true);
-          }
-          continue;
-        }
-        handOver(world, job, unit, relay);
         continue;
       }
       // Same again at the other end: the good is on his shoulders, so it
