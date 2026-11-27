@@ -64,7 +64,7 @@ import {
   type TileResourceKind,
 } from '../map.ts';
 import * as MatchState from '../matchStateEnum.ts';
-import {findPath, nearestWalkable, tileStepCost} from '../path.ts';
+import {findPath, nearestWalkable, shut, tileStepCost} from '../path.ts';
 import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
 import * as RulePhase from '../rulePhaseEnum.ts';
 import {
@@ -4304,12 +4304,14 @@ export function cheapestRoad(
         const ny = y + dy;
         if (!inBounds(nx, ny, size)) continue;
         const n = tileIdx(nx, ny, size);
-        if (map.blocked[n]) continue;
+        // The pathfinder's own test, ice and all: a road weighed here has
+        // to be one the march can take, and in winter that is the lake.
+        if (shut(map, n)) continue;
         if (
           dx !== 0 &&
           dy !== 0 &&
-          (map.blocked[tileIdx(x + dx, y, size)] ||
-            map.blocked[tileIdx(x, y + dy, size)])
+          (shut(map, tileIdx(x + dx, y, size)) ||
+            shut(map, tileIdx(x, y + dy, size)))
         )
           continue;
         const stepLen = dx !== 0 && dy !== 0 ? Math.SQRT2 : 1;

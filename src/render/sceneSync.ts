@@ -14,6 +14,7 @@ import type {Enum} from '../shared/enum.ts';
 import {clamp, hash2, lerp} from '../shared/math';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {WATER_LEVEL} from '../sim/map';
 import * as AnimKey from './animKeyEnum.ts';
 import {crossedRelease} from './arrows';
 import type {FieldInfo, PierInfo} from './buildingSync';
@@ -420,6 +421,24 @@ export class SceneSync {
   #reader: SabReader;
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
+
+  /** PROTOTYPE (sleds.ts): while set, a serf's load rides a sled behind
+   * him rather than in his arms, and he walks rather than carries. */
+  towing = false;
+
+  /** Every unit on screen: its id, kind, group, and what it carries. */
+  eachUnit(
+    visit: (
+      id: number,
+      kind: number,
+      group: THREE.Group,
+      carrying: number,
+    ) => void,
+  ): void {
+    for (const [id, v] of this.#visuals) {
+      if (v.group.visible) visit(id, v.kind, v.group, v.carrying);
+    }
+  }
   #lastNow = 0;
   /** Animation clock: advances only while the game is running. */
   #animNow = 0;
@@ -1052,6 +1071,9 @@ export class SceneSync {
         }
         visual.carrying = carrying;
       }
+      // Only a serf has a sled to put it on; a worker keeps his load.
+      const towed = this.towing && (visual.kind & 0xff) === UnitTypeId.serf;
+      if (visual.carryBox) visual.carryBox.visible = !towed;
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.
       let moving = false;
@@ -1415,7 +1437,7 @@ export class SceneSync {
         // as a release crossing that never happened.
         visual.shootT = undefined;
       } else if (visual.char) {
-        const heldCarry = carrying > 0;
+        const heldCarry = carrying > 0 && !towed;
         let key: AnimKey;
         // The gait is a Gait, not an AnimKey — the numbers collide
         // (Gait.walk === AnimKey.idle), so it goes through gaitAnimKey.
@@ -1596,7 +1618,9 @@ export class SceneSync {
         // plot the farmer stands on the soil, not in it — and the plot is
         // draped over the ground, so the soil is that finger above the
         // ground wherever he is on it.
-        const groundY = this.#heights.at(px, pz);
+        // Never below the waterline: out on a frozen lake the ground
+        // under him is lake bed, and the ice is what he stands on.
+        const groundY = Math.max(this.#heights.at(px, pz), WATER_LEVEL);
         const standY =
           pier && onDeck
             ? Math.max(groundY, pier.deckY)

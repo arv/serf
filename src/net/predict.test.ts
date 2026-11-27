@@ -152,4 +152,39 @@ describe('move prediction', () => {
     // findPath found no route, so nothing was predicted at all.
     expect(frame[0]!.x).toBeCloseTo(10.5, 5);
   });
+
+  it('walks a frozen lake the way the server does', () => {
+    // A lake across the whole map, rows 20 to 24, bearing.
+    const map = {
+      ...openMap(),
+      ice: new Uint8Array(tileCount(DEFAULT_MAP_SIZE)),
+    };
+    for (let y = 20; y < 25; y++) {
+      for (let x = 0; x < DEFAULT_MAP_SIZE; x++) {
+        const i = tileIdx(x, y, DEFAULT_MAP_SIZE);
+        map.blocked[i] = 1;
+        map.ice[i] = 1;
+      }
+    }
+    const p = new MovePredictor(map);
+    // On the bank, his next step the ice. A guess only runs a few ticks
+    // ahead of the server, so this is where it has to be seen stepping out.
+    const u = unit(1, 10.5, 19.5);
+    p.order([1], 10, 30, new Map([[1, u]]));
+
+    let y = u.y;
+    for (let tick = 0; tick < 8; tick++) {
+      const frame = stillFrame(u);
+      p.apply(frame, 0);
+      y = frame[0]!.y;
+    }
+    // Out past the waterline, not held at it.
+    expect(y).toBeGreaterThan(20);
+
+    // And the same order over open water is no order at all.
+    map.ice.fill(0);
+    const q = new MovePredictor(map);
+    q.order([1], 10, 30, new Map([[1, u]]));
+    expect(q.size).toBe(0);
+  });
 });

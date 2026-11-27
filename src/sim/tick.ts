@@ -37,6 +37,7 @@ import {
   constructionSystem,
   orderRepair,
 } from './systems/construction.ts';
+import {iceSystem} from './systems/ice.ts';
 import {
   abortJob,
   logisticsSystem,
@@ -115,6 +116,10 @@ export function tickWorld(
   commands: readonly PlayerCommand[],
 ): void {
   const rng = new Rng(world.rngState);
+
+  // Before the orders: a move is planned as it is applied, and has to be
+  // planned on this tick's ice rather than the last one's.
+  iceSystem(world);
 
   for (const c of commands) {
     // One order must never be able to stop the world. Commands are screened

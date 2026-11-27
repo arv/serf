@@ -17,7 +17,10 @@ import * as PathLevel from './pathLevelEnum.ts';
  * predict its own movement with the very same pathfinder the server moves
  * with, rather than an approximation that would drift.
  */
-export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel' | 'size' | 'play'>;
+export type PathMap = Pick<
+  GameMap,
+  'blocked' | 'ice' | 'pathLevel' | 'size' | 'play'
+>;
 
 /**
  * A* over the tile grid: 8-directional, corner cutting forbidden, path-aware
@@ -29,6 +32,12 @@ const SQRT2 = Math.SQRT2;
 
 /** Movement cost multiplier per path level: grass, dirt trail, stone road. */
 const LEVEL_COST = [1.0, 0.85, 0.72] as const;
+
+/** Whether a walker is kept off tile `idx`: blocked, and not ice that
+ * will bear him. */
+export function shut(map: PathMap, idx: number): boolean {
+  return map.blocked[idx] !== 0 && !map.ice?.[idx];
+}
 
 export function tileStepCost(map: PathMap, idx: number): number {
   return LEVEL_COST[map.pathLevel[idx]!] ?? 1.0;
@@ -185,6 +194,8 @@ function search(
     return octile(x, y, cx, cy);
   };
 
+  // Hard ice is ground for as long as it lasts (GameMap.ice).
+  const ice = map.ice;
   const generation = nextGeneration();
   heapSize = 0;
   gScore[start] = 0;
@@ -228,12 +239,12 @@ function search(
         const ny = cy + dy;
         if (!inBounds(nx, ny, size)) continue;
         const n = tileIdx(nx, ny, size);
-        if (map.blocked[n]) continue;
+        if (map.blocked[n] && !ice?.[n]) continue;
         // No corner cutting: a diagonal needs both orthogonal neighbors open.
         if (dx !== 0 && dy !== 0) {
           if (
-            map.blocked[tileIdx(cx + dx, cy, size)] ||
-            map.blocked[tileIdx(cx, cy + dy, size)]
+            shut(map, tileIdx(cx + dx, cy, size)) ||
+            shut(map, tileIdx(cx, cy + dy, size))
           )
             continue;
         }
@@ -252,7 +263,7 @@ function search(
 
 /**
  * Shortest path from (sx,sy) to (tx,ty), excluding the start tile, or null
- * if unreachable. Target must be walkable.
+ * if unreachable. Target must be walkable — ground, or ice that bears.
  */
 export function findPath(
   map: PathMap,
@@ -262,8 +273,10 @@ export function findPath(
   ty: number,
 ): number[] | null {
   const size = map.size;
-  if (!inBounds(tx, ty, size) || map.blocked[tileIdx(tx, ty, size)])
-    return null;
+  // Bearing ice is somewhere to be as well as somewhere to cross: a man
+  // chasing a raider over the lake has to be able to reach him. An order
+  // to stand there is turned away earlier, by nearestWalkable.
+  if (!inBounds(tx, ty, size) || shut(map, tileIdx(tx, ty, size))) return null;
   const goal = tileIdx(tx, ty, size);
   return search(map, sx, sy, i => i === goal, tx, ty, tx, ty);
 }

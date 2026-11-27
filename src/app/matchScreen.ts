@@ -31,6 +31,7 @@ import {ScatterMesh} from '../render/scatterMesh';
 import {SceneSync} from '../render/sceneSync';
 import {Seasons} from '../render/seasons';
 import {SelectionFx} from '../render/selectionFx';
+import {Sleds} from '../render/sleds';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
 import {tileCount} from '../shared/grid';
@@ -552,6 +553,8 @@ export async function runMatch(
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights);
+  const sleds = new Sleds(renderer.scene, heights, sync);
+  teardown.push(() => sleds.dispose());
   sync.onCue = (cue, x, z, delaySec) => {
     playAt(cue, x, z, 1, delaySec);
     // The axe that files the sound also moves the tree. Riding the one
@@ -691,6 +694,8 @@ export async function runMatch(
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
       __seasons: seasons,
+      __host: host,
+      __sleds: sleds,
       __sync: sync,
       __buildings: buildingSync,
       __xray: {
@@ -1438,6 +1443,9 @@ export async function runMatch(
     // air with the battle they belong to.
     arrows.update(speed() === 0 ? 0 : dt);
     // Everything above has had its say about this camera; draw it.
+    // After the units are posed: a sled is drawn from where its man is,
+    // and bends him into the rope.
+    sleds.update(performance.now() / 1000, speed(), seasons.chart.snow);
     renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);

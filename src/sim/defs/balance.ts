@@ -398,3 +398,28 @@ export const WAYPOINT_QUEUE_CAP = 32;
 
 // Lost resident workers respawn after a mourning period.
 export const WORKER_RESPAWN_TICKS = 15 * TICKS_PER_SECOND;
+
+/**
+ * PROTOTYPE: the year, and the part of it the lakes will bear a man.
+ *
+ * A year is eight minutes, its last quarter winter; the look of it is
+ * render/seasons.ts, which turns on the same shares. The ice is hard for
+ * the whole of winter proper — from the moment the snow has finished
+ * coming to the moment it starts to go — and holds a few seconds into the
+ * thaw, which is as long as it still looks like ice.
+ *
+ * A function of the tick and nothing else, so it costs no state: nothing
+ * to save, nothing to hash, and every seat and every replay agree on it.
+ */
+export const YEAR_TICKS = 480 * TICKS_PER_SECOND;
+export const ICE_FROM = 0.75;
+export const ICE_UNTIL = 0.9;
+export const ICE_GRACE_TICKS = 8 * TICKS_PER_SECOND;
+
+export function iceBears(tick: number): boolean {
+  const into = tick % YEAR_TICKS;
+  return (
+    into >= ICE_FROM * YEAR_TICKS &&
+    into < ICE_UNTIL * YEAR_TICKS + ICE_GRACE_TICKS
+  );
+}

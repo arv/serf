@@ -1,6 +1,6 @@
 import {inBounds, tileIdx, tileX, tileY} from '../../shared/grid.ts';
 import {hash2} from '../../shared/math.ts';
-import {findPath} from '../path.ts';
+import {findPath, shut} from '../path.ts';
 import {takesUpRoom, type Unit} from '../units.ts';
 import type {World} from '../world.ts';
 
@@ -229,7 +229,15 @@ function detour(world: World, u: Unit, bodies: readonly Unit[]): void {
   const map = world.map;
   const size = map.size;
   const blocked = map.blocked;
+  // A stander's tile is closed for the one search by whichever grid holds
+  // it open: ground is blocked, and ice that bears him stops bearing.
+  const ice = map.ice;
   const marked: number[] = [];
+  const thawed: number[] = [];
+  const unmark = (): void => {
+    for (const t of marked) blocked[t] = 0;
+    for (const t of thawed) ice![t] = 1;
+  };
   for (let j = 0; j < bodies.length; j++) {
     const s = bodies[j]!;
     if (moving[j]! || s.owner === u.owner) continue;
@@ -240,6 +248,9 @@ function detour(world: World, u: Unit, bodies: readonly Unit[]): void {
     if (!blocked[t]) {
       blocked[t] = 1;
       marked.push(t);
+    } else if (ice?.[t]) {
+      ice[t] = 0;
+      thawed.push(t);
     }
   }
   // Search from the nearest tile nobody stands on. A wedged man is often
@@ -250,7 +261,7 @@ function detour(world: World, u: Unit, bodies: readonly Unit[]): void {
   // straight on through the line, and he walked into it again.
   let sx = Math.floor(u.x);
   let sy = Math.floor(u.y);
-  if (blocked[tileIdx(sx, sy, size)]) {
+  if (shut(map, tileIdx(sx, sy, size))) {
     let best = Infinity;
     const cx = sx;
     const cy = sy;
@@ -258,7 +269,8 @@ function detour(world: World, u: Unit, bodies: readonly Unit[]): void {
       for (let dx = -1; dx <= 1; dx++) {
         const nx = cx + dx;
         const ny = cy + dy;
-        if (!inBounds(nx, ny, size) || blocked[tileIdx(nx, ny, size)]) continue;
+        if (!inBounds(nx, ny, size) || shut(map, tileIdx(nx, ny, size)))
+          continue;
         const ox = nx + 0.5 - u.x;
         const oy = ny + 0.5 - u.y;
         const d2 = ox * ox + oy * oy;
@@ -270,14 +282,14 @@ function detour(world: World, u: Unit, bodies: readonly Unit[]): void {
       }
     }
     if (best === Infinity) {
-      for (const t of marked) blocked[t] = 0;
+      unmark();
       return; // boxed in on every side: keep pressing, and fighting
     }
   }
-  const p = blocked[goal]
+  const p = shut(map, goal)
     ? null
     : findPath(map, sx, sy, tileX(goal, size), tileY(goal, size));
-  for (const t of marked) blocked[t] = 0;
+  unmark();
   if (p && p.length > 0) {
     u.path = p;
     u.pathIdx = 0;
@@ -491,32 +503,29 @@ let defY = 0;
  * push that would land in a wall, a building or the water is tried along
  * each axis alone — sliding along the obstacle rather than into it — and
  * dropped when neither is open. Pathing already keeps every unit off
- * blocked tiles; this keeps a shove from undoing that.
+ * blocked tiles; this keeps a shove from undoing that. Ice that bears is
+ * open like any ground: men who meet on a lake are pushed apart on it.
  */
 function nudge(world: World, unit: Unit, px: number, py: number): void {
   const map = world.map;
-  const size = map.size;
   const x = unit.x;
   const y = unit.y;
-  if (open(map.blocked, size, x + px, y + py)) {
+  if (open(map, x + px, y + py)) {
     unit.x = x + px;
     unit.y = y + py;
-  } else if (px !== 0 && open(map.blocked, size, x + px, y)) {
+  } else if (px !== 0 && open(map, x + px, y)) {
     unit.x = x + px;
-  } else if (py !== 0 && open(map.blocked, size, x, y + py)) {
+  } else if (py !== 0 && open(map, x, y + py)) {
     unit.y = y + py;
   }
 }
 
-function open(
-  blocked: Uint8Array,
-  size: number,
-  x: number,
-  y: number,
-): boolean {
+/** Whether a shove may land at (x, y): ground, or ice that bears. */
+function open(map: World['map'], x: number, y: number): boolean {
   const tx = Math.floor(x);
   const ty = Math.floor(y);
-  return inBounds(tx, ty, size) && !blocked[tileIdx(tx, ty, size)];
+  const size = map.size;
+  return inBounds(tx, ty, size) && !shut(map, tileIdx(tx, ty, size));
 }
 
 /**
