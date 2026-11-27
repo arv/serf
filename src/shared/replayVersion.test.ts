@@ -858,8 +858,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // its state — so every logged command lands on the same world it did.
 // 78 for half again every unit's hit points: every fight between men
 // resolves on different ticks with different men left standing.
-const EXPECTED_VERSION = 78;
-const EXPECTED_HASH = '4bdf7c9f69c532a43173db489013ca95';
+// 79 for the field's year: the wheat farm cuts only in the harvest, at a
+// pace that keeps the year's total, and its farmer leaves for the winter.
+const EXPECTED_VERSION = 79;
+const EXPECTED_HASH = 'adba3b56491a2b57c85fb0dd8241a7e8';
 
 /**
  * Everything a replay's playback depends on, as raw source:

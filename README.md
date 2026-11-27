@@ -55,6 +55,16 @@ pnpm dev
   yours) — or, with Ale Rations,
   fills the barracks' and the range's casks so every recruit drinks and
   trains faster.
+- **The field's year**: a year is eight minutes, its last quarter winter,
+  and the wheat farm keeps it. It cuts wheat only through the harvest (the
+  first 60% of the year, and the match opens in it), sows in the fall,
+  lies fallow under the snow and comes up green with the thaw. The harvest
+  cuts at a pace that brings in the same 48 sheaves a year the farm used to
+  cut all year round, so the bread chain is as fed as ever, but the winter
+  eats what went into the castle in the summer. While the field sleeps the
+  farmer goes back to the serf pool to haul, and the post calls a hand back
+  at the thaw; the scythe waits on the farm's rack. The farm's card says
+  where the field is in its year and how long it stays there.
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut

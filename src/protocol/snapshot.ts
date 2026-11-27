@@ -14,7 +14,11 @@ import {exactDist} from '../shared/math.ts';
 import {distToFootprint} from '../sim/arrival.ts';
 import {batchTicks} from '../sim/batchTicks.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
-import {HIRE_SERF_TICKS, TICKS_PER_SECOND} from '../sim/defs/balance.ts';
+import {
+  HIRE_SERF_TICKS,
+  TICKS_PER_SECOND,
+  farmSeasonAt,
+} from '../sim/defs/balance.ts';
 import {
   OUTPUT_CAP,
   TOOL_OF,
@@ -22,10 +26,12 @@ import {
   convertRecipeOf,
   gatherOrigin,
   gatherRecipeOf,
+  postInSeason,
   rationOf,
   type BuildingDef,
 } from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as FarmSeason from '../sim/defs/farmSeasonEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {GOODS, goodEntries, type GoodAmounts} from '../sim/defs/goods.ts';
 import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
@@ -58,10 +64,11 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
   let staffing: BuildingSnap['staffing'];
   // A paused post is not asking for anyone — pausing emptied it on purpose —
   // so it reports no staffing state rather than a false "needed" alarm.
+  // So is a field gone fallow: its farmer was sent off for the winter.
   const wantsStaff =
     !b.paused &&
     (b.state === BuildingState.built
-      ? def.workerKind !== undefined
+      ? def.workerKind !== undefined && postInSeason(def, world.tick)
       : b.state === BuildingState.site && !def.isRoad);
   if (wantsStaff) {
     const worker =
@@ -799,6 +806,16 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
           : ACTION.idle;
       }
       if (home.prodTicksLeft !== undefined) return ACTION.work;
+      // The fall's work on a field is the sowing, which makes nothing and
+      // so runs no batch: he is at it for as long as he holds an open
+      // post through the season.
+      if (
+        !home.paused &&
+        home.state === BuildingState.built &&
+        convertRecipeOf(buildingDef(home.type))?.crop === true &&
+        farmSeasonAt(w.tick) === FarmSeason.sow
+      )
+        return ACTION.work;
     }
   }
   return ACTION.idle;
@@ -839,7 +856,9 @@ function workKindOf(w: World, u: Unit): number {
     return def.recipe.resource === TileResource.Wood ? WORK.chop : WORK.pickaxe;
   }
   if (home.type === BuildingTypeId.weaponsmith) return WORK.hammer;
-  if (home.type === BuildingTypeId.wheatFarm) return WORK.mow; // scythe in the rows
+  if (home.type === BuildingTypeId.wheatFarm)
+    // Scythe in the rows, or seed down them in the fall.
+    return farmSeasonAt(w.tick) === FarmSeason.sow ? WORK.sow : WORK.mow;
   if (home.type === BuildingTypeId.well) return WORK.draw; // cranking the bucket up
   if (home.type === BuildingTypeId.fishery) return WORK.fish; // pole out on the pier
   return WORK.tend;

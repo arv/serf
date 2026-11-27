@@ -1,7 +1,9 @@
 import type {Enum} from '../../shared/enum.ts';
 import {
+  HARVEST_SHARE,
   MINE_RATION_PER,
   REPAIR_COST_SHARE,
+  farmSeasonAt,
   type HaulPriority,
 } from './balance.ts';
 import * as BuildingTypeIdNs from './buildingTypeIdEnum.ts';
@@ -16,6 +18,7 @@ import type {TileResourceKind} from '../map.ts';
 // built. An enum module imports nothing, so it can never be the far side
 // of a cycle.
 import * as TileResource from '../tileResourceEnum.ts';
+import * as FarmSeason from './farmSeasonEnum.ts';
 import * as GoodId from './goodIdEnum.ts';
 import {type GoodAmounts, goodEntries, goodKeys} from './goods.ts';
 import * as RecipeKindNs from './recipeKindEnum.ts';
@@ -70,6 +73,13 @@ export type Recipe =
       inputs: GoodAmounts;
       outputs: GoodAmounts;
       durationTicks: number;
+      /**
+       * A crop: a batch only starts while the field stands ripe
+       * (farmSeasonAt in balance.ts). The rest of the year it is being
+       * sown, sleeps under the snow or is still coming up, and there is
+       * nothing to bring in.
+       */
+      crop?: true;
     };
 
 export interface BuildingDef {
@@ -375,11 +385,15 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 100,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
+    // A sheaf every ten seconds, the year round — but only the harvest
+    // cuts any, so the year's are cut inside it: a sheaf every six. The
+    // same wheat a year, and none of it in the winter.
     recipe: {
       kind: RecipeKindNs.convert,
       inputs: {[GoodId.water]: 1},
       outputs: {[GoodId.wheat]: 1},
-      durationTicks: 10 * S,
+      durationTicks: Math.round(10 * S * HARVEST_SHARE),
+      crop: true,
     },
   },
   [B.mill]: {
@@ -1099,6 +1113,22 @@ export function rationOf(
   def: BuildingDef,
 ): {good: GoodId; per: number} | undefined {
   return gatherRecipeOf(def)?.ration;
+}
+
+/**
+ * Whether this post wants its hand at `tick`. Every post does, always, but
+ * a field in its winter: fallow under the snow there is nothing to cut,
+ * sow or watch, so the farmer goes back to the serf pool for it (systems/
+ * staffing.ts) and the post calls him back with the thaw. The spring is
+ * his walk home: back on the post before the field is ripe, rather than
+ * recruited at the first sheaf against every haul on the board.
+ */
+export function postInSeason(def: BuildingDef, tick: number): boolean {
+  return (
+    def.recipe?.kind !== RecipeKindNs.convert ||
+    def.recipe.crop !== true ||
+    farmSeasonAt(tick) !== FarmSeason.fallow
+  );
 }
 
 /** The tile a gatherer searches outward from: its footprint center, floored.

@@ -76,7 +76,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.well]:
     'A shaft and a windlass, with nobody posted to it. Whoever needs water comes and draws it.',
   [BuildingTypeId.wheatFarm]:
-    'Water in, standing wheat out. The mill and the brewery both draw on it, so one farm rarely stays enough.',
+    'Water in, standing wheat out, but only at harvest: the field is sown in the fall, sleeps under the snow and comes up green with the thaw. The summer brings in the whole year’s wheat, so the winter lives on what went into the castle, and the farmer goes off to haul until the thaw. The mill and the brewery both draw on it, so one farm rarely stays enough.',
   [BuildingTypeId.mill]:
     'Grinds wheat into flour, and keeps no resident. It is slower than the farm feeding it by design, so one mill serves two.',
   [BuildingTypeId.bakery]: `Flour and water in, ${BAKED} loaves out. The far end of the bread chain, and the best food rate in the game once the chain stands.`,

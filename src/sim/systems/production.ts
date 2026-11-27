@@ -4,7 +4,7 @@ import {Rng} from '../../shared/rng.ts';
 import {atBuilding, atTile, walkToBuilding, walkToTile} from '../arrival.ts';
 import {batchTicks} from '../batchTicks.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
-import {WOOD_MAX_AMT, REGROW_INTERVAL} from '../defs/balance.ts';
+import {REGROW_INTERVAL, WOOD_MAX_AMT, farmSeasonAt} from '../defs/balance.ts';
 import {
   BUILDING_DEFS,
   BUILDING_TYPES,
@@ -19,6 +19,7 @@ import {
   type BuildingTypeId,
   type Recipe,
 } from '../defs/buildings.ts';
+import * as FarmSeason from '../defs/farmSeasonEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries} from '../defs/goods.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
@@ -139,6 +140,10 @@ function convertStep(
     active = def.recipeOptions[pick.index]!.recipe;
   }
   if (!active) return;
+  // Nothing to cut out of season. Only the start of a batch is gated: a
+  // sheaf the scythe was already into when the harvest ended still comes
+  // in, the way a forge's batch finishes as what it started as.
+  if (active.crop && farmSeasonAt(world.tick) !== FarmSeason.harvest) return;
 
   // Cached entry lists (see recipeInputs): every converter in the village
   // walks these three loops on every tick it is not mid-batch, and
@@ -843,7 +848,7 @@ export function consumePostTool(world: World, b: Building): boolean {
  * ever advance — and dispatch, staffing and wander all want a genuinely idle
  * unit, so nobody ever picks him up again. He stands in the field forever,
  * counted against the population and eating, doing nothing. Two callers
- * (releaseObsoletePosts, the move order in tick.ts) already knew to reset the
+ * (releaseIdlePosts, the move order in tick.ts) already knew to reset the
  * task by hand and said so in their comments; the dismiss order (since folded
  * into pausing) and `sellBuilding` did not, and both leaked a hand per use.
  * Doing it here means the next caller cannot forget.
@@ -851,7 +856,7 @@ export function consumePostTool(world: World, b: Building): boolean {
  * Whatever is in his hands stays there — logistics has a path for a free serf
  * still holding a good (rehomeCarriedGoods).
  */
-export function unbindWorker(world: World, worker: Unit): void {
+export function unbindWorker(world: World, worker: Unit, onRack = false): void {
   const home =
     worker.homeId !== undefined
       ? world.buildings.get(worker.homeId)
@@ -859,16 +864,19 @@ export function unbindWorker(world: World, worker: Unit): void {
   if (home && home.workerId === worker.id) {
     home.workerId = undefined;
     // Every unbind is a voluntary departure (dismiss, sell, a move order,
-    // an obsolete post) — the man leaves the post's tool on the shelf,
-    // where evacuation hauls it home for whoever needs it next. Into
-    // stock rather than back into the input rack on purpose: a dismissal
-    // is usually the player freeing the tool as much as the man. Death
-    // never comes through here: a killed worker drops the tool where he
-    // falls instead (killUnit), a salvage pile the village must hold the
-    // ground to recover.
+    // an obsolete post, a field gone fallow) — the man leaves the post's
+    // tool behind. On the shelf, as a rule, where evacuation hauls it home
+    // for whoever needs it next: a dismissal is usually the player freeing
+    // the tool as much as the man. `onRack` is the season's exception: the
+    // post calls a hand back at the thaw, so the scythe waits on its own
+    // peg for him instead of riding to the castle and back. Death never
+    // comes through here: a killed worker drops the tool where he falls
+    // instead (killUnit), a salvage pile the village must hold the ground
+    // to recover.
     const tool = TOOL_OF[home.type];
     if (tool && !home.dead && home.state === BuildingState.built) {
-      home.stock[tool] = (home.stock[tool] ?? 0) + 1;
+      const to = onRack ? home.inputs : home.stock;
+      to[tool] = (to[tool] ?? 0) + 1;
       world.ledger.produced[tool] = (world.ledger.produced[tool] ?? 0) + 1;
     }
   }

@@ -2,7 +2,12 @@ import type {Enum} from '../../shared/enum.ts';
 import {atBuilding, walkToBuilding} from '../arrival.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND} from '../defs/balance.ts';
-import {TOOL_OF, buildingDef, garrisonRoom} from '../defs/buildings.ts';
+import {
+  TOOL_OF,
+  buildingDef,
+  garrisonRoom,
+  postInSeason,
+} from '../defs/buildings.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {GOODS, goodEntries} from '../defs/goods.ts';
 import * as TechId from '../defs/techIdEnum.ts';
@@ -47,28 +52,36 @@ const BUILDER_STARVED_TICKS = 10 * TICKS_PER_SECOND;
 export function staffingSystem(world: World): void {
   handleArrivals(world);
   if (world.tick % REQUEST_INTERVAL === 0) {
-    releaseObsoletePosts(world);
+    releaseIdlePosts(world);
     emptyHaltedTowers(world);
   }
   requestRecruits(world, world.tick % REQUEST_INTERVAL !== 0);
 }
 
 /**
- * A standing building holding a resident its def no longer wants gives them
- * back. Nothing in a running match makes one — construction already releases
- * the builder when a workerless building tops out — but a *save* does: the
- * well kept a keeper until this version, so a file written by an older build
- * still has one bound to a post that no longer exists. Left alone they stand
- * at the windlass forever, a hand the village paid for and can never use.
+ * A standing building holding a resident it does not want gives them back.
+ * Two ways for that to happen:
  *
- * Written as a rule rather than a well-shaped migration because the next def
- * to drop its post should not need a second one.
+ * - the field's winter (postInSeason). Fallow under the snow the farm has
+ *   nothing for its farmer to do, so he goes back to the serf pool to haul
+ *   and build until the post calls a hand back at the thaw. His scythe
+ *   stays on the farm's rack for whoever answers.
+ * - a def that dropped its post. Nothing in a running match makes one —
+ *   construction already releases the builder when a workerless building
+ *   tops out — but a *save* does: the well kept a keeper until that
+ *   version, so a file written by an older build still has one bound to a
+ *   post that no longer exists. Left alone they stand at the windlass
+ *   forever, a hand the village paid for and can never use. Written as a
+ *   rule rather than a well-shaped migration because the next def to drop
+ *   its post should not need a second one.
  */
-function releaseObsoletePosts(world: World): void {
+function releaseIdlePosts(world: World): void {
   for (const b of world.buildings.values()) {
     if (b.dead || b.state !== BuildingState.built || b.workerId === undefined)
       continue;
-    if (buildingDef(b.type).workerKind !== undefined) continue;
+    const def = buildingDef(b.type);
+    const winter = !postInSeason(def, world.tick);
+    if (def.workerKind !== undefined && !winter) continue;
     const worker = world.units.get(b.workerId);
     if (!worker || worker.dead) {
       b.workerId = undefined;
@@ -77,7 +90,7 @@ function releaseObsoletePosts(world: World): void {
     // Back to the pool means back to idle, and unbindWorker does that for
     // every caller now — see its comment for why a half-finished gather task
     // would otherwise strand the hand for good.
-    unbindWorker(world, worker);
+    unbindWorker(world, worker, winter);
   }
 }
 
@@ -238,7 +251,13 @@ function handleArrivals(world: World): void {
         );
       }
       unit.dead = true; // the person is now inside, training
-    } else if (def.workerKind && !liveWorker(world, b)) {
+    } else if (
+      def.workerKind &&
+      !liveWorker(world, b) &&
+      // Answered a field's call and found it gone fallow while he walked:
+      // stand down, as at a halted post.
+      postInSeason(def, world.tick)
+    ) {
       // The serf takes up the post and becomes this building's worker —
       // if the post's tool is still on the rack to hand him (it was when
       // he was recruited; like the barracks' "ingredients were lost
@@ -401,6 +420,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       b.state === BuildingState.built &&
       def.workerKind !== undefined &&
       !liveWorker(world, b) &&
+      postInSeason(def, world.tick) &&
       // A tool-gated post summons nobody until its tool hangs in the
       // rack — recruiting first would walk a serf over to stand in front
       // of an empty peg while the axe is still on the road.

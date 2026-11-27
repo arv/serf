@@ -20,6 +20,16 @@
  * directly.
  */
 /**
+ * 79: the wheat farm keeps the seasons (farmSeasonAt in defs/balance.ts).
+ * It cuts wheat only through the harvest, the first 60% of the year, and
+ * cuts it at a sheaf every six seconds rather than ten so the year's total
+ * is what it was; and while the field lies fallow under the snow its
+ * farmer goes back to the serf pool (systems/staffing.ts), his scythe left
+ * on the farm's rack. Every bread chain and every haul a free farmer takes
+ * runs on different ticks, so old logs stop playing.
+ *
+ * 78's note follows.
+ *
  * 78: every unit carries half again his hit points (defs/units.ts) — serf
  * and worker 25 to 38, knight 80 to 120, spearman 45 to 68, archer 32 to
  * 48, bandit 40 to 60, bandit archer 30 to 45, marauder 70 to 105. Damage,
@@ -1458,4 +1468,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 78;
+export const REPLAY_VERSION = 79;
