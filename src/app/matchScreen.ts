@@ -24,6 +24,7 @@ import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
 import {MarginMesh} from '../render/marginMesh';
 import {Mist} from '../render/mist';
+import {onCartModel} from '../render/models';
 import {RallyFlag} from '../render/rallyFlag';
 import {SelectedReach} from '../render/reachOutline';
 import {GameRenderer} from '../render/renderer';
@@ -740,6 +741,9 @@ export async function runMatch(
   buildingSync.update(init.buildings);
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
+  // The carts' models load after the first roster is drawn: park them
+  // again as the real thing once they are here (models.ts onCartModel).
+  teardown.push(onCartModel(() => buildingSync.update(roster)));
 
   // Open on your own keep, not the map's middle. Solo they coincide, but a
   // multiplayer start sits on a ring — the first thing a player sees must

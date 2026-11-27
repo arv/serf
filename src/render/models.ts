@@ -483,8 +483,20 @@ export const PILE_SCALE = 1.25;
  * over once loaded): a parked cart is drawn as the real thing, not as a
  * carried proxy. */
 const cartModels = new Map<GoodId, THREE.Object3D>();
+const cartModelListeners = new Set<() => void>();
 export function setCartModel(good: GoodId, model: THREE.Object3D): void {
   cartModels.set(good, model);
+  for (const listener of cartModelListeners) listener();
+}
+/** Call `listener` whenever a cart's model arrives, so a castle that parked
+ * its carts as stand-ins before then can park them again: building
+ * snapshots only come when a building changes, and a quiet castle might
+ * not for a long while. Returns the unsubscribe. */
+export function onCartModel(listener: () => void): () => void {
+  cartModelListeners.add(listener);
+  return () => {
+    cartModelListeners.delete(listener);
+  };
 }
 /** Whether `good` has its model yet, so a parked one drawn before it came
  * can be drawn again. */
