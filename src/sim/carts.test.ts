@@ -580,3 +580,37 @@ describe('stockTheCarts', () => {
     expect(order()).toBe(indexOf(GoodId.sled));
   });
 });
+
+describe('a cart at the castle door', () => {
+  /** Four men at the castle door and a site six planks short. */
+  function siteRun(make: () => ReturnType<typeof summerSite>) {
+    const {world, store, site, start} = make();
+    const men = [0, 1, 2, 3].map(k => addSerf(world, 29 + k, 33));
+    const carriers = new Set<number>();
+    let most = 0;
+    for (let i = 0; i < 4000 && (site.siteNeeds?.[GoodId.wood] ?? 0) > 0; i++) {
+      tickWorld(world, []);
+      for (const m of men) {
+        if (m.carrying === GoodId.wood) carriers.add(m.id);
+        most = Math.max(most, cargoOf(m));
+      }
+      expect(checkInvariants(world).violations).toEqual([]);
+    }
+    expect(site.siteNeeds?.[GoodId.wood] ?? 0).toBe(0);
+    expect(store.stock[GoodId.wood]).toBe(4);
+    expect(checkLedger(world, start)).toEqual([]);
+    return {most, carriers: carriers.size};
+  }
+
+  it('takes a site its planks four to a sled in winter, not a man a plank', () => {
+    const {most, carriers} = siteRun(() => winterSite(1));
+    expect(most).toBe(SLED_LOAD);
+    expect(carriers).toBeLessThanOrEqual(3);
+  });
+
+  it('and two to a barrow the rest of the year', () => {
+    const {most, carriers} = siteRun(() => summerSite(1));
+    expect(most).toBe(BARROW_LOAD);
+    expect(carriers).toBeLessThanOrEqual(5);
+  });
+});

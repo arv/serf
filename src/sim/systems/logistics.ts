@@ -745,18 +745,23 @@ function returnCarts(world: World): void {
 }
 
 /**
- * A cart at the door takes what is waiting, not just what was booked. A
- * walk home to the castle loads its good off the source's shelf up to the
- * season's cart load — if the hauler has the season's cart in hand — and
- * takes it in this order:
+ * A cart at the door takes what is waiting, not just what was booked: a
+ * walk loads its good off the source's shelf up to the season's cart load
+ * (cartFor: a sled in winter, a wheelbarrow from the thaw's end to the
+ * first frost, none in the thaw), in this order:
  *
- * - loads the board has booked to the castle from this same door that no
- *   serf has set out for yet: those walks are folded into this one and
- *   never happen, their reservations carried over unchanged;
- * - then anything on the shelf nobody has claimed at all.
+ * - the other walks the board has booked along this same route, from this
+ *   door to the same destination — those not yet started, and those a serf
+ *   is still walking to the door for, whom it stands down to take other
+ *   work. Their walks never happen; their reservations carry over, so the
+ *   destination gets exactly what it asked for, in one walk;
+ * - then, on a walk home to the castle only, anything on the shelf nobody
+ *   has claimed at all: the castle takes anything, where a mill or a site
+ *   asked for a number and would be over-filled.
  *
- * Only home to the castle: it takes anything, where a mill or a site asked
- * for a number and would be over-filled. Returns how many it added.
+ * A hauler without the season's cart takes one here if this door is the
+ * castle's, where they are kept, and there is something to fold in. Returns
+ * how many it added.
  */
 function topUpCart(
   world: World,
@@ -765,11 +770,37 @@ function topUpCart(
   hauler: Unit,
 ): number {
   const cart = cartFor(world.tick);
-  if (!cart || hauler.cart !== cart.good) return 0;
+  if (!cart) return 0;
   const castle = findStorehouse(world, job.owner);
-  if (!castle || castle.id !== job.to || from.id === castle.id) return 0;
+  if (!castle) return 0;
   let room = cart.load - loadOf(job);
   if (room <= 0) return 0;
+  const homeward = castle.id === job.to && from.id !== castle.id;
+  const foldable = (other: HaulJob): boolean =>
+    other.id !== job.id &&
+    (other.phase === HaulPhase.open || other.phase === HaulPhase.toPickup) &&
+    other.from === from.id &&
+    other.to === job.to &&
+    other.good === job.good &&
+    other.repair === job.repair &&
+    other.research === job.research &&
+    loadOf(other) <= room;
+  if (hauler.cart !== cart.good) {
+    // Carts are kept at the castle: a man at its door with empty hands can
+    // take the season's, if the walk would use it.
+    if (hauler.cart !== undefined) return 0;
+    if (from.id !== castle.id || (castle.stock[cart.good] ?? 0) <= 0) return 0;
+    let worth = false;
+    for (const other of world.jobs.values()) {
+      if (foldable(other)) {
+        worth = true;
+        break;
+      }
+    }
+    if (!worth) return 0;
+    castle.stock[cart.good] = (castle.stock[cart.good] ?? 0) - 1;
+    hauler.cart = cart.good;
+  }
   let added = 0;
   const take = (n: number): void => {
     from.stock[job.good] = (from.stock[job.good] ?? 0) - n;
@@ -781,31 +812,33 @@ function topUpCart(
   // revisits an entry and never sees one removed ahead of it.
   for (const other of world.jobs.values()) {
     if (room <= 0) break;
-    if (
-      other.id === job.id ||
-      other.phase !== HaulPhase.open ||
-      other.from !== from.id ||
-      other.to !== castle.id ||
-      other.good !== job.good ||
-      other.repair ||
-      other.research
-    )
-      continue;
+    if (!foldable(other)) continue;
     const n = loadOf(other);
-    if (n > room) continue;
-    // The other walk's claim on the shelf ends here, and its claim on the
-    // castle's door becomes this walk's: inbound already counts it.
+    // Its claim on the shelf ends here; its claim on the destination's
+    // door becomes this walk's, and inbound already counts it.
     from.reservedOut[job.good] = Math.max(
       0,
       (from.reservedOut[job.good] ?? 0) - n,
     );
+    if (other.serfId !== undefined) {
+      // He was on his way to the door for it: stood down, empty-handed,
+      // for the board to give him something else.
+      const walker = world.units.get(other.serfId);
+      if (walker && walker.jobId === other.id) {
+        walker.jobId = undefined;
+        walker.path = null;
+        walker.task = {t: UnitTaskKind.idle, until: world.tick};
+      }
+    }
     world.jobs.delete(other.id);
     take(n);
   }
-  const spare = Math.min(room, availableOut(from, job.good));
-  if (spare > 0) {
-    castle.inbound[job.good] = (castle.inbound[job.good] ?? 0) + spare;
-    take(spare);
+  if (homeward) {
+    const spare = Math.min(room, availableOut(from, job.good));
+    if (spare > 0) {
+      castle.inbound[job.good] = (castle.inbound[job.good] ?? 0) + spare;
+      take(spare);
+    }
   }
   return added;
 }
