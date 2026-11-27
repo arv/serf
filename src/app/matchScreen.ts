@@ -1108,6 +1108,18 @@ export async function runMatch(
     }
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
+    // A monument's ending is shown before the outcome lands. Armed after
+    // it, the end card the reveal holds back would mount for the one flush
+    // in between, which is long enough for the Hud's card effect to shut
+    // an open menu.
+    const monumentAt =
+      msg.outcome.state === MatchState.over ? msg.outcome.monument : undefined;
+    if (monumentAt) {
+      for (const e of msg.events) {
+        if (e.kind === GameEventKind.gameOver && e.winner !== null)
+          showMonument(e.winner, monumentAt);
+      }
+    }
     setOutcome(msg.outcome);
     // A decided match is a played match, and a played match is worth
     // recording somewhere the author can see it. Latched, so the frames
@@ -1238,12 +1250,8 @@ export async function runMatch(
         play('raidHorn');
         pushToast('A rival is raising a Monument!');
       } else if (event.kind === GameEventKind.gameOver) {
+        // The monument that decided it, if one did, was shown above.
         play(event.winner === viewerId() ? 'victory' : 'defeat');
-        const at =
-          msg.outcome.state === MatchState.over
-            ? msg.outcome.monument
-            : undefined;
-        if (at && event.winner !== null) showMonument(event.winner, at);
       }
     }
     // After the loop, not before it: strikes in the frame that ended the
