@@ -653,6 +653,67 @@ export function sparesSleds(world: World, owner: Owner): number {
   return (castle.stock[GoodId.sled] ?? 0) - lent;
 }
 
+/**
+ * A sled at the door takes what is waiting, not just what was booked. In
+ * winter, a walk home to the castle loads its good off the source's shelf
+ * up to SLED_LOAD — borrowing a sled for it if it had none and the castle
+ * has one free — and takes it in this order:
+ *
+ * - loads the board has booked to the castle from this same door that no
+ *   serf has set out for yet: those walks are folded into this one and
+ *   never happen, their reservations carried over unchanged;
+ * - then anything on the shelf nobody has claimed at all.
+ *
+ * Only home to the castle: it takes anything, where a mill or a site asked
+ * for a number and would be over-filled. Returns how many it added.
+ */
+function topUpSled(world: World, job: HaulJob, from: Building): number {
+  if (!world.map.winter) return 0;
+  const castle = findStorehouse(world, job.owner);
+  if (!castle || castle.id !== job.to || from.id === castle.id) return 0;
+  let room = SLED_LOAD - loadOf(job);
+  if (room <= 0) return 0;
+  if (loadOf(job) === 1 && sparesSleds(world, job.owner) <= 0) return 0;
+  let added = 0;
+  const take = (n: number): void => {
+    from.stock[job.good] = (from.stock[job.good] ?? 0) - n;
+    job.count = loadOf(job) + n;
+    room -= n;
+    added += n;
+  };
+  // Deleting from a Map while iterating it is defined: the loop never
+  // revisits an entry and never sees one removed ahead of it.
+  for (const other of world.jobs.values()) {
+    if (room <= 0) break;
+    if (
+      other.id === job.id ||
+      other.phase !== HaulPhase.open ||
+      other.from !== from.id ||
+      other.to !== castle.id ||
+      other.good !== job.good ||
+      other.repair ||
+      other.research
+    )
+      continue;
+    const n = loadOf(other);
+    if (n > room) continue;
+    // The other walk's claim on the shelf ends here, and its claim on the
+    // castle's door becomes this walk's: inbound already counts it.
+    from.reservedOut[job.good] = Math.max(
+      0,
+      (from.reservedOut[job.good] ?? 0) - n,
+    );
+    world.jobs.delete(other.id);
+    take(n);
+  }
+  const spare = Math.min(room, availableOut(from, job.good));
+  if (spare > 0) {
+    castle.inbound[job.good] = (castle.inbound[job.good] ?? 0) + spare;
+    take(spare);
+  }
+  return added;
+}
+
 function createJob(
   world: World,
   good: GoodId,
@@ -1551,8 +1612,9 @@ function progress(world: World): void {
       }
       from.stock[job.good] = (from.stock[job.good] ?? 0) - load;
       releaseSource(world, job);
+      const taken = load + topUpSled(world, job, from);
       unit.carrying = job.good;
-      unit.carryCount = load > 1 ? load : undefined;
+      unit.carryCount = taken > 1 ? taken : undefined;
       job.phase = HaulPhase.toDropoff;
 
       const to = world.buildings.get(job.to);

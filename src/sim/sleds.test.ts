@@ -18,7 +18,13 @@ import {tileSpeedMult, tileStepCost} from './path.ts';
 import * as PathLevel from './pathLevelEnum.ts';
 import {sparesSleds} from './systems/logistics.ts';
 import {autoForgeIndex} from './systems/production.ts';
-import {addSerf, addSite, addStorehouse, bareWorld} from './testUtils.ts';
+import {
+  addBuiltHut,
+  addSerf,
+  addSite,
+  addStorehouse,
+  bareWorld,
+} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import {cargoOf} from './units.ts';
 import {killUnit, placeBuiltBuilding, type World} from './world.ts';
@@ -192,5 +198,46 @@ describe('sleds', () => {
     // Stocked up, the fire goes cold again.
     store.stock[GoodId.sled] = SLED_STOCK;
     expect(autoForgeIndex(world, smith, def)).toBeUndefined();
+  });
+
+  it('take home whatever is waiting at the door, not just what was booked', () => {
+    const world = bareWorld();
+    world.tick = WINTER;
+    const castle = addStorehouse(world, 30, 30, {[GoodId.sled]: 1});
+    const hut = addBuiltHut(world, 20, 30, false);
+    hut.stock[GoodId.wood] = 1;
+    const serf = addSerf(world, 25, 30);
+    run(world, 1);
+    // One plank on the shelf: one booked.
+    const job = [...world.jobs.values()].find(j => j.good === GoodId.wood)!;
+    expect(job.count ?? 1).toBe(1);
+    // Three more are cut before he gets there.
+    hut.stock[GoodId.wood] = 4;
+    let most = 0;
+    for (let i = 0; i < 1500 && (castle.stock[GoodId.wood] ?? 0) === 0; i++) {
+      tickWorld(world, []);
+      most = Math.max(most, cargoOf(serf));
+      expect(checkInvariants(world).violations).toEqual([]);
+    }
+    expect(most).toBe(SLED_LOAD);
+    expect(castle.stock[GoodId.wood]).toBe(SLED_LOAD);
+    expect(hut.stock[GoodId.wood] ?? 0).toBe(0);
+  });
+
+  it('take nothing extra without a sled to put it on', () => {
+    const world = bareWorld();
+    world.tick = WINTER;
+    const castle = addStorehouse(world, 30, 30, {});
+    const hut = addBuiltHut(world, 20, 30, false);
+    hut.stock[GoodId.wood] = 1;
+    const serf = addSerf(world, 25, 30);
+    run(world, 1);
+    hut.stock[GoodId.wood] = 4;
+    let most = 0;
+    for (let i = 0; i < 1500 && (castle.stock[GoodId.wood] ?? 0) === 0; i++) {
+      tickWorld(world, []);
+      most = Math.max(most, cargoOf(serf));
+    }
+    expect(most).toBe(1);
   });
 });
