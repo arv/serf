@@ -851,7 +851,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // dropped is executed, and the tailings a worked-out gold seam left behind
 // are gone with the one rule that read them (replayVersion.ts at length).
 const EXPECTED_VERSION = 77;
-const EXPECTED_HASH = '08865ee404b599f94c42604a143e1c56';
+const EXPECTED_HASH = '3fb75b2200f7b80422c6d219877f169b';
 
 /**
  * Everything a replay's playback depends on, as raw source:

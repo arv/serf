@@ -260,7 +260,9 @@ export class Sleds {
         ? 0
         : Math.min(Math.max(seconds - this.#last, 0), 0.25) * speed;
     this.#last = seconds;
-    const sledding = this.#enabled && snow > SLEDDING;
+    // No sled to put it on, no taking the load out of his arms: until the
+    // model is here he carries as he always did.
+    const sledding = this.#enabled && model !== undefined && snow > SLEDDING;
     this.#sync.towing = sledding;
     (this.#tracks.material as THREE.Material).opacity = 0.42 * snow;
 

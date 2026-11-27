@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {TICKS_PER_SECOND} from '../sim/defs/balance';
+import {TICKS_PER_SECOND, YEAR_TICKS} from '../sim/defs/balance';
 import {
   background,
   fog,
@@ -27,8 +27,6 @@ import type {WaterMesh} from './waterMesh';
 const SEASONS = ['summer', 'winter'] as const;
 type Season = (typeof SEASONS)[number];
 
-/** Seconds in a year unless ?year says otherwise. */
-const YEAR_SECONDS = 480;
 /** How much of the year each season has: six minutes of summer to two of
  * winter. */
 const SHARE: Record<Season, number> = {summer: 0.75, winter: 0.25};
@@ -175,8 +173,9 @@ export class Seasons {
     const params = new URLSearchParams(location.search);
     const year = Number(params.get('year'));
     this.#yearTicks =
-      (Number.isFinite(year) && year > 0 ? year : YEAR_SECONDS) *
-      TICKS_PER_SECOND;
+      // The sim's own year unless ?year overrides the look of it: the
+      // ice on screen has to be the ice the sim lets a man onto.
+      Number.isFinite(year) && year > 0 ? year * TICKS_PER_SECOND : YEAR_TICKS;
     const pinned = params.get('season') as Season;
     if (SEASONS.includes(pinned)) this.#cycle = [pinned];
     this.#points = this.#makeAir();

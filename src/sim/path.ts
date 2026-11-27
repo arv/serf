@@ -263,7 +263,7 @@ function search(
 
 /**
  * Shortest path from (sx,sy) to (tx,ty), excluding the start tile, or null
- * if unreachable. Target must be walkable.
+ * if unreachable. Target must be walkable — ground, or ice that bears.
  */
 export function findPath(
   map: PathMap,
@@ -273,8 +273,10 @@ export function findPath(
   ty: number,
 ): number[] | null {
   const size = map.size;
-  if (!inBounds(tx, ty, size) || map.blocked[tileIdx(tx, ty, size)])
-    return null;
+  // Bearing ice is somewhere to be as well as somewhere to cross: a man
+  // chasing a raider over the lake has to be able to reach him. An order
+  // to stand there is turned away earlier, by nearestWalkable.
+  if (!inBounds(tx, ty, size) || shut(map, tileIdx(tx, ty, size))) return null;
   const goal = tileIdx(tx, ty, size);
   return search(map, sx, sy, i => i === goal, tx, ty, tx, ty);
 }

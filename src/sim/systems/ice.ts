@@ -1,13 +1,9 @@
-import {tileCount, tileIdx, tileX, tileY} from '../../shared/grid.ts';
+import {tileIdx, tileX, tileY} from '../../shared/grid.ts';
 import {iceBears} from '../defs/balance.ts';
-import {inPlayArea} from '../map.ts';
+import {isLake, layIce} from '../ice.ts';
 import {nearestWalkable} from '../path.ts';
-import * as Terrain from '../terrainEnum.ts';
 import type {World} from '../world.ts';
 import {routeAround} from './movement.ts';
-
-/** How far a man caught on the ice is looked for a shore, in tiles. */
-const RESCUE_REACH = 24;
 
 /**
  * PROTOTYPE: the lakes freeze and open with the year.
@@ -21,33 +17,23 @@ const RESCUE_REACH = 24;
  */
 export function iceSystem(world: World): void {
   const map = world.map;
-  const bears = iceBears(world.tick);
-  if (map.ice && map.iceBears === bears) return;
+  if (!layIce(map, world.tick)) return;
+  // The thaw is read off the tick, never off what this map remembers: the
+  // grid is not saved or copied, so a world that was loaded or cloned a
+  // tick ago remembers nothing, and it has to pull the same men out of the
+  // same water as the world it was taken from.
+  if (world.tick === 0 || iceBears(world.tick) || !iceBears(world.tick - 1))
+    return;
 
-  // Only a lake that was bearing can strand anyone. A world's first tick
-  // builds the grid from nothing, and whoever stands on water then was put
-  // there by hand.
-  const thawed = map.iceBears === true && !bears;
   const size = map.size;
-  const ice = (map.ice ??= new Uint8Array(tileCount(size)));
-  map.iceBears = bears;
-  for (let i = 0; i < ice.length; i++) {
-    ice[i] =
-      bears &&
-      map.terrain[i] === Terrain.Water &&
-      map.buildingAt[i]! < 0 &&
-      inPlayArea(map, tileX(i, size), tileY(i, size))
-        ? 1
-        : 0;
-  }
-  if (!thawed) return;
-
   for (const unit of world.units.values()) {
     if (unit.dead) continue;
     const tx = Math.floor(unit.x);
     const ty = Math.floor(unit.y);
-    if (map.terrain[tileIdx(tx, ty, size)] !== Terrain.Water) continue;
-    const shore = nearestWalkable(map, tx, ty, RESCUE_REACH);
+    // Only off what was ice a tick ago: water under a building never was.
+    if (!isLake(map, tileIdx(tx, ty, size))) continue;
+    // As far as it takes: left where he is he could never walk again.
+    const shore = nearestWalkable(map, tx, ty, size);
     if (shore < 0) continue;
     unit.x = tileX(shore, size) + 0.5;
     unit.y = tileY(shore, size) + 0.5;

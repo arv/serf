@@ -76,10 +76,12 @@ describe('walking on ice', () => {
     expect(path!.every(i => i % SIZE === 10)).toBe(true);
   });
 
-  it('still refuses a goal out on the ice', () => {
+  it('reaches a goal out on the ice, for as long as it bears', () => {
     const map = lakeMap();
     freeze(map);
-    // Water is not ground to stand on, only to cross.
+    // A raider crossing the lake can be chased onto it.
+    expect(findPath(map, 10, 10, 10, 22)).toHaveLength(12);
+    map.ice!.fill(0);
     expect(findPath(map, 10, 10, 10, 22)).toBeNull();
   });
 
@@ -103,6 +105,10 @@ describe('walking on ice', () => {
     expect(inPlayArea(map, x, y)).toBe(true);
     const unit = spawnUnit(world, UnitTypeId.serf, 0, x + 0.5, y + 0.5);
 
+    // As a world loaded or cloned a tick ago would arrive: with no grid
+    // and no memory of one. It must pull him out all the same.
+    delete map.ice;
+    delete map.iceBears;
     world.tick = end;
     iceSystem(world);
     expect(map.ice!.every(bears => bears === 0)).toBe(true);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {ACTION, AUX_STRIDE, type SabReader} from '../protocol/sabLayout';
 import {tileIdx, tileX, tileY} from '../shared/grid';
 import {hash2} from '../shared/math';
-import type {MapView} from '../sim/map';
+import {WATER_LEVEL, type MapView} from '../sim/map';
 import type {Sole} from './characters';
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
@@ -424,7 +424,12 @@ export class Footprints {
 
     this.#printX[slot] = px;
     this.#printZ[slot] = pz;
-    dummy.position.set(px, this.#heights.at(px, pz) + LIFT, pz);
+    // On the ice, not the lake bed under it (the walker stands there too).
+    dummy.position.set(
+      px,
+      Math.max(this.#heights.at(px, pz), WATER_LEVEL) + LIFT,
+      pz,
+    );
     // A little splay and size jitter, keyed to the slot, so a column reads
     // as many boots rather than a stenciled dashed line.
     dummy.rotation.set(0, yaw + (hash2(slot, 611) - 0.5) * 0.3, 0);

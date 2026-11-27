@@ -17,6 +17,7 @@ import {decodeState, encodeCmd, encodePing} from '../protocol/state';
 import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
 import type {SimCommand} from '../sim/commands';
+import {layIce, type IceMap} from '../sim/ice';
 
 /**
  * The multiplayer client's end of the wire. It holds the socket, decodes the
@@ -85,6 +86,9 @@ function rosterUpdate(
   };
 }
 
+/** The map the predictor paths on, kept to lay the season's ice over. */
+let iceMap: (MapSnapshot & IceMap) | null = null;
+
 function onInit(
   tick: number,
   map: MapSnapshot,
@@ -94,6 +98,8 @@ function onInit(
   // Prediction paths on the map we were given, with the same pathfinder the
   // server moves with. A resend means the world moved on without us, so any
   // guess in flight is stale.
+  iceMap = map;
+  layIce(map, tick);
   predictor = new MovePredictor(map);
   if (!started) {
     started = true;
@@ -131,6 +137,9 @@ function onFrame(data: Uint8Array): void {
       onInit(frame.tick, frame.map, frame.explored, frame.json as InitPayload);
       return;
     case 'hot': {
+      // The lakes freeze and open on the tick; the predictor paths on
+      // this map, and has to see the ice the server walks on.
+      if (iceMap) layIce(iceMap, frame.tick);
       lastUnitRows = frame.units;
       lastUnitsIndex = null;
       predictor?.apply(frame.units, myPlayerId);
