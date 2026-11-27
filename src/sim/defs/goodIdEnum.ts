@@ -59,3 +59,5 @@ export const rod = 19 as const;
 export type rod = typeof rod;
 export const sled = 20 as const;
 export type sled = typeof sled;
+export const wheelbarrow = 21 as const;
+export type wheelbarrow = typeof wheelbarrow;

@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import * as GoodId from '../sim/defs/goodIdEnum';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum';
 import {WATER_LEVEL} from '../sim/map';
 import {gaitAnimKey, makeCharacter, playAnimation} from './characters';
 import type {CharacterVisual} from './characters';
 import type {HeightField} from './heightField';
-import {makeCarryProp, setSledModel} from './models';
+import {makeCarryProp, setCartModel} from './models';
 import type {SceneSync} from './sceneSync';
 
 /**
@@ -54,7 +55,7 @@ const rope = new THREE.LineBasicMaterial({color: 0x5a4630});
  * are the same white heap, and telling them apart is the point.
  */
 const dry = new Map<THREE.Material, THREE.Material>();
-function keepDry(root: THREE.Object3D): void {
+export function keepDry(root: THREE.Object3D): void {
   root.traverse(obj => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh || Array.isArray(mesh.material)) return;
@@ -86,7 +87,7 @@ function loadModel(): void {
       keepDry(gltf.scene);
       model = gltf.scene;
       // The castle's shelf draws its sleds with it, parked at the door.
-      setSledModel(model);
+      setCartModel(GoodId.sled, model);
     },
   );
 }
@@ -113,7 +114,7 @@ interface Sled {
 }
 
 /** Shoulder to elbow to wrist, and which side of him it hangs on. */
-interface Arm {
+export interface Arm {
   upper: THREE.Object3D;
   lower: THREE.Object3D;
   hand: THREE.Object3D;
@@ -121,7 +122,7 @@ interface Arm {
 }
 
 /** A man's two arms, by the rig's own bone names. */
-function armsOf(man: THREE.Object3D): Arm[] {
+export function armsOf(man: THREE.Object3D): Arm[] {
   const arms: Arm[] = [];
   for (const [suffix, side] of [
     ['l', 1],
@@ -145,7 +146,7 @@ function armsOf(man: THREE.Object3D): Arm[] {
 
 /** Turn `bone` so that the limb from it to `child` points at `target`,
  * `weight` of the way from where the walk had it. */
-function aim(
+export function aim(
   bone: THREE.Object3D,
   child: THREE.Object3D,
   target: THREE.Vector3,
@@ -269,7 +270,7 @@ export class Sleds {
     // No sled to put it on, no taking the load out of his arms: until the
     // model is here he carries as he always did.
     const ready = model !== undefined;
-    this.#sync.sledsReady = ready;
+    if (ready) this.#sync.readyCarts.add(GoodId.sled);
     (this.#tracks.material as THREE.Material).opacity = 0.42 * snow;
     // The marks go with the snow they were cut in: without this, last
     // winter's lanes would fade back in with the next one's first fall.
@@ -280,8 +281,8 @@ export class Sleds {
 
     for (const sled of this.#sleds.values()) sled.seen = false;
     if (ready) {
-      this.#sync.eachUnit((id, kind, group, carrying, load, sled) => {
-        if ((kind & 0xff) === UnitTypeId.serf && sled)
+      this.#sync.eachUnit((id, kind, group, carrying, load, cart) => {
+        if ((kind & 0xff) === UnitTypeId.serf && cart === GoodId.sled)
           this.#pull(id, group, carrying, load, dt);
       });
     }
@@ -462,7 +463,7 @@ export class Sleds {
     this.#scene.remove(this.#tracks);
     this.#tracks.geometry.dispose();
     (this.#tracks.material as THREE.Material).dispose();
-    this.#sync.sledsReady = false;
+    this.#sync.readyCarts.delete(GoodId.sled);
   }
 }
 

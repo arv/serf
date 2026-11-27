@@ -14,6 +14,7 @@ import {
 } from '../protocol/sabLayout';
 import type {Enum} from '../shared/enum.ts';
 import {clamp, hash2, lerp} from '../shared/math';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {WATER_LEVEL} from '../sim/map';
@@ -53,10 +54,11 @@ interface UnitVisual {
   group: THREE.Group;
   kind: number;
   carrying: number;
-  /** How many of it: one in his arms, or a sled's load. */
+  /** How many of it: one in his arms, or a cart's load. */
   load: number;
-  /** He has a sled in hand (BUFF.sled). */
-  sled: boolean;
+  /** The cart he has in hand (BUFF.sled, BUFF.barrow), as its good; 0
+   * for none. */
+  cart: number;
   carryBox: THREE.Object3D | null;
   /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
@@ -428,10 +430,11 @@ export class SceneSync {
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
 
-  /** Set by sleds.ts once there is a sled to draw. From then on a serf
-   * with a sled in hand pulls it: his load rides behind him rather than in
-   * his arms, and he walks rather than carries. */
-  sledsReady = false;
+  /** The carts there is a model to draw, by good: sleds.ts and
+   * barrows.ts add theirs once loaded. From then on a serf with that cart
+   * in hand puts his load on it — behind him on a sled, in front of him in
+   * a barrow — rather than in his arms, and walks rather than carries. */
+  readyCarts = new Set<number>();
 
   /** Every unit on screen: its id, kind, group, what it carries and how
    * many of it. */
@@ -442,12 +445,12 @@ export class SceneSync {
       group: THREE.Group,
       carrying: number,
       load: number,
-      sled: boolean,
+      cart: number,
     ) => void,
   ): void {
     for (const [id, v] of this.#visuals) {
       if (v.group.visible)
-        visit(id, v.kind, v.group, v.carrying, v.load, v.sled);
+        visit(id, v.kind, v.group, v.carrying, v.load, v.cart);
     }
   }
   #lastNow = 0;
@@ -978,7 +981,7 @@ export class SceneSync {
           kind: kindKey,
           carrying: 0,
           load: 0,
-          sled: false,
+          cart: 0,
           carryBox: null,
           char: skinned.visual,
           outline: attachXrayOutline(skinned.group, owner),
@@ -1065,7 +1068,13 @@ export class SceneSync {
       // pack buckets, grain sacks, lumber, ingots, casks.
       const carrying = carryGood(latest.aux[a + 3]!);
       visual.load = carryLoad(latest.aux[a + 3]!);
-      visual.sled = (latest.aux[a + 10]! & BUFF.sled) !== 0;
+      const buffs = latest.aux[a + 10]!;
+      visual.cart =
+        buffs & BUFF.sled
+          ? GoodId.sled
+          : buffs & BUFF.barrow
+            ? GoodId.wheelbarrow
+            : 0;
       if (carrying !== visual.carrying) {
         if (visual.carryBox) {
           visual.carryBox.parent?.remove(visual.carryBox);
@@ -1086,12 +1095,11 @@ export class SceneSync {
         }
         visual.carrying = carrying;
       }
-      // Only a serf has a sled to put it on; a worker keeps his load.
-      // A man with a sled in hand pulls his load on it, whatever its size.
+      // Only a serf has a cart to put it on; a worker keeps his load. A
+      // man with a cart in hand puts his load on it, whatever its size.
       const towed =
         (visual.kind & 0xff) === UnitTypeId.serf &&
-        this.sledsReady &&
-        visual.sled;
+        this.readyCarts.has(visual.cart);
       if (visual.carryBox) visual.carryBox.visible = !towed;
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.

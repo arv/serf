@@ -375,6 +375,26 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.9;
       break;
     }
+    case GoodId.wheelbarrow: {
+      // A new barrow carried home from the Smith, tipped up in his arms:
+      // the tray, a handle down each side, and the wheel at the front.
+      const tray = mesh(new THREE.BoxGeometry(0.26, 0.1, 0.2), woodLight);
+      add(tray);
+      for (const sz of [-0.09, 0.09]) {
+        const handle = mesh(new THREE.BoxGeometry(0.44, 0.025, 0.025), wood);
+        handle.position.set(0.04, -0.05, sz);
+        add(handle);
+      }
+      const wheel = mesh(
+        new THREE.CylinderGeometry(0.07, 0.07, 0.035, 10),
+        wood,
+      );
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(-0.2, -0.05, 0);
+      add(wheel);
+      g.position.y = 0.9;
+      break;
+    }
   }
   return g;
 }
@@ -459,25 +479,32 @@ const PACK_CARRY: Partial<
  * village zoom the true-size stacks read as ground clutter, not goods. */
 export const PILE_SCALE = 1.25;
 
+/** The carts as modelled (render/sleds.ts and render/barrows.ts hand them
+ * over once loaded): a parked cart is drawn as the real thing, not as a
+ * carried proxy. */
+const cartModels = new Map<GoodId, THREE.Object3D>();
+export function setCartModel(good: GoodId, model: THREE.Object3D): void {
+  cartModels.set(good, model);
+}
+/** Whether `good` has its model yet, so a parked one drawn before it came
+ * can be drawn again. */
+export function hasCartModel(good: GoodId): boolean {
+  return cartModels.has(good);
+}
+
 /**
  * A single unit of a good as a small grounded prop, for the stock piles
  * that grow beside buildings — same look as the carried version, base on
  * the ground.
  */
-/** The sled as modelled (render/sleds.ts hands it over once loaded): a
- * parked sled is drawn as the real thing, not as a carried proxy. */
-let sledModel: THREE.Object3D | undefined;
-export function setSledModel(model: THREE.Object3D): void {
-  sledModel = model;
-}
-
 export function makePileProp(good: GoodId): THREE.Group {
-  if (good === GoodId.sled && sledModel) {
+  const cart = cartModels.get(good);
+  if (cart) {
     // Parked (buildingSync lines them up along the castle's side).
     const g = new THREE.Group();
-    const sled = sledModel.clone();
-    sled.scale.setScalar(0.85);
-    g.add(sled);
+    const copy = cart.clone();
+    copy.scale.setScalar(0.85);
+    g.add(copy);
     return g;
   }
   const pack = PACK_CARRY[good];

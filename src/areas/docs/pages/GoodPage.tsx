@@ -1,6 +1,11 @@
 import {For, Show, type JSX} from 'solid-js';
-import {FESTIVAL_SPEEDUP, SLED_LOAD} from '../../../sim/defs/balance.ts';
+import {
+  BARROW_LOAD,
+  FESTIVAL_SPEEDUP,
+  SLED_LOAD,
+} from '../../../sim/defs/balance.ts';
 import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodIdNs from '../../../sim/defs/goodIdEnum.ts';
 import type {GoodId} from '../../../sim/defs/goods';
 import * as TechId from '../../../sim/defs/techIdEnum.ts';
 import {GoodIcon} from '../../../ui/icons';
@@ -134,11 +139,16 @@ function ConsumerLine(props: {entry: ConsumerRef}): JSX.Element {
           Loaned to every construction site, and handed back at the topping-out
         </li>
       );
-    case 'sledLoan':
-      return (
+    case 'cartLoan':
+      return r.good === GoodIdNs.sled ? (
         <li>
           Lent from the castle to a winter haul, which then moves up to{' '}
           {SLED_LOAD} of a good in one walk instead of one
+        </li>
+      ) : (
+        <li>
+          Lent from the castle to a haul outside winter and the thaw, which then
+          moves up to {BARROW_LOAD} of a good in one walk instead of one
         </li>
       );
   }

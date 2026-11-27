@@ -24,5 +24,5 @@ export const garrisonIsEnough = 10 as const;
 export type garrisonIsEnough = typeof garrisonIsEnough;
 export const sellForTheWoodcutter = 11 as const;
 export type sellForTheWoodcutter = typeof sellForTheWoodcutter;
-export const stockTheSleds = 12 as const;
-export type stockTheSleds = typeof stockTheSleds;
+export const stockTheCarts = 12 as const;
+export type stockTheCarts = typeof stockTheCarts;

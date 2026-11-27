@@ -1,5 +1,4 @@
 import {BUILDING_KEYS} from '../defs/buildings.ts';
-import * as GoodId from '../defs/goodIdEnum.ts';
 import {GOODS, type GoodAmounts, GOOD_KEYS} from '../defs/goods.ts';
 import {UNIT_DEFS} from '../defs/units.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
@@ -210,7 +209,8 @@ export function countGoods(world: World): GoodAmounts {
     if (!u.dead && u.carrying !== undefined) {
       total[u.carrying] = (total[u.carrying] ?? 0) + cargoOf(u);
     }
-    if (!u.dead && u.sled) total[GoodId.sled] = (total[GoodId.sled] ?? 0) + 1;
+    if (!u.dead && u.cart !== undefined)
+      total[u.cart] = (total[u.cart] ?? 0) + 1;
   }
   return total;
 }

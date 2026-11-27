@@ -850,8 +850,9 @@ import {REPLAY_VERSION} from './replayVersion';
 // used to refuse now takes the building, so a command an old log had
 // dropped is executed, and the tailings a worked-out gold seam left behind
 // are gone with the one rule that read them (replayVersion.ts at length).
-const EXPECTED_VERSION = 78;
-const EXPECTED_HASH = 'db458bc355588f3b5e6301fd59f4b6d0';
+// 79 for wheelbarrows: summer hauls go two to a barrow (replayVersion.ts).
+const EXPECTED_VERSION = 79;
+const EXPECTED_HASH = '3db5e0b93413bbf4e2d890680c5baf02';
 
 /**
  * Everything a replay's playback depends on, as raw source:

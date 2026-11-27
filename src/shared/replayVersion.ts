@@ -20,6 +20,16 @@
  * directly.
  */
 /**
+ * 79: wheelbarrows. From the thaw's end to the first hard frost a serf
+ * with a barrow hauls two of one good along one walk (BARROW_LOAD, cartFor
+ * in defs/balance.ts), so three quarters of the year book fewer, bigger
+ * jobs, as winter already did with sleds; the Smith has a barrow recipe
+ * after the sled's, and the AI orders barrows as it orders sleds
+ * (stockTheCarts). And a serf walking a cart home is no longer hired off
+ * the road (systems/staffing.ts), which had lost sleds into barracks.
+ *
+ * 78's note follows.
+ *
  * 78: winter on the ground. While the snow lies everyone walks at four
  * fifths of his pace, roads buried with the rest (SNOW_SPEED), so every
  * walk in the last quarter of the year lands on a different tick; and a serf hauls by
@@ -1456,4 +1466,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 78;
+export const REPLAY_VERSION = 79;

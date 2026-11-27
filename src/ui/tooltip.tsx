@@ -447,6 +447,8 @@ const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.cauldron]: 'Staffs the bakery and the brewery.',
   [GoodId.rod]: 'Staffs the fishery.',
   [GoodId.sled]: 'Lets a serf haul four at a time in winter.',
+  [GoodId.wheelbarrow]:
+    'Lets a serf haul two at a time outside winter and the thaw.',
 };
 
 export function GoodTip(props: {good: GoodId}) {

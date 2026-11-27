@@ -87,9 +87,12 @@ pnpm dev
   exchange a serf can haul by sled: up to four of one good from one door
   to another in a single walk, so winter is when a village moves what
   summer let it gather. Sleds are forged at the Smith from two wood (a
-  village starts with none), and a Smith left on auto makes three once
-  every post has its tool. They are parked by the castle; a serf fetches
-  one for a haul and brings it back, and none are used in the thaw. The
+  village starts with none, and the Smith makes them only when ordered;
+  the AI keeps three). They are parked by the castle; a serf fetches one
+  for a haul and brings it back. The rest of the year has wheelbarrows:
+  one wood at the Smith, two of a good to a walk, kept, fetched and
+  brought back the same way, from the end of the thaw to the first hard
+  frost. In the thaw neither runs, and every load is its own walk. The
   lakes and the river freeze hard enough to walk on for most of it, and a
   haul, a march or a raid takes the ice when the ice is the short way;
   nothing can be built on it, and whoever is still out when it stops

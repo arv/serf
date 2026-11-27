@@ -59,7 +59,7 @@ export function hashWorld(world: World): number {
     // and the digest is what catches one of them dropping it.
     mixF64(u.maxHp);
     mix(u.carryCount ?? 1);
-    mix(u.sled ? 1 : 0);
+    mix(u.cart ?? 0);
     mixU32(u.owner);
     mix(u.dead ? 1 : 0);
     mixU32(u.pathIdx);

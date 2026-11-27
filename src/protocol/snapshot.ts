@@ -851,15 +851,23 @@ function workKindOf(w: World, u: Unit): number {
  * owner is holding one — the serfs and workers it speeds as much as the
  * soldiers, so a village under one reads as a village under one. Bandits
  * have no player entry and so no festival, and the lookup says so rather
- * than indexing past the seats with their raw owner byte.
+ * than indexing past the seats with their raw owner byte. And the cart a
+ * serf has in hand, which the renderer puts his load on.
  */
 function buffsOf(w: World, u: Unit, action: number): number {
   if (action === ACTION.dead) return 0;
   return (
     ((w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
       ? BUFF.festival
-      : 0) | (u.sled ? BUFF.sled : 0)
+      : 0) | cartBuff(u)
   );
+}
+
+/** The BUFF bit for the cart a unit has in hand, if any. */
+function cartBuff(u: Unit): number {
+  if (u.cart === GoodId.sled) return BUFF.sled;
+  if (u.cart === GoodId.wheelbarrow) return BUFF.barrow;
+  return 0;
 }
 
 export function* unitSnapshots(w: World): Generator<UnitSnapshot> {

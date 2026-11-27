@@ -7,6 +7,7 @@ import type {Enum} from '../shared/enum.ts';
 import {tileIdx, tileX, tileY} from '../shared/grid';
 import {hash2} from '../shared/math';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
+import {CART_GOODS} from '../sim/defs/balance';
 import {buildingDef} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
@@ -40,6 +41,7 @@ import type {HeightField} from './heightField';
 import {eachMaterial, mapMaterials} from './materials';
 import {
   makeGhostModel,
+  hasCartModel,
   makePileProp,
   makeSiteFrame,
   makeTieredPile,
@@ -253,7 +255,7 @@ interface BuildingVisual {
   pct: number;
   /** Physical stock piles against the front wall. */
   piles?: THREE.Group;
-  /** The castle's sleds, parked on open tiles round it (#park). */
+  /** The castle's carts, parked on open tiles round it (#park). */
   parked?: THREE.Group;
   /** Serialized pile contents — rebuilt only when the counts change. */
   pileKey: string;
@@ -1979,16 +1981,26 @@ export class BuildingSync {
       } else {
         n = (b.stock[g] ?? 0) + (b.inputs[g] ?? 0);
       }
-      // The castle's sleds are parked in a row of their own along its
-      // side (below), not heaped in a door lane with the goods.
-      if (g === GoodId.sled && def.storage) continue;
+      // The castle's carts are parked in rows of their own along its side
+      // (below), not heaped in a door lane with the goods.
+      if (def.storage && CART_GOODS.includes(g)) continue;
       if (n > 0) shown.push([g, n]);
     }
-    const parked = def.storage ? (b.stock[GoodId.sled] ?? 0) : 0;
-    const bays = parked > 0 ? this.#parkingBays(b, parked) : [];
-    if (parked > 0) shown.push([GoodId.sled, -parked]);
+    // Sleds first, then barrows, one a bay.
+    const parked: GoodId[] = [];
+    if (def.storage) {
+      for (const g of CART_GOODS) {
+        const n = b.stock[g] ?? 0;
+        for (let i = 0; i < n; i++) parked.push(g);
+        if (n > 0) shown.push([g, -n]);
+      }
+    }
+    const bays = parked.length > 0 ? this.#parkingBays(b, parked.length) : [];
+    // The carts' models arriving is part of the key: a cart parked before
+    // its model came was drawn as a stand-in and wants drawing again.
     const key =
-      shown.map(([g, n]) => `${g}:${n}`).join('.') + `|${bays.join(',')}`;
+      shown.map(([g, n]) => `${g}:${n}`).join('.') +
+      `|${bays.join(',')}|${parked.filter(hasCartModel).length}`;
     if (key === v.pileKey) return;
     v.pileKey = key;
     // Lanes are sticky. Laying the stacks out by their index in `shown`
@@ -2070,16 +2082,16 @@ export class BuildingSync {
     v.root.add(piles);
     v.piles = piles;
     for (const stack of stacks) this.#seat(v, stack);
-    this.#park(v, b, bays);
+    this.#park(v, b, bays, parked);
   }
 
   /**
-   * The tiles round the castle its sleds are parked on, one sled a tile:
+   * The tiles round the castle its carts are parked on, one cart a tile:
    * open ground only — no building, tree, rock or water — so a house raised
-   * against the wall pushes the sleds along rather than through itself.
+   * against the wall pushes the carts along rather than through itself.
    * Along the flanks first, nearest the walls, then behind; the front is
    * left to the door piles. Deterministic, so every client parks the same
-   * sled on the same tile.
+   * cart on the same tile.
    */
   #parkingBays(b: BuildingSnap, n: number): number[] {
     const map = this.#map;
@@ -2107,8 +2119,13 @@ export class BuildingSync {
     return out;
   }
 
-  /** Draw the castle's parked sleds on their bays, noses out. */
-  #park(v: BuildingVisual, b: BuildingSnap, bays: number[]): void {
+  /** Draw the castle's parked carts on their bays, noses out. */
+  #park(
+    v: BuildingVisual,
+    b: BuildingSnap,
+    bays: number[],
+    carts: GoodId[],
+  ): void {
     if (v.parked) {
       v.root.remove(v.parked);
       v.parked = undefined;
@@ -2119,28 +2136,28 @@ export class BuildingSync {
     const cz = b.y + b.h / 2;
     const parked = new THREE.Group();
     v.root.add(parked);
-    for (const i of bays) {
+    bays.forEach((i, k) => {
       const x = tileX(i, size) + 0.5 - cx;
       const z = tileY(i, size) + 0.5 - cz;
-      const sled = makePileProp(GoodId.sled);
+      const cart = makePileProp(carts[k]!);
       // Nose away from the castle, on whichever side it stands.
       const side = Math.abs(x) * b.h >= Math.abs(z) * b.w;
-      sled.rotation.y = side
+      cart.rotation.y = side
         ? x > 0
           ? Math.PI / 2
           : -Math.PI / 2
         : z > 0
           ? 0
           : Math.PI;
-      sled.position.set(x, 0, z);
-      parked.add(sled);
-      seatOnGround(sled, this.#heights);
-    }
+      cart.position.set(x, 0, z);
+      parked.add(cart);
+      seatOnGround(cart, this.#heights);
+    });
     v.parked = parked;
   }
 
   #map: MapView | undefined;
-  /** The map the castle's sleds are parked on (#parkingBays). */
+  /** The map the castle's carts are parked on (#parkingBays). */
   setMap(map: MapView): void {
     this.#map = map;
   }

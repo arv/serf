@@ -272,6 +272,42 @@ const PATHS: Record<GoodId, () => JSX.Element> = {
       />
     </>
   ),
+  // Wheelbarrow: a tray on one wheel at the front, handles trailing back
+  // to the right, and a leg under the tray
+  [GoodId.wheelbarrow]: () => (
+    <>
+      <path
+        d="M11 34L16 29L44 21"
+        fill="none"
+        stroke="#4a3220"
+        stroke-width="3.5"
+        stroke-linecap="round"
+      />
+      <path
+        d="M8 18H34L30 30H13Z"
+        fill="#a57c4a"
+        stroke="#4a3220"
+        stroke-width="2"
+        stroke-linejoin="round"
+      />
+      <path d="M17 19V29M24 19V29" stroke="#7d5a35" stroke-width="1.5" />
+      <path
+        d="M28 30L30 38"
+        stroke="#4a3220"
+        stroke-width="3"
+        stroke-linecap="round"
+      />
+      <circle
+        cx="11"
+        cy="34"
+        r="6"
+        fill="#7d5a35"
+        stroke="#3b3f47"
+        stroke-width="2.5"
+      />
+      <circle cx="11" cy="34" r="1.6" fill="#3b3f47" />
+    </>
+  ),
   // Fishing rod: cane, line, float and hook
   [GoodId.rod]: () => (
     <>

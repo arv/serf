@@ -727,6 +727,16 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           durationTicks: 6 * S,
         },
       },
+      // And the summer's cart after it, for the same reason: half a sled's
+      // load (BARROW_LOAD), so half its wood and a quicker job.
+      {
+        recipe: {
+          kind: RecipeKindNs.convert,
+          inputs: {[GoodId.wood]: 1},
+          outputs: {[GoodId.wheelbarrow]: 1},
+          durationTicks: 4 * S,
+        },
+      },
     ],
   },
   [B.abbey]: {

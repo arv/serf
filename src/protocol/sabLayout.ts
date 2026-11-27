@@ -49,8 +49,9 @@ export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3, hold: 4} as const;
  * redactPlayers), and the whole point of the mark is knowing whether the
  * men marching on you have been drinking.
  */
-/** festival: the owner's festival is on. sled: a serf with a sled in hand. */
-export const BUFF = {festival: 1, sled: 2} as const;
+/** festival: the owner's festival is on. sled, barrow: a serf with that
+ * cart in hand. */
+export const BUFF = {festival: 1, sled: 2, barrow: 4} as const;
 
 /** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
 export const WORK = {
@@ -319,7 +320,7 @@ export function carryGood(carrying: number): number {
   return carrying & 0x3f;
 }
 
-/** How many of it: 0 for empty hands, 1 in his arms, more on a sled. */
+/** How many of it: 0 for empty hands, 1 in his arms, more on a cart. */
 export function carryLoad(carrying: number): number {
   return carryGood(carrying) === 0 ? 0 : (carrying >> 6) + 1;
 }

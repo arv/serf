@@ -158,5 +158,7 @@ export const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.rod]:
     'The fisher’s rod. Wood only, so the shore stays reachable for a village with no ore.',
   [GoodId.sled]:
-    'Winter’s cart, kept at the castle. While the snow lies a serf who takes one hauls four of a good in a single walk; without one he carries one in his arms, as in summer. Wood only.',
+    'Winter’s cart, kept at the castle. While the snow lies a serf who takes one hauls four of a good in a single walk; without one he carries one in his arms. Put away for the thaw. Wood only.',
+  [GoodId.wheelbarrow]:
+    'The cart for the rest of the year, kept at the castle beside the sleds. From the thaw’s end to the first hard frost a serf who takes one hauls two of a good in a single walk. Useless in the snow and in the thaw. One wood.',
 };

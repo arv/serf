@@ -2,7 +2,12 @@ import type {Enum} from '../shared/enum.ts';
 import {tileX, tileY} from '../shared/grid.ts';
 import type {SimCommand} from './commands.ts';
 import type {AiStrategy} from './defs/aiStrategies.ts';
-import {FORGE_QUEUE_CAP, SLED_STOCK} from './defs/balance.ts';
+import {
+  BARROW_STOCK,
+  FORGE_QUEUE_CAP,
+  SLED_STOCK,
+  cartFor,
+} from './defs/balance.ts';
 import {
   BUILDING_DEFS,
   TOOL_GOODS,
@@ -851,59 +856,74 @@ const keepTheToolsComing: EconomyRule = {
   },
 };
 
+/** How many of each cart the AI keeps. */
+const CART_STOCK: readonly (readonly [GoodId, number])[] = [
+  [GoodId.sled, SLED_STOCK],
+  [GoodId.wheelbarrow, BARROW_STOCK],
+];
+
 /**
- * Sleds for the winter haul: order one whenever the seat owns fewer than
- * SLED_STOCK and none is already on order. A Smith never makes one on its
- * own, for the AI or anyone; this is the AI asking. After keepTheToolsComing in the table, and it
- * only orders where there is room, so a missing axe always goes first.
- * Claims nothing, for keepTheToolsComing's reason.
+ * Carts for the haul — sleds for the snow, wheelbarrows for the rest of the
+ * year: order one of a kind whenever the seat owns fewer than its stock
+ * (CART_STOCK) and none of that kind is already on order, the season's
+ * own kind first. A Smith never makes one on its own, for the AI or
+ * anyone; this is the AI asking. After keepTheToolsComing in the table,
+ * and it only orders where there is room, so a missing axe always goes
+ * first. Claims nothing, for keepTheToolsComing's reason.
  */
-const stockTheSleds: EconomyRule = {
-  id: EconomyRuleIdNs.stockTheSleds,
-  when: 'the castle has fewer sleds than a winter wants and none is ordered',
+const stockTheCarts: EconomyRule = {
+  id: EconomyRuleIdNs.stockTheCarts,
+  when: 'the castle has fewer carts than a season wants and none is ordered',
   phase: RulePhaseNs.production,
   fire(ctx) {
-    // Every sled the seat owns: on the castle shelf, in a man's hands, new
-    // on a Smith's shelf or being carried home from it. Counting the shelf
-    // alone ordered another whenever one was out on a haul.
-    let owned = 0;
-    for (const b of ctx.mine) owned += b.stock[GoodId.sled] ?? 0;
-    for (const u of ctx.world.units.values()) {
-      if (u.dead || u.owner !== ctx.owner) continue;
-      if (u.sled) owned++;
-      if (u.carrying === GoodId.sled) owned += cargoOf(u);
-    }
-    if (owned >= SLED_STOCK) return null;
-    const options = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!;
-    const index = options.findIndex(
-      o => (o.recipe.outputs[GoodId.sled] ?? 0) > 0,
-    );
-    if (index < 0) return null;
     const smiths = ctx.mine.filter(
       b =>
         b.type === BuildingTypeId.weaponsmith &&
         b.state === BuildingState.built,
     );
-    // One order at a time: a sled is quick, and the next is ordered when
-    // this one lands on the shelf.
-    if (smiths.some(b => b.forgeQueue?.some(o => o.recipeIndex === index)))
-      return null;
-    // A new sled waiting at a Smith for a hauler is a sled already made.
-    if (smiths.some(b => (b.stock[GoodId.sled] ?? 0) > 0)) return null;
-    const smith = smiths.find(
-      b => !b.paused && (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP,
+    if (smiths.length === 0) return null;
+    const options = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!;
+    const season = cartFor(ctx.world.tick)?.good;
+    const order = [...CART_STOCK].sort(
+      ([a], [b]) => (b === season ? 1 : 0) - (a === season ? 1 : 0),
     );
-    if (!smith) return null;
-    return {
-      commands: [
-        {
-          kind: CommandKind.enqueueForge,
-          buildingId: smith.id,
-          recipeIndex: index,
-        },
-      ],
-      claims: [],
-    };
+    for (const [good, stock] of order) {
+      // Every cart of the kind the seat owns: on the castle shelf, in a
+      // man's hands, new on a Smith's shelf or being carried home from it.
+      // Counting the shelf alone ordered another whenever one was out on a
+      // haul.
+      let owned = 0;
+      for (const b of ctx.mine) owned += b.stock[good] ?? 0;
+      for (const u of ctx.world.units.values()) {
+        if (u.dead || u.owner !== ctx.owner) continue;
+        if (u.cart === good) owned++;
+        if (u.carrying === good) owned += cargoOf(u);
+      }
+      if (owned >= stock) continue;
+      const index = options.findIndex(o => (o.recipe.outputs[good] ?? 0) > 0);
+      if (index < 0) continue;
+      // One order of a kind at a time: a cart is quick, and the next is
+      // ordered when this one lands on the shelf.
+      if (smiths.some(b => b.forgeQueue?.some(o => o.recipeIndex === index)))
+        continue;
+      // A new cart waiting at a Smith for a hauler is a cart already made.
+      if (smiths.some(b => (b.stock[good] ?? 0) > 0)) continue;
+      const smith = smiths.find(
+        b => !b.paused && (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP,
+      );
+      if (!smith) return null;
+      return {
+        commands: [
+          {
+            kind: CommandKind.enqueueForge,
+            buildingId: smith.id,
+            recipeIndex: index,
+          },
+        ],
+        claims: [],
+      };
+    }
+    return null;
   },
 };
 
@@ -1519,7 +1539,7 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   sellForTheWoodcutter,
   openReserveMine,
   keepTheToolsComing,
-  stockTheSleds,
+  stockTheCarts,
   forgeTheCounter,
   holdTheGlutForge,
   handsBeforeSoldiers,
@@ -1583,7 +1603,7 @@ export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
   [EconomyRuleIdNs.handsBeforeSoldiers]: 'handsBeforeSoldiers',
   [EconomyRuleIdNs.keepTheQueueWarm]: 'keepTheQueueWarm',
   [EconomyRuleIdNs.garrisonIsEnough]: 'garrisonIsEnough',
-  [EconomyRuleIdNs.stockTheSleds]: 'stockTheSleds',
+  [EconomyRuleIdNs.stockTheCarts]: 'stockTheCarts',
 };
 
 const ECONOMY_RULE_BY_KEY = new Map<string, EconomyRuleId>(

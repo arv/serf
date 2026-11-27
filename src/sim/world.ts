@@ -90,8 +90,8 @@ export interface HaulJob {
   phase: HaulPhase;
   serfId?: EntityId;
   /**
-   * How many of `good` this one walk moves, when more than one: a sled's
-   * load, booked in winter (createJob in systems/logistics.ts). Absent is
+   * How many of `good` this one walk moves, when more than one: a cart's
+   * load (cartFor in defs/balance.ts; createJob in systems/logistics.ts). Absent is
    * one. Every reservation the job holds is held this many times over.
    */
   count?: number;
@@ -1264,9 +1264,9 @@ export function killUnit(world: World, unit: Unit): void {
     unit.carrying = undefined;
     unit.carryCount = undefined;
   }
-  if (unit.sled) {
-    drops[GoodId.sled] = (drops[GoodId.sled] ?? 0) + 1;
-    unit.sled = undefined;
+  if (unit.cart !== undefined) {
+    drops[unit.cart] = (drops[unit.cart] ?? 0) + 1;
+    unit.cart = undefined;
   }
   // The resident's tool was consumed when he took the post up, and until
   // now it was buried with him — the raid's second bite of damage. It

@@ -595,7 +595,6 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
       size: 0.08,
       rot: 1.9,
     },
-    {prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85},
   ],
   [BuildingTypeId.silverMine]: [
     {make: () => makeWindlassHouse(), at: [0.35, 0.43], size: 1, rot: -0.45},
