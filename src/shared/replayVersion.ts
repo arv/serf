@@ -23,7 +23,9 @@
  * 80: wheelbarrows. From the thaw's end to the first hard frost a serf
  * with a barrow hauls two of one good along one walk (BARROW_LOAD, cartFor
  * in defs/balance.ts), so three quarters of the year book fewer, bigger
- * jobs, as winter already did with sleds; the Smith has a barrow recipe
+ * jobs, as winter already did with sleds; a cart at any door folds in the
+ * loads booked along its route, so a site's planks leave the castle
+ * together; the Smith has a barrow recipe
  * after the sled's, and the AI orders barrows as it orders sleds
  * (stockTheCarts). And a serf walking a cart home is no longer hired off
  * the road (systems/staffing.ts), which had lost sleds into barracks.
