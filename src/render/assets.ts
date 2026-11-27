@@ -1532,15 +1532,31 @@ async function loadAssetBatch(menuOnly: boolean): Promise<boolean> {
  * as usual, plus the team-color slot KayKit reserves in the atlas. Done
  * once per building template; instances just swap group 1's material for
  * their owner's color.
+ *
+ * A mesh with no index is read as one triangle per three vertices and
+ * given an index here. The pack's meshes all carry one, but three's
+ * ExtrudeGeometry does not — and the monument's blazon is an extrusion,
+ * which this used to skip, leaving every seat's shield the stock swatch
+ * of the green pack it was painted from.
+ *
+ * Exported for its test.
  */
-function splitTeamColorGroups(root: THREE.Object3D): void {
+export function splitTeamColorGroups(root: THREE.Object3D): void {
   const {u0, u1, v0, v1} = TEAM_SWATCH_UV;
   root.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     const geo = (o.geometry as THREE.BufferGeometry).clone();
-    const index = geo.getIndex();
     const uv = geo.getAttribute('uv');
-    if (!index || !uv) return;
+    if (!uv) return;
+    const index =
+      geo.getIndex() ??
+      new THREE.BufferAttribute(
+        Uint32Array.from(
+          {length: geo.getAttribute('position').count},
+          (_, i) => i,
+        ),
+        1,
+      );
     const inSlot = (i: number): boolean => {
       const u = uv.getX(i);
       const v = uv.getY(i);
