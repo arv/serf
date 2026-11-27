@@ -1355,6 +1355,7 @@ export async function runMatch(
       order: (x, z, secondary, px, py, queue) =>
         controls.orderAtMapPoint(x, z, secondary, px, py, queue),
     },
+    year: () => seasons.year,
   });
   teardown.push(unmountHud);
 

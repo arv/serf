@@ -41,6 +41,27 @@ const SHARE: Record<Season, number> = {summer: 0.75, winter: 0.25};
  * winter's. */
 const TURN = 0.1;
 
+/**
+ * The year's turns as shares of it, for the HUD's dial to draw: where the
+ * snow starts coming, where winter begins (it has come), and where it
+ * starts going. At 1 it has gone and the year begins again.
+ */
+export const TURNS = {
+  snowing: SHARE.summer - TURN,
+  winter: SHARE.summer,
+  thawing: 1 - TURN,
+} as const;
+
+/** Where in the year a pinned season shows itself: the middle of the
+ * stretch where it is wholly itself. */
+const STILL: Record<Season, number> = {
+  summer: TURNS.snowing / 2,
+  winter: (TURNS.winter + TURNS.thawing) / 2,
+};
+
+/** Snow, as it lies. */
+export const SNOW_COLOR = 0xe3ebf4;
+
 interface Key {
   sun: number;
   sunIntensity: number;
@@ -166,7 +187,7 @@ export class Seasons {
     /** 1 while the snow is going, 0 while it is coming: the two do not
      * look alike. */
     uThaw: {value: 0},
-    uSnowColor: {value: new THREE.Color(0xe3ebf4)},
+    uSnowColor: {value: new THREE.Color(SNOW_COLOR)},
   };
   #air = {
     uTime: {value: 0},
@@ -189,6 +210,14 @@ export class Seasons {
       Number.isFinite(year) && year > 0 ? year * TICKS_PER_SECOND : YEAR_TICKS;
     const pinned = params.get('season') as Season;
     if (SEASONS.includes(pinned)) this.#cycle = [pinned];
+    const turning = this.#cycle.length > 1;
+    this.year = {
+      // A turning year opens on summer's first tick until the first frame
+      // says where the match is.
+      at: turning ? 0 : STILL[this.#cycle[0]!],
+      ticks: this.#yearTicks,
+      turning,
+    };
     this.#points = this.#makeAir();
     renderer.scene.add(this.#points);
   }
@@ -306,6 +335,13 @@ export class Seasons {
    * them, as sRGB hex. One object, rewritten in place. */
   readonly chart = {snow: 0, unknown: background, water};
 
+  /** Where the view has got to in the year, for the HUD's dial, kept
+   * current by update(): `at` the share of it gone, 0 at summer's first
+   * tick, and `ticks` its length. `turning` is false while ?season holds
+   * one season still, and `at` stands in the middle of it. One object,
+   * rewritten in place. */
+  readonly year: {at: number; ticks: number; turning: boolean};
+
   /**
    * How far the lakes have frozen over at `tick`, 0 open to 1 hard. Not the
    * snow's curve but the sim's own window (iceBears in sim/defs/balance.ts):
@@ -386,6 +422,7 @@ export class Seasons {
     this.chart.snow = u.uSnow.value;
     this.chart.unknown = col(SCRATCH_OUT, 'backdrop').getHex();
     this.chart.water = col(SCRATCH_OUT, 'mid').getHex();
+    if (n > 1) this.year.at = (shown % this.#yearTicks) / this.#yearTicks;
 
     const camera = this.#renderer.rig.camera;
     camera.getWorldDirection(air.uCentre.value);
