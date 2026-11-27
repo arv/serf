@@ -209,7 +209,7 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * 8 since the lakes froze (replay 77). Both of seed 1's wars now run
  * through the first winter, the armies take the ice, and the control
  * ends at 10_257 — ahead of the advised war's 10_340, so 1 inverted. On
- * 8 seat 1 wins both ways, at 12_246 and 10_679. (14 holds too, at 13_931
+ * seed 8, seat 1 wins both ways, at 12_246 and 10_679. (14 holds too, at 13_931
  * and 13_321, and 4 by four ticks; 5 inverts, 2 and 11 change the winner,
  * 9's advised war never decides, 3 decides neither way, and 6, 7, 10, 12,
  * 13, 15 and 16 tie.)

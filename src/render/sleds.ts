@@ -77,15 +77,21 @@ function keepDry(root: THREE.Object3D): void {
   });
 }
 
-/** The sled, nose toward +z, once its model has arrived. */
+/** The sled, nose toward +z, once its model has arrived. Asked for by the
+ * first match that wants sleds, so one that does not never fetches it. */
 let model: THREE.Object3D | undefined;
-new GLTFLoader().load(
-  `${import.meta.env.BASE_URL}models/sled/sled.glb`,
-  gltf => {
-    keepDry(gltf.scene);
-    model = gltf.scene;
-  },
-);
+let asked = false;
+function loadModel(): void {
+  if (asked) return;
+  asked = true;
+  new GLTFLoader().load(
+    `${import.meta.env.BASE_URL}models/sled/sled.glb`,
+    gltf => {
+      keepDry(gltf.scene);
+      model = gltf.scene;
+    },
+  );
+}
 
 interface Sled {
   group: THREE.Group;
@@ -182,6 +188,7 @@ export class Sleds {
     this.#scene = scene;
     this.#heights = heights;
     this.#sync = sync;
+    if (this.#enabled) loadModel();
     const mark = new THREE.PlaneGeometry(0.04, TRACK_STEP * 1.15);
     mark.rotateX(-Math.PI / 2);
     this.#tracks = new THREE.InstancedMesh(

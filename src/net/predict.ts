@@ -2,7 +2,7 @@ import type {UnitSnapshot} from '../protocol/sabLayout';
 import {tileIdx, tileX, tileY} from '../shared/grid';
 import {TICKS_PER_SECOND} from '../sim/defs/balance';
 import {UNIT_DEFS} from '../sim/defs/units';
-import {findPath, tileSpeedMult, type PathMap} from '../sim/path';
+import {findPath, shut, tileSpeedMult, type PathMap} from '../sim/path';
 
 /**
  * Client-side prediction for your own units' movement.
@@ -167,7 +167,9 @@ export class MovePredictor {
     let budget = p.baseSpeed * tileSpeedMult(this.#map, here);
     while (budget > 0 && p.pathIdx < path.length) {
       const next = path[p.pathIdx]!;
-      if (this.#map.blocked[next]) {
+      // The sim's own test, ice and all: a guess that stopped at the
+      // bank would stall where the server walks on.
+      if (shut(this.#map, next)) {
         p.path = null;
         return;
       }

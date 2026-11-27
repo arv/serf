@@ -422,8 +422,8 @@ export class SceneSync {
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
 
-  /** PROTOTYPE (sleds.ts): while set, a load rides a sled behind the serf
-   * rather than in his arms, and he walks rather than carries. */
+  /** PROTOTYPE (sleds.ts): while set, a serf's load rides a sled behind
+   * him rather than in his arms, and he walks rather than carries. */
   towing = false;
 
   /** Every unit on screen: its id, kind, group, and what it carries. */
@@ -1071,7 +1071,9 @@ export class SceneSync {
         }
         visual.carrying = carrying;
       }
-      if (visual.carryBox) visual.carryBox.visible = !this.towing;
+      // Only a serf has a sled to put it on; a worker keeps his load.
+      const towed = this.towing && (visual.kind & 0xff) === UnitTypeId.serf;
+      if (visual.carryBox) visual.carryBox.visible = !towed;
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.
       let moving = false;
@@ -1435,7 +1437,7 @@ export class SceneSync {
         // as a release crossing that never happened.
         visual.shootT = undefined;
       } else if (visual.char) {
-        const heldCarry = carrying > 0 && !this.towing;
+        const heldCarry = carrying > 0 && !towed;
         let key: AnimKey;
         // The gait is a Gait, not an AnimKey — the numbers collide
         // (Gait.walk === AnimKey.idle), so it goes through gaitAnimKey.

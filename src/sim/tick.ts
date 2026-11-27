@@ -117,6 +117,10 @@ export function tickWorld(
 ): void {
   const rng = new Rng(world.rngState);
 
+  // Before the orders: a move is planned as it is applied, and has to be
+  // planned on this tick's ice rather than the last one's.
+  iceSystem(world);
+
   for (const c of commands) {
     // One order must never be able to stop the world. Commands are screened
     // before they get here (sanitizeCommand), so a throw means a sim bug
@@ -134,7 +138,6 @@ export function tickWorld(
     }
   }
 
-  iceSystem(world);
   researchSystem(world);
   productionSystem(world, rng);
   logisticsSystem(world);
