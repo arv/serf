@@ -20,6 +20,20 @@
  * directly.
  */
 /**
+ * 81: a hauler fetching water walks to the well's crank side. The well is
+ * the one source worked to give its goods up, and its windlass is wound
+ * from the east (BuildingDef.drawFrom), so a walk there now aims at that
+ * tile rather than whichever tile ringing the shaft the path met first,
+ * and settles for the rest of the ring only when it is shut or cut off
+ * (sim/arrival.ts findPathToSource). A man coming from the far side walks
+ * round the well; one already beside it on the wrong side steps round
+ * before he draws. Every water haul can end on a different tile, a few
+ * ticks later, so everything downstream of the bread chain re-times. A
+ * cart at the well goes the same way: the walk on from the castle with it
+ * is a walk to the source like any other.
+ *
+ * 80's note follows.
+ *
  * 80: wheelbarrows. From the thaw's end to the first hard frost a serf
  * with a barrow hauls two of one good along one walk (BARROW_LOAD, cartFor
  * in defs/balance.ts), so three quarters of the year book fewer, bigger
@@ -1482,4 +1496,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 80;
+export const REPLAY_VERSION = 81;
