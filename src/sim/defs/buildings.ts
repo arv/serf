@@ -402,8 +402,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: UnitTypeId.worker,
     // A sheaf every ten seconds, the year round — but only the harvest
-    // cuts any, so the year's are cut inside it: a sheaf every six. The
-    // same wheat a year, and none of it in the winter.
+    // cuts any, so the whole year's sheaves are cut inside it: one every
+    // six. The same wheat a year, and none of it in the winter.
     recipe: {
       kind: RecipeKindNs.convert,
       inputs: {[GoodId.water]: 1},

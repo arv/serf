@@ -872,7 +872,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // 82 for the field's year: the wheat farm cuts only in the harvest, at a
 // pace that keeps the year's total, and its farmer leaves for the winter.
 const EXPECTED_VERSION = 82;
-const EXPECTED_HASH = '15f40b0f17751b3bb9547a9d5a6393c2';
+const EXPECTED_HASH = '8cbf55ddc7215f4ad026893b2ccc1666';
 
 /**
  * Everything a replay's playback depends on, as raw source:
