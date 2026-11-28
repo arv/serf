@@ -1,26 +1,26 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import * as GoodId from '../sim/defs/goodIdEnum';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum';
 import {WATER_LEVEL} from '../sim/map';
 import {gaitAnimKey, makeCharacter, playAnimation} from './characters';
 import type {CharacterVisual} from './characters';
 import type {HeightField} from './heightField';
-import {makeCarryProp} from './models';
+import {makeCarryProp, setCartModel} from './models';
 import type {SceneSync} from './sceneSync';
 
 /**
- * PROTOTYPE (?sleds): winter as hauling season, to be looked at. While the
- * snow lies, a serf with a load pulls it on a sled — four of whatever he
- * was carrying — and the runners leave two lines behind him. Look only:
- * the sim still moves one load, and nothing here is saved or hashed.
+ * Winter as hauling season, drawn. A serf the sim has lent a sled (any walk
+ * of more than one load; SLED_LOAD and the castle's sleds in
+ * systems/logistics.ts) pulls it behind him with as many of his good on it
+ * as he has, leans into the rope, and the runners leave two lines in the
+ * snow. A man with one load carries it in his arms, winter or not.
  *
  * __sleds.convoy([[x, z], ...], count) walks a made-up line of sleds along
- * a route, out loaded and back empty, for judging what the sim cannot show
- * yet: a lane worked hard, and a crossing of the frozen lake.
+ * a route, out loaded and back empty, for judging a lane or a crossing
+ * without waiting for the village to work one.
  */
 
-/** Snow enough to pull on. */
-const SLEDDING = 0.6;
 /** Runner to runner, the deck's height, and how far ahead of the sled's
  * middle its drawbar sits and how high — the model's own measures
  * (tools/modelLab/sled.py). */
@@ -36,8 +36,6 @@ const ROPE = 1.05;
 const LEAN_LOADED = 0.4;
 const LEAN_EMPTY = 0.18;
 const GRIP = new THREE.Vector3(0.1, 0.34, -0.2);
-/** How long an emptied sled stays with its serf before it is put away. */
-const KEEP_SECONDS = 25;
 /** Where the four loads sit on the deck. */
 const BERTHS: readonly [number, number][] = [
   [-0.1, 0.17],
@@ -57,7 +55,7 @@ const rope = new THREE.LineBasicMaterial({color: 0x5a4630});
  * are the same white heap, and telling them apart is the point.
  */
 const dry = new Map<THREE.Material, THREE.Material>();
-function keepDry(root: THREE.Object3D): void {
+export function keepDry(root: THREE.Object3D): void {
   root.traverse(obj => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh || Array.isArray(mesh.material)) return;
@@ -77,8 +75,7 @@ function keepDry(root: THREE.Object3D): void {
   });
 }
 
-/** The sled, nose toward +z, once its model has arrived. Asked for by the
- * first match that wants sleds, so one that does not never fetches it. */
+/** The sled, nose toward +z, once its model has arrived. */
 let model: THREE.Object3D | undefined;
 let asked = false;
 function loadModel(): void {
@@ -89,6 +86,8 @@ function loadModel(): void {
     gltf => {
       keepDry(gltf.scene);
       model = gltf.scene;
+      // The castle's shelf draws its sleds with it, parked at the door.
+      setCartModel(GoodId.sled, model);
     },
   );
 }
@@ -97,14 +96,15 @@ interface Sled {
   group: THREE.Group;
   loads: THREE.Group;
   line: THREE.Line;
-  /** What is on the deck, as a carry code; 0 is an empty sled. */
+  /** What is on the deck, as a carry code, and how many; 0 is an empty
+   * sled. */
   carrying: number;
+  load: number;
   x: number;
   z: number;
   yaw: number;
   /** Ground covered since the runners last marked it. */
   since: number;
-  emptyFor: number;
   seen: boolean;
   /** The man on the rope, the arms he pulls with, and how hard he is
    * pulling right now: 0 standing, 1 with the sled moving behind him. */
@@ -114,7 +114,7 @@ interface Sled {
 }
 
 /** Shoulder to elbow to wrist, and which side of him it hangs on. */
-interface Arm {
+export interface Arm {
   upper: THREE.Object3D;
   lower: THREE.Object3D;
   hand: THREE.Object3D;
@@ -122,7 +122,7 @@ interface Arm {
 }
 
 /** A man's two arms, by the rig's own bone names. */
-function armsOf(man: THREE.Object3D): Arm[] {
+export function armsOf(man: THREE.Object3D): Arm[] {
   const arms: Arm[] = [];
   for (const [suffix, side] of [
     ['l', 1],
@@ -146,7 +146,7 @@ function armsOf(man: THREE.Object3D): Arm[] {
 
 /** Turn `bone` so that the limb from it to `child` points at `target`,
  * `weight` of the way from where the walk had it. */
-function aim(
+export function aim(
   bone: THREE.Object3D,
   child: THREE.Object3D,
   target: THREE.Vector3,
@@ -182,13 +182,12 @@ export class Sleds {
   #route: THREE.Vector2[] = [];
   #routeLength = 0;
   #pullers: Puller[] = [];
-  #enabled = new URLSearchParams(location.search).has('sleds');
 
   constructor(scene: THREE.Scene, heights: HeightField, sync: SceneSync) {
     this.#scene = scene;
     this.#heights = heights;
     this.#sync = sync;
-    if (this.#enabled) loadModel();
+    loadModel();
     const mark = new THREE.PlaneGeometry(0.04, TRACK_STEP * 1.15);
     mark.rotateX(-Math.PI / 2);
     this.#tracks = new THREE.InstancedMesh(
@@ -261,11 +260,8 @@ export class Sleds {
     return 0;
   }
 
+  /** `snow` is how white the ground is drawn, for fading the tracks. */
   update(seconds: number, speed: number, snow: number): void {
-    // Nothing asked for and nothing standing: a match without sleds pays
-    // for none of this.
-    if (!this.#enabled && this.#pullers.length === 0 && this.#sleds.size === 0)
-      return;
     const dt =
       this.#last === undefined
         ? 0
@@ -273,8 +269,8 @@ export class Sleds {
     this.#last = seconds;
     // No sled to put it on, no taking the load out of his arms: until the
     // model is here he carries as he always did.
-    const sledding = this.#enabled && model !== undefined && snow > SLEDDING;
-    this.#sync.towing = sledding;
+    const ready = model !== undefined;
+    if (ready) this.#sync.readyCarts.add(GoodId.sled);
     (this.#tracks.material as THREE.Material).opacity = 0.42 * snow;
     // The marks go with the snow they were cut in: without this, last
     // winter's lanes would fade back in with the next one's first fall.
@@ -284,10 +280,10 @@ export class Sleds {
     }
 
     for (const sled of this.#sleds.values()) sled.seen = false;
-    if (sledding) {
-      this.#sync.eachUnit((id, kind, group, carrying) => {
-        if ((kind & 0xff) !== UnitTypeId.serf) return;
-        this.#pull(id, group, carrying, dt);
+    if (ready) {
+      this.#sync.eachUnit((id, kind, group, carrying, load, cart) => {
+        if ((kind & 0xff) === UnitTypeId.serf && cart === GoodId.sled)
+          this.#pull(id, group, carrying, load, dt);
       });
     }
     // The made-up line walks whatever the season, so a route can be laid
@@ -300,7 +296,7 @@ export class Sleds {
       p.group.position.set(SPOT.x, this.#floor(SPOT.x, SPOT.z), SPOT.z);
       p.group.rotation.y = back ? yaw + Math.PI : yaw;
       p.char.mixer.update(dt);
-      this.#pull(-1 - i, p.group, back ? 0 : p.good, dt);
+      this.#pull(-1 - i, p.group, back ? 0 : p.good, back ? 0 : 4, dt);
     });
 
     for (const [id, sled] of this.#sleds) {
@@ -314,22 +310,26 @@ export class Sleds {
   }
 
   /** Bring one serf's sled along behind him. */
-  #pull(id: number, man: THREE.Group, carrying: number, dt: number): void {
+  #pull(
+    id: number,
+    man: THREE.Group,
+    carrying: number,
+    load: number,
+    dt: number,
+  ): void {
     let sled = this.#sleds.get(id);
     if (!sled) {
-      // A serf with nothing to move leaves his sled at home.
-      if (carrying === 0 || !model) return;
+      if (!model) return;
       sled = this.#make(man, model);
       this.#sleds.set(id, sled);
     }
-    sled.emptyFor = carrying > 0 ? 0 : sled.emptyFor + dt;
-    if (sled.emptyFor > KEEP_SECONDS) return;
     sled.seen = true;
 
-    if (carrying !== sled.carrying) {
+    if (carrying !== sled.carrying || load !== sled.load) {
       sled.carrying = carrying;
+      sled.load = load;
       sled.loads.clear();
-      for (const [x, z] of carrying > 0 ? BERTHS : []) {
+      for (const [x, z] of carrying > 0 ? BERTHS.slice(0, load) : []) {
         const load = makeCarryProp(carrying);
         if (!load) break;
         keepDry(load);
@@ -440,11 +440,11 @@ export class Sleds {
       loads,
       line,
       carrying: 0,
+      load: 0,
       x: man.position.x - Math.sin(yaw) * ROPE,
       z: man.position.z - Math.cos(yaw) * ROPE,
       yaw,
       since: 0,
-      emptyFor: 0,
       seen: true,
       man,
       arms: armsOf(man),
@@ -463,7 +463,7 @@ export class Sleds {
     this.#scene.remove(this.#tracks);
     this.#tracks.geometry.dispose();
     (this.#tracks.material as THREE.Material).dispose();
-    this.#sync.towing = false;
+    this.#sync.readyCarts.delete(GoodId.sled);
   }
 }
 

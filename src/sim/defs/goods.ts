@@ -30,6 +30,8 @@ export const GOODS: readonly GoodId[] = [
   G.hammer,
   G.cauldron,
   G.rod,
+  G.sled,
+  G.wheelbarrow,
 ];
 
 /**
@@ -57,6 +59,8 @@ export const GOOD_KEYS: Readonly<Record<GoodId, string>> = {
   [G.hammer]: 'hammer',
   [G.cauldron]: 'cauldron',
   [G.rod]: 'rod',
+  [G.sled]: 'sled',
+  [G.wheelbarrow]: 'wheelbarrow',
 };
 
 const GOOD_BY_KEY = new Map<string, GoodId>(GOODS.map(g => [GOOD_KEYS[g], g]));
