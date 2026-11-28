@@ -725,6 +725,14 @@ describe('the load home', () => {
    * two whole distances that separate them. If a balance pass moves the
    * draw, the stride, or the boot multiplier, re-derive it from those four
    * numbers rather than nudging the 48.
+   *
+   * The window is that narrow in time as well: the plank is dealt on the
+   * first matcher pass after the draw begins, and a booted wait gives back
+   * 0.086 of a tile every tick it runs down, so the pass has to land within
+   * three ticks of the drawer taking the handle. Where he starts sets that:
+   * two tiles due north to the crank side puts a booted man on it with the
+   * next pass one tick away. Move him, and check the phase before blaming
+   * the reach.
    */
   it("reads the windlass at the seat's own stride, boots and all", () => {
     const run2 = (booted: boolean): boolean => {
@@ -737,7 +745,7 @@ describe('the load home', () => {
       });
       const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 26, 30);
       well.stock[GoodId.water] = 1;
-      const drawer = addSerf(world, 26, 33);
+      const drawer = addSerf(world, 27, 32);
       // Seventeen tiles off the storehouse: past the reach an unbooted
       // seat computes for the drawer, short of the reach a booted one does.
       const other = addSerf(world, 21, 48);
@@ -859,6 +867,60 @@ describe('the load home', () => {
     let guard = 0;
     while (site.workerId === undefined && guard++ < 4000) tickWorld(world, []);
     expect(site.workerId).toBeDefined();
+  });
+});
+
+/**
+ * The well is wound from one side. Its crank hangs off the east end of the
+ * windlass, and the render stands the man drawing at that handle — which
+ * only reads as a man walking up to it if the sim brought him to that side
+ * in the first place. Parked on whichever ring tile his path met first, he
+ * was slid round, or straight through, the well to reach it.
+ */
+describe("the well's crank side", () => {
+  /** A well with one bucket in it and a storehouse to carry it to, both
+   * west of where the man starts, so the nearest ring tile is the wrong
+   * one. Returns where he stands once the draw begins. */
+  function drawFrom(
+    serfAt: [number, number],
+    shut: [number, number][] = [],
+  ): {x: number; y: number} {
+    const world = bareWorld();
+    addStorehouse(world, 14, 30, {});
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 26, 30);
+    well.stock[GoodId.water] = 1;
+    well.paused = true; // one bucket, one errand
+    for (const [x, y] of shut)
+      world.map.blocked[tileIdx(x, y, world.map.size)] = 1;
+    const serf = addSerf(world, serfAt[0], serfAt[1]);
+    const initial = countGoods(world);
+
+    const drawing = () =>
+      serf.jobId !== undefined &&
+      world.jobs.get(serf.jobId)?.drawUntil !== undefined;
+    let guard = 0;
+    while (!drawing() && guard++ < 900) tickWorld(world, []);
+    expect(drawing()).toBe(true);
+    expect(world.jobs.get(serf.jobId!)?.from).toBe(well.id);
+    expectClean(world, initial);
+    return {x: Math.floor(serf.x), y: Math.floor(serf.y)};
+  }
+
+  it('walks a hauler from the far side round to the crank', () => {
+    // From the west, the ring tile he would meet first is (25, 30).
+    expect(drawFrom([20, 30])).toEqual({x: 27, y: 30});
+  });
+
+  it('steps a man already beside the well round to it', () => {
+    // On the ring already, so the board hands him the load where he
+    // stands (takeStandingJobs) — and still sends him to the handle.
+    expect(drawFrom([25, 31])).toEqual({x: 27, y: 30});
+  });
+
+  it('draws from the rest of the ring when the crank side is shut', () => {
+    const at = drawFrom([20, 30], [[27, 30]]);
+    expect(at).not.toEqual({x: 27, y: 30});
+    expect(Math.max(Math.abs(at.x - 26), Math.abs(at.y - 30))).toBe(1);
   });
 });
 
