@@ -18,7 +18,10 @@ import {bareWorld, staffBuilding} from '../sim/testUtils.ts';
 import {tickWorld} from '../sim/tick.ts';
 import {placeBuiltBuilding} from '../sim/world.ts';
 import type {PierInfo} from './buildingSync';
+import type {ViewBounds} from './cameraRig';
 import type {HeightField} from './heightField';
+import {DRILL_SECONDS, IceHoles} from './iceHoles';
+import {PIER_SPOT_BACK} from './pierFit';
 import type {OccluderBox} from './xrayOutline';
 
 /**
@@ -99,8 +102,13 @@ function fisherman(action: number = ACTION.work): UnitSnapshot {
   };
 }
 
-/** One parked fisherman, one pier, and a clock that advances in frames. */
-function rig(occluders: OccluderBox[] = []): {
+/** One parked fisherman, one pier, and a clock that advances in frames —
+ * on a lake with `holes` cut in it, and drawn through `bounds`, if given. */
+function rig(
+  occluders: OccluderBox[] = [],
+  holes?: IceHoles,
+  bounds?: ViewBounds,
+): {
   step: (frames: number, action?: number, at?: {x: number; y: number}) => void;
   where: () => {x: number; y: number};
   outlined: () => boolean;
@@ -112,6 +120,7 @@ function rig(occluders: OccluderBox[] = []): {
   const sync = new SceneSync(scene, reader, flat);
   sync.setPiers([PIER]);
   sync.setOccluders(occluders);
+  if (holes) sync.setIceHoles(holes);
   let now = 0;
   // Twice, so the second publish has a predecessor to read "standing
   // still" from.
@@ -131,7 +140,9 @@ function rig(occluders: OccluderBox[] = []): {
         }
         writer.publish([u], 0);
         reader.poll(now);
-        sync.update(now);
+        sync.update(now, -1, undefined, false, bounds);
+        // After the sync, as the match runs it (matchScreen).
+        holes?.update();
       }
     },
     where() {
@@ -333,5 +344,95 @@ describe('the tick the catch is read from', () => {
       // The last run is cut off by the end of the loop, not by a batch.
       else if (i < runs.length - 1) expect(run.ticks).toBe(batch);
     }
+  });
+});
+
+/**
+ * Winter. The lake under the deck is frozen, so the line has nothing to go
+ * into until he has bored a hole where it falls (iceHoles.ts). The bed is a
+ * metre under the waterline everywhere, which is lake enough to freeze.
+ */
+describe('the fisherman on a frozen lake', () => {
+  const lakeBed = {at: () => -1} as unknown as HeightField;
+  const frozenLake = (
+    frozen = 1,
+  ): {holes: IceHoles; frozen: {value: number}} => {
+    const water = {
+      frozen: {value: frozen},
+      colors: {
+        shallow: new THREE.Color(),
+        mid: new THREE.Color(),
+        deep: new THREE.Color(),
+      },
+    };
+    return {
+      holes: new IceHoles(new THREE.Scene(), lakeBed, water),
+      frozen: water.frozen,
+    };
+  };
+  /** The deck's tip, along it from the door. */
+  const TIP = 1.6 + PIER_SPOT_BACK;
+
+  it('bores a hole off the end of the deck before he fishes', () => {
+    const {holes} = frozenLake();
+    const r = rig([], holes);
+    r.step(240); // out along the planks
+    // Not at the fishing spot: at the very end, over the ice he is cutting.
+    expect(along(r.where())).toBeGreaterThan(TIP - 0.1);
+    expect(along(r.where())).toBeLessThan(TIP);
+    expect(holes.holes).toHaveLength(1);
+    const begun = holes.holes[0]!.progress;
+    expect(begun).toBeGreaterThan(0);
+    expect(begun).toBeLessThan(1);
+    // The auger takes DRILL_SECONDS; then he steps back to his spot.
+    r.step(60 * DRILL_SECONDS);
+    expect(holes.holes[0]!.progress).toBe(1);
+    r.step(60);
+    expect(along(r.where())).toBeCloseTo(1.6, 1);
+    expect(drift(r.where())).toBeLessThan(0.02);
+  });
+
+  it('fishes the hole and nothing else: no shifting down the planks', () => {
+    const {holes} = frozenLake();
+    const r = rig([], holes);
+    r.step(240 + 60 * DRILL_SECONDS + 60);
+    // Two whole pace holds (PIER_PACE_HOLD is 6s): in summer he would
+    // have walked half a metre down the deck and back by now.
+    for (let f = 0; f < 60 * 14; f += 30) {
+      r.step(30);
+      expect(along(r.where())).toBeCloseTo(1.6, 1);
+    }
+  });
+
+  it('lands no fish through ice he has not bored', () => {
+    const {holes} = frozenLake();
+    const r = rig([], holes);
+    r.step(240); // at the auger
+    // The batch edge — which in summer is a fish on the planks and turns
+    // him for the door — goes by, and he keeps drilling.
+    r.step(1, ACTION.idle);
+    r.step(60);
+    expect(along(r.where())).toBeGreaterThan(TIP - 0.1);
+  });
+
+  it('finds the hole already dug when nobody was watching', () => {
+    const {holes} = frozenLake();
+    // A view nowhere near the hut: he is off screen the whole time.
+    const r = rig([], holes, {minX: 0, maxX: 5, minZ: 0, maxZ: 5});
+    r.step(10);
+    expect(holes.holes.map(h => h.progress)).toEqual([1]);
+  });
+
+  it('goes back to the summer round when the ice goes', () => {
+    const {holes, frozen} = frozenLake();
+    const r = rig([], holes);
+    r.step(240 + 60 * DRILL_SECONDS + 60);
+    expect(holes.holes).toHaveLength(1);
+    frozen.value = 0;
+    r.step(1);
+    expect(holes.holes).toHaveLength(0); // the hole went with the ice
+    // ...and the pace holds are back.
+    r.step(60 * 8);
+    expect(along(r.where())).toBeLessThan(1.6 - 0.3);
   });
 });
