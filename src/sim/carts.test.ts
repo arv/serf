@@ -579,6 +579,50 @@ describe('a walk cut back to one load', () => {
   });
 });
 
+describe('a cart at a well', () => {
+  it('takes only the buckets it stood at the windlass for', () => {
+    const world = bareWorld();
+    world.tick = WINTER;
+    const store = addStorehouse(world, 30, 30, {});
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 20, 30);
+    well.stock[GoodId.water] = 2;
+    well.reservedOut[GoodId.water] = 2;
+    store.inbound[GoodId.water] = 2;
+    const serf = addSerf(world, 20, 32);
+    serf.cart = GoodId.sled;
+    const job = (serfId?: number) => {
+      const id = world.nextJobId++;
+      world.jobs.set(id, {
+        id,
+        good: GoodId.water,
+        from: well.id,
+        to: store.id,
+        owner: 0,
+        priority: 3,
+        createdTick: 0,
+        phase: HaulPhase.toPickup,
+        serfId,
+        ...(serfId === undefined ? {phase: HaulPhase.open} : {}),
+      });
+      return id;
+    };
+    serf.jobId = job(serf.id);
+    serf.task = {t: UnitTaskKind.haul};
+    const other = job();
+    let started: number | undefined;
+    for (let i = 0; i < 200 && serf.carrying === undefined; i++) {
+      tickWorld(world, []);
+      if (started === undefined && world.jobs.get(serf.jobId!)?.drawUntil)
+        started = world.tick;
+    }
+    // One bucket wound up, one carried: the other load waits its own turn.
+    expect(started).toBeDefined();
+    expect(cargoOf(serf)).toBe(1);
+    expect(world.jobs.has(other)).toBe(true);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+});
+
 describe('stockTheCarts', () => {
   const rule = ECONOMY_RULES.find(r => r.id === EconomyRuleId.stockTheCarts)!;
 

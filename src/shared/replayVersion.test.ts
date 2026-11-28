@@ -865,9 +865,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // mixed how many and on what cart, never what): a test tool's digest, no
 // tick moves. Still 80, unreleased, when a man at the castle took his cart
 // on the spot and a cart walking home learned to wait out the doorstep and
-// a blocked walk: these ride with 80's carts.
+// a blocked walk, and a cart at a well stopped folding in buckets it never
+// stood at the windlass for: these ride with 80's carts.
 const EXPECTED_VERSION = 80;
-const EXPECTED_HASH = '8097fac78ce89b252857cf215ada4a0d';
+const EXPECTED_HASH = 'eb7d9f06e21c430fa606990df2b27180';
 
 /**
  * Everything a replay's playback depends on, as raw source:

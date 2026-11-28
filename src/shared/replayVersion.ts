@@ -31,7 +31,8 @@
  * the road (systems/staffing.ts), which had lost sleds into barracks.
  * A man already at the castle door takes his cart there and then, not
  * after a walk to the source and back; and one walking a cart home waits
- * out his doorstep stand, and backs off when no way home is found.
+ * out his doorstep stand, and backs off when no way home is found. A cart
+ * at a well takes only the buckets it was booked and wound up for.
  *
  * 79's note follows.
  *

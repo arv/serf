@@ -802,6 +802,10 @@ function topUpCart(
 ): number {
   const cart = cartFor(world.tick);
   if (!cart) return 0;
+  // A well gives up a bucket per drawTicks, paid before he is handed the
+  // walk's loads (progress); a load folded in after would skip its turn at
+  // the windlass. Walks booked several loads up front still ride.
+  if (buildingDef(from.type).drawTicks !== undefined) return 0;
   const castle = findStorehouse(world, job.owner);
   if (!castle) return 0;
   let room = cart.load - loadOf(job);
