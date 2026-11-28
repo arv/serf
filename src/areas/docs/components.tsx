@@ -5,7 +5,7 @@ import {type GoodAmounts, type GoodId, goodEntries} from '../../sim/defs/goods';
 import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
 import {GoodIcon} from '../../ui/icons';
 import {RESOURCE_NAMES, goodName} from '../../ui/names';
-import {fmtPerMinute, fmtSecs} from './data';
+import {fmtPerMinute, fmtRecipeRate, fmtSecs} from './data';
 import {goodHref} from './routes';
 
 /**
@@ -127,7 +127,8 @@ export function RecipeView(props: {recipe: Recipe}): JSX.Element {
         {([good, n]) => (
           <span>
             {' '}
-            · {fmtPerMinute(n, r.durationTicks)} {goodName(good).toLowerCase()}
+            · {fmtRecipeRate(n, r.durationTicks, r.crop)}{' '}
+            {goodName(good).toLowerCase()}
           </span>
         )}
       </For>

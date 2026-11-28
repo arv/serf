@@ -8,10 +8,13 @@ import {
   HIRE_SERF_TICKS,
   TICKS_PER_SECOND,
   TRAIN_QUEUE_CAP,
+  farmSeasonAt,
+  farmSeasonLeft,
 } from '../sim/defs/balance';
 import {
   BUILDING_DEFS,
   TOOL_OF,
+  convertRecipeOf,
   gatherRecipeOf,
   repairBill,
 } from '../sim/defs/buildings';
@@ -41,6 +44,7 @@ import {TextTip, TipWrap, UnitTip} from './tooltip';
 import * as StaffingState from '../protocol/staffingStateEnum.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as FarmSeason from '../sim/defs/farmSeasonEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import type {TileResourceKind} from '../sim/map';
@@ -154,6 +158,21 @@ function reachTip(
   return renews
     ? `Reachable wood in the search square. Felled tiles regrow.${shut}`
     : `Reachable loads in the search square. None regrows; at zero the building is finished.${shut}`;
+}
+
+/** What the farm card calls each season of the field's year, and what
+ * the clock after it counts down to. */
+const FIELD_SEASON: Record<Enum<typeof FarmSeason>, string> = {
+  [FarmSeason.harvest]: 'harvest, sowing in',
+  [FarmSeason.sow]: 'sowing, snow in',
+  [FarmSeason.fallow]: 'fallow under the snow, thaw in',
+  [FarmSeason.grow]: 'growing, ripe in',
+};
+
+/** Seconds as m:ss. */
+function clock(seconds: number): string {
+  const s = Math.ceil(seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 /**
@@ -612,6 +631,9 @@ export function SelectionPanel(props: {
               on this card for as long as the building is selected or
               never on it. */
           const gather = () => gatherRecipeOf(def());
+          /** A field, which keeps the seasons — type-level like gather,
+              so its line is on the card for as long as the farm is. */
+          const crop = () => convertRecipeOf(def())?.crop === true;
           /** What this post has been calling for, unanswered long enough
               to be worth saying — the goods themselves, so the line that
               draws them is either on the card or not at all. The patience
@@ -1565,6 +1587,31 @@ export function SelectionPanel(props: {
                     </TipWrap>
                   </div>
                 )}
+              </Show>
+              {/* Where the field is in its year, and how long it stays
+                  there. A farm making nothing in the winter is the
+                  calendar, not a fault, and without this line the card
+                  would show it exactly as it shows a farm gone dry. */}
+              <Show when={crop()}>
+                <div class="sel-line">
+                  <TipWrap
+                    tip={() => (
+                      <TextTip
+                        title="The field's year"
+                        body="Cut through the summer, sown before the snow, asleep under it, and up green with the thaw. Only the harvest makes wheat, a whole year's worth of it, so the mill eats in the winter what went into the castle in the summer. The farmer goes off to haul for the winter and is called back when the snow goes."
+                      />
+                    )}
+                  >
+                    <span>
+                      <span class="sel-label">
+                        {FIELD_SEASON[farmSeasonAt(simTick())]}
+                      </span>{' '}
+                      <span class="num">
+                        {clock(farmSeasonLeft(simTick()) / TICKS_PER_SECOND)}
+                      </span>
+                    </span>
+                  </TipWrap>
+                </div>
               </Show>
               {/* The people card's last line, for the same reason: the
                   order rows above are drawn in a replay — the queue and

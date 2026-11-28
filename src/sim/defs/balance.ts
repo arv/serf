@@ -3,10 +3,12 @@
  * this file holds cross-cutting knobs so a balance pass is one screen.
  */
 import type {Enum} from '../../shared/enum.ts';
+import * as FarmSeason from './farmSeasonEnum.ts';
 import * as GoodId from './goodIdEnum.ts';
 import type {GoodAmounts} from './goods.ts';
 import * as UnitClass from './unitClassEnum.ts';
 
+type FarmSeason = Enum<typeof FarmSeason>;
 type GoodId = Enum<typeof GoodId>;
 type UnitClass = Enum<typeof UnitClass>;
 
@@ -424,6 +426,57 @@ export function iceBears(tick: number): boolean {
     into >= ICE_FROM * YEAR_TICKS &&
     into < ICE_UNTIL * YEAR_TICKS + ICE_GRACE_TICKS
   );
+}
+
+/**
+ * PROTOTYPE: the field's year, on the same clock as the ice.
+ *
+ * Winter wheat, the only kind a field that sleeps under snow can grow. As
+ * shares of the year:
+ *
+ *   harvest  0.0 to 0.6  ripe; the scythe goes in. The match opens here.
+ *   sow      0.6 to 0.7  the stubble turned and the seed broadcast, ahead
+ *                        of the snow (which starts to fall at 0.65 and
+ *                        lies from about 0.7: render/seasons.ts).
+ *   fallow   0.7 to 0.9  asleep under it. Winter proper is 0.75 to 0.9.
+ *   grow     0.9 to 1.0  the thaw: up green, and gold by the time it ends.
+ *
+ * Only the harvest makes wheat. The farm does not lose a sheaf by it,
+ * though: the harvest brings in the whole year's (HARVEST_SHARE, and the
+ * wheat farm's recipe in defs/buildings.ts), so the village is fed the
+ * same across a year and has to carry the winter on what it put by.
+ *
+ * The ice's bargain too: a function of the tick and nothing else.
+ */
+export const SOW_FROM = 0.6;
+export const FALLOW_FROM = 0.7;
+export const GROW_FROM = ICE_UNTIL;
+/** The share of the year a field stands ripe. */
+export const HARVEST_SHARE = SOW_FROM;
+
+/** Where each season of the field's year ends, as a share of the year, in
+ * the order the year walks them. */
+const FARM_YEAR: readonly {season: FarmSeason; until: number}[] = [
+  {season: FarmSeason.harvest, until: SOW_FROM},
+  {season: FarmSeason.sow, until: FALLOW_FROM},
+  {season: FarmSeason.fallow, until: GROW_FROM},
+  {season: FarmSeason.grow, until: 1},
+];
+
+/** The field's season at `tick`. */
+export function farmSeasonAt(tick: number): FarmSeason {
+  return farmYearAt(tick).season;
+}
+
+/** Ticks until the field's season at `tick` gives way to the next. */
+export function farmSeasonLeft(tick: number): number {
+  return Math.ceil(farmYearAt(tick).until * YEAR_TICKS - (tick % YEAR_TICKS));
+}
+
+function farmYearAt(tick: number): (typeof FARM_YEAR)[number] {
+  const into = tick % YEAR_TICKS;
+  for (const step of FARM_YEAR) if (into < step.until * YEAR_TICKS) return step;
+  return FARM_YEAR[FARM_YEAR.length - 1]!;
 }
 
 /**

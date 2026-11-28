@@ -1090,7 +1090,7 @@ describe('research', () => {
     farm.inputs[GoodId.water] = 2;
     world.players[0]!.techs.researched.push(TechId.irrigation);
     run(world, 2); // batch starts with the modifier applied
-    expect(farm.prodTicksLeft).toBeLessThan(200); // 200 base / 1.3 ≈ 154
+    expect(farm.prodTicksLeft).toBeLessThan(120); // 120 base / 1.3 ≈ 92
   });
 
   it('millstones speeds the mill and the bakery', () => {

@@ -1,6 +1,7 @@
 import type {Enum} from '../../shared/enum.ts';
 import {
   CART_GOODS,
+  HARVEST_SHARE,
   HIRE_SERF_COST,
   START_STOCK,
   TICKS_PER_SECOND,
@@ -96,9 +97,29 @@ export function perMinute(amount: number, durationTicks: number): number {
   return (amount * 60) / secs(durationTicks);
 }
 
-export function fmtPerMinute(amount: number, durationTicks: number): string {
-  const rate = perMinute(amount, durationTicks);
+function fmtRate(rate: number): string {
   return `${Number.isInteger(rate) ? rate : rate.toFixed(1)}/min`;
+}
+
+export function fmtPerMinute(amount: number, durationTicks: number): string {
+  return fmtRate(perMinute(amount, durationTicks));
+}
+
+/**
+ * The same rate for a recipe that may be a crop. A crop works only through
+ * the harvest (farmSeasonAt in sim/defs/balance.ts) and at a pace that
+ * brings the year's yield in inside it, so its pace alone overstates what
+ * it makes by the share of the year it stands idle: the year's average
+ * leads, and the harvest's pace follows.
+ */
+export function fmtRecipeRate(
+  amount: number,
+  durationTicks: number,
+  crop: boolean | undefined,
+): string {
+  if (!crop) return fmtPerMinute(amount, durationTicks);
+  const pace = perMinute(amount, durationTicks);
+  return `${fmtRate(pace * HARVEST_SHARE)} over the year, ${fmtRate(pace)} at harvest`;
 }
 
 export interface ProducerRef {
@@ -106,6 +127,8 @@ export interface ProducerRef {
   via: 'gather' | 'convert' | 'forge';
   amount: number;
   durationTicks: number;
+  /** A crop, which works only through the harvest (fmtRecipeRate). */
+  crop?: true;
   /** Gate on the recipe itself (a Smith forge option), not the roof. */
   requiresTech?: TechId;
 }
@@ -157,6 +180,7 @@ function producersFrom(
       via,
       amount,
       durationTicks: recipe.durationTicks,
+      ...(recipe.crop ? {crop: true as const} : {}),
       ...(requiresTech !== undefined ? {requiresTech} : {}),
     });
   }

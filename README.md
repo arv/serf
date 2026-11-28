@@ -97,6 +97,16 @@ pnpm dev
   haul, a march or a raid takes the ice when the ice is the short way;
   nothing can be built on it, and whoever is still out when it stops
   bearing is stood on the nearest shore.
+- **The field's year**: the wheat farm keeps the seasons too. It cuts wheat
+  only through the harvest (the first 60% of the year, and the match opens
+  in it), sows in the fall, lies fallow under the snow and comes up green
+  with the thaw. The harvest cuts at a pace that brings in the same 48
+  sheaves a year the farm used to cut all year round, so the bread chain is
+  as fed as ever, but the winter eats what went into the castle in the
+  summer. While the field sleeps the farmer goes back to the serf pool to
+  haul, and the post calls a hand back at the thaw; the scythe waits on the
+  farm's rack. The farm's card says where the field is in its year and how
+  long it stays there.
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
   A study is ordered, not bought: the bill goes on the Abbey and the serfs
   carry it there load by load, and the clock only starts once the last load

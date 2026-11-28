@@ -869,8 +869,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // stood at the windlass for: these ride with 80's carts.
 // 81 for water haulers walking to the well's crank side: every water haul
 // can end on a different tile, a few ticks later (replayVersion.ts).
-const EXPECTED_VERSION = 81;
-const EXPECTED_HASH = 'f7cabbdde42c09ec146f936c9f3564e3';
+// 82 for the field's year: the wheat farm cuts only in the harvest, at a
+// pace that keeps the year's total, and its farmer leaves for the winter.
+const EXPECTED_VERSION = 82;
+const EXPECTED_HASH = '8cbf55ddc7215f4ad026893b2ccc1666';
 
 /**
  * Everything a replay's playback depends on, as raw source:

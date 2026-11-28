@@ -79,7 +79,9 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
       objective: 1,
     },
     {
-      text: 'Now the Mill. It grinds faster than a farm grows, so one serves two.',
+      text:
+        'Now the Mill. A farm cuts faster than it grinds through the summer; ' +
+        'the rest goes to the castle and keeps it grinding all winter.',
       objective: 2,
     },
     {

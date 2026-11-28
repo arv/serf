@@ -15,7 +15,7 @@ import {
   CONSUMED_BY,
   HIRE_SERF_COST,
   PRODUCED_BY,
-  fmtPerMinute,
+  fmtRecipeRate,
   startStockOf,
   type ConsumerRef,
 } from '../data';
@@ -181,7 +181,7 @@ export function GoodPage(props: {id: GoodId}): JSX.Element {
                   <DocLink href={buildingHref(p.building)}>
                     {buildingName(p.building)}
                   </DocLink>{' '}
-                  · {fmtPerMinute(p.amount, p.durationTicks)}
+                  · {fmtRecipeRate(p.amount, p.durationTicks, p.crop)}
                   <Show when={p.via === 'forge'}> · on the forge menu</Show>
                   <Show when={p.requiresTech}>
                     {tech => (

@@ -1465,6 +1465,7 @@ export async function runMatch(
     fog.setEnabled(fogOn);
     if (turned) buildingSync.update(roster);
     seasons.update(simTick(), speed(), performance.now() / 1000);
+    buildingSync.cropFrame(seasons.chart.wheat, seasons.chart.shoots);
     fog.update(
       Math.min((now - fogLast) / 1000, 0.25),
       init.reader,

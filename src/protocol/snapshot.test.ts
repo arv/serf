@@ -1,7 +1,13 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
 import * as CommandKind from '../sim/commandKindEnum.ts';
-import {TICKS_PER_SECOND} from '../sim/defs/balance.ts';
+import {
+  FALLOW_FROM,
+  GROW_FROM,
+  SOW_FROM,
+  TICKS_PER_SECOND,
+  YEAR_TICKS,
+} from '../sim/defs/balance.ts';
 import {BUILDING_DEFS, OUTPUT_CAP} from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
@@ -42,6 +48,7 @@ import {
   snapPlayers,
   unitSnapshots,
 } from './snapshot.ts';
+import * as StaffingState from './staffingStateEnum.ts';
 
 /**
  * The reach readout: what a gatherer's card says is left in the ground
@@ -371,6 +378,27 @@ describe('snapBuilding: shortOf', () => {
     // looked at (gatherStep), and the card says that with its own line.
     mine.stock[GoodId.iron] = OUTPUT_CAP;
     expect(snapBuilding(world, mine).shortOf).toBeUndefined();
+  });
+
+  it('blames the calendar, not the water, for a field out of its harvest', () => {
+    const farmAt = (tick: number) => {
+      const world = shortWorld();
+      world.tick = tick;
+      const farm = placeBuiltBuilding(
+        world,
+        BuildingTypeId.wheatFarm,
+        0,
+        30,
+        30,
+      );
+      staffBuilding(world, farm);
+      settle(world);
+      return snapBuilding(world, farm).shortOf;
+    };
+    // In the harvest a dry rack is what stops the scythe...
+    expect(farmAt(0)).toEqual([GoodId.water]);
+    // ...but in the sowing nothing would be cut with the water anyway.
+    expect(farmAt(SOW_FROM * YEAR_TICKS)).toBeUndefined();
   });
 
   it('names the ingredient a cold fire is asking for', () => {
@@ -746,6 +774,44 @@ describe('snapBuilding: prodProgress01', () => {
     );
     tickWorld(world, cmds());
     expect(snapBuilding(world, smith).prodProgress01!).toBeGreaterThan(before);
+  });
+});
+
+describe("unitSnapshots: the farmer's year", () => {
+  const snapOf = (world: World, id: number): UnitSnapshot => {
+    for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;
+    throw new Error(`unit ${id} is not in the snapshot`);
+  };
+  const farmAt = (tick: number) => {
+    const world = bareWorld();
+    world.tick = tick;
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
+    const farmer = staffBuilding(world, farm);
+    return {world, farm, farmer};
+  };
+
+  it('mows while a sheaf is being cut, and stands while the farm is dry', () => {
+    const {world, farm, farmer} = farmAt(0);
+    expect(snapOf(world, farmer.id).workKind).toBe(WORK.mow);
+    expect(snapOf(world, farmer.id).action).toBe(ACTION.idle);
+    farm.prodTicksLeft = 50;
+    expect(snapOf(world, farmer.id).action).toBe(ACTION.work);
+  });
+
+  it('sows down his lanes through the fall, batch or none', () => {
+    const {world, farm, farmer} = farmAt(SOW_FROM * YEAR_TICKS);
+    expect(snapOf(world, farmer.id).workKind).toBe(WORK.sow);
+    expect(snapOf(world, farmer.id).action).toBe(ACTION.work);
+    farm.paused = true;
+    expect(snapOf(world, farmer.id).action).toBe(ACTION.idle);
+  });
+
+  it('asks for nobody while the field lies fallow', () => {
+    const {world, farm} = farmAt(FALLOW_FROM * YEAR_TICKS);
+    farm.workerId = undefined;
+    expect(snapBuilding(world, farm).staffing).toBeUndefined();
+    world.tick = GROW_FROM * YEAR_TICKS;
+    expect(snapBuilding(world, farm).staffing).toBe(StaffingState.needed);
   });
 });
 

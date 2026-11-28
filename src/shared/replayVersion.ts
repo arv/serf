@@ -20,6 +20,16 @@
  * directly.
  */
 /**
+ * 82: the wheat farm keeps the seasons (farmSeasonAt in defs/balance.ts).
+ * It cuts wheat only through the harvest, the first 60% of the year, and
+ * cuts it at a sheaf every six seconds rather than ten so the year's total
+ * is what it was; and while the field lies fallow under the snow its
+ * farmer goes back to the serf pool (systems/staffing.ts), his scythe left
+ * on the farm's rack. Every bread chain and every haul a free farmer takes
+ * runs on different ticks, so old logs stop playing.
+ *
+ * 81's note follows.
+ *
  * 81: a hauler fetching water walks to the well's crank side. The well is
  * the one source worked to give its goods up, and its windlass is wound
  * from the east (BuildingDef.drawFrom), so a walk there now aims at that
@@ -1496,4 +1506,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 81;
+export const REPLAY_VERSION = 82;

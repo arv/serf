@@ -1436,6 +1436,7 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
   7: fishingPoleProp, // WORK.fish
   8: packScytheProp, // WORK.mow
+  9: () => new THREE.Group(), // WORK.sow — the seed goes out of a bare fist
 };
 
 /** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,

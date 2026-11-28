@@ -53,6 +53,7 @@ import {
   SITE_FRAME_H,
 } from './models';
 import {fitPier, layPier, seatShoal, type PierInfo} from './pierFit';
+import {CROP_SHOOTS, CROP_WHEAT} from './procBuildings';
 import {
   harvestTrainingRig,
   ownTrainingMaterials,
@@ -183,6 +184,31 @@ function harvestMowMarks(model: THREE.Object3D): THREE.Object3D[] {
   return [gate, ...path.map(p => p.o)];
 }
 
+/** One of the farmstead's crop meshes, and where it stands when full. */
+interface CropMesh {
+  mesh: THREE.Object3D;
+  /** Which of the season's two heights it takes (Seasons#crop). */
+  wheat: boolean;
+  /** Its height when standing full, and how far it sinks to be gone. */
+  base: number;
+  rise: number;
+}
+
+function harvestCrop(model: THREE.Object3D): CropMesh[] {
+  const out: CropMesh[] = [];
+  for (const name of [CROP_WHEAT, CROP_SHOOTS]) {
+    const mesh = model.getObjectByName(name);
+    if (!mesh) continue;
+    out.push({
+      mesh,
+      wheat: name === CROP_WHEAT,
+      base: mesh.position.y,
+      rise: (mesh.userData.rise as number | undefined) ?? 0,
+    });
+  }
+  return out;
+}
+
 /**
  * Drop a cloned character and free what it uniquely owns on the GPU.
  *
@@ -291,6 +317,9 @@ interface BuildingVisual {
   mowMarks: THREE.Object3D[];
   /** Measured circuit, cached like pierLine — buildings do not move. */
   fieldInfo?: FieldInfo;
+  /** The farm's standing crop, which the seasons raise and cut
+   * (cropFrame). Empty for everything without a field. */
+  crop: CropMesh[];
   /** Quarter turns the model stands at (Building.facing's convention):
    * the sim's for a shore building, downhill for a mine, else 0. Yard and
    * doorstep stock turn with it. */
@@ -1234,6 +1263,7 @@ export class BuildingSync {
       shoal,
       pierLine,
       mowMarks: harvestMowMarks(model),
+      crop: harvestCrop(model),
       staffed: false,
       working: false,
       span: Math.max(b.w, b.h),
@@ -1457,6 +1487,26 @@ export class BuildingSync {
       maxZ: maxZ + M,
       padLift,
     };
+  }
+
+  /**
+   * Per render frame: every farm's crop at the heights the season gives
+   * it (Seasons#crop), 0 cut to 1 standing. One calendar for the valley,
+   * so one pair of numbers for every field; the farms differ only in
+   * where their meshes stand when full.
+   */
+  cropFrame(wheat: number, shoots: number): void {
+    for (const v of this.#visuals.values()) {
+      for (const c of v.crop) {
+        const stand = c.wheat ? wheat : shoots;
+        // Gone is gone: a mesh sunk out of sight still costs its draw. So
+        // is the green while the gold stands full around it — every clump
+        // of it is built inside its gold one (procBuildings.ts field()),
+        // and the harvest is most of the year.
+        c.mesh.visible = stand > 0.001 && (c.wheat || wheat < 0.999);
+        c.mesh.position.y = c.base - (1 - stand) * c.rise;
+      }
+    }
   }
 
   /** Per render frame: the decor that moves. dt in seconds (pass 0 while
