@@ -1,8 +1,9 @@
-import {tileX, tileY} from '../shared/grid.ts';
+import {inBounds, tileIdx, tileX, tileY} from '../shared/grid.ts';
 import {exactDist} from '../shared/math.ts';
+import {buildingDef} from './defs/buildings.ts';
 import type {Building} from './entities.ts';
 import type {GameMap} from './map.ts';
-import {findPathToAdjacent} from './path.ts';
+import {findPath, findPathToAdjacent, shut} from './path.ts';
 import type {Unit} from './units.ts';
 
 /**
@@ -78,6 +79,70 @@ export function walkToBuilding(map: GameMap, unit: Unit, b: Building): boolean {
       b.w,
       b.h,
     ),
+  );
+}
+
+/**
+ * The walk to a building a hauler is fetching from. A plain shelf is
+ * reached from any tile ringing it, like every other errand; a source that
+ * has to be worked to give anything up is worked from one side
+ * (BuildingDef.drawFrom — the well's crank), so the walk aims at that tile
+ * from the start. Only when it is shut or cut off does he settle for the
+ * rest of the ring, and draw from wherever that leaves him.
+ *
+ * Every walk to a source goes through here — the dispatch, a man taking a
+ * load from the doorstep he is standing on, and the re-plan of a walk that
+ * ended short — so all three put him on the same tile.
+ */
+export function findPathToSource(
+  map: GameMap,
+  sx: number,
+  sy: number,
+  b: Building,
+): number[] | null {
+  const from = buildingDef(b.type).drawFrom;
+  const fx = from ? b.x + from[0] : 0;
+  const fy = from ? b.y + from[1] : 0;
+  return (
+    (from && enterable(map, sx, sy, fx, fy) && findPath(map, sx, sy, fx, fy)) ||
+    findPathToAdjacent(map, sx, sy, b.x, b.y, b.w, b.h)
+  );
+}
+
+/**
+ * Whether a walk from (sx, sy) could end on tile (x, y) at all — false only
+ * when it certainly cannot, so the answer agrees with findPath. A step in
+ * comes from a neighbour, and a diagonal one needs both of its orthogonals
+ * open (no corner cutting, path.ts), so an open orthogonal neighbour is the
+ * whole question — unless he is already on the tile or beside it, where
+ * the search starts and the rule about where it may stand does not apply.
+ *
+ * Asked first because the answer is otherwise expensive: a goal the search
+ * cannot enter costs it the whole walkable component to prove (path.ts,
+ * the runaway cap), and a draw tile hemmed in on its three open sides by
+ * houses or trees would charge that to every water haul in the village
+ * before the ring fallback ran.
+ */
+function enterable(
+  map: GameMap,
+  sx: number,
+  sy: number,
+  x: number,
+  y: number,
+): boolean {
+  if (Math.abs(sx - x) + Math.abs(sy - y) <= 1) return true;
+  const size = map.size;
+  const open = (nx: number, ny: number): boolean =>
+    inBounds(nx, ny, size) && !shut(map, tileIdx(nx, ny, size));
+  return open(x + 1, y) || open(x - 1, y) || open(x, y + 1) || open(x, y - 1);
+}
+
+/** Put the unit back on the road to the source it is fetching from. False
+ * when there is no way. */
+export function walkToSource(map: GameMap, unit: Unit, b: Building): boolean {
+  return walk(
+    unit,
+    findPathToSource(map, Math.floor(unit.x), Math.floor(unit.y), b),
   );
 }
 

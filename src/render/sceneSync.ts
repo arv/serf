@@ -14,6 +14,8 @@ import {
 } from '../protocol/sabLayout';
 import type {Enum} from '../shared/enum.ts';
 import {clamp, hash2, lerp} from '../shared/math';
+import {buildingDef} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
@@ -103,6 +105,10 @@ interface UnitVisual {
   /** Right-arm bone chain for the well-crank IK. undefined = not looked
    * up yet, null = this rig has no such bones. */
   arm?: ArmChain | null;
+  /** Set while the render has him at a well's handle or walking to it;
+   * held after, until the walk off it has given back the mark's offset
+   * from his tile (CRANK_OFF_SPEED). */
+  crankOff?: boolean;
   /** Mowing-walk state (the farmer on his field): which circuit point he
    * is walking toward, the ping-pong direction, ground left to cover
    * before the next stroke, and the anim-clock time his current stroke
@@ -175,6 +181,41 @@ const PIER_DROP_HOLD = 1400;
  * walk, and the de-overlap channel closes what is left as it always did.
  */
 const PIER_LEAVE_LAG = 1.2;
+
+/**
+ * The crank operator's mark, from the well's center: north-east of the
+ * handle, side-on to the well, facing south — from the fixed camera the
+ * grip and the glued hand stay in front of the body. A third of a tile in
+ * from the middle of the tile east of the well, which is where the sim
+ * stands whoever comes for water (BuildingDef.drawFrom).
+ */
+const CRANK_MARK_X = 0.64;
+const CRANK_MARK_Z = -0.12;
+
+/**
+ * The middle of that crank side's tile, from the well's center — read off
+ * the sim's own BuildingDef.drawFrom rather than written down again here,
+ * so the tile the render looks for a drawer on is the tile the sim sends
+ * him to. Undefined if the well ever stops naming one: then nobody is
+ * walked to the handle, rather than the wrong man.
+ */
+const CRANK_SIDE = ((): {x: number; z: number} | undefined => {
+  const def = buildingDef(BuildingTypeId.well);
+  const from = def.drawFrom;
+  return from
+    ? {x: from[0] + 0.5 - def.w / 2, z: from[1] + 0.5 - def.h / 2}
+    : undefined;
+})();
+
+/**
+ * How fast that third of a tile is given back once the draw is over, in
+ * world units a second, while the sim walks him off. The sim's walk starts
+ * from the middle of his tile, and the de-overlap channel would close the
+ * gap to it in a tenth of a second — a slide glued to his first step. At
+ * half a stride his pace stays within half of itself, whichever way he
+ * leaves, while it closes.
+ */
+const CRANK_OFF_SPEED = RENDER_WALK_SPEED / 2;
 
 const IK_TARGET = new THREE.Vector3();
 
@@ -489,10 +530,10 @@ export class SceneSync {
     | null = null;
 
   /** Built wells' world centers, windlasses + grip handles (from main's
-   * structural feed). A drawing serf belongs at the windlass, but the sim
-   * parks it on whichever adjacent tile the path found — so the render
-   * stands it beside the crank, IK-glues its hand to the grip, and turns
-   * the crank under it (see update). */
+   * structural feed). The sim stands a drawing serf in the middle of the
+   * tile east of the well, a step short of the handle — so the render
+   * walks it that step, IK-glues its hand to the grip, and turns the crank
+   * under it (see update). */
   #wells: Well[] = [];
 
   /** Wells whose crank has already been turned this frame, so two haulers
@@ -544,19 +585,39 @@ export class SceneSync {
   /** Ids currently hidden by fog — picking and selection skip them. */
   #hidden = new Set<number>();
 
-  #nearestWell(x: number, y: number): Well | null {
-    let well: Well | null = null;
-    let best = 2.25; // the worker stands adjacent: within 1.5 tiles
+  /** The well whose crank side this serf is standing on: the tile east of
+   * it (BuildingDef.drawFrom), where the sim sends whoever comes for
+   * water. A man it had to stand anywhere else — that tile shut — gets
+   * none. From there the handle is across the shaft, and he draws where
+   * he stands.
+   *
+   * And it has to be the well he is drawing FROM, which his tile alone
+   * does not say: two wells two tiles apart in a row share that tile, as
+   * one's crank side and the other's west ring. The publish already says
+   * which — the bearing and range bytes point at the well being drawn from
+   * (snapshot.ts workFocus) — so the crank well is the one they land on.
+   * A zero range is the multiplayer redaction of an enemy's point (see the
+   * facing note in update); then the tile is all there is to go by. */
+  #crankWellAt(
+    x: number,
+    y: number,
+    facing: number,
+    range8: number,
+  ): Well | null {
+    if (!CRANK_SIDE) return null;
+    const yaw = (facing / 256) * Math.PI * 2;
+    const fx = x + Math.sin(yaw) * (range8 / 8);
+    const fz = y + Math.cos(yaw) * (range8 / 8);
     for (const w of this.#wells) {
-      const dx = w.x - x;
-      const dz = w.z - y;
-      const d2 = dx * dx + dz * dz;
-      if (d2 < best) {
-        best = d2;
-        well = w;
-      }
+      if (
+        Math.abs(w.x + CRANK_SIDE.x - x) >= 0.5 ||
+        Math.abs(w.z + CRANK_SIDE.z - y) >= 0.5
+      )
+        continue;
+      if (range8 > 0 && Math.hypot(fx - w.x, fz - w.z) > 0.5) continue;
+      return w;
     }
-    return well;
+    return null;
   }
 
   #nearestPier(x: number, y: number): PierInfo | null {
@@ -1133,6 +1194,18 @@ export class SceneSync {
       const workKind = latest.aux[a + 5]!;
       const dead = action === ACTION.dead;
       if (dead) moving = false; // corpses don't turn or bob
+      // Drawing on a well's crank side: the render walks the serf the last
+      // step to the handle (below), IK-glues their hand to its grip and
+      // turns the windlass — the base pose is a calm idle, and the
+      // cranking motion IS the crank's.
+      const crankWell =
+        !offScreen &&
+        !dead &&
+        !moving &&
+        action === ACTION.work &&
+        workKind === WORK.draw
+          ? this.#crankWellAt(x, y, latest.aux[a + 7]!, latest.aux[a + 8]!)
+          : null;
       // A fighter who has stopped to swing has no movement delta to face by,
       // so it would keep the yaw it walked in with and hack at the air beside
       // its enemy. The sim sends the bearing to whatever it is actually
@@ -1156,10 +1229,12 @@ export class SceneSync {
       // nothing at all, on purpose, because the row he is cutting is the
       // one he walked in along. A bearing written over that would have him
       // scything at the farm building for the length of every stroke.
+      //
+      // The windlass only while the render has him at it: a man the sim
+      // stood on the far side of the shaft draws where he is, and the
+      // bearing is what turns him to the well.
       const renderTurned =
-        workKind === WORK.fish ||
-        workKind === WORK.mow ||
-        workKind === WORK.draw;
+        workKind === WORK.fish || workKind === WORK.mow || crankWell !== null;
       if (
         !moving &&
         !dead &&
@@ -1168,23 +1243,64 @@ export class SceneSync {
       ) {
         visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
       }
-      // Drawing at a well with a crank: the serf stands beside the windlass
-      // and their hand is IK-glued to the grip, so the base pose is a calm
-      // idle — the cranking motion IS the crank's.
-      const crankWell =
-        !offScreen &&
-        !dead &&
-        !moving &&
-        action === ACTION.work &&
-        workKind === WORK.draw
-          ? this.#nearestWell(x, y)
-          : null;
+      // The step to the handle, walked. The mark is a third of a tile in
+      // from where the sim stood him, and it used to be eased in a tenth of
+      // a second — a slide, and from the wrong side of the well a slide
+      // straight through it. Written through the de-overlap channel, as
+      // the pier walk is, and taken back the same way once the draw is
+      // over: at CRANK_OFF_SPEED while the sim walks him off, at a walk if
+      // he is left standing (the well gone from under him).
+      let cranking = false;
+      let crankStep = false;
+      if (crankWell) {
+        visual.crankOff = true;
+        const curX = x + visual.sepX;
+        const curZ = y + visual.sepY;
+        const tx = crankWell.x + CRANK_MARK_X;
+        const tz = crankWell.z + CRANK_MARK_Z;
+        const dx = tx - curX;
+        const dz = tz - curZ;
+        const dist = Math.hypot(dx, dz);
+        const step = RENDER_WALK_SPEED * dt;
+        if (dist > step && dist > 1e-4) {
+          visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
+          visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
+          visual.group.rotation.y = Math.atan2(dx, dz);
+          crankStep = true;
+          // Render-side walk: no publish delta for the legs to read.
+          if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
+        } else {
+          visual.sepX = this.#sepTX[i] = tx - x;
+          visual.sepY = this.#sepTY[i] = tz - y;
+          visual.group.rotation.y = 0; // face +z, crank at the right hand
+          cranking = true;
+        }
+      } else if (visual.crankOff) {
+        const dx = this.#sepTX[i]! - visual.sepX;
+        const dz = this.#sepTY[i]! - visual.sepY;
+        const gap = Math.hypot(dx, dz);
+        const step = (moving ? CRANK_OFF_SPEED : RENDER_WALK_SPEED) * dt;
+        // Out of sight or dead, there is nobody to watch the walk.
+        if (offScreen || dead || gap <= step) visual.crankOff = undefined;
+        else {
+          visual.sepX = this.#sepTX[i] = visual.sepX + (dx / gap) * step;
+          visual.sepY = this.#sepTY[i] = visual.sepY + (dz / gap) * step;
+          // A man struck at the handle answers where he stands, still on his
+          // errand (combat.ts lastResortStrike): the bearing above has turned
+          // him to whoever hit him, and his swing is the clip to play.
+          if (!moving && action !== ACTION.fight) {
+            visual.group.rotation.y = Math.atan2(dx, dz);
+            crankStep = true;
+            if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
+          }
+        }
+      }
       // The windlass turns because someone is winding it, and only then.
       // Axle along x; one revolution per loop of the reeling clip (1.6 s),
       // both advancing on the same render dt, so the grip stays under the
       // hands glued to it. Once per well per frame — two serfs drawing at
       // one well are two buckets, not double speed.
-      if (crankWell && dt > 0 && !this.#spun.has(crankWell.crank)) {
+      if (crankWell && cranking && dt > 0 && !this.#spun.has(crankWell.crank)) {
         this.#spun.add(crankWell.crank);
         crankWell.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
       }
@@ -1483,10 +1599,12 @@ export class SceneSync {
             : mowStep
               ? gaitAnimKey(visual.char.gait)
               : AnimKey.idle;
+        else if (crankStep)
+          key = heldCarry ? AnimKey.carry : gaitAnimKey(visual.char.gait);
+        else if (crankWell) key = AnimKey.idle;
         else if (action === ACTION.fight)
           key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
-        else if (action === ACTION.work)
-          key = crankWell ? AnimKey.idle : workAnimKey(workKind);
+        else if (action === ACTION.work) key = workAnimKey(workKind);
         else key = heldCarry ? AnimKey.carryIdle : AnimKey.idle;
         // Right tool for the job: mallet on sites, pickaxe at rock faces,
         // carried on the walk out too — a woodcutter heads to the trees
@@ -1616,15 +1734,6 @@ export class SceneSync {
         moving && !visual.char
           ? Math.abs(Math.cos(animNow * 0.012 + id * 2.1)) * 0.025
           : 0;
-      // The crank operator's mark: north-east of the handle, side-on to the
-      // well, facing south — from the fixed camera the grip and the glued
-      // hand stay in front of the body. The snap rides the smoothed
-      // de-overlap channel, so picking (positionOf) already follows it.
-      if (crankWell) {
-        this.#sepTX[i] = crankWell.x + 0.64 - x;
-        this.#sepTY[i] = crankWell.z - 0.12 - y;
-        visual.group.rotation.y = 0; // face +z, crank at the right hand
-      }
       // Ease into this frame's de-overlap offset (corpses keep theirs).
       if (!dead) {
         const k = Math.min(1, dt * 10);
@@ -1700,7 +1809,7 @@ export class SceneSync {
       // Glue the cranking hand to the grip — after the group transform is
       // final for this frame, override the clip's right arm with a CCD
       // reach toward the grip's current world position.
-      if (crankWell && visual.char) {
+      if (crankWell && cranking && visual.char) {
         // Explicitly undefined: ??= assigns on null too, so a rig without
         // the bones re-ran findArm's six name lookups every single frame,
         // which is the one thing the null in the cache is there to stop.

@@ -867,8 +867,10 @@ import {REPLAY_VERSION} from './replayVersion';
 // on the spot and a cart walking home learned to wait out the doorstep and
 // a blocked walk, and a cart at a well stopped folding in buckets it never
 // stood at the windlass for: these ride with 80's carts.
-const EXPECTED_VERSION = 80;
-const EXPECTED_HASH = 'eb7d9f06e21c430fa606990df2b27180';
+// 81 for water haulers walking to the well's crank side: every water haul
+// can end on a different tile, a few ticks later (replayVersion.ts).
+const EXPECTED_VERSION = 81;
+const EXPECTED_HASH = 'f7cabbdde42c09ec146f936c9f3564e3';
 
 /**
  * Everything a replay's playback depends on, as raw source:
