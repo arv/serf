@@ -119,4 +119,6 @@ export const goodColors: Record<GoodId, number> = {
   [GoodId.hammer]: 0x9a8d80,
   [GoodId.cauldron]: 0xb0763f,
   [GoodId.rod]: 0xa08a5f,
+  [GoodId.sled]: 0x8a6238,
+  [GoodId.wheelbarrow]: 0x9c7445,
 };

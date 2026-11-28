@@ -12,6 +12,7 @@ import {installMouseCapture} from '../input/mouseCapture';
 import type {NetInfo, StructuralUpdate} from '../protocol/messages';
 import {Arrows} from '../render/arrows';
 import {loadGlbAssets, setSeatFigures} from '../render/assets';
+import {Barrows} from '../render/barrows';
 import {BuildingSync} from '../render/buildingSync';
 import {Butterflies} from '../render/butterflies';
 import {loadCharacterAssets, serfSole} from '../render/characters';
@@ -23,6 +24,7 @@ import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
 import {MarginMesh} from '../render/marginMesh';
 import {Mist} from '../render/mist';
+import {onCartModel} from '../render/models';
 import {RallyFlag} from '../render/rallyFlag';
 import {SelectedReach} from '../render/reachOutline';
 import {GameRenderer} from '../render/renderer';
@@ -550,6 +552,7 @@ export async function runMatch(
   renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights);
+  buildingSync.setMap(mirror.map);
   // Presentation cues flow render -> audio, injected like the fog: the
   // sync knows when and where, the audio layer knows whether and how loud.
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);
@@ -566,6 +569,8 @@ export async function runMatch(
   const sync = new SceneSync(renderer.scene, init.reader, heights);
   const sleds = new Sleds(renderer.scene, heights, sync);
   teardown.push(() => sleds.dispose());
+  const barrows = new Barrows(renderer.scene, heights, sync);
+  teardown.push(() => barrows.dispose());
   sync.onCue = (cue, x, z, delaySec) => {
     playAt(cue, x, z, 1, delaySec);
     // The axe that files the sound also moves the tree. Riding the one
@@ -707,6 +712,7 @@ export async function runMatch(
       __seasons: seasons,
       __host: host,
       __sleds: sleds,
+      __barrows: barrows,
       __sync: sync,
       __buildings: buildingSync,
       __xray: {
@@ -735,6 +741,9 @@ export async function runMatch(
   buildingSync.update(init.buildings);
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
+  // The carts' models load after the first roster is drawn: park them
+  // again as the real thing once they are here (models.ts onCartModel).
+  teardown.push(onCartModel(() => buildingSync.update(roster)));
 
   // Open on your own keep, not the map's middle. Solo they coincide, but a
   // multiplayer start sits on a ring — the first thing a player sees must
@@ -1509,9 +1518,10 @@ export async function runMatch(
     // air with the battle they belong to.
     arrows.update(speed() === 0 ? 0 : dt);
     // Everything above has had its say about this camera; draw it.
-    // After the units are posed: a sled is drawn from where its man is,
-    // and bends him into the rope.
+    // After the units are posed: a sled or a barrow is drawn from where
+    // its man is, and bends him into the rope or over the handles.
     sleds.update(performance.now() / 1000, speed(), seasons.chart.snow);
+    barrows.update(performance.now() / 1000, speed());
     renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);

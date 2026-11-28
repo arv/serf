@@ -1445,6 +1445,25 @@ describe('the stock piles at a building door', () => {
     return snap({type: BuildingTypeId.storehouse, w: 3, h: 3, stock});
   }
 
+  it('clears the last parked cart when the castle has nothing else to show', () => {
+    const drawn = (stocks: GoodAmounts[]): number => {
+      const {sync, scene} = makeSync();
+      const size = DEFAULT_MAP_SIZE;
+      sync.setMap({
+        size,
+        blocked: new Uint8Array(tileCount(size)),
+        buildingAt: new Int32Array(tileCount(size)).fill(-1),
+      } as unknown as Parameters<typeof sync.setMap>[0]);
+      for (const stock of stocks) sync.update([castle(stock)]);
+      const root = scene.children.find(o => o instanceof THREE.Group)!;
+      return root.children.length;
+    };
+    // The sled leaves and the shelf is bare: its bay empties with it, and
+    // the castle looks as one that never had a cart.
+    expect(drawn([{[GoodId.sled]: 1}])).toBeGreaterThan(drawn([{}]));
+    expect(drawn([{[GoodId.sled]: 1}, {}])).toBe(drawn([{}]));
+  });
+
   it('leaves the stacks already standing where they are when a new good arrives', () => {
     const {sync, scene} = makeSync();
     // A castle, so the goods are free to be anything: wood first...

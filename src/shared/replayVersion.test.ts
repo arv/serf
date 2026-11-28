@@ -858,10 +858,19 @@ import {REPLAY_VERSION} from './replayVersion';
 // its state — so every logged command lands on the same world it did.
 // 78 for half again every unit's hit points: every fight between men
 // resolves on different ticks with different men left standing.
-// 79 for water haulers walking to the well's crank side: every water haul
+// 79 for winter on the ground: the snow slows every walk and a serf hauls
+// four to a sled.
+// 80 for wheelbarrows: summer hauls go two to a barrow (replayVersion.ts).
+// Still 80 when hashWorld learned to read the good a man is carrying (it
+// mixed how many and on what cart, never what): a test tool's digest, no
+// tick moves. Still 80, unreleased, when a man at the castle took his cart
+// on the spot and a cart walking home learned to wait out the doorstep and
+// a blocked walk, and a cart at a well stopped folding in buckets it never
+// stood at the windlass for: these ride with 80's carts.
+// 81 for water haulers walking to the well's crank side: every water haul
 // can end on a different tile, a few ticks later (replayVersion.ts).
-const EXPECTED_VERSION = 79;
-const EXPECTED_HASH = 'c5280649d225618c133986a85d0f598b';
+const EXPECTED_VERSION = 81;
+const EXPECTED_HASH = 'f7cabbdde42c09ec146f936c9f3564e3';
 
 /**
  * Everything a replay's playback depends on, as raw source:

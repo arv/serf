@@ -38,7 +38,7 @@ import * as HaulPhase from '../sim/haulPhaseEnum.ts';
 import {countResourceNear, countWorkableResourceNear} from '../sim/map.ts';
 import {builderHasWork} from '../sim/systems/construction.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
-import type {Unit} from '../sim/units.ts';
+import {cargoOf, type Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
 import type {World} from '../sim/world.ts';
 import type {BuildingSnap, JobSnap, PlayerSnap} from './messages.ts';
@@ -48,6 +48,7 @@ import {
   PROFESSION,
   WORK,
   type UnitSnapshot,
+  packCarry,
 } from './sabLayout.ts';
 import * as StaffingState from './staffingStateEnum.ts';
 
@@ -635,6 +636,7 @@ export function snapJobs(world: World, owner?: number): JobSnap[] {
       phase: j.phase,
       serfId: j.serfId,
       age: world.tick - j.createdTick,
+      ...(j.count !== undefined ? {count: j.count} : {}),
     });
   }
   return out;
@@ -850,13 +852,23 @@ function workKindOf(w: World, u: Unit): number {
  * owner is holding one — the serfs and workers it speeds as much as the
  * soldiers, so a village under one reads as a village under one. Bandits
  * have no player entry and so no festival, and the lookup says so rather
- * than indexing past the seats with their raw owner byte.
+ * than indexing past the seats with their raw owner byte. And the cart a
+ * serf has in hand, which the renderer puts his load on.
  */
 function buffsOf(w: World, u: Unit, action: number): number {
   if (action === ACTION.dead) return 0;
-  return (w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
-    ? BUFF.festival
-    : 0;
+  return (
+    ((w.players[u.owner]?.techs.festivalTicksLeft ?? 0) > 0
+      ? BUFF.festival
+      : 0) | cartBuff(u)
+  );
+}
+
+/** The BUFF bit for the cart a unit has in hand, if any. */
+function cartBuff(u: Unit): number {
+  if (u.cart === GoodId.sled) return BUFF.sled;
+  if (u.cart === GoodId.wheelbarrow) return BUFF.barrow;
+  return 0;
 }
 
 export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
@@ -886,7 +898,10 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
           : Math.max(0, Math.min(255, Math.round((u.hp / u.maxHp) * 255))),
       // ...and the maximum itself, so a card can name the pair.
       maxHp: Math.min(255, Math.round(u.maxHp)),
-      carrying: action === ACTION.dead ? 0 : carryingCode(u.carrying),
+      carrying:
+        action === ACTION.dead
+          ? 0
+          : packCarry(carryingCode(u.carrying), cargoOf(u)),
       action,
       // Published whenever the unit has a post, not just mid-swing: the
       // renderer keeps the axe in the woodcutter's fist on the walk out

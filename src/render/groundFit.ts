@@ -21,8 +21,8 @@ import type {HeightField} from './heightField';
  *   drape  the part lies ON the ground and follows it everywhere: a field,
  *          its fences, a mine's track, the clutter in a yard. Each vertex
  *          rises or falls by the ground under it.
- *   foot   a rigid thing standing on its own feet — a headframe, a
- *          wheelbarrow. It is lifted or lowered to the ground at its own
+ *   foot   a rigid thing standing on its own feet — a headframe, the
+ *          quarry's sheerlegs. It is lifted or lowered to the ground at its own
  *          centre, and only its bottom band (BAND) bends, so its legs meet
  *          the slope while its roof stays level.
  *   (none) the building. It stands at the root's height (the ground at

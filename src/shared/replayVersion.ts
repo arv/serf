@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 79: a hauler fetching water walks to the well's crank side. The well is
+ * 81: a hauler fetching water walks to the well's crank side. The well is
  * the one source worked to give its goods up, and its windlass is wound
  * from the east (BuildingDef.drawFrom), so a walk there now aims at that
  * tile rather than whichever tile ringing the shaft the path met first,
@@ -28,7 +28,33 @@
  * (sim/arrival.ts findPathToSource). A man coming from the far side walks
  * round the well; one already beside it on the wrong side steps round
  * before he draws. Every water haul can end on a different tile, a few
- * ticks later, so everything downstream of the bread chain re-times.
+ * ticks later, so everything downstream of the bread chain re-times. A
+ * cart at the well goes the same way: the walk on from the castle with it
+ * is a walk to the source like any other.
+ *
+ * 80's note follows.
+ *
+ * 80: wheelbarrows. From the thaw's end to the first hard frost a serf
+ * with a barrow hauls two of one good along one walk (BARROW_LOAD, cartFor
+ * in defs/balance.ts), so three quarters of the year book fewer, bigger
+ * jobs, as winter already did with sleds; a cart at any door folds in the
+ * loads booked along its route, so a site's planks leave the castle
+ * together; the Smith has a barrow recipe
+ * after the sled's, and the AI orders barrows as it orders sleds
+ * (stockTheCarts). And a serf walking a cart home is no longer hired off
+ * the road (systems/staffing.ts), which had lost sleds into barracks.
+ * A man already at the castle door takes his cart there and then, not
+ * after a walk to the source and back; and one walking a cart home waits
+ * out his doorstep stand, and backs off when no way home is found. A cart
+ * at a well takes only the buckets it was booked and wound up for.
+ *
+ * 79's note follows.
+ *
+ * 79: winter on the ground. While the snow lies everyone walks at four
+ * fifths of his pace, roads buried with the rest (SNOW_SPEED), so every
+ * walk in the last quarter of the year lands on a different tick; and a serf hauls by
+ * sled, up to four of one good along one walk (SLED_LOAD), so the board
+ * holds fewer, bigger jobs.
  *
  * 78's note follows.
  *
@@ -1470,4 +1496,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 79;
+export const REPLAY_VERSION = 81;
