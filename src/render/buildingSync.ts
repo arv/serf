@@ -2035,6 +2035,8 @@ export class BuildingSync {
       v.root.remove(v.piles);
       v.piles = undefined;
     }
+    // Before the empty-shelf return: the last cart leaving must clear its bay.
+    this.#park(v, b, bays, parked);
     if (shown.length === 0) return;
 
     const piles = new THREE.Group();
@@ -2083,7 +2085,6 @@ export class BuildingSync {
     v.root.add(piles);
     v.piles = piles;
     for (const stack of stacks) this.#seat(v, stack);
-    this.#park(v, b, bays, parked);
   }
 
   /**
