@@ -104,16 +104,21 @@ function hauler(over: Partial<UnitSnapshot>): UnitSnapshot {
  * interpolation between publishes is in every measurement as it would be
  * on screen.
  */
-function rig(first: UnitSnapshot) {
+function rig(first: UnitSnapshot, others: {x: number; z: number}[] = []) {
   const sab = new SharedArrayBuffer(SAB_BYTES);
   const writer = new SabWriter(sab);
   const reader = new SabReader(sab);
   const sync = new SceneSync(new THREE.Scene(), reader, flat);
-  const crank = new THREE.Object3D();
-  const grip = new THREE.Object3D();
-  grip.position.set(0.36, -0.09, 0);
-  crank.add(grip);
-  sync.setWells([{x: WELL_X, z: WELL_Z, crank, grip}]);
+  const well = (at: {x: number; z: number}) => {
+    const crank = new THREE.Object3D();
+    const grip = new THREE.Object3D();
+    grip.position.set(0.36, -0.09, 0);
+    crank.add(grip);
+    return {...at, crank, grip};
+  };
+  const wells = [{x: WELL_X, z: WELL_Z}, ...others].map(well);
+  const crank = wells[0]!.crank;
+  sync.setWells(wells);
   groups.length = 0;
   let frames = 0;
   let now = 0;
@@ -130,6 +135,8 @@ function rig(first: UnitSnapshot) {
   };
   return {
     crank,
+    /** Every well's windlass, ours first. */
+    cranks: wells.map(w => w.crank),
     where,
     now: () => now,
     yaw: () => groups[0]!.rotation.y,
@@ -242,6 +249,28 @@ describe('the hauler at the well', () => {
     expect(dist(r.where(), {x: 25.5, y: 30.5})).toBeLessThan(1e-6);
     expect(r.crank.rotation.x).toBe(0);
     expect(r.yaw()).toBeCloseTo(Math.PI / 2); // facing +x, the well
+  });
+
+  it('winds the well he draws from when two share his tile', () => {
+    // Two wells two tiles apart in a row: our crank side is the other
+    // well's west ring tile. A man the sim stood there for the EAST well
+    // (its own crank side shut) is drawing from that one — the bearing
+    // says so — and must not be walked to our handle or turn our windlass.
+    const other = {x: WELL_X + 2, z: WELL_Z};
+    const forOther = hauler({facing: EAST, targetDist: 8});
+    const r = rig(forOther, [other]);
+    for (let f = 0; f < 60; f++) r.frame(() => forOther);
+    expect(dist(r.where(), CRANK_TILE)).toBeLessThan(1e-6);
+    expect(r.cranks.every(c => c.rotation.x === 0)).toBe(true);
+    expect(r.yaw()).toBeCloseTo(Math.PI / 2); // turned to the east well
+
+    // The same tile, drawing from ours: he is at our crank.
+    const forUs = hauler({facing: WEST, targetDist: 8});
+    const s = rig(forUs, [other]);
+    for (let f = 0; f < 60; f++) s.frame(() => forUs);
+    expect(dist(s.where(), MARK)).toBeLessThan(1e-6);
+    expect(s.cranks[0]!.rotation.x).toBeGreaterThan(0);
+    expect(s.cranks[1]!.rotation.x).toBe(0);
   });
 
   it('fetches a bucket from the far side without a jump or a short cut', () => {

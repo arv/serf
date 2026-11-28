@@ -575,15 +575,34 @@ export class SceneSync {
    * it (BuildingDef.drawFrom), where the sim sends whoever comes for
    * water. A man it had to stand anywhere else — that tile shut — gets
    * none. From there the handle is across the shaft, and he draws where
-   * he stands. */
-  #crankWellAt(x: number, y: number): Well | null {
+   * he stands.
+   *
+   * And it has to be the well he is drawing FROM, which his tile alone
+   * does not say: two wells two tiles apart in a row share that tile, as
+   * one's crank side and the other's west ring. The publish already says
+   * which — the bearing and range bytes point at the well being drawn from
+   * (snapshot.ts workFocus) — so the crank well is the one they land on.
+   * A zero range is the multiplayer redaction of an enemy's point (see the
+   * facing note in update); then the tile is all there is to go by. */
+  #crankWellAt(
+    x: number,
+    y: number,
+    facing: number,
+    range8: number,
+  ): Well | null {
     if (!CRANK_SIDE) return null;
-    for (const w of this.#wells)
+    const yaw = (facing / 256) * Math.PI * 2;
+    const fx = x + Math.sin(yaw) * (range8 / 8);
+    const fz = y + Math.cos(yaw) * (range8 / 8);
+    for (const w of this.#wells) {
       if (
-        Math.abs(w.x + CRANK_SIDE.x - x) < 0.5 &&
-        Math.abs(w.z + CRANK_SIDE.z - y) < 0.5
+        Math.abs(w.x + CRANK_SIDE.x - x) >= 0.5 ||
+        Math.abs(w.z + CRANK_SIDE.z - y) >= 0.5
       )
-        return w;
+        continue;
+      if (range8 > 0 && Math.hypot(fx - w.x, fz - w.z) > 0.5) continue;
+      return w;
+    }
     return null;
   }
 
@@ -1158,7 +1177,7 @@ export class SceneSync {
         !moving &&
         action === ACTION.work &&
         workKind === WORK.draw
-          ? this.#crankWellAt(x, y)
+          ? this.#crankWellAt(x, y, latest.aux[a + 7]!, latest.aux[a + 8]!)
           : null;
       // A fighter who has stopped to swing has no movement delta to face by,
       // so it would keep the yaw it walked in with and hack at the air beside
