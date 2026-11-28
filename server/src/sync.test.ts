@@ -1,11 +1,13 @@
 import {describe, expect, it} from 'vitest';
 import type {WebSocket} from 'ws';
+import {decodeState} from '../../src/protocol/state.ts';
 import {DEFAULT_MAP_SIZE, tileIdx} from '../../src/shared/grid.ts';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../../src/sim/defs/goodIdEnum.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import {bindWorker} from '../../src/sim/systems/production.ts';
-import {placeSite, spawnUnit} from '../../src/sim/world.ts';
+import {placeSite, spawnUnit, type MapDelta} from '../../src/sim/world.ts';
 import {
   addSeat,
   createRoom,
@@ -13,7 +15,7 @@ import {
   type Room,
   type Seat,
 } from './rooms.ts';
-import {facedPoint, sendHot} from './sync.ts';
+import {facedPoint, sendHot, sendInit, sendStruct} from './sync.ts';
 
 /**
  * What the hot feed may say about an enemy. A unit's facing and range bytes
@@ -167,5 +169,103 @@ describe('sendHot: a bearing is a location too', () => {
     room.world!.buildings.get(builder.homeId!)!.owner = seat.playerId;
     sendHot(room);
     expect(pairFor(frames, builderId)).toEqual({facing: 64, dist: 20});
+  });
+});
+
+/**
+ * A decided match lifts the fog for every seat (seesAll), and the client
+ * draws the whole valley from then on. What the fog held back has to come
+ * with it: a rival village the seat never scouted arrives in the roster,
+ * but its footprints and trails live on the map, and without them it is
+ * drawn with grass through its floors and no roads between its huts.
+ */
+describe('sendStruct: the fog lifting owes what it hid', () => {
+  const rig = (): {room: Room; seat: Seat; frames: Uint8Array[]} => {
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 7,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
+    const frames: Uint8Array[] = [];
+    const ws = {
+      bufferedAmount: 0,
+      send: (f: Uint8Array) => frames.push(f),
+      terminate: () => {},
+    } as unknown as WebSocket;
+    const seat = addSeat(room, 'human', ws);
+    startMatch(room);
+    return {room, seat, frames};
+  };
+
+  /** Every map delta the frames sent so far carried. */
+  const deltas = (frames: Uint8Array[]): MapDelta[] =>
+    frames.flatMap(f => {
+      const s = decodeState(f);
+      return s?.kind === 'struct'
+        ? ((s.json as {mapDeltas: MapDelta[]}).mapDeltas ?? [])
+        : [];
+    });
+
+  /** A tile under the rival's storehouse, which the seat never explored. */
+  const rivalKeep = (room: Room, seat: Seat): number => {
+    const world = room.world!;
+    const keep = [...world.buildings.values()].find(
+      b => b.owner !== seat.playerId && b.type === BuildingTypeId.storehouse,
+    )!;
+    const idx = tileIdx(keep.x, keep.y, world.map.size);
+    expect(seat.view!.vision.explored[idx]).toBe(0);
+    return idx;
+  };
+
+  it('sends a decided match the ground it never scouted, once', () => {
+    const {room, seat, frames} = rig();
+    const idx = rivalKeep(room, seat);
+    sendStruct(room, [], []);
+    expect(deltas(frames).some(d => d.idx === idx)).toBe(false);
+
+    room.world!.outcome = {state: MatchState.over, winner: seat.playerId};
+    room.world!.tick += 10; // past the struct cadence
+    sendStruct(room, [], []);
+    const owed = deltas(frames).filter(d => d.idx === idx);
+    expect(owed).toHaveLength(1);
+    expect(owed[0]!.buildingAt).toBe(room.world!.map.buildingAt[idx]);
+
+    // Owed once: the next frame carries only fresh news.
+    room.world!.tick += 10;
+    sendStruct(room, [], []);
+    expect(deltas(frames).filter(d => d.idx === idx)).toHaveLength(1);
+  });
+
+  it('ships the whole map to a seat that rejoins a decided match', () => {
+    const {room, seat, frames} = rig();
+    const idx = rivalKeep(room, seat);
+    const initMap = (): Int16Array | undefined => {
+      for (const f of frames.toReversed()) {
+        const s = decodeState(f);
+        if (s?.kind === 'init') return s.map.buildingAt;
+      }
+      return undefined;
+    };
+    sendInit(room, seat);
+    expect(initMap()?.[idx]).toBe(-1); // fogged: nothing on it yet
+    room.world!.outcome = {state: MatchState.over, winner: seat.playerId};
+    sendInit(room, seat);
+    expect(initMap()?.[idx]).toBe(room.world!.map.buildingAt[idx]);
+    // ...and that was the backlog: the next frame owes none of it again.
+    room.world!.tick += 10;
+    sendStruct(room, [], []);
+    expect(deltas(frames).some(d => d.idx === idx)).toBe(false);
+  });
+
+  it('holds it back while the match is still being played', () => {
+    const {room, seat, frames} = rig();
+    const idx = rivalKeep(room, seat);
+    room.world!.tick += 10;
+    sendStruct(room, [], []);
+    room.world!.tick += 10;
+    sendStruct(room, [], []);
+    expect(deltas(frames).some(d => d.idx === idx)).toBe(false);
   });
 });

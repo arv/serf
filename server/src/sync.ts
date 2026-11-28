@@ -81,6 +81,11 @@ export class SeatView {
    * against Room.tileChangedTick (same offset) when ground is re-revealed,
    * so a tile the seat already knows correctly owes it nothing. */
   readonly tileSentTick: Uint32Array;
+  /** Whether this seat has been sent the ground the fog held back from it
+   * since it began seeing everything (seesAll). Owed once, by the frame
+   * that lifts the fog (oweBacklog) or by an init frame that ships the
+   * whole map. */
+  backlogSent = false;
 
   constructor(size: number) {
     this.vision = new SeatVision(size);
@@ -159,13 +164,15 @@ export function recomputeVision(room: Room): void {
  * derives from the arrays already sent); the building share arrives with
  * the map deltas, as ground is explored.
  */
-function initialMap(world: World, view: SeatView): MapSnapshot {
+function initialMap(world: World, view: SeatView, all = false): MapSnapshot {
   const tiles = tileCount(world.map.size);
   const buildingAt = new Int16Array(tiles).fill(-1);
   const pathLevel = new Uint8Array(tiles);
   const blocked = new Uint8Array(tiles);
   for (let i = 0; i < tiles; i++) {
-    if (view.vision.explored[i]) {
+    // A seat that sees everything (seesAll) has nothing left to be kept
+    // from, so its map goes out whole.
+    if (all || view.vision.explored[i]) {
       buildingAt[i] = world.map.buildingAt[i]!;
       pathLevel[i] = world.map.pathLevel[i]!;
       blocked[i] = world.map.blocked[i]!;
@@ -256,6 +263,32 @@ function seesAll(world: World, seatId: number): boolean {
   );
 }
 
+/**
+ * The ground a seat that now sees everything (seesAll) was kept from:
+ * what it explored and has not been back to since it changed, and what it
+ * never saw that holds more than the landscape the init frame drew — a
+ * building, a trail, or anything changed since the match began
+ * (tileChangedTick starts every tile at 1). Without it the lifted fog
+ * shows rival villages that were never scouted with grass through their
+ * floors and no roads between them. Owed once, on the frame the fog lifts;
+ * the deltas after it keep the seat current.
+ */
+function oweBacklog(room: Room, world: World, view: SeatView): void {
+  view.backlogSent = true;
+  const m = world.map;
+  for (let i = 0; i < room.tileChangedTick.length; i++) {
+    if (room.tileChangedTick[i]! <= view.tileSentTick[i]!) continue;
+    if (
+      view.vision.explored[i] ||
+      room.tileChangedTick[i]! > 1 ||
+      m.buildingAt[i]! >= 0 ||
+      m.pathLevel[i]! > 0
+    ) {
+      view.owedTiles.add(i);
+    }
+  }
+}
+
 /** Buildings this seat may see: its own and currently-observed ones live,
  * previously-seen ones frozen as they were left. */
 function buildingsFor(
@@ -300,10 +333,13 @@ export function sendInit(room: Room, seat: Seat): void {
   if (!world || !view) return;
   // The frame carries the whole permitted map, so anything owed is moot —
   // explored ground is current as of this tick, unexplored ground has
-  // never been sent and owes its first reveal.
+  // never been sent and owes its first reveal. For a seat that sees
+  // everything, the permitted map is all of it.
+  const all = seesAll(world, seat.playerId);
   view.owedTiles.clear();
+  view.backlogSent = all;
   for (let i = 0; i < tileCount(world.map.size); i++) {
-    view.tileSentTick[i] = view.vision.explored[i] ? world.tick + 1 : 0;
+    view.tileSentTick[i] = all || view.vision.explored[i] ? world.tick + 1 : 0;
   }
   // The rosters ride the init frame itself, so the next struct frame must
   // compare against nothing and resend whatever has news.
@@ -315,7 +351,7 @@ export function sendInit(room: Room, seat: Seat): void {
     encodeInit(
       world.tick,
       seat.playerId,
-      initialMap(world, view),
+      initialMap(world, view, all),
       view.vision.explored,
       {
         buildings: buildingsFor(
@@ -433,8 +469,10 @@ export function sendStruct(
       continue;
     }
     // Changes on ground we can see, plus ground we just walked into.
-    // Spectators (eliminated seats) are owed everything.
+    // Spectators (eliminated seats, and every seat of a decided match) are
+    // owed everything — the backlog the fog held back included, once.
     const spectator = seesAll(world, seat.playerId);
+    if (spectator && !view.backlogSent) oweBacklog(room, world, view);
     for (const d of deltas) {
       if (spectator || view.vision.visible[d.idx]) view.owedTiles.add(d.idx);
     }
