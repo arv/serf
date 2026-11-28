@@ -1381,6 +1381,13 @@ export async function runMatch(
       order: (x, z, secondary, px, py, queue) =>
         controls.orderAtMapPoint(x, z, secondary, px, py, queue),
     },
+    // The dial: the sun follows the scene's year, so it agrees with the
+    // snow; the lakes follow the sim's tick off the unit buffer, which is
+    // fresh every publish where the roster frames are not.
+    season: {
+      yearAt: () => seasons.yearAt,
+      simTick: () => init.reader.tick,
+    },
   });
   teardown.push(unmountHud);
 

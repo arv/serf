@@ -143,7 +143,7 @@ function onFrame(data: Uint8Array): void {
       lastUnitRows = frame.units;
       lastUnitsIndex = null;
       predictor?.apply(frame.units, myPlayerId);
-      writer?.publish(frame.units);
+      writer?.publish(frame.units, frame.tick);
       return;
     }
     case 'struct': {

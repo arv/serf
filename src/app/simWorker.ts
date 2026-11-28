@@ -504,5 +504,5 @@ function postStructuralOrThrow(): void {
 
 function publish(): void {
   if (!world || !writer) return;
-  writer.publish(unitSnapshots(world));
+  writer.publish(unitSnapshots(world), world.tick);
 }

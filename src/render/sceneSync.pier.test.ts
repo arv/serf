@@ -124,9 +124,9 @@ function rig(
   let now = 0;
   // Twice, so the second publish has a predecessor to read "standing
   // still" from.
-  writer.publish([fisherman()]);
+  writer.publish([fisherman()], 0);
   reader.poll(now);
-  writer.publish([fisherman()]);
+  writer.publish([fisherman()], 0);
   reader.poll(now);
   const out = {x: 0, y: 0};
   return {
@@ -138,7 +138,7 @@ function rig(
           u.x = at.x;
           u.y = at.y;
         }
-        writer.publish([u]);
+        writer.publish([u], 0);
         reader.poll(now);
         sync.update(now, -1, undefined, false, bounds);
         // After the sync, as the match runs it (matchScreen).

@@ -27,7 +27,7 @@ describe('SAB slot protocol', () => {
     const writer = new SabWriter(sab);
     const reader = new SabReader(sab);
 
-    writer.publish([unit(1, 1.5, 2.5), unit(2, 10.25, 20.75)]);
+    writer.publish([unit(1, 1.5, 2.5), unit(2, 10.25, 20.75)], 0);
     expect(reader.poll(1000)).toBe(true);
     expect(reader.latest.count).toBe(2);
     const i1 = reader.latest.index.get(1)!;
@@ -41,14 +41,26 @@ describe('SAB slot protocol', () => {
     expect(reader.latest.aux[i1 * AUX_STRIDE + 9]).toBe(80); // maxHp
   });
 
+  it('carries the sim tick of each publish, readable without a poll', () => {
+    const sab = new SharedArrayBuffer(SAB_BYTES);
+    const writer = new SabWriter(sab);
+    const reader = new SabReader(sab);
+    expect(reader.tick).toBe(0);
+    writer.publish([unit(1, 0, 0)], 1234);
+    expect(reader.tick).toBe(1234);
+    // A publish with nobody on the field still says where the sim is.
+    writer.publish([], 1240);
+    expect(reader.tick).toBe(1240);
+  });
+
   it('keeps the previous publish for interpolation', () => {
     const sab = new SharedArrayBuffer(SAB_BYTES);
     const writer = new SabWriter(sab);
     const reader = new SabReader(sab);
 
-    writer.publish([unit(1, 0, 0)]);
+    writer.publish([unit(1, 0, 0)], 0);
     reader.poll(0);
-    writer.publish([unit(1, 1, 1)]);
+    writer.publish([unit(1, 1, 1)], 0);
     reader.poll(50);
 
     const pi = reader.prev.index.get(1)!;
@@ -63,9 +75,9 @@ describe('SAB slot protocol', () => {
     const writer = new SabWriter(sab);
     const reader = new SabReader(sab);
 
-    writer.publish([unit(1, 0, 0)]);
-    writer.publish([unit(1, 1, 0)]);
-    writer.publish([unit(1, 2, 0)]);
+    writer.publish([unit(1, 0, 0)], 0);
+    writer.publish([unit(1, 1, 0)], 0);
+    writer.publish([unit(1, 2, 0)], 0);
     reader.poll(0); // sees publish 3; prev must be publish 2, not garbage
     const pi = reader.prev.index.get(1)!;
     const li = reader.latest.index.get(1)!;
@@ -77,7 +89,7 @@ describe('SAB slot protocol', () => {
     const sab = new SharedArrayBuffer(SAB_BYTES);
     const writer = new SabWriter(sab);
     const reader = new SabReader(sab);
-    writer.publish([unit(1, 0, 0)]);
+    writer.publish([unit(1, 0, 0)], 0);
     expect(reader.poll(0)).toBe(true);
     expect(reader.poll(16)).toBe(false);
     expect(reader.latestObservedAt).toBe(0);
@@ -87,9 +99,9 @@ describe('SAB slot protocol', () => {
     const sab = new SharedArrayBuffer(SAB_BYTES);
     const writer = new SabWriter(sab);
     const reader = new SabReader(sab);
-    writer.publish([unit(1, 0, 0), unit(2, 5, 5)]);
+    writer.publish([unit(1, 0, 0), unit(2, 5, 5)], 0);
     reader.poll(0);
-    writer.publish([unit(2, 5, 5)]);
+    writer.publish([unit(2, 5, 5)], 0);
     reader.poll(50);
     expect(reader.latest.index.has(1)).toBe(false);
     expect(reader.latest.index.has(2)).toBe(true);
