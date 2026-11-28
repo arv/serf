@@ -4,7 +4,7 @@ import {Rng} from '../../shared/rng.ts';
 import {atBuilding, atTile, walkToBuilding, walkToTile} from '../arrival.ts';
 import {batchTicks} from '../batchTicks.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
-import {WOOD_MAX_AMT, REGROW_INTERVAL} from '../defs/balance.ts';
+import {REGROW_INTERVAL, WOOD_MAX_AMT} from '../defs/balance.ts';
 import {
   BUILDING_DEFS,
   BUILDING_TYPES,

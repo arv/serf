@@ -53,6 +53,9 @@ export class RoadDecal {
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     });
+    // The seasons bury it (render/seasons.ts): in winter a road is as
+    // snowed over as the field beside it.
+    material.userData.road = true;
     this.mesh = new THREE.Mesh(this.#geometry, material);
     this.mesh.receiveShadow = true;
     this.rebuild(map);

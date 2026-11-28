@@ -81,6 +81,10 @@ export interface GameMap {
   ice?: Uint8Array;
   /** What `ice` was last built for. */
   iceBears?: boolean;
+  /** PROTOTYPE: whether snow lies (isWinter in defs/balance.ts). Derived
+   * from the tick with `ice`, and for the same readers: it slows the walk
+   * and reprices the route. */
+  winter?: boolean;
   /** Building entity id occupying the tile, -1 if none. */
   buildingAt: Int16Array;
   /** Trail wear from foot traffic; decays. */

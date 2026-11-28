@@ -49,7 +49,9 @@ export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3, hold: 4} as const;
  * redactPlayers), and the whole point of the mark is knowing whether the
  * men marching on you have been drinking.
  */
-export const BUFF = {festival: 1} as const;
+/** festival: the owner's festival is on. sled, barrow: a serf with that
+ * cart in hand. */
+export const BUFF = {festival: 1, sled: 2, barrow: 4} as const;
 
 /** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
 export const WORK = {
@@ -127,6 +129,9 @@ export interface UnitSnapshot {
    * read as capped there, never as wrapped.
    */
   maxHp: number;
+  /** What is carried and how many: a good's carry code in the low six
+   * bits (0 for empty hands), and one less than the count in the top two.
+   * Read it with `carryGood` and `carryLoad`. */
   carrying: number;
   /** ACTION.idle / work / fight / dead — animation intent. */
   action: number;
@@ -308,4 +313,19 @@ export class SabReader {
     }
     return false;
   }
+}
+
+/** The carry code of the good in a `carrying` byte; 0 is empty hands. */
+export function carryGood(carrying: number): number {
+  return carrying & 0x3f;
+}
+
+/** How many of it: 0 for empty hands, 1 in his arms, more on a cart. */
+export function carryLoad(carrying: number): number {
+  return carryGood(carrying) === 0 ? 0 : (carrying >> 6) + 1;
+}
+
+/** Pack a carry code and a count (1 to 4) into one `carrying` byte. */
+export function packCarry(code: number, count: number): number {
+  return code === 0 ? 0 : code | ((Math.min(Math.max(count, 1), 4) - 1) << 6);
 }

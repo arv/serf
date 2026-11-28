@@ -408,3 +408,20 @@ node tools/modelLab/reroofFishery.mjs
 It runs once, on the model as Blender left it, and refuses a roof it has
 already re-laid. The script is in the tree because the alternative is an
 unreviewable diff in a `.bin`.
+
+## The carts, in Blender
+
+The sled and the wheelbarrow are not pack models: `sled.py` and
+`wheelbarrow.py` build them with Blender's Python module (`pip install
+bpy`, Python 3.11) and write `public/models/sled/sled.glb` and
+`public/models/wheelbarrow/wheelbarrow.glb`. `--render <out>.png` also
+draws design views to judge the shape by; the barrow's is one four-view
+sheet, with two stand-in loads in the tray that are not exported.
+
+```sh
+python tools/modelLab/wheelbarrow.py --render /tmp/wheelbarrow.png
+```
+
+The measures at the top of `wheelbarrow.py` (axle, grips, tray floor,
+berths) are the ones `src/render/barrows.ts` pushes it by; move one and move
+the other.
