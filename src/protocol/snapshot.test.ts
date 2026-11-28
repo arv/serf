@@ -380,6 +380,27 @@ describe('snapBuilding: shortOf', () => {
     expect(snapBuilding(world, mine).shortOf).toBeUndefined();
   });
 
+  it('blames the calendar, not the water, for a field out of its harvest', () => {
+    const farmAt = (tick: number) => {
+      const world = shortWorld();
+      world.tick = tick;
+      const farm = placeBuiltBuilding(
+        world,
+        BuildingTypeId.wheatFarm,
+        0,
+        30,
+        30,
+      );
+      staffBuilding(world, farm);
+      settle(world);
+      return snapBuilding(world, farm).shortOf;
+    };
+    // In the harvest a dry rack is what stops the scythe...
+    expect(farmAt(0)).toEqual([GoodId.water]);
+    // ...but in the sowing nothing would be cut with the water anyway.
+    expect(farmAt(SOW_FROM * YEAR_TICKS)).toBeUndefined();
+  });
+
   it('names the ingredient a cold fire is asking for', () => {
     const world = shortWorld();
     const smith = smithIn(world);
@@ -756,13 +777,6 @@ describe('snapBuilding: prodProgress01', () => {
   });
 });
 
-/**
- * Which way a working man is turned. The renderer can only face a unit by
- * the ground it covered, so anyone who stops to work keeps the yaw he
- * walked up in — and a builder whose road reached his site from the far
- * side hammered the entire house up with his back to it. The sim publishes
- * the bearing to the work in the same bytes a fight uses.
- */
 describe("unitSnapshots: the farmer's year", () => {
   const snapOf = (world: World, id: number): UnitSnapshot => {
     for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;
@@ -801,6 +815,13 @@ describe("unitSnapshots: the farmer's year", () => {
   });
 });
 
+/**
+ * Which way a working man is turned. The renderer can only face a unit by
+ * the ground it covered, so anyone who stops to work keeps the yaw he
+ * walked up in — and a builder whose road reached his site from the far
+ * side hammered the entire house up with his back to it. The sim publishes
+ * the bearing to the work in the same bytes a fight uses.
+ */
 describe('unitSnapshots: which way a worker faces', () => {
   const snapOf = (world: World, id: number): UnitSnapshot => {
     for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;

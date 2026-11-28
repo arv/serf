@@ -160,15 +160,6 @@ function reachTip(
     : `Reachable loads in the search square. None regrows; at zero the building is finished.${shut}`;
 }
 
-/**
- * A booked pickup nobody has claimed, held this long: the one state where
- * a staffed hut on good ground still makes nothing (its shelf fills and
- * production stops on the full-buffer rule), and the one the card used to
- * be silent about — it reads identically to a treeless hut from the
- * outside. Alarmed only after a real wait: the matcher books pickups
- * seconds before a hand frees up in a village's ordinary churn, and a
- * card that cried over that would teach the player to ignore it.
- */
 /** What the farm card calls each season of the field's year, and what
  * the clock after it counts down to. */
 const FIELD_SEASON: Record<Enum<typeof FarmSeason>, string> = {
@@ -184,6 +175,15 @@ function clock(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/**
+ * A booked pickup nobody has claimed, held this long: the one state where
+ * a staffed hut on good ground still makes nothing (its shelf fills and
+ * production stops on the full-buffer rule), and the one the card used to
+ * be silent about — it reads identically to a treeless hut from the
+ * outside. Alarmed only after a real wait: the matcher books pickups
+ * seconds before a hand frees up in a village's ordinary churn, and a
+ * card that cried over that would teach the player to ignore it.
+ */
 const HAUL_STARVED_AFTER = 10 * TICKS_PER_SECOND;
 
 const HAUL_STARVED_TIP =

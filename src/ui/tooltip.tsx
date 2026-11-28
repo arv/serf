@@ -476,9 +476,11 @@ function recipeText(recipe: Recipe): string {
   const secs = Math.round(recipe.durationTicks / TICKS_PER_SECOND);
   const outputs = goodsList(recipe.outputs);
   const inputs = goodsList(recipe.inputs);
+  // A crop's pace is the harvest's, and the harvest is not the year.
+  const when = recipe.crop ? ', through the harvest only' : '';
   return inputs.length > 0
-    ? `Turns ${inputs} into ${outputs} every ${secs}s.`
-    : `Produces ${outputs} every ${secs}s.`;
+    ? `Turns ${inputs} into ${outputs} every ${secs}s${when}.`
+    : `Produces ${outputs} every ${secs}s${when}.`;
 }
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {

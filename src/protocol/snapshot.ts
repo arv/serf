@@ -329,10 +329,16 @@ function shortageOf(
     // productionSystem stops at the worker check before convertStep is
     // ever reached, so an empty oven wants its cauldron, not its flour.
     // A roof that needs no one (the well) is never stopped that way and
-    // reports its inputs whoever is or is not about.
+    // reports its inputs whoever is or is not about. Nor is a field out of
+    // its harvest: convertStep stops on the season before it ever looks at
+    // the water, so a dry rack then is the calendar, not a shortage.
     if (
       b.prodTicksLeft === undefined &&
-      (def.workerKind === undefined || manned)
+      (def.workerKind === undefined || manned) &&
+      !(
+        convertRecipeOf(def)?.crop === true &&
+        farmSeasonAt(world.tick) !== FarmSeason.harvest
+      )
     ) {
       kinds |= DemandKind.input;
     }

@@ -1493,8 +1493,11 @@ export class BuildingSync {
     for (const v of this.#visuals.values()) {
       for (const c of v.crop) {
         const stand = c.wheat ? wheat : shoots;
-        // Gone is gone: a mesh sunk out of sight still costs its draw.
-        c.mesh.visible = stand > 0.001;
+        // Gone is gone: a mesh sunk out of sight still costs its draw. So
+        // is the green while the gold stands full around it — every clump
+        // of it is built inside its gold one (procBuildings.ts field()),
+        // and the harvest is most of the year.
+        c.mesh.visible = stand > 0.001 && (c.wheat || wheat < 0.999);
         c.mesh.position.y = c.base - (1 - stand) * c.rise;
       }
     }

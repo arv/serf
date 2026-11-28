@@ -187,6 +187,8 @@ function workAnimKey(workKind: number): AnimKey {
       return AnimKey.fish;
     case WORK.mow:
       return AnimKey.mow;
+    case WORK.sow:
+      return AnimKey.throwing;
     default:
       return AnimKey.work;
   }
