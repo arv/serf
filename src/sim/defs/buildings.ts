@@ -128,6 +128,21 @@ export interface BuildingDef {
    * a full bucket was paying rent on nothing.
    */
   drawTicks?: number;
+  /**
+   * The tile that draw is worked from, as an offset from the footprint's
+   * origin — one on the ring a walk to the building ends on. A hauler
+   * fetching from here is sent to stand on it rather than on whichever
+   * ring tile his path reached first (sim/arrival.ts findPathToSource),
+   * and only falls back on the rest of the ring when it is shut or cut
+   * off.
+   *
+   * The well's crank hangs off the +x end of its windlass
+   * (render/assets.ts), so its man stands east of the shaft, and the
+   * render steps him from there to the handle (render/sceneSync.ts). From
+   * anywhere else on the ring that step is a walk round the well — or,
+   * as it used to be, a slide straight through it.
+   */
+  drawFrom?: readonly [dx: number, dy: number];
   /** Digs into the hillside rather than standing on it: exempt from the
    * flat-ground placement rule, and sped up by mining research. */
   mine?: boolean;
@@ -374,6 +389,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       durationTicks: 6 * S,
     },
     drawTicks: 6 * S,
+    drawFrom: [1, 0], // east of the shaft, at the crank
   },
   [B.wheatFarm]: {
     id: B.wheatFarm,
@@ -727,6 +743,28 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           inputs: {[GoodId.wood]: 3},
           outputs: {[GoodId.rod]: 1},
           durationTicks: 6 * S,
+        },
+      },
+      // Last, so no tool's index moves. Not a post's tool: a sled is kept
+      // at the castle and lent to a hauler for one winter walk (SLED_LOAD
+      // in balance.ts). Wood only, and no study: a village that can build
+      // a Smith can build a sled.
+      {
+        recipe: {
+          kind: RecipeKindNs.convert,
+          inputs: {[GoodId.wood]: 2},
+          outputs: {[GoodId.sled]: 1},
+          durationTicks: 6 * S,
+        },
+      },
+      // And the summer's cart after it, for the same reason: half a sled's
+      // load (BARROW_LOAD), so half its wood and a quicker job.
+      {
+        recipe: {
+          kind: RecipeKindNs.convert,
+          inputs: {[GoodId.wood]: 1},
+          outputs: {[GoodId.wheelbarrow]: 1},
+          durationTicks: 4 * S,
         },
       },
     ],

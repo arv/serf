@@ -461,8 +461,15 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // Someone walking under a player's move order is spoken for; recruiting
     // him mid-stride would make the order look ignored. Nor do we hire a
     // serf still holding a good — he owes that delivery first, and taking
-    // a post would strand it in his hands forever.
-    if (u.task.t === UnitTaskKind.idle && u.carrying === undefined) {
+    // a post would strand it in his hands forever. A cart the same: he is
+    // walking it home to the castle (returnCarts in logistics.ts), and a
+    // post would keep it in his hands for good, or a barracks or a tower
+    // take it in with him and lose it.
+    if (
+      u.task.t === UnitTaskKind.idle &&
+      u.carrying === undefined &&
+      u.cart === undefined
+    ) {
       let byKind = idleByOwner.get(u.owner);
       if (!byKind) idleByOwner.set(u.owner, (byKind = new Map()));
       let bucket = byKind.get(u.kind);

@@ -12,6 +12,7 @@ import {installMouseCapture} from '../input/mouseCapture';
 import type {NetInfo, StructuralUpdate} from '../protocol/messages';
 import {Arrows} from '../render/arrows';
 import {loadGlbAssets, setSeatFigures} from '../render/assets';
+import {Barrows} from '../render/barrows';
 import {BuildingSync} from '../render/buildingSync';
 import {Butterflies} from '../render/butterflies';
 import {loadCharacterAssets, serfSole} from '../render/characters';
@@ -21,8 +22,10 @@ import {batteryFramePacer} from '../render/framePacer';
 import {GhostPlacement} from '../render/ghost';
 import {GrassField} from '../render/grassField';
 import {HeightField} from '../render/heightField';
+import {IceHoles} from '../render/iceHoles';
 import {MarginMesh} from '../render/marginMesh';
 import {Mist} from '../render/mist';
+import {onCartModel} from '../render/models';
 import {RallyFlag} from '../render/rallyFlag';
 import {SelectedReach} from '../render/reachOutline';
 import {GameRenderer} from '../render/renderer';
@@ -550,6 +553,7 @@ export async function runMatch(
   renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights);
+  buildingSync.setMap(mirror.map);
   // Presentation cues flow render -> audio, injected like the fog: the
   // sync knows when and where, the audio layer knows whether and how loud.
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);
@@ -566,6 +570,13 @@ export async function runMatch(
   const sync = new SceneSync(renderer.scene, init.reader, heights);
   const sleds = new Sleds(renderer.scene, heights, sync);
   teardown.push(() => sleds.dispose());
+  const barrows = new Barrows(renderer.scene, heights, sync);
+  teardown.push(() => barrows.dispose());
+  // The fishermen's holes in a frozen lake: where the ice is is the water
+  // mesh's to say, and the sync walks each man out to cut his.
+  const iceHoles = new IceHoles(renderer.scene, heights, water);
+  sync.setIceHoles(iceHoles);
+  teardown.push(() => iceHoles.dispose());
   sync.onCue = (cue, x, z, delaySec) => {
     playAt(cue, x, z, 1, delaySec);
     // The axe that files the sound also moves the tree. Riding the one
@@ -598,8 +609,10 @@ export async function runMatch(
   // that answer moves with the fog and with a rising site, not only with
   // the roster, so the frame loop reads it live (occluderBoxes).
   const feedWells = (): void => {
+    const piers = buildingSync.fisheryPiers();
     sync.setWells(buildingSync.wellCranks());
-    sync.setPiers(buildingSync.fisheryPiers());
+    sync.setPiers(piers);
+    iceHoles.setPiers(piers);
     sync.setFields(buildingSync.farmFields());
   };
   feedWells();
@@ -707,6 +720,8 @@ export async function runMatch(
       __seasons: seasons,
       __host: host,
       __sleds: sleds,
+      __barrows: barrows,
+      __iceHoles: iceHoles,
       __sync: sync,
       __buildings: buildingSync,
       __xray: {
@@ -735,6 +750,9 @@ export async function runMatch(
   buildingSync.update(init.buildings);
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
+  // The carts' models load after the first roster is drawn: park them
+  // again as the real thing once they are here (models.ts onCartModel).
+  teardown.push(onCartModel(() => buildingSync.update(roster)));
 
   // Open on your own keep, not the map's middle. Solo they coincide, but a
   // multiplayer start sits on a ring — the first thing a player sees must
@@ -1099,6 +1117,18 @@ export async function runMatch(
     }
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
+    // A monument's ending is shown before the outcome lands. Armed after
+    // it, the end card the reveal holds back would mount for the one flush
+    // in between, which is long enough for the Hud's card effect to shut
+    // an open menu.
+    const monumentAt =
+      msg.outcome.state === MatchState.over ? msg.outcome.monument : undefined;
+    if (monumentAt) {
+      for (const e of msg.events) {
+        if (e.kind === GameEventKind.gameOver && e.winner !== null)
+          showMonument(e.winner, monumentAt);
+      }
+    }
     setOutcome(msg.outcome);
     // A decided match is a played match, and a played match is worth
     // recording somewhere the author can see it. Latched, so the frames
@@ -1229,12 +1259,8 @@ export async function runMatch(
         play('raidHorn');
         pushToast('A rival is raising a Monument!');
       } else if (event.kind === GameEventKind.gameOver) {
+        // The monument that decided it, if one did, was shown above.
         play(event.winner === viewerId() ? 'victory' : 'defeat');
-        const at =
-          msg.outcome.state === MatchState.over
-            ? msg.outcome.monument
-            : undefined;
-        if (at && event.winner !== null) showMonument(event.winner, at);
       }
     }
     // After the loop, not before it: strikes in the frame that ended the
@@ -1479,6 +1505,8 @@ export async function runMatch(
       speed() === 0,
       bounds,
     );
+    // After the sync: it is what turned the augers this frame.
+    iceHoles.update();
     buildingSync.highlight(
       controls.hoverBuilding,
       selectedBuilding()?.id ?? -1,
@@ -1510,9 +1538,10 @@ export async function runMatch(
     // air with the battle they belong to.
     arrows.update(speed() === 0 ? 0 : dt);
     // Everything above has had its say about this camera; draw it.
-    // After the units are posed: a sled is drawn from where its man is,
-    // and bends him into the rope.
+    // After the units are posed: a sled or a barrow is drawn from where
+    // its man is, and bends him into the rope or over the handles.
     sleds.update(performance.now() / 1000, speed(), seasons.chart.snow);
+    barrows.update(performance.now() / 1000, speed());
     renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);

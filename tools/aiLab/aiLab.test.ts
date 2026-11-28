@@ -220,17 +220,29 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * ticks sooner — so seat 1 still wins both ways, 1_129 ticks of gap and
  * 10_192 under the bound.
  *
- * 20 since the field kept the seasons (replay 79): wheat comes in only
+ * 11 once winter reached the ground and its sleds came in on top of the
+ * hit points (replay 79). On seed 8 the advised war now ends 22 ticks
+ * after the control (11_031 against 11_009), so 8 inverted; on 11, seat 1
+ * wins both ways, at 16_630 and 13_081. (5 and 20 hold too, at 13_248 /
+ * 12_507 and 13_790 / 11_331; 1, 14 and 18 invert; 3 and 9 change the
+ * winner; 2's advised war never decides; 4 and 7 go to seat 0; the rest
+ * tie.)
+ *
+ * 8 again on the wheelbarrows' branch (replay 80), with a cart at any
+ * door folding in the loads booked along its route: seed 11 now ties
+ * (11_024 both ways), and on 8 seat 1 wins both ways, at 12_722 and
+ * 11_382. (1, 5 and 20 hold too; 14 inverts by 15 ticks; 2 and 3 change
+ * the winner or invert; 7 and 10 go to seat 0; 6 and 19 never decide; the
+ * rest tie.)
+ *
+ * 20 since the field kept the seasons (replay 82): wheat comes in only
  * through the harvest, and the farmer goes off to haul for the winter. On
- * 8 the control now ends at 10_056 and the advised war at 10_071, so 8
- * inverted by fifteen ticks. Thirty-two seeds were re-measured; 20 is
- * picked on the same two counts as ever, seat 1 winning both ways at
- * 16_445 unadvised and 11_044 marching at four, which is 5_401 ticks of
- * gap and 5_555 under the bound. (32 holds too, at 19_578 and 17_520; 5,
- * 9, 14, 23 and 27 hold by 157 to 531 ticks, the thin margin that keeps
- * bringing us back here; 1, 3, 6, 8, 24 and 26 invert, 2 changes the
- * winner, 18, 22, 25 and 31 leave the control undecided, 29 the advised
- * war, and the rest tie.)
+ * the build before the carts, 8 inverted outright (10_071 advised against
+ * 10_056) and 20 was picked from thirty-two seeds at 16_445 and 11_044.
+ * Re-measured once the carts were merged under it: 8 holds by only 159
+ * ticks (11_087 and 10_928), the thin margin that keeps bringing us back
+ * here, and 20 wins both ways for seat 1 at 14_055 unadvised and 11_246
+ * marching at four — 2_809 ticks of gap and 7_945 under the bound.
  *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */

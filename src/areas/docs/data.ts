@@ -1,5 +1,6 @@
 import type {Enum} from '../../shared/enum.ts';
 import {
+  CART_GOODS,
   HARVEST_SHARE,
   HIRE_SERF_COST,
   START_STOCK,
@@ -142,6 +143,7 @@ export type ConsumerRef =
   | {kind: 'weapon'; unit: UnitTypeId}
   | {kind: 'hire'}
   | {kind: 'siteLoan'}
+  | {kind: 'cartLoan'; good: GoodId}
   | {kind: 'festival'}
   | {kind: 'ration'};
 
@@ -260,12 +262,14 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   }
   // The consumers no def table names, because they are mechanics rather
   // than recipe rows: hiring is priced in balance.ts, every construction
-  // site borrows a hammer (see TOOL_OF), and ale is drunk in two places —
+  // site borrows a hammer (see TOOL_OF), every haul of more than one load
+  // borrows the season's cart (cartFor), and ale is drunk in two places —
   // the abbey's festivals and the casks at the barracks and the range.
   // Without these the ale page would list what research costs and nothing
   // about what ale is for.
   push(map, GoodId.silver, {kind: 'hire'});
   push(map, GoodId.hammer, {kind: 'siteLoan'});
+  for (const good of CART_GOODS) push(map, good, {kind: 'cartLoan', good});
   push(map, GoodId.ale, {kind: 'festival'});
   push(map, GoodId.ale, {kind: 'ration'});
   return map;

@@ -55,16 +55,6 @@ pnpm dev
   yours) — or, with Ale Rations,
   fills the barracks' and the range's casks so every recruit drinks and
   trains faster.
-- **The field's year**: a year is eight minutes, its last quarter winter,
-  and the wheat farm keeps it. It cuts wheat only through the harvest (the
-  first 60% of the year, and the match opens in it), sows in the fall,
-  lies fallow under the snow and comes up green with the thaw. The harvest
-  cuts at a pace that brings in the same 48 sheaves a year the farm used to
-  cut all year round, so the bread chain is as fed as ever, but the winter
-  eats what went into the castle in the summer. While the field sleeps the
-  farmer goes back to the serf pool to haul, and the post calls a hand back
-  at the thaw; the scythe waits on the farm's rack. The farm's card says
-  where the field is in its year and how long it stays there.
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut
@@ -90,6 +80,33 @@ pnpm dev
   cheaper than tearing it down and paying full price again, and the worker
   never leaves the post. The castle repairs too, out of the stores already
   inside it, against a notional price of its own (it cost nothing to raise).
+- **Winter**: a year is eight minutes and its last quarter is winter. While
+  the snow lies, until the thaw begins, everyone — serfs, soldiers and
+  raiders alike — walks at four fifths of his pace, and the snow buries
+  the paving with the trails, so a road is no faster than open ground. In
+  exchange a serf can haul by sled: up to four of one good from one door
+  to another in a single walk, so winter is when a village moves what
+  summer let it gather. Sleds are forged at the Smith from two wood (a
+  village starts with none, and the Smith makes them only when ordered;
+  the AI keeps three). They are parked by the castle; a serf fetches one
+  for a haul and brings it back. The rest of the year has wheelbarrows:
+  one wood at the Smith, two of a good to a walk, kept, fetched and
+  brought back the same way, from the end of the thaw to the first hard
+  frost. In the thaw neither runs, and every load is its own walk. The
+  lakes and the river freeze hard enough to walk on for most of it, and a
+  haul, a march or a raid takes the ice when the ice is the short way;
+  nothing can be built on it, and whoever is still out when it stops
+  bearing is stood on the nearest shore.
+- **The field's year**: the wheat farm keeps the seasons too. It cuts wheat
+  only through the harvest (the first 60% of the year, and the match opens
+  in it), sows in the fall, lies fallow under the snow and comes up green
+  with the thaw. The harvest cuts at a pace that brings in the same 48
+  sheaves a year the farm used to cut all year round, so the bread chain is
+  as fed as ever, but the winter eats what went into the castle in the
+  summer. While the field sleeps the farmer goes back to the serf pool to
+  haul, and the post calls a hand back at the thaw; the scythe waits on the
+  farm's rack. The farm's card says where the field is in its year and how
+  long it stays there.
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
   A study is ordered, not bought: the bill goes on the Abbey and the serfs
   carry it there load by load, and the clock only starts once the last load

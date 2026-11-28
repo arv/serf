@@ -120,7 +120,7 @@ import {sweepTiers, wilson, type DuelSweep} from './tiers.ts';
  * not a pin.
  *
  * 122 and 1000 in place of 143 and 1003 when the field took up the seasons
- * (replay 79): the pair fell to hard-v-normal 4/16, 143 reading 2/8 and
+ * (replay 82): the pair fell to hard-v-normal 4/16, 143 reading 2/8 and
  * 1003 2/8. The twelve-seed sweeps were run first on both trees, five
  * playbooks, and the tier is not what moved:
  *

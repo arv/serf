@@ -1,10 +1,16 @@
 import type {Enum} from '../../shared/enum.ts';
-import {atBuilding, walkToBuilding} from '../arrival.ts';
+import {
+  atBuilding,
+  findPathToSource,
+  walkToBuilding,
+  walkToSource,
+} from '../arrival.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
 import {
   DELIVERY_STAND,
   JOB_BLOCKED_BACKOFF,
   MATCHER_INTERVAL,
+  cartFor,
   ABBEY_ALE_CAP,
   BARRACKS_ALE_CAP,
   EVAC_PRIORITY,
@@ -41,7 +47,7 @@ import * as GameEventKind from '../gameEventKindEnum.ts';
 import * as HaulPhase from '../haulPhaseEnum.ts';
 import {findPathToAdjacent} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
-import type {Unit} from '../units.ts';
+import {cargoOf, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {anyDelivered} from '../visibility.ts';
 import {
@@ -74,24 +80,34 @@ export function logisticsSystem(world: World): void {
     rehomeCarriedGoods(world);
     match(world);
   }
+  returnCarts(world);
   dispatch(world);
   progress(world);
 }
 
 // --- Reservation accounting (the only two functions that release) ----------
 
+/** How many goods one walk of `job` moves: one, or a cart's load. */
+export function loadOf(job: HaulJob): number {
+  return job.count ?? 1;
+}
+
 function releaseSource(world: World, job: HaulJob): void {
   const from = world.buildings.get(job.from);
   if (from)
     from.reservedOut[job.good] = Math.max(
       0,
-      (from.reservedOut[job.good] ?? 0) - 1,
+      (from.reservedOut[job.good] ?? 0) - loadOf(job),
     );
 }
 
 function releaseDest(world: World, job: HaulJob): void {
   const to = world.buildings.get(job.to);
-  if (to) to.inbound[job.good] = Math.max(0, (to.inbound[job.good] ?? 0) - 1);
+  if (to)
+    to.inbound[job.good] = Math.max(
+      0,
+      (to.inbound[job.good] ?? 0) - loadOf(job),
+    );
 }
 
 /**
@@ -118,8 +134,9 @@ export function abortJob(
       // Nobody is left to carry it: the good is destroyed, ledgered so the
       // conservation check stays honest.
       world.ledger.consumed[serf.carrying] =
-        (world.ledger.consumed[serf.carrying] ?? 0) + 1;
+        (world.ledger.consumed[serf.carrying] ?? 0) + cargoOf(serf);
       serf.carrying = undefined;
+      serf.carryCount = undefined;
     }
     serf.jobId = undefined;
     serf.path = null;
@@ -628,6 +645,244 @@ function nearestSupply(
   return best;
 }
 
+/**
+ * Carts of kind `good` at `owner`'s castle that no walk has borrowed: every
+ * job moving more than one load holds one for its length, from booking to
+ * the door. The cart stays on the castle's shelf until its hauler comes for
+ * it — it is lent, not hauled — so this is the carts the seat holds, on
+ * the shelf and in hand, less the walks out on one.
+ *
+ * A walk not yet under way is on the season's cart (a change of season
+ * splits the rest, splitCartLoads); one under way is on whatever its
+ * hauler is holding.
+ */
+export function spareCarts(world: World, owner: Owner, good: GoodId): number {
+  const castle = findStorehouse(world, owner);
+  if (!castle) return 0;
+  let owned = castle.stock[good] ?? 0;
+  for (const u of world.units.values()) {
+    if (!u.dead && u.owner === owner && u.cart === good) owned++;
+  }
+  const season = cartFor(world.tick)?.good;
+  let lent = 0;
+  for (const job of world.jobs.values()) {
+    if (job.owner !== owner || loadOf(job) <= 1) continue;
+    const hauler =
+      job.serfId === undefined ? undefined : world.units.get(job.serfId);
+    if ((hauler?.cart ?? season) === good) lent++;
+  }
+  return owned - lent;
+}
+
+/** A walk of more than one load needs the season's cart in the hauler's
+ * hands. */
+function needsCart(world: World, job: HaulJob, unit: Unit): boolean {
+  return loadOf(job) > 1 && unit.cart !== cartFor(world.tick)?.good;
+}
+
+/**
+ * Send a man just given a walk of several loads to the castle for a cart
+ * first, if he has not the season's in hand: the carts are kept there.
+ * With none on the shelf the walk is split back into single loads and he
+ * goes straight for the first.
+ */
+function fetchCartFirst(world: World, job: HaulJob, serf: Unit): void {
+  if (!needsCart(world, job, serf)) return;
+  const want = cartFor(world.tick)?.good;
+  const castle = findStorehouse(world, job.owner);
+  if (want === undefined || !castle || (castle.stock[want] ?? 0) <= 0) {
+    unbatch(world, job);
+    return;
+  }
+  if (atBuilding(serf, castle)) {
+    // Takes it on the spot: progress only looks again once his walk to the
+    // source has ended, which would send him all the way there and back.
+    takeCart(castle, serf, want);
+    return;
+  }
+  if (!walkToBuilding(world.map, serf, castle)) unbatch(world, job);
+}
+
+/** At the castle door: one left over from another season goes back on
+ * the shelf and the season's comes off it. */
+function takeCart(castle: Building, serf: Unit, want: GoodId): void {
+  if (serf.cart !== undefined)
+    castle.stock[serf.cart] = (castle.stock[serf.cart] ?? 0) + 1;
+  castle.stock[want] = (castle.stock[want] ?? 0) - 1;
+  serf.cart = want;
+}
+
+/** Split a walk of several loads back into walks of one: the same goods
+ * spoken for, by more jobs, nothing reserved or released. */
+function unbatch(world: World, job: HaulJob): void {
+  const extra = loadOf(job) - 1;
+  if (extra <= 0) return;
+  job.count = undefined;
+  // A hauler already winding at a well was given a bucket's time per load
+  // (progress); the loads leaving the walk take their time with them.
+  if (job.drawUntil !== undefined) {
+    const draw = world.buildings.get(job.from)?.type;
+    const per = draw === undefined ? undefined : buildingDef(draw).drawTicks;
+    if (per !== undefined) job.drawUntil -= per * extra;
+  }
+  for (let i = 0; i < extra; i++) {
+    world.jobs.set(world.nextJobId, {
+      id: world.nextJobId,
+      good: job.good,
+      from: job.from,
+      to: job.to,
+      owner: job.owner,
+      priority: job.priority,
+      createdTick: job.createdTick,
+      phase: HaulPhase.open,
+      ...(job.repair ? {repair: true as const} : {}),
+      ...(job.research ? {research: true as const} : {}),
+    });
+    world.nextJobId++;
+  }
+}
+
+/** Ticks a man walking a cart home is left alone by the wander pass. */
+const CART_HOME_TICKS = 2000;
+/** The longest wait returnCarts honours before walking a cart home: a
+ * doorstep stand, or the backoff after a walk home found no way. */
+const CART_RETRY_TICKS = Math.max(DELIVERY_STAND, JOB_BLOCKED_BACKOFF);
+
+/**
+ * Carts go back to the castle between hauls. A man holding one with no
+ * haul to use it on walks it home and sets it on the shelf, where the
+ * next walk that wants one will find it. A haul given him on the way he
+ * takes, cart and all.
+ */
+function returnCarts(world: World): void {
+  for (const unit of world.units.values()) {
+    if (unit.dead || unit.cart === undefined || unit.jobId !== undefined)
+      continue;
+    if (unit.task.t !== UnitTaskKind.idle) continue;
+    const castle = findStorehouse(world, unit.owner);
+    if (!castle) continue;
+    if (atBuilding(unit, castle)) {
+      castle.stock[unit.cart] = (castle.stock[unit.cart] ?? 0) + 1;
+      unit.cart = undefined;
+      unit.task = {t: UnitTaskKind.idle, until: world.tick};
+      continue;
+    }
+    if (unit.task.until > world.tick) {
+      if (unit.path !== null) continue; // on his way
+      // Standing at the door he just served (DELIVERY_STAND), or waiting
+      // out a walk home that found no way: not yet.
+      if (unit.task.until - world.tick <= CART_RETRY_TICKS) continue;
+    }
+    unit.task = walkToBuilding(world.map, unit, castle)
+      ? {t: UnitTaskKind.idle, until: world.tick + CART_HOME_TICKS}
+      : // Walled off from the castle: no A* every tick for it.
+        {t: UnitTaskKind.idle, until: world.tick + JOB_BLOCKED_BACKOFF};
+  }
+}
+
+/**
+ * A cart at the door takes what is waiting, not just what was booked: a
+ * walk loads its good off the source's shelf up to the season's cart load
+ * (cartFor: a sled in winter, a wheelbarrow from the thaw's end to the
+ * first frost, none in the thaw), in this order:
+ *
+ * - the other walks the board has booked along this same route, from this
+ *   door to the same destination — those not yet started, and those a serf
+ *   is still walking to the door for, whom it stands down to take other
+ *   work. Their walks never happen; their reservations carry over, so the
+ *   destination gets exactly what it asked for, in one walk;
+ * - then, on a walk home to the castle only, anything on the shelf nobody
+ *   has claimed at all: the castle takes anything, where a mill or a site
+ *   asked for a number and would be over-filled.
+ *
+ * A hauler without the season's cart takes one here if this door is the
+ * castle's, where they are kept, and there is something to fold in. Returns
+ * how many it added.
+ */
+function topUpCart(
+  world: World,
+  job: HaulJob,
+  from: Building,
+  hauler: Unit,
+): number {
+  const cart = cartFor(world.tick);
+  if (!cart) return 0;
+  // A well gives up a bucket per drawTicks, paid before he is handed the
+  // walk's loads (progress); a load folded in after would skip its turn at
+  // the windlass. Walks booked several loads up front still ride.
+  if (buildingDef(from.type).drawTicks !== undefined) return 0;
+  const castle = findStorehouse(world, job.owner);
+  if (!castle) return 0;
+  let room = cart.load - loadOf(job);
+  if (room <= 0) return 0;
+  const homeward = castle.id === job.to && from.id !== castle.id;
+  const foldable = (other: HaulJob): boolean =>
+    other.id !== job.id &&
+    (other.phase === HaulPhase.open || other.phase === HaulPhase.toPickup) &&
+    other.from === from.id &&
+    other.to === job.to &&
+    other.good === job.good &&
+    other.repair === job.repair &&
+    other.research === job.research &&
+    loadOf(other) <= room;
+  if (hauler.cart !== cart.good) {
+    // Carts are kept at the castle: a man at its door with empty hands can
+    // take the season's, if the walk would use it.
+    if (hauler.cart !== undefined) return 0;
+    if (from.id !== castle.id || (castle.stock[cart.good] ?? 0) <= 0) return 0;
+    let worth = false;
+    for (const other of world.jobs.values()) {
+      if (foldable(other)) {
+        worth = true;
+        break;
+      }
+    }
+    if (!worth) return 0;
+    castle.stock[cart.good] = (castle.stock[cart.good] ?? 0) - 1;
+    hauler.cart = cart.good;
+  }
+  let added = 0;
+  const take = (n: number): void => {
+    from.stock[job.good] = (from.stock[job.good] ?? 0) - n;
+    job.count = loadOf(job) + n;
+    room -= n;
+    added += n;
+  };
+  // Deleting from a Map while iterating it is defined: the loop never
+  // revisits an entry and never sees one removed ahead of it.
+  for (const other of world.jobs.values()) {
+    if (room <= 0) break;
+    if (!foldable(other)) continue;
+    const n = loadOf(other);
+    // Its claim on the shelf ends here; its claim on the destination's
+    // door becomes this walk's, and inbound already counts it.
+    from.reservedOut[job.good] = Math.max(
+      0,
+      (from.reservedOut[job.good] ?? 0) - n,
+    );
+    if (other.serfId !== undefined) {
+      // He was on his way to the door for it: stood down, empty-handed,
+      // for the board to give him something else.
+      const walker = world.units.get(other.serfId);
+      if (walker && walker.jobId === other.id) {
+        walker.jobId = undefined;
+        walker.path = null;
+        walker.task = {t: UnitTaskKind.idle, until: world.tick};
+      }
+    }
+    world.jobs.delete(other.id);
+    take(n);
+  }
+  if (homeward) {
+    const spare = Math.min(room, availableOut(from, job.good));
+    if (spare > 0) {
+      castle.inbound[job.good] = (castle.inbound[job.good] ?? 0) + spare;
+      take(spare);
+    }
+  }
+  return added;
+}
+
 function createJob(
   world: World,
   good: GoodId,
@@ -641,6 +896,37 @@ function createJob(
   const dest = world.buildings.get(to)!;
   source.reservedOut[good] = (source.reservedOut[good] ?? 0) + 1;
   dest.inbound[good] = (dest.inbound[good] ?? 0) + 1;
+  // A serf with a cart — a sled in winter, a wheelbarrow the rest of the
+  // year — takes its load of one good from one door to another in a walk.
+  // So a load wanted along a walk somebody has not set out on yet rides
+  // with it instead of becoming a walk of its own, if there is a cart for
+  // it: a walk of one taking on its second load borrows one, and a cart
+  // already lent to the walk takes the rest of its load for free. The
+  // matcher goes on asking for goods one at a time, and the reservation
+  // above is the same either way.
+  const cart = cartFor(world.tick);
+  if (cart) {
+    let spare: number | undefined;
+    for (const job of world.jobs.values()) {
+      if (
+        job.phase !== HaulPhase.open ||
+        job.good !== good ||
+        job.from !== from ||
+        job.to !== to ||
+        job.priority !== priority ||
+        job.repair !== repair ||
+        job.research !== research ||
+        loadOf(job) >= cart.load
+      )
+        continue;
+      if (loadOf(job) === 1) {
+        spare ??= spareCarts(world, dest.owner, cart.good);
+        if (spare <= 0) continue;
+      }
+      job.count = loadOf(job) + 1;
+      return;
+    }
+  }
   world.jobs.set(world.nextJobId, {
     id: world.nextJobId,
     good,
@@ -676,7 +962,14 @@ function rehomeCarriedGoods(world: World): void {
     if (serf.task.t !== UnitTaskKind.idle) continue; // let him finish the walk he was sent on
 
     const good = serf.carrying;
-    const to = deliveryTargetFor(world, serf.owner, good);
+    const cargo = cargoOf(serf);
+    // A cart's worth goes home: whoever wants this good was asked about one
+    // of it, and four set down at a door that has room for one is three
+    // too many.
+    const to =
+      cargo > 1
+        ? findStorehouse(world, serf.owner)
+        : deliveryTargetFor(world, serf.owner, good);
     if (!to) continue; // no storehouse (eliminated) — he keeps holding it
 
     const path = findPathToAdjacent(
@@ -702,6 +995,7 @@ function rehomeCarriedGoods(world: World): void {
       createdTick: world.tick,
       phase: HaulPhase.toDropoff,
       serfId: serf.id,
+      ...(cargo > 1 ? {count: cargo} : {}),
       // Marked by the bill he is actually walking into, for the same
       // reason the matcher marks its own: if that bill is torn up while
       // he walks, reconcile has to stand him down holding the good rather
@@ -719,7 +1013,7 @@ function rehomeCarriedGoods(world: World): void {
           : {}),
     };
     world.jobs.set(job.id, job);
-    to.inbound[good] = (to.inbound[good] ?? 0) + 1;
+    to.inbound[good] = (to.inbound[good] ?? 0) + cargo;
     serf.jobId = job.id;
     serf.path = path;
     serf.pathIdx = 0;
@@ -1012,15 +1306,13 @@ function takeStandingJobs(
         // man already on the ring the pathfinder returns it empty without
         // a search — so this costs nothing in the ordinary case, and he
         // goes through arrival like everybody else rather than drawing
-        // from the shelf a tick early.
-        path = findPathToAdjacent(
+        // from the shelf a tick early. (At the well it is the few steps
+        // round to the crank, unless he is already standing at it.)
+        path = findPathToSource(
           world.map,
           Math.floor(cand.x),
           Math.floor(cand.y),
-          b.x,
-          b.y,
-          b.w,
-          b.h,
+          b,
         );
         if (path) {
           serf = cand;
@@ -1043,6 +1335,7 @@ function takeStandingJobs(
       serf.path = path;
       serf.pathIdx = 0;
       serf.task = {t: UnitTaskKind.haul};
+      fetchCartFirst(world, job, serf);
       if (idle.length === 0) break;
     }
   }
@@ -1321,14 +1614,11 @@ function dispatch(world: World): void {
         }
         if (bestIdx < 0) break; // everybody near has already been refused
         const cand = idle[bestIdx]!;
-        path = findPathToAdjacent(
+        path = findPathToSource(
           world.map,
           Math.floor(cand.x),
           Math.floor(cand.y),
-          from.x,
-          from.y,
-          from.w,
-          from.h,
+          from,
         );
         if (path) {
           serf = cand;
@@ -1416,6 +1706,7 @@ function dispatch(world: World): void {
       serf.path = path;
       serf.pathIdx = 0;
       serf.task = {t: UnitTaskKind.haul};
+      fetchCartFirst(world, job, serf);
       // And he is bound for this job's destination now, so a load sourced
       // there LATER IN THIS SAME PASS can wait for him like any other
       // inbound hand. The census is built once, before the queue is dealt,
@@ -1457,16 +1748,32 @@ function progress(world: World): void {
         abortJob(world, job, 'source vanished before pickup');
         continue;
       }
+      // A walk of several loads starts at the castle, where the carts are:
+      // one left over from another season goes back on the shelf there and
+      // the season's comes off it.
+      if (needsCart(world, job, unit)) {
+        const want = cartFor(world.tick)?.good;
+        const castle = findStorehouse(world, job.owner);
+        if (want === undefined || !castle || (castle.stock[want] ?? 0) <= 0) {
+          unbatch(world, job); // somebody took the last one first
+        } else if (!atBuilding(unit, castle)) {
+          if (!walkToBuilding(world.map, unit, castle)) unbatch(world, job);
+          continue;
+        } else {
+          takeCart(castle, unit, want);
+        }
+      }
       // The walk ended, but did it arrive? A route lost to new construction
       // ends it short, and only a serf actually standing at the source may
       // draw from it — otherwise the good leaves the building by post.
       if (!atBuilding(unit, from)) {
-        if (!walkToBuilding(world.map, unit, from)) {
+        if (!walkToSource(world.map, unit, from)) {
           abortJob(world, job, 'no way back to the source');
         }
         continue;
       }
-      if ((from.stock[job.good] ?? 0) < 1) {
+      const load = loadOf(job);
+      if ((from.stock[job.good] ?? 0) < load) {
         // Reservation should prevent this; reconcile will warn. Retry later.
         abortJob(world, job, 'source out of stock at pickup');
         continue;
@@ -1480,14 +1787,17 @@ function progress(world: World): void {
       const draw = buildingDef(from.type).drawTicks;
       if (draw !== undefined) {
         if (job.drawUntil === undefined) {
-          job.drawUntil = world.tick + draw;
+          // A bucket at a time, however many the cart holds.
+          job.drawUntil = world.tick + draw * load;
           continue;
         }
         if (world.tick < job.drawUntil) continue;
       }
-      from.stock[job.good] = (from.stock[job.good] ?? 0) - 1;
+      from.stock[job.good] = (from.stock[job.good] ?? 0) - load;
       releaseSource(world, job);
+      const taken = load + topUpCart(world, job, from, unit);
       unit.carrying = job.good;
+      unit.carryCount = taken > 1 ? taken : undefined;
       job.phase = HaulPhase.toDropoff;
 
       const to = world.buildings.get(job.to);
@@ -1531,8 +1841,9 @@ function progress(world: World): void {
       // building with the load inside rather than still on the road.
       // Nothing else deliver() looks at is a reservation.
       releaseDest(world, job);
-      deliver(world, to, job.good);
+      for (let i = loadOf(job); i > 0; i--) deliver(world, to, job.good);
       unit.carrying = undefined;
+      unit.carryCount = undefined;
       unit.jobId = undefined;
       // Left standing where he set it down, for DELIVERY_STAND ticks: the
       // doorstep is a claim on this building's own waiting load
@@ -1702,6 +2013,21 @@ function reconcile(world: World): void {
       abortJob(world, job, 'reconcile: source stock below reservation');
     }
   }
+}
+
+/**
+ * The season's cart has changed — the sleds put away for the thaw, the
+ * barrows for the snow — and every load booked several to a walk that
+ * nobody has yet picked up becomes walks of one again; the board books
+ * them onto the new season's cart as it goes. A serf already hauling a
+ * load home finishes the walk he is on. Nothing is reserved or released
+ * here: the same goods are spoken for, by more jobs.
+ */
+export function splitCartLoads(world: World): void {
+  const batched = [...world.jobs.values()].filter(
+    job => loadOf(job) > 1 && job.phase !== HaulPhase.toDropoff,
+  );
+  for (const job of batched) unbatch(world, job);
 }
 
 export {availableOut, findStorehouse};

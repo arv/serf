@@ -9,9 +9,14 @@ import {
   PUBLISH_INTERVAL_MS,
   WORK,
   type SabReader,
+  carryGood,
+  carryLoad,
 } from '../protocol/sabLayout';
 import type {Enum} from '../shared/enum.ts';
 import {clamp, hash2, lerp} from '../shared/math';
+import {buildingDef} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {WATER_LEVEL} from '../sim/map';
@@ -35,6 +40,7 @@ import {
 } from './characters';
 import type {FogQuery} from './fogOfWar';
 import type {HeightField} from './heightField';
+import type {IceHole, IceHoles} from './iceHoles';
 import {type ArmChain, findArm, ikReach} from './ik';
 import {makeCarryProp} from './models';
 import {goldOre} from './palette';
@@ -51,6 +57,11 @@ interface UnitVisual {
   group: THREE.Group;
   kind: number;
   carrying: number;
+  /** How many of it: one in his arms, or a cart's load. */
+  load: number;
+  /** The cart he has in hand (BUFF.sled, BUFF.barrow), as its good; 0
+   * for none. */
+  cart: number;
   carryBox: THREE.Object3D | null;
   /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
@@ -95,6 +106,12 @@ interface UnitVisual {
   /** Right-arm bone chain for the well-crank IK. undefined = not looked
    * up yet, null = this rig has no such bones. */
   arm?: ArmChain | null;
+  /** The left one, for the second fist on an ice auger. */
+  armL?: ArmChain | null;
+  /** Set while the render has him at a well's handle or walking to it;
+   * held after, until the walk off it has given back the mark's offset
+   * from his tile (CRANK_OFF_SPEED). */
+  crankOff?: boolean;
   /** Mowing-walk state (the farmer on his field): which circuit point he
    * is walking toward, the ping-pong direction, ground left to cover
    * before the next stroke, and the anim-clock time his current stroke
@@ -167,6 +184,41 @@ const PIER_DROP_HOLD = 1400;
  * walk, and the de-overlap channel closes what is left as it always did.
  */
 const PIER_LEAVE_LAG = 1.2;
+
+/**
+ * The crank operator's mark, from the well's center: north-east of the
+ * handle, side-on to the well, facing south — from the fixed camera the
+ * grip and the glued hand stay in front of the body. A third of a tile in
+ * from the middle of the tile east of the well, which is where the sim
+ * stands whoever comes for water (BuildingDef.drawFrom).
+ */
+const CRANK_MARK_X = 0.64;
+const CRANK_MARK_Z = -0.12;
+
+/**
+ * The middle of that crank side's tile, from the well's center — read off
+ * the sim's own BuildingDef.drawFrom rather than written down again here,
+ * so the tile the render looks for a drawer on is the tile the sim sends
+ * him to. Undefined if the well ever stops naming one: then nobody is
+ * walked to the handle, rather than the wrong man.
+ */
+const CRANK_SIDE = ((): {x: number; z: number} | undefined => {
+  const def = buildingDef(BuildingTypeId.well);
+  const from = def.drawFrom;
+  return from
+    ? {x: from[0] + 0.5 - def.w / 2, z: from[1] + 0.5 - def.h / 2}
+    : undefined;
+})();
+
+/**
+ * How fast that third of a tile is given back once the draw is over, in
+ * world units a second, while the sim walks him off. The sim's walk starts
+ * from the middle of his tile, and the de-overlap channel would close the
+ * gap to it in a tenth of a second — a slide glued to his first step. At
+ * half a stride his pace stays within half of itself, whichever way he
+ * leaves, while it closes.
+ */
+const CRANK_OFF_SPEED = RENDER_WALK_SPEED / 2;
 
 const IK_TARGET = new THREE.Vector3();
 
@@ -424,21 +476,27 @@ export class SceneSync {
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
 
-  /** PROTOTYPE (sleds.ts): while set, a serf's load rides a sled behind
-   * him rather than in his arms, and he walks rather than carries. */
-  towing = false;
+  /** The carts there is a model to draw, by good: sleds.ts and
+   * barrows.ts add theirs once loaded. From then on a serf with that cart
+   * in hand puts his load on it — behind him on a sled, in front of him in
+   * a barrow — rather than in his arms, and walks rather than carries. */
+  readyCarts = new Set<number>();
 
-  /** Every unit on screen: its id, kind, group, and what it carries. */
+  /** Every unit on screen: its id, kind, group, what it carries and how
+   * many of it. */
   eachUnit(
     visit: (
       id: number,
       kind: number,
       group: THREE.Group,
       carrying: number,
+      load: number,
+      cart: number,
     ) => void,
   ): void {
     for (const [id, v] of this.#visuals) {
-      if (v.group.visible) visit(id, v.kind, v.group, v.carrying);
+      if (v.group.visible)
+        visit(id, v.kind, v.group, v.carrying, v.load, v.cart);
     }
   }
   #lastNow = 0;
@@ -477,10 +535,10 @@ export class SceneSync {
     | null = null;
 
   /** Built wells' world centers, windlasses + grip handles (from main's
-   * structural feed). A drawing serf belongs at the windlass, but the sim
-   * parks it on whichever adjacent tile the path found — so the render
-   * stands it beside the crank, IK-glues its hand to the grip, and turns
-   * the crank under it (see update). */
+   * structural feed). The sim stands a drawing serf in the middle of the
+   * tile east of the well, a step short of the handle — so the render
+   * walks it that step, IK-glues its hand to the grip, and turns the crank
+   * under it (see update). */
   #wells: Well[] = [];
 
   /** Wells whose crank has already been turned this frame, so two haulers
@@ -500,6 +558,15 @@ export class SceneSync {
 
   setPiers(piers: PierInfo[]): void {
     this.#piers = piers;
+  }
+
+  /** The holes in a frozen lake (iceHoles.ts). Without them a fisherman
+   * fishes the ice as if it were water, which is what the editor's
+   * play-test and the model lab still do. */
+  #holes: IceHoles | null = null;
+
+  setIceHoles(holes: IceHoles): void {
+    this.#holes = holes;
   }
 
   /** Built wheat farms' fields (from the same structural feed). The
@@ -532,19 +599,39 @@ export class SceneSync {
   /** Ids currently hidden by fog — picking and selection skip them. */
   #hidden = new Set<number>();
 
-  #nearestWell(x: number, y: number): Well | null {
-    let well: Well | null = null;
-    let best = 2.25; // the worker stands adjacent: within 1.5 tiles
+  /** The well whose crank side this serf is standing on: the tile east of
+   * it (BuildingDef.drawFrom), where the sim sends whoever comes for
+   * water. A man it had to stand anywhere else — that tile shut — gets
+   * none. From there the handle is across the shaft, and he draws where
+   * he stands.
+   *
+   * And it has to be the well he is drawing FROM, which his tile alone
+   * does not say: two wells two tiles apart in a row share that tile, as
+   * one's crank side and the other's west ring. The publish already says
+   * which — the bearing and range bytes point at the well being drawn from
+   * (snapshot.ts workFocus) — so the crank well is the one they land on.
+   * A zero range is the multiplayer redaction of an enemy's point (see the
+   * facing note in update); then the tile is all there is to go by. */
+  #crankWellAt(
+    x: number,
+    y: number,
+    facing: number,
+    range8: number,
+  ): Well | null {
+    if (!CRANK_SIDE) return null;
+    const yaw = (facing / 256) * Math.PI * 2;
+    const fx = x + Math.sin(yaw) * (range8 / 8);
+    const fz = y + Math.cos(yaw) * (range8 / 8);
     for (const w of this.#wells) {
-      const dx = w.x - x;
-      const dz = w.z - y;
-      const d2 = dx * dx + dz * dz;
-      if (d2 < best) {
-        best = d2;
-        well = w;
-      }
+      if (
+        Math.abs(w.x + CRANK_SIDE.x - x) >= 0.5 ||
+        Math.abs(w.z + CRANK_SIDE.z - y) >= 0.5
+      )
+        continue;
+      if (range8 > 0 && Math.hypot(fx - w.x, fz - w.z) > 0.5) continue;
+      return w;
     }
-    return well;
+    return null;
   }
 
   #nearestPier(x: number, y: number): PierInfo | null {
@@ -968,6 +1055,8 @@ export class SceneSync {
           group: skinned.group,
           kind: kindKey,
           carrying: 0,
+          load: 0,
+          cart: 0,
           carryBox: null,
           char: skinned.visual,
           outline: attachXrayOutline(skinned.group, owner),
@@ -1052,7 +1141,15 @@ export class SceneSync {
 
       // Visible carried good — the core fantasy, as the actual object:
       // pack buckets, grain sacks, lumber, ingots, casks.
-      const carrying = latest.aux[a + 3]!;
+      const carrying = carryGood(latest.aux[a + 3]!);
+      visual.load = carryLoad(latest.aux[a + 3]!);
+      const buffs = latest.aux[a + 10]!;
+      visual.cart =
+        buffs & BUFF.sled
+          ? GoodId.sled
+          : buffs & BUFF.barrow
+            ? GoodId.wheelbarrow
+            : 0;
       if (carrying !== visual.carrying) {
         if (visual.carryBox) {
           visual.carryBox.parent?.remove(visual.carryBox);
@@ -1073,8 +1170,11 @@ export class SceneSync {
         }
         visual.carrying = carrying;
       }
-      // Only a serf has a sled to put it on; a worker keeps his load.
-      const towed = this.towing && (visual.kind & 0xff) === UnitTypeId.serf;
+      // Only a serf has a cart to put it on; a worker keeps his load. A
+      // man with a cart in hand puts his load on it, whatever its size.
+      const towed =
+        (visual.kind & 0xff) === UnitTypeId.serf &&
+        this.readyCarts.has(visual.cart);
       if (visual.carryBox) visual.carryBox.visible = !towed;
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.
@@ -1108,6 +1208,32 @@ export class SceneSync {
       const workKind = latest.aux[a + 5]!;
       const dead = action === ACTION.dead;
       if (dead) moving = false; // corpses don't turn or bob
+      // A fisherman at his post on a lake that froze while nobody was
+      // looking has been fishing all along as far as the sim is concerned:
+      // his hole is already dug. Only a man the fog has not hidden gets
+      // here, so this tells no one about a hut they cannot see.
+      if (
+        offScreen &&
+        !moving &&
+        this.#holes &&
+        workKind === WORK.fish &&
+        action === ACTION.work
+      ) {
+        const pier = this.#nearestPier(x, y);
+        if (pier) this.#holes.finish(pier);
+      }
+      // Drawing on a well's crank side: the render walks the serf the last
+      // step to the handle (below), IK-glues their hand to its grip and
+      // turns the windlass — the base pose is a calm idle, and the
+      // cranking motion IS the crank's.
+      const crankWell =
+        !offScreen &&
+        !dead &&
+        !moving &&
+        action === ACTION.work &&
+        workKind === WORK.draw
+          ? this.#crankWellAt(x, y, latest.aux[a + 7]!, latest.aux[a + 8]!)
+          : null;
       // A fighter who has stopped to swing has no movement delta to face by,
       // so it would keep the yaw it walked in with and hack at the air beside
       // its enemy. The sim sends the bearing to whatever it is actually
@@ -1131,11 +1257,15 @@ export class SceneSync {
       // nothing at all, on purpose, because the row he is cutting is the
       // one he walked in along. A bearing written over that would have him
       // scything at the farm building for the length of every stroke.
+      //
+      // The windlass only while the render has him at it: a man the sim
+      // stood on the far side of the shaft draws where he is, and the
+      // bearing is what turns him to the well.
       const renderTurned =
         workKind === WORK.fish ||
         workKind === WORK.mow ||
         workKind === WORK.sow ||
-        workKind === WORK.draw;
+        crankWell !== null;
       if (
         !moving &&
         !dead &&
@@ -1144,23 +1274,64 @@ export class SceneSync {
       ) {
         visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
       }
-      // Drawing at a well with a crank: the serf stands beside the windlass
-      // and their hand is IK-glued to the grip, so the base pose is a calm
-      // idle — the cranking motion IS the crank's.
-      const crankWell =
-        !offScreen &&
-        !dead &&
-        !moving &&
-        action === ACTION.work &&
-        workKind === WORK.draw
-          ? this.#nearestWell(x, y)
-          : null;
+      // The step to the handle, walked. The mark is a third of a tile in
+      // from where the sim stood him, and it used to be eased in a tenth of
+      // a second — a slide, and from the wrong side of the well a slide
+      // straight through it. Written through the de-overlap channel, as
+      // the pier walk is, and taken back the same way once the draw is
+      // over: at CRANK_OFF_SPEED while the sim walks him off, at a walk if
+      // he is left standing (the well gone from under him).
+      let cranking = false;
+      let crankStep = false;
+      if (crankWell) {
+        visual.crankOff = true;
+        const curX = x + visual.sepX;
+        const curZ = y + visual.sepY;
+        const tx = crankWell.x + CRANK_MARK_X;
+        const tz = crankWell.z + CRANK_MARK_Z;
+        const dx = tx - curX;
+        const dz = tz - curZ;
+        const dist = Math.hypot(dx, dz);
+        const step = RENDER_WALK_SPEED * dt;
+        if (dist > step && dist > 1e-4) {
+          visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
+          visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
+          visual.group.rotation.y = Math.atan2(dx, dz);
+          crankStep = true;
+          // Render-side walk: no publish delta for the legs to read.
+          if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
+        } else {
+          visual.sepX = this.#sepTX[i] = tx - x;
+          visual.sepY = this.#sepTY[i] = tz - y;
+          visual.group.rotation.y = 0; // face +z, crank at the right hand
+          cranking = true;
+        }
+      } else if (visual.crankOff) {
+        const dx = this.#sepTX[i]! - visual.sepX;
+        const dz = this.#sepTY[i]! - visual.sepY;
+        const gap = Math.hypot(dx, dz);
+        const step = (moving ? CRANK_OFF_SPEED : RENDER_WALK_SPEED) * dt;
+        // Out of sight or dead, there is nobody to watch the walk.
+        if (offScreen || dead || gap <= step) visual.crankOff = undefined;
+        else {
+          visual.sepX = this.#sepTX[i] = visual.sepX + (dx / gap) * step;
+          visual.sepY = this.#sepTY[i] = visual.sepY + (dz / gap) * step;
+          // A man struck at the handle answers where he stands, still on his
+          // errand (combat.ts lastResortStrike): the bearing above has turned
+          // him to whoever hit him, and his swing is the clip to play.
+          if (!moving && action !== ACTION.fight) {
+            visual.group.rotation.y = Math.atan2(dx, dz);
+            crankStep = true;
+            if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);
+          }
+        }
+      }
       // The windlass turns because someone is winding it, and only then.
       // Axle along x; one revolution per loop of the reeling clip (1.6 s),
       // both advancing on the same render dt, so the grip stays under the
       // hands glued to it. Once per well per frame — two serfs drawing at
       // one well are two buckets, not double speed.
-      if (crankWell && dt > 0 && !this.#spun.has(crankWell.crank)) {
+      if (crankWell && cranking && dt > 0 && !this.#spun.has(crankWell.crank)) {
         this.#spun.add(crankWell.crank);
         crankWell.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
       }
@@ -1190,6 +1361,10 @@ export class SceneSync {
       let fishing = false;
       let onDeck = false;
       let pierStep = false;
+      // Winter: the hole his line wants, and whether he is at the end of
+      // the deck boring it rather than fishing.
+      let hole: IceHole | null = null;
+      let drilling = false;
       if (leaving && pier) {
         // Walking the planks off. Driven along the deck line itself rather
         // than from where he is drawn: the sim is walking him inland under
@@ -1234,6 +1409,13 @@ export class SceneSync {
           (curX - pier.baseX) * dirZ - (curZ - pier.baseZ) * dirX,
         );
         onDeck = along > -0.1 && drift < 0.3;
+        // On a frozen lake his line needs a hole (iceHoles.ts). Until it
+        // is bored his stand is the deck's very end, where the auger
+        // reaches down to the ice; after, it is the fishing spot and no
+        // other — a line walked down the planks would come out of it.
+        hole = this.#holes?.at(pier) ?? null;
+        const bore = hole && !hole.drilled ? hole : null;
+        const unbored = bore !== null;
         // The stand he casts from: the fishing spot, or PIER_PACE back down
         // the planks from it. Clamped off the landward end so a deck the fit
         // trimmed short still leaves him standing on boards.
@@ -1241,9 +1423,11 @@ export class SceneSync {
           pier.spotX - pier.baseX,
           pier.spotZ - pier.baseZ,
         );
-        const back = Math.min(visual.pierBack ?? 0, Math.max(0, reach - 0.25));
-        const standX = pier.spotX - dirX * back;
-        const standZ = pier.spotZ - dirZ * back;
+        const back = hole
+          ? 0
+          : Math.min(visual.pierBack ?? 0, Math.max(0, reach - 0.25));
+        const standX = bore ? bore.standX : pier.spotX - dirX * back;
+        const standZ = bore ? bore.standZ : pier.spotZ - dirZ * back;
         // Two legs, not a beeline: off the planks he converges on the
         // landward end first — a straight run at his stand would cut the
         // corner through open water. The door is that same end (the deck is
@@ -1256,7 +1440,8 @@ export class SceneSync {
         const dz = tz - curZ;
         const dist = Math.hypot(dx, dz);
         const arrived = dist < 0.08;
-        fishing = onDeck && !home && arrived;
+        drilling = onDeck && !home && arrived && unbored;
+        fishing = onDeck && !home && arrived && !unbored;
         if (post) {
           // The catch. A convert batch ends with ONE non-work tick before
           // the next begins — the same tick the farmer's mowWorkUntil
@@ -1271,7 +1456,9 @@ export class SceneSync {
           // simply the thing that stops arriving — so he keeps fishing at
           // his stand, which is what the sim says he is doing.
           const working = action === ACTION.work;
-          if (!working && !visual.pierHauling) {
+          // ...except through ice he has not yet bored: nothing he could
+          // have caught, so the batch edge goes by and he keeps at it.
+          if (!working && !visual.pierHauling && !unbored) {
             visual.pierHauling = true;
             visual.pierUntil = undefined;
           }
@@ -1306,10 +1493,11 @@ export class SceneSync {
           visual.pierOff = onDeck && along > 0.15 ? post : undefined;
           visual.pierOffAt = undefined;
         }
-        if (fishing) {
+        if (fishing || drilling) {
           visual.sepX = this.#sepTX[i] = standX - x;
           visual.sepY = this.#sepTY[i] = standZ - y;
           visual.group.rotation.y = pier.yaw; // face the water
+          if (drilling && hole) this.#holes?.drill(hole, dt);
         } else if (home && arrived) {
           // At the door with the catch: hold the spot and face the hut,
           // which is back down the deck line.
@@ -1462,15 +1650,21 @@ export class SceneSync {
             : mowStep
               ? gaitAnimKey(visual.char.gait)
               : AnimKey.idle;
+        else if (crankStep)
+          key = heldCarry ? AnimKey.carry : gaitAnimKey(visual.char.gait);
+        else if (crankWell) key = AnimKey.idle;
         else if (action === ACTION.fight)
           key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
-        else if (action === ACTION.work)
-          key = crankWell ? AnimKey.idle : workAnimKey(workKind);
+        else if (action === ACTION.work) key = workAnimKey(workKind);
         else key = heldCarry ? AnimKey.carryIdle : AnimKey.idle;
         // Right tool for the job: mallet on sites, pickaxe at rock faces,
         // carried on the walk out too — a woodcutter heads to the trees
         // axe in fist. Only full hands stow it: cargo owns the grip.
-        setWorkTool(visual.char, heldCarry ? TOOL_STOWED : workKind);
+        // The rod is put by while both hands are on the auger.
+        setWorkTool(
+          visual.char,
+          heldCarry || drilling ? TOOL_STOWED : workKind,
+        );
         // Whether playAnimation below actually (re)starts the clip: a
         // state change, or the first frame back from a cull (which nulled
         // `current`). Read before the call — it sets `current` to key.
@@ -1600,15 +1794,6 @@ export class SceneSync {
         moving && !visual.char
           ? Math.abs(Math.cos(animNow * 0.012 + id * 2.1)) * 0.025
           : 0;
-      // The crank operator's mark: north-east of the handle, side-on to the
-      // well, facing south — from the fixed camera the grip and the glued
-      // hand stay in front of the body. The snap rides the smoothed
-      // de-overlap channel, so picking (positionOf) already follows it.
-      if (crankWell) {
-        this.#sepTX[i] = crankWell.x + 0.64 - x;
-        this.#sepTY[i] = crankWell.z - 0.12 - y;
-        visual.group.rotation.y = 0; // face +z, crank at the right hand
-      }
       // Ease into this frame's de-overlap offset (corpses keep theirs).
       if (!dead) {
         const k = Math.min(1, dt * 10);
@@ -1684,7 +1869,7 @@ export class SceneSync {
       // Glue the cranking hand to the grip — after the group transform is
       // final for this frame, override the clip's right arm with a CCD
       // reach toward the grip's current world position.
-      if (crankWell && visual.char) {
+      if (crankWell && cranking && visual.char) {
         // Explicitly undefined: ??= assigns on null too, so a rig without
         // the bones re-ran findArm's six name lookups every single frame,
         // which is the one thing the null in the cache is there to stop.
@@ -1692,6 +1877,21 @@ export class SceneSync {
         if (visual.arm) {
           crankWell.grip.getWorldPosition(IK_TARGET);
           ikReach(visual.arm, IK_TARGET);
+        }
+      }
+      // The auger likewise, with both fists: the left bears down on its
+      // knob and the right turns the brace — on the idle pose, the way the
+      // well's cranking hand is.
+      if (drilling && hole && visual.char) {
+        if (visual.arm === undefined) visual.arm = findArm(visual.group, 'r');
+        if (visual.armL === undefined) visual.armL = findArm(visual.group, 'l');
+        if (visual.arm) {
+          hole.grip.getWorldPosition(IK_TARGET);
+          ikReach(visual.arm, IK_TARGET, 4);
+        }
+        if (visual.armL) {
+          hole.knob.getWorldPosition(IK_TARGET);
+          ikReach(visual.armL, IK_TARGET, 4);
         }
       }
     }
