@@ -689,8 +689,22 @@ function fetchCartFirst(world: World, job: HaulJob, serf: Unit): void {
     unbatch(world, job);
     return;
   }
-  if (atBuilding(serf, castle)) return; // takes it on the spot (progress)
+  if (atBuilding(serf, castle)) {
+    // Takes it on the spot: progress only looks again once his walk to the
+    // source has ended, which would send him all the way there and back.
+    takeCart(castle, serf, want);
+    return;
+  }
   if (!walkToBuilding(world.map, serf, castle)) unbatch(world, job);
+}
+
+/** At the castle door: one left over from another season goes back on
+ * the shelf and the season's comes off it. */
+function takeCart(castle: Building, serf: Unit, want: GoodId): void {
+  if (serf.cart !== undefined)
+    castle.stock[serf.cart] = (castle.stock[serf.cart] ?? 0) + 1;
+  castle.stock[want] = (castle.stock[want] ?? 0) - 1;
+  serf.cart = want;
 }
 
 /** Split a walk of several loads back into walks of one: the same goods
@@ -725,6 +739,9 @@ function unbatch(world: World, job: HaulJob): void {
 
 /** Ticks a man walking a cart home is left alone by the wander pass. */
 const CART_HOME_TICKS = 2000;
+/** The longest wait returnCarts honours before walking a cart home: a
+ * doorstep stand, or the backoff after a walk home found no way. */
+const CART_RETRY_TICKS = Math.max(DELIVERY_STAND, JOB_BLOCKED_BACKOFF);
 
 /**
  * Carts go back to the castle between hauls. A man holding one with no
@@ -745,9 +762,16 @@ function returnCarts(world: World): void {
       unit.task = {t: UnitTaskKind.idle, until: world.tick};
       continue;
     }
-    if (unit.path !== null && unit.task.until > world.tick) continue; // on his way
-    if (walkToBuilding(world.map, unit, castle))
-      unit.task = {t: UnitTaskKind.idle, until: world.tick + CART_HOME_TICKS};
+    if (unit.task.until > world.tick) {
+      if (unit.path !== null) continue; // on his way
+      // Standing at the door he just served (DELIVERY_STAND), or waiting
+      // out a walk home that found no way: not yet.
+      if (unit.task.until - world.tick <= CART_RETRY_TICKS) continue;
+    }
+    unit.task = walkToBuilding(world.map, unit, castle)
+      ? {t: UnitTaskKind.idle, until: world.tick + CART_HOME_TICKS}
+      : // Walled off from the castle: no A* every tick for it.
+        {t: UnitTaskKind.idle, until: world.tick + JOB_BLOCKED_BACKOFF};
   }
 }
 
@@ -1732,10 +1756,7 @@ function progress(world: World): void {
           if (!walkToBuilding(world.map, unit, castle)) unbatch(world, job);
           continue;
         } else {
-          if (unit.cart !== undefined)
-            castle.stock[unit.cart] = (castle.stock[unit.cart] ?? 0) + 1;
-          castle.stock[want] = (castle.stock[want] ?? 0) - 1;
-          unit.cart = want;
+          takeCart(castle, unit, want);
         }
       }
       // The walk ended, but did it arrive? A route lost to new construction

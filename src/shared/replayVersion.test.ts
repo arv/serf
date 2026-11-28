@@ -863,9 +863,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // 80 for wheelbarrows: summer hauls go two to a barrow (replayVersion.ts).
 // Still 80 when hashWorld learned to read the good a man is carrying (it
 // mixed how many and on what cart, never what): a test tool's digest, no
-// tick moves.
+// tick moves. Still 80, unreleased, when a man at the castle took his cart
+// on the spot and a cart walking home learned to wait out the doorstep and
+// a blocked walk: these ride with 80's carts.
 const EXPECTED_VERSION = 80;
-const EXPECTED_HASH = '1aceb8aa7fcb53acb5ca6ee758021d36';
+const EXPECTED_HASH = '8097fac78ce89b252857cf215ada4a0d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

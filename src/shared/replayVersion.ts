@@ -29,6 +29,9 @@
  * after the sled's, and the AI orders barrows as it orders sleds
  * (stockTheCarts). And a serf walking a cart home is no longer hired off
  * the road (systems/staffing.ts), which had lost sleds into barracks.
+ * A man already at the castle door takes his cart there and then, not
+ * after a walk to the source and back; and one walking a cart home waits
+ * out his doorstep stand, and backs off when no way home is found.
  *
  * 79's note follows.
  *

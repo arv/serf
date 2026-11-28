@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {tileIdx} from '../shared/grid.ts';
+import {atBuilding} from './arrival.ts';
 import {checkInvariants, checkLedger, countGoods} from './debug/invariants.ts';
 import {
   BARROW_LOAD,
@@ -380,6 +381,26 @@ describe('wheelbarrows', () => {
     }
     expect(most).toBe(BARROW_LOAD);
     expect(castle.stock[GoodId.wood]).toBe(BARROW_LOAD);
+  });
+
+  it('are taken on the spot by a man already at the castle door', () => {
+    const world = bareWorld();
+    const castle = addStorehouse(world, 30, 30, {});
+    castle.stock = {[GoodId.wheelbarrow]: 1}; // no fixture tools to deliver
+    const hut = addBuiltHut(world, 10, 30, false);
+    hut.stock[GoodId.wood] = 2;
+    const serf = addSerf(world, castle.x - 1, castle.y);
+    expect(atBuilding(serf, castle)).toBe(true);
+    for (let i = 0; i < 50 && serf.jobId === undefined; i++) {
+      tickWorld(world, []);
+    }
+    expect(serf.jobId).toBeDefined();
+    // The barrow leaves the shelf before he leaves the door: no walk to the
+    // hut and back for it.
+    expect(serf.cart).toBe(GoodId.wheelbarrow);
+    expect(castle.stock[GoodId.wheelbarrow] ?? 0).toBe(0);
+    expect(atBuilding(serf, castle)).toBe(true);
+    expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('spill what they hold, barrow and all, where the carrier falls', () => {

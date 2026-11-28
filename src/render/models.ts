@@ -505,11 +505,6 @@ export function hasCartModel(good: GoodId): boolean {
 }
 
 /**
- * A single unit of a good as a small grounded prop, for the stock piles
- * that grow beside buildings — same look as the carried version, base on
- * the ground.
- */
-/**
  * A cart parked by the castle (buildingSync lines them up along its side):
  * the real thing once its model has loaded, the pile prop until then. Only
  * the parked row, never a door pile: a Smith's shelf of new carts stacks
@@ -526,6 +521,11 @@ export function makeParkedCart(good: GoodId): THREE.Group {
   return g;
 }
 
+/**
+ * A single unit of a good as a small grounded prop, for the stock piles
+ * that grow beside buildings — same look as the carried version, base on
+ * the ground.
+ */
 export function makePileProp(good: GoodId): THREE.Group {
   const pack = PACK_CARRY[good];
   // Clone from the shared prototype cache (like makeCarryProp): building
