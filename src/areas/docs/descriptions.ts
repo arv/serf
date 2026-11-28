@@ -78,7 +78,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   [BuildingTypeId.wheatFarm]:
     'Water in, standing wheat out, but only at harvest: the field is sown in the fall, sleeps under the snow and comes up green with the thaw. The summer brings in the whole year’s wheat, so the winter lives on what went into the castle, and the farmer goes off to haul until the thaw. The mill and the brewery both draw on it, so one farm rarely stays enough.',
   [BuildingTypeId.mill]:
-    'Grinds wheat into flour, and keeps no resident. It is slower than the farm feeding it by design, so one mill serves two.',
+    'Grinds wheat into flour, and keeps no resident. Through the harvest it is slower than the farm feeding it, so the summer’s surplus goes to the castle and the mill eats it down through the winter, when no farm cuts anything.',
   [BuildingTypeId.bakery]: `Flour and water in, ${BAKED} loaves out. The far end of the bread chain, and the best food rate in the game once the chain stands.`,
   [BuildingTypeId.fishery]:
     'One hut, one hand, and a pier that has to touch water. Nothing goes in, and the food comes out slowly.',
@@ -127,7 +127,8 @@ export const UNIT_DESC: Record<UnitTypeId, string> = {
 
 export const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.water]: 'Drawn at the well. Bread, ale and the farm all start here.',
-  [GoodId.wheat]: 'The crop. It grinds into flour and it brews into ale.',
+  [GoodId.wheat]:
+    'The crop, cut only at harvest: what the winter grinds and brews is what the summer put by. It grinds into flour and it brews into ale.',
   [GoodId.wood]:
     'Timber from the woodcutter. The first cost of nearly every roof, and the whole of a bow.',
   [GoodId.stone]: 'Quarried rock. Walls, towers, millstones and roads.',

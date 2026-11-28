@@ -19,7 +19,7 @@ import {
   startStockOf,
   worldBuildings,
 } from './data';
-import {fmtSecs} from './data';
+import {fmtRecipeRate, fmtSecs} from './data';
 import {parseDocsPath} from './routes';
 
 /**
@@ -101,6 +101,23 @@ describe('duration formatting', () => {
     expect(fmtSecs(2.5 * TICKS_PER_SECOND)).toBe('2.5 s');
     expect(fmtSecs(20 * TICKS_PER_SECOND)).toBe('20 s');
     expect(fmtSecs(90 * TICKS_PER_SECOND)).toBe('1 min 30 s');
+  });
+});
+
+describe('rate formatting', () => {
+  it("reads a crop's rate over the year, not only at its harvest pace", () => {
+    // The farm cuts a sheaf every six seconds, but only through the
+    // harvest: ten a minute while it works, six a minute over the year —
+    // the six it made all year round before the seasons.
+    const farm = BUILDING_DEFS[BuildingTypeId.wheatFarm].recipe!;
+    if (!('durationTicks' in farm)) throw new Error('the farm converts');
+    expect(fmtRecipeRate(1, farm.durationTicks, farm.crop)).toBe(
+      '6/min over the year, 10/min at harvest',
+    );
+    // Everything else works all year and reads as it always did.
+    const mill = BUILDING_DEFS[BuildingTypeId.mill].recipe!;
+    if (!('durationTicks' in mill)) throw new Error('the mill converts');
+    expect(fmtRecipeRate(1, mill.durationTicks, mill.crop)).toBe('7.5/min');
   });
 });
 
