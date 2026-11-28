@@ -79,11 +79,29 @@ describe('the season dial', () => {
     );
   });
 
-  it('counts in the year the scene keeps, which ?year can shorten', () => {
-    const short = {at: 0.5, ticks: 40 * TICKS_PER_SECOND, turning: true};
-    expect(yearTip(short).body).toBe(
-      'Winter in 0:10, and the lakes freeze hard enough to walk across.',
-    );
+  it('counts the seasons in the year ?year gives the look', () => {
+    const short = (at: number) => ({
+      at,
+      ticks: 40 * TICKS_PER_SECOND,
+      turning: true,
+    });
+    expect(yearTip(short(0.5))).toEqual({
+      title: 'Summer',
+      body: 'Winter in 0:10.',
+    });
+    expect(yearTip(short(0.8))).toEqual({
+      title: 'Winter',
+      body: 'Summer in 0:08.',
+    });
+  });
+
+  it('promises no ice on a year the sim does not keep', () => {
+    // ?year shortens the look's year only; iceBears still counts
+    // YEAR_TICKS, so the lakes the tip would name are not the sim's.
+    for (const at of [0.1, ICE_FROM, 0.85, 0.95]) {
+      const tip = yearTip({at, ticks: 40 * TICKS_PER_SECOND, turning: true});
+      expect(tip.body).not.toMatch(/lake/i);
+    }
   });
 
   it('promises nothing while a pinned season holds the year still', () => {

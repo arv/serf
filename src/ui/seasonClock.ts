@@ -63,11 +63,22 @@ export function yearTip(year: YearReading): {title: string; body?: string} {
   // line, and the tip says it thaws in 0:00 on ice nobody may walk.
   const tick = (share: number): number => Math.round(share * year.ticks);
   const now = tick(year.at);
+  const until = (share: number): string =>
+    clock((tick(share) - now) / TICKS_PER_SECOND);
   const title = now >= tick(TURNS.winter) ? 'Winter' : 'Summer';
   // Held still, nothing is coming.
   if (!year.turning) return {title};
-  const until = (share: number): string =>
-    clock((tick(share) - now) / TICKS_PER_SECOND);
+  // ?year turns the look on a year of its own, but the lakes bear on the
+  // sim's (iceBears counts YEAR_TICKS). Then the look is all the dial can
+  // speak for: the next season, and no promise about the ice.
+  if (year.ticks !== YEAR_TICKS)
+    return {
+      title,
+      body:
+        now < tick(TURNS.winter)
+          ? `Winter in ${until(TURNS.winter)}.`
+          : `Summer in ${until(1)}.`,
+    };
   if (now < tick(ICE_FROM))
     return {
       title,

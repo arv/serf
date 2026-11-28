@@ -24,7 +24,7 @@ const RAYS = Array.from({length: 8}, (_, i) => {
   const a = (i * Math.PI) / 4;
   const at = (r: number): string =>
     `${+(Math.sin(a) * r).toFixed(2)} ${+(-Math.cos(a) * r).toFixed(2)}`;
-  return `M${at(3.7)}L${at(5)}`;
+  return `M${at(3.4)}L${at(4.5)}`;
 }).join('');
 
 /**
@@ -70,19 +70,19 @@ export function SeasonDial(props: {year: () => YearReading}) {
         @media ${COMPACT} {
           #ui .season-dial.panel { width: var(--touch-btn); height: var(--touch-btn); }
         }
-        /* Radius 18 out, 15 in: wide enough to read the color under the
-           sun from across the screen. */
+        /* Radius 18.5 out, 16 in. The sun's road runs inside it, and
+           nothing the sun draws reaches past 15.8. */
         .season-dial .rim {
-          position: absolute; inset: 5%; border-radius: 50%;
-          -webkit-mask: radial-gradient(closest-side, transparent 83.3%, #000 calc(83.3% + 0.6px));
-          mask: radial-gradient(closest-side, transparent 83.3%, #000 calc(83.3% + 0.6px));
+          position: absolute; inset: 3.75%; border-radius: 50%;
+          -webkit-mask: radial-gradient(closest-side, transparent 86.5%, #000 calc(86.5% + 0.6px));
+          mask: radial-gradient(closest-side, transparent 86.5%, #000 calc(86.5% + 0.6px));
         }
         .season-dial svg {
           position: absolute; inset: 0; width: 100%; height: 100%;
           overflow: visible;
         }
         .season-dial .core { fill: #ffcf4a; }
-        .season-dial .rays { stroke: #f3b23a; stroke-width: 1.2; stroke-linecap: round; }
+        .season-dial .rays { stroke: #f3b23a; stroke-width: 1.1; stroke-linecap: round; }
         /* The winter sun is low and pale, as the valley's is. */
         .season-dial.winter .core { fill: #fbeed3; }
         .season-dial.winter .rays { stroke: #d9cdb5; }
@@ -93,34 +93,39 @@ export function SeasonDial(props: {year: () => YearReading}) {
         }
         .season-dial .flake {
           fill: none; stroke: var(--winter);
-          stroke-width: 1.2; stroke-linecap: round;
+          stroke-width: 1.35; stroke-linecap: round;
         }
       `}</style>
       <div class="rim" style={{background: RING}} />
       <svg viewBox="0 0 40 40" aria-hidden="true">
-        <Show
-          when={winter()}
-          fallback={
-            <>
-              <path
-                class="leaf"
-                d="M15.6 24.4C15.6 18.6 18.7 15.6 24.4 15.6 24.4 21.3 21.4 24.4 15.6 24.4Z"
-              />
-              <path class="vein" d="M16.6 23.4 21.6 18.4" />
-            </>
-          }
-        >
-          <path
-            class="flake"
-            d="M20 15v10M15.7 17.5l8.6 5M15.7 22.5l8.6-5M18.6 15.6 20 17l1.4-1.4M18.6 24.4 20 23l1.4 1.4"
-          />
-        </Show>
-        {/* On the road just inside the rim, so the rim's color is never
-            under it: the sun points at the season rather than hiding it. */}
+        {/* Drawn at 0.85, so that its farthest point (the leaf's tip, 5.3
+            out) clears the sun's nearest (5.7) wherever the sun is. */}
+        <g transform="translate(20 20) scale(0.85) translate(-20 -20)">
+          <Show
+            when={winter()}
+            fallback={
+              <>
+                <path
+                  class="leaf"
+                  d="M15.6 24.4C15.6 18.6 18.7 15.6 24.4 15.6 24.4 21.3 21.4 24.4 15.6 24.4Z"
+                />
+                <path class="vein" d="M16.6 23.4 21.6 18.4" />
+              </>
+            }
+          >
+            <path
+              class="flake"
+              d="M20 15v10M15.7 17.5l8.6 5M15.7 22.5l8.6-5M18.6 15.6 20 17l1.4-1.4M18.6 24.4 20 23l1.4 1.4"
+            />
+          </Show>
+        </g>
+        {/* On a road just inside the rim, 10.75 out, its rays ending short
+            of the rim's inner edge: the rim's color is never under the sun,
+            which points at the season rather than hiding it. */}
         <g transform={`rotate(${dialTurn(year().at) * 360} 20 20)`}>
-          <g transform="translate(20 8.5)">
+          <g transform="translate(20 9.25)">
             <path class="rays" d={RAYS} />
-            <circle class="core" r="2.7" />
+            <circle class="core" r="2.5" />
           </g>
         </g>
       </svg>
