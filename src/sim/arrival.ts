@@ -1,9 +1,9 @@
-import {tileX, tileY} from '../shared/grid.ts';
+import {inBounds, tileIdx, tileX, tileY} from '../shared/grid.ts';
 import {exactDist} from '../shared/math.ts';
 import {buildingDef} from './defs/buildings.ts';
 import type {Building} from './entities.ts';
 import type {GameMap} from './map.ts';
-import {findPath, findPathToAdjacent} from './path.ts';
+import {findPath, findPathToAdjacent, shut} from './path.ts';
 import type {Unit} from './units.ts';
 
 /**
@@ -101,10 +101,40 @@ export function findPathToSource(
   b: Building,
 ): number[] | null {
   const from = buildingDef(b.type).drawFrom;
+  const fx = from ? b.x + from[0] : 0;
+  const fy = from ? b.y + from[1] : 0;
   return (
-    (from && findPath(map, sx, sy, b.x + from[0], b.y + from[1])) ||
+    (from && enterable(map, sx, sy, fx, fy) && findPath(map, sx, sy, fx, fy)) ||
     findPathToAdjacent(map, sx, sy, b.x, b.y, b.w, b.h)
   );
+}
+
+/**
+ * Whether a walk from (sx, sy) could end on tile (x, y) at all — false only
+ * when it certainly cannot, so the answer agrees with findPath. A step in
+ * comes from a neighbour, and a diagonal one needs both of its orthogonals
+ * open (no corner cutting, path.ts), so an open orthogonal neighbour is the
+ * whole question — unless he is already on the tile or beside it, where
+ * the search starts and the rule about where it may stand does not apply.
+ *
+ * Asked first because the answer is otherwise expensive: a goal the search
+ * cannot enter costs it the whole walkable component to prove (path.ts,
+ * the runaway cap), and a draw tile hemmed in on its three open sides by
+ * houses or trees would charge that to every water haul in the village
+ * before the ring fallback ran.
+ */
+function enterable(
+  map: GameMap,
+  sx: number,
+  sy: number,
+  x: number,
+  y: number,
+): boolean {
+  if (Math.abs(sx - x) + Math.abs(sy - y) <= 1) return true;
+  const size = map.size;
+  const open = (nx: number, ny: number): boolean =>
+    inBounds(nx, ny, size) && !shut(map, tileIdx(nx, ny, size));
+  return open(x + 1, y) || open(x - 1, y) || open(x, y + 1) || open(x, y - 1);
 }
 
 /** Put the unit back on the road to the source it is fetching from. False

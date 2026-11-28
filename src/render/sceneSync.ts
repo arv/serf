@@ -12,6 +12,8 @@ import {
 } from '../protocol/sabLayout';
 import type {Enum} from '../shared/enum.ts';
 import {clamp, hash2, lerp} from '../shared/math';
+import {buildingDef} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {WATER_LEVEL} from '../sim/map';
@@ -181,6 +183,21 @@ const PIER_LEAVE_LAG = 1.2;
  */
 const CRANK_MARK_X = 0.64;
 const CRANK_MARK_Z = -0.12;
+
+/**
+ * The middle of that crank side's tile, from the well's center — read off
+ * the sim's own BuildingDef.drawFrom rather than written down again here,
+ * so the tile the render looks for a drawer on is the tile the sim sends
+ * him to. Undefined if the well ever stops naming one: then nobody is
+ * walked to the handle, rather than the wrong man.
+ */
+const CRANK_SIDE = ((): {x: number; z: number} | undefined => {
+  const def = buildingDef(BuildingTypeId.well);
+  const from = def.drawFrom;
+  return from
+    ? {x: from[0] + 0.5 - def.w / 2, z: from[1] + 0.5 - def.h / 2}
+    : undefined;
+})();
 
 /**
  * How fast that third of a tile is given back once the draw is over, in
@@ -560,8 +577,13 @@ export class SceneSync {
    * none. From there the handle is across the shaft, and he draws where
    * he stands. */
   #crankWellAt(x: number, y: number): Well | null {
+    if (!CRANK_SIDE) return null;
     for (const w of this.#wells)
-      if (Math.abs(w.x + 1 - x) < 0.5 && Math.abs(w.z - y) < 0.5) return w;
+      if (
+        Math.abs(w.x + CRANK_SIDE.x - x) < 0.5 &&
+        Math.abs(w.z + CRANK_SIDE.z - y) < 0.5
+      )
+        return w;
     return null;
   }
 
@@ -1217,7 +1239,10 @@ export class SceneSync {
         else {
           visual.sepX = this.#sepTX[i] = visual.sepX + (dx / gap) * step;
           visual.sepY = this.#sepTY[i] = visual.sepY + (dz / gap) * step;
-          if (!moving) {
+          // A man struck at the handle answers where he stands, still on his
+          // errand (combat.ts lastResortStrike): the bearing above has turned
+          // him to whoever hit him, and his swing is the clip to play.
+          if (!moving && action !== ACTION.fight) {
             visual.group.rotation.y = Math.atan2(dx, dz);
             crankStep = true;
             if (visual.char) setGaitSpeed(visual.char, RENDER_WALK_SPEED);

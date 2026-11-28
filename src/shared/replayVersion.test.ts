@@ -861,7 +861,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // 79 for water haulers walking to the well's crank side: every water haul
 // can end on a different tile, a few ticks later (replayVersion.ts).
 const EXPECTED_VERSION = 79;
-const EXPECTED_HASH = '2489d5c8b8fd38e896376995ebe2de3a';
+const EXPECTED_HASH = 'c5280649d225618c133986a85d0f598b';
 
 /**
  * Everything a replay's playback depends on, as raw source:
