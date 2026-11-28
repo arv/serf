@@ -241,6 +241,8 @@ const STRIP_EXTRAS: GoodId[] = [
   GoodId.hammer,
   GoodId.cauldron,
   GoodId.rod,
+  GoodId.sled,
+  GoodId.wheelbarrow,
 ];
 
 // Every good once between the two lists, the way the ledger checks its
@@ -3002,7 +3004,10 @@ export function Hud(props: {
                       {j => (
                         <tr>
                           <td>{j.id}</td>
-                          <td>{goodName(j.good)}</td>
+                          <td>
+                            {goodName(j.good)}
+                            {j.count !== undefined ? ` ×${j.count}` : ''}
+                          </td>
                           <td>
                             {j.from}→{j.to}
                           </td>

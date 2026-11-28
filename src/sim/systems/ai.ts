@@ -74,7 +74,7 @@ import {
 } from '../siting.ts';
 import * as Terrain from '../terrainEnum.ts';
 import * as TileResource from '../tileResourceEnum.ts';
-import {canTakeUpArms, fightOf, type Unit} from '../units.ts';
+import {canTakeUpArms, cargoOf, fightOf, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {SeatVision} from '../visibility.ts';
 import * as WarBehaviorIdNs from '../warBehaviorIdEnum.ts';
@@ -1747,7 +1747,7 @@ export class AiBrain {
       if (u.kind === UnitTypeId.serf) serfCount++;
       else if (UNIT_DEFS[u.kind].combat) soldierCount++;
       if (u.carrying !== undefined) {
-        carried[u.carrying] = (carried[u.carrying] ?? 0) + 1;
+        carried[u.carrying] = (carried[u.carrying] ?? 0) + cargoOf(u);
       }
     }
     const researchPending = s.researchOrder.some(

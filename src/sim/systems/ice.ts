@@ -1,8 +1,9 @@
 import {tileIdx, tileX, tileY} from '../../shared/grid.ts';
-import {iceBears} from '../defs/balance.ts';
+import {cartFor, iceBears} from '../defs/balance.ts';
 import {isLake, layIce} from '../ice.ts';
 import {nearestWalkable} from '../path.ts';
 import type {World} from '../world.ts';
+import {splitCartLoads} from './logistics.ts';
 import {routeAround} from './movement.ts';
 
 /**
@@ -17,13 +18,17 @@ import {routeAround} from './movement.ts';
  */
 export function iceSystem(world: World): void {
   const map = world.map;
-  if (!layIce(map, world.tick)) return;
+  const turned = layIce(map, world.tick);
+  // The carts change with the season as the ice does, off the same tick.
+  if (world.tick > 0 && cartFor(world.tick) !== cartFor(world.tick - 1))
+    splitCartLoads(world);
+  if (!turned) return;
   // The thaw is read off the tick, never off what this map remembers: the
   // grid is not saved or copied, so a world that was loaded or cloned a
   // tick ago remembers nothing, and it has to pull the same men out of the
   // same water as the world it was taken from.
-  if (world.tick === 0 || iceBears(world.tick) || !iceBears(world.tick - 1))
-    return;
+  if (world.tick === 0) return;
+  if (iceBears(world.tick) || !iceBears(world.tick - 1)) return;
 
   const size = map.size;
   for (const unit of world.units.values()) {

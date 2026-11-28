@@ -97,6 +97,15 @@ export interface Unit {
   jobId?: number;
   /** Good physically on the unit's shoulders. */
   carrying?: GoodId;
+  /** How many of it, when more than the one a pair of arms holds: a cart's
+   * load (cartFor in defs/balance.ts). Absent is one. Read it through
+   * `cargoOf`. */
+  carryCount?: number;
+  /** The cart in his hands — a sled in winter, a wheelbarrow the rest of
+   * the year — taken off the castle's shelf for a haul of several loads and
+   * brought back when he has no haul left for it. A good like any other
+   * while he holds it: counted, saved, and dropped where he falls. */
+  cart?: GoodId;
   /** Home building (resident workers). */
   homeId?: EntityId;
   /** Tile the unit occupied last tick — trail wear bookkeeping. */
@@ -268,4 +277,10 @@ export function fightOf(unit: Unit): FightStats | undefined {
  */
 export function takesUpRoom(unit: Unit): boolean {
   return fightOf(unit) !== undefined;
+}
+
+/** How many goods `unit` is carrying: none, the one in his arms, or a
+ * cart's worth. */
+export function cargoOf(unit: Pick<Unit, 'carrying' | 'carryCount'>): number {
+  return unit.carrying === undefined ? 0 : (unit.carryCount ?? 1);
 }

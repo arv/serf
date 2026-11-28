@@ -238,6 +238,8 @@ export const EVAC_PRIORITY: Readonly<Record<GoodId, HaulPriority>> = {
   [GoodId.hammer]: 3,
   [GoodId.cauldron]: 3,
   [GoodId.rod]: 3,
+  [GoodId.sled]: 3,
+  [GoodId.wheelbarrow]: 3,
 };
 
 // Trails
@@ -422,4 +424,70 @@ export function iceBears(tick: number): boolean {
     into >= ICE_FROM * YEAR_TICKS &&
     into < ICE_UNTIL * YEAR_TICKS + ICE_GRACE_TICKS
   );
+}
+
+/**
+ * PROTOTYPE: winter on the ground. While the snow lies whole — from the
+ * moment it has finished coming until the thaw begins — everyone walks
+ * slower, and a serf hauls by sled. Not in the thaw: slush is no ground
+ * for a runner, and the sleds go home with the first of it.
+ *
+ * The snow covers everything, roads included: SNOW_SPEED is the pace on
+ * grass, trail, paving and ice alike. A summer road network is worth
+ * nothing in winter, and a sled runs anywhere the snow lies. It slows
+ * soldiers and raiders with the rest; nobody is excused.
+ *
+ * A sled is what the season gives back: SLED_LOAD of one good from one
+ * door to another in a single walk. Sleds are forged at the Smith from
+ * wood, kept at the castle and lent one to a walk, so the village's sled
+ * count is how many haulers can go four-up at once. Summer is when a
+ * village gathers and winter is when it moves what it gathered.
+ */
+export const WINTER_UNTIL = ICE_UNTIL;
+export const SNOW_SPEED = 0.8;
+export const SLED_LOAD = 4;
+/**
+ * How many sleds the AI keeps (stockTheCarts in economyRules.ts). A player
+ * orders his own at the Smith: auto never makes one, so a village has
+ * exactly the sleds somebody asked for.
+ */
+export const SLED_STOCK = 3;
+
+/**
+ * The rest of the year's cart: a wheelbarrow takes BARROW_LOAD of one good
+ * in a walk, the way a sled takes SLED_LOAD, from the end of the thaw to
+ * the first hard frost — the three quarters of the year with no snow on
+ * the ground. Cheaper than a sled (one wood) and half the load. Kept,
+ * lent, fetched and brought back exactly as the sleds are, from the same
+ * castle. BARROW_STOCK is the AI's, as SLED_STOCK is.
+ */
+export const BARROW_LOAD = 2;
+export const BARROW_STOCK = 3;
+
+/** A cart: the good a walk of more than one load borrows, and how many it
+ * takes. */
+export interface Cart {
+  readonly good: GoodId;
+  readonly load: number;
+}
+const SLED: Cart = {good: GoodId.sled, load: SLED_LOAD};
+const BARROW: Cart = {good: GoodId.wheelbarrow, load: BARROW_LOAD};
+
+/**
+ * The cart the season gives at `tick`: a sled while the snow lies, a
+ * wheelbarrow while it does not, and nothing in the thaw — slush is no
+ * ground for a runner and mud none for a wheel, so from WINTER_UNTIL to the
+ * year's end every load is its own walk.
+ */
+export function cartFor(tick: number): Cart | undefined {
+  if (isWinter(tick)) return SLED;
+  return tick % YEAR_TICKS < ICE_FROM * YEAR_TICKS ? BARROW : undefined;
+}
+
+/** The goods that are carts, in the order the castle parks them. */
+export const CART_GOODS: readonly GoodId[] = [GoodId.sled, GoodId.wheelbarrow];
+
+export function isWinter(tick: number): boolean {
+  const into = tick % YEAR_TICKS;
+  return into >= ICE_FROM * YEAR_TICKS && into < WINTER_UNTIL * YEAR_TICKS;
 }

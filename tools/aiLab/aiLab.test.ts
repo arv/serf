@@ -220,6 +220,21 @@ const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
  * ticks sooner — so seat 1 still wins both ways, 1_129 ticks of gap and
  * 10_192 under the bound.
  *
+ * 11 once winter reached the ground and its sleds came in on top of the
+ * hit points (replay 79). On seed 8 the advised war now ends 22 ticks
+ * after the control (11_031 against 11_009), so 8 inverted; on 11, seat 1
+ * wins both ways, at 16_630 and 13_081. (5 and 20 hold too, at 13_248 /
+ * 12_507 and 13_790 / 11_331; 1, 14 and 18 invert; 3 and 9 change the
+ * winner; 2's advised war never decides; 4 and 7 go to seat 0; the rest
+ * tie.)
+ *
+ * 8 again on the wheelbarrows' branch (replay 80), with a cart at any
+ * door folding in the loads booked along its route: seed 11 now ties
+ * (11_024 both ways), and on 8 seat 1 wins both ways, at 12_722 and
+ * 11_382. (1, 5 and 20 hold too; 14 inverts by 15 ticks; 2 and 3 change
+ * the winner or invert; 7 and 10 go to seat 0; 6 and 19 never decide; the
+ * rest tie.)
+ *
  * What is being asserted is that advice changes the war, not that any
  * particular map does. */
 const FULL_MATCH_SEED = 8;

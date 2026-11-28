@@ -62,7 +62,7 @@ interface SaveFile {
      * cheap. */
     map: Record<
       // The ice is the tick's, not the save's (GameMap.ice).
-      Exclude<keyof GameMap, 'size' | 'play' | 'ice' | 'iceBears'>,
+      Exclude<keyof GameMap, 'size' | 'play' | 'ice' | 'iceBears' | 'winter'>,
       string | number[]
     >;
     units: unknown[];

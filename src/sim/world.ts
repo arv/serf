@@ -55,7 +55,7 @@ import {
 import {parseMapData, type MapFile} from './mapFile.ts';
 import {findPath, nearestWalkable} from './path.ts';
 import {makePlayer, type PlayerState} from './player.ts';
-import {makeUnit, type Unit} from './units.ts';
+import {cargoOf, makeUnit, type Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 
 export type GameEventKind = Enum<typeof GameEventKindNs>;
@@ -89,6 +89,12 @@ export interface HaulJob {
   createdTick: number;
   phase: HaulPhase;
   serfId?: EntityId;
+  /**
+   * How many of `good` this one walk moves, when more than one: a cart's
+   * load (cartFor in defs/balance.ts; createJob in systems/logistics.ts). Absent is
+   * one. Every reservation the job holds is held this many times over.
+   */
+  count?: number;
   /**
    * This haul was booked by an ordered repair. Cancelling the repair stands
    * exactly these down and leaves everything else walking: a weaponsmith
@@ -1266,8 +1272,13 @@ export function killUnit(world: World, unit: Unit): void {
   if (unit.carrying !== undefined) {
     // Already counted on the carrier's shoulders: a move to the ground,
     // no ledger entry (dropSalvage ledgers the burn if nothing can drop).
-    drops[unit.carrying] = 1;
+    drops[unit.carrying] = cargoOf(unit);
     unit.carrying = undefined;
+    unit.carryCount = undefined;
+  }
+  if (unit.cart !== undefined) {
+    drops[unit.cart] = (drops[unit.cart] ?? 0) + 1;
+    unit.cart = undefined;
   }
   // The resident's tool was consumed when he took the post up, and until
   // now it was buried with him — the raid's second bite of damage. It

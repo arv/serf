@@ -362,6 +362,39 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.93;
       break;
     }
+    case GoodId.sled: {
+      // A new sled carried home from the Smith on its side: two runners
+      // and the deck between them.
+      for (const sz of [-0.07, 0.07]) {
+        const runner = mesh(new THREE.BoxGeometry(0.5, 0.03, 0.025), wood);
+        runner.position.set(0, -0.05, sz);
+        add(runner);
+      }
+      const deck = mesh(new THREE.BoxGeometry(0.42, 0.02, 0.17), woodLight);
+      add(deck);
+      g.position.y = 0.9;
+      break;
+    }
+    case GoodId.wheelbarrow: {
+      // A new barrow carried home from the Smith, tipped up in his arms:
+      // the tray, a handle down each side, and the wheel at the front.
+      const tray = mesh(new THREE.BoxGeometry(0.26, 0.1, 0.2), woodLight);
+      add(tray);
+      for (const sz of [-0.09, 0.09]) {
+        const handle = mesh(new THREE.BoxGeometry(0.44, 0.025, 0.025), wood);
+        handle.position.set(0.04, -0.05, sz);
+        add(handle);
+      }
+      const wheel = mesh(
+        new THREE.CylinderGeometry(0.07, 0.07, 0.035, 10),
+        wood,
+      );
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(-0.2, -0.05, 0);
+      add(wheel);
+      g.position.y = 0.9;
+      break;
+    }
   }
   return g;
 }
@@ -445,6 +478,48 @@ const PACK_CARRY: Partial<
 /** Ground stock renders a quarter larger than the carried version: at
  * village zoom the true-size stacks read as ground clutter, not goods. */
 export const PILE_SCALE = 1.25;
+
+/** The carts as modelled (render/sleds.ts and render/barrows.ts hand them
+ * over once loaded): a parked cart is drawn as the real thing, not as a
+ * carried proxy. */
+const cartModels = new Map<GoodId, THREE.Object3D>();
+const cartModelListeners = new Set<() => void>();
+export function setCartModel(good: GoodId, model: THREE.Object3D): void {
+  cartModels.set(good, model);
+  for (const listener of cartModelListeners) listener();
+}
+/** Call `listener` whenever a cart's model arrives, so a castle that parked
+ * its carts as stand-ins before then can park them again: building
+ * snapshots only come when a building changes, and a quiet castle might
+ * not for a long while. Returns the unsubscribe. */
+export function onCartModel(listener: () => void): () => void {
+  cartModelListeners.add(listener);
+  return () => {
+    cartModelListeners.delete(listener);
+  };
+}
+/** Whether `good` has its model yet, so a parked one drawn before it came
+ * can be drawn again. */
+export function hasCartModel(good: GoodId): boolean {
+  return cartModels.has(good);
+}
+
+/**
+ * A cart parked by the castle (buildingSync lines them up along its side):
+ * the real thing once its model has loaded, the pile prop until then. Only
+ * the parked row, never a door pile: a Smith's shelf of new carts stacks
+ * its units in one lane, and five full-size barrows on top of each other
+ * are not a shelf.
+ */
+export function makeParkedCart(good: GoodId): THREE.Group {
+  const cart = cartModels.get(good);
+  if (!cart) return makePileProp(good);
+  const g = new THREE.Group();
+  const copy = cart.clone();
+  copy.scale.setScalar(0.85);
+  g.add(copy);
+  return g;
+}
 
 /**
  * A single unit of a good as a small grounded prop, for the stock piles
