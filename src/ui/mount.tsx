@@ -7,7 +7,7 @@ import * as CommandKind from '../sim/commandKindEnum.ts';
 import type {BuildingTypeId} from '../sim/defs/buildings';
 import {Hud} from './Hud';
 import type {MinimapSource} from './Minimap';
-import type {YearReading} from './seasonClock';
+import type {SeasonSource} from './SeasonDial';
 import {applySpeed} from './speedControl';
 import {pushToast, replayMode, type OrderMode} from './store';
 
@@ -66,9 +66,9 @@ export interface HudActions {
    * where they all exist. Not an action, but it travels the same road:
    * this is the one door the app hands things to the HUD through. */
   minimap: MinimapSource;
-  /** Where the valley is in its year, for the season dial — the
-   * scene's own reading (Seasons.year), live like the minimap's. */
-  year: () => YearReading;
+  /** The season dial's live handles — the scene's year and the sim's
+   * tick — travelling the same road as the minimap's. */
+  season: SeasonSource;
 }
 
 /**
@@ -258,7 +258,7 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
         // twice, once on Enter and once when the table hears it.
         onChat={text => host.sendChat?.(text)}
         minimap={actions.minimap}
-        year={actions.year}
+        season={actions.season}
       />
     ),
     root,

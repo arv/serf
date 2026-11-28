@@ -16,6 +16,7 @@ export const PUBLISH_INTERVAL_MS = 50;
 // Header (Int32 indices)
 const H_PUBLISH_SEQ = 0; // total publishes so far; slot = seq % SLOT_COUNT
 const H_SLOT_SEQ0 = 1; // per-slot seqlock words [1..4]
+const H_TICK = 5; // the sim tick as of the latest publish
 const HEADER_INTS = 8;
 
 // Per-slot layout, in bytes, after the header.
@@ -176,8 +177,9 @@ export class SabWriter {
     for (let s = 0; s < SLOT_COUNT; s++) this.#slots.push(slotViews(buffer, s));
   }
 
-  /** Publish the current unit state as the next slot. */
-  publish(units: Iterable<UnitSnapshot>): void {
+  /** Publish the current unit state as the next slot, and the sim tick
+   * it is the state of. */
+  publish(units: Iterable<UnitSnapshot>, tick: number): void {
     const seq = Atomics.load(this.#header, H_PUBLISH_SEQ) + 1;
     const slotIdx = seq % SLOT_COUNT;
     const slot = this.#slots[slotIdx]!;
@@ -206,6 +208,7 @@ export class SabWriter {
     }
     slot.count[0] = n;
     Atomics.add(this.#header, lock, 1); // even: stable
+    Atomics.store(this.#header, H_TICK, tick);
     Atomics.store(this.#header, H_PUBLISH_SEQ, seq);
   }
 }
@@ -242,6 +245,17 @@ export class SabReader {
   readonly latest = emptyCopy();
   /** performance.now() when `latest` was first observed. */
   latestObservedAt = 0;
+
+  /**
+   * The sim tick as of the worker's latest publish, read live: twenty
+   * times a second while the sim runs, and still while it does not. The
+   * freshest word of the sim's clock the main thread has — the structural
+   * frames that carry the tick too are not posted at all when a village
+   * has no news, which at the start of a match can be a long while.
+   */
+  get tick(): number {
+    return Atomics.load(this.#header, H_TICK);
+  }
 
   constructor(buffer: SharedArrayBuffer | ArrayBuffer) {
     this.#header = new Int32Array(buffer, 0, HEADER_INTS);

@@ -67,8 +67,7 @@ import {Minimap, type MinimapSource} from './Minimap';
 import * as MinimapMode from './minimapModeEnum.ts';
 import {MissionPanel, continueTarget} from './MissionPanel';
 import {buildingName, goodName, seatName, techName} from './names';
-import type {YearReading} from './seasonClock';
-import {SeasonDial} from './SeasonDial';
+import {SeasonDial, type SeasonSource} from './SeasonDial';
 import {SelectionPanel} from './SelectionPanel';
 import {Key} from './shortcut';
 import {REPLAY_GEAR, SPEED_GEARS} from './speedControl';
@@ -322,8 +321,8 @@ export function Hud(props: {
     recipeIndex: number,
   ) => void;
   minimap: MinimapSource;
-  /** Where the valley is in its year (Seasons.year). */
-  year: () => YearReading;
+  /** The season dial's live handles (see SeasonSource). */
+  season: SeasonSource;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
@@ -2690,7 +2689,7 @@ export function Hud(props: {
           year's dial stands outside the cluster, before it: time as
           it passes beside how fast it runs, and still there when a
           bad connection takes the cluster away. */}
-          <SeasonDial year={props.year} />
+          <SeasonDial source={props.season} />
           <Show when={!netMode() || netStatus()?.state === NetState.ok}>
             <div class="hud-speed panel" classList={{single: speedIsSingle()}}>
               <Show when={netMode() && netStatus()?.state === NetState.ok}>

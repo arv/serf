@@ -69,7 +69,7 @@ function reading(units: UnitSnapshot[]): SabReader {
   const sab = new SharedArrayBuffer(SAB_BYTES);
   const writer = new SabWriter(sab);
   const reader = new SabReader(sab);
-  writer.publish(units);
+  writer.publish(units, 0);
   reader.poll(0);
   return reader;
 }

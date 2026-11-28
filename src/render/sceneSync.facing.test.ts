@@ -102,7 +102,7 @@ function yawAfter(...frames: UnitSnapshot[]): number {
   let now = 0;
   for (const f of frames) {
     now += 1000 / 60;
-    writer.publish([f]);
+    writer.publish([f], 0);
     reader.poll(now);
     sync.update(now);
   }
@@ -224,7 +224,7 @@ describe('a standing worker faces his work', () => {
     let mowed = false;
     for (let f = 0; f < 900; f++) {
       now += 1000 / 60;
-      writer.publish([farmer]);
+      writer.publish([farmer], 0);
       reader.poll(now);
       sync.update(now);
       const yaw = groups[0]!.rotation.y;

@@ -2,7 +2,7 @@ import {createSignal, onCleanup, Show} from 'solid-js';
 import {grass} from '../render/palette';
 import {SNOW_COLOR} from '../render/seasons';
 import {COMPACT} from './breakpoints';
-import {dialTurn, yearRing, yearTip, type YearReading} from './seasonClock';
+import {dialTurn, yearRing, yearTip} from './seasonClock';
 import {TextTip, tooltip} from './tooltip';
 
 const css = (color: number): string =>
@@ -28,24 +28,40 @@ const RAYS = Array.from({length: 8}, (_, i) => {
 }).join('');
 
 /**
+ * What the dial reads, live — assembled in matchScreen where the scene and
+ * the sim's reader both are.
+ */
+export interface SeasonSource {
+  /** The share of its year the scene has reached (Seasons.yearAt): what the
+   * sun, the rim and the season's name follow, so they agree with the snow
+   * on screen. */
+  yearAt(): number;
+  /** The sim's tick as of its latest publish (SabReader.tick): what the
+   * lakes follow, since the sim alone decides who may walk on them, and
+   * the scene's clock may run ahead of it. */
+  simTick(): number;
+}
+
+/**
  * The year at a glance: a rim in summer's green and winter's white, and
  * the sun going round inside it — high through the summer, low through the
  * winter. The middle says which season it is in a shape as well as a
  * color; the tip says what the lakes do next, and when.
  *
- * Read off the scene's own clock (Seasons.year), so the dial turns with
- * the valley it describes: it pauses with the match and hurries with it.
+ * Polled on its own clock, like the minimap: nothing upstream has to know
+ * the dial exists.
  */
-export function SeasonDial(props: {year: () => YearReading}) {
-  const read = (): YearReading => ({...props.year()});
-  const [year, setYear] = createSignal(read(), {
-    // A copy each read, so equal means nothing moved.
-    equals: (a, b) => a.at === b.at && a.turning === b.turning,
-  });
-  const timer = setInterval(() => setYear(read()), READ_MS);
+export function SeasonDial(props: {source: SeasonSource}) {
+  const src = props.source;
+  const [at, setAt] = createSignal(src.yearAt());
+  const [tick, setTick] = createSignal(src.simTick());
+  const timer = setInterval(() => {
+    setAt(src.yearAt());
+    setTick(src.simTick());
+  }, READ_MS);
   onCleanup(() => clearInterval(timer));
 
-  const tip = () => yearTip(year());
+  const tip = () => yearTip(at(), tick());
   const winter = () => tip().title === 'Winter';
 
   return (
@@ -53,7 +69,7 @@ export function SeasonDial(props: {year: () => YearReading}) {
       class="season-dial panel"
       classList={{winter: winter()}}
       role="img"
-      aria-label={[tip().title, tip().body].filter(Boolean).join('. ')}
+      aria-label={`${tip().title}. ${tip().body}`}
       {...tooltip(() => <TextTip title={tip().title} body={tip().body} />)}
     >
       <style>{`
@@ -122,7 +138,7 @@ export function SeasonDial(props: {year: () => YearReading}) {
         {/* On a road just inside the rim, 10.75 out, its rays ending short
             of the rim's inner edge: the rim's color is never under the sun,
             which points at the season rather than hiding it. */}
-        <g transform={`rotate(${dialTurn(year().at) * 360} 20 20)`}>
+        <g transform={`rotate(${dialTurn(at()) * 360} 20 20)`}>
           <g transform="translate(20 9.25)">
             <path class="rays" d={RAYS} />
             <circle class="core" r="2.5" />

@@ -33,7 +33,7 @@ function rig(units: UnitSnapshot[]): SceneSync {
   const sab = new SharedArrayBuffer(SAB_BYTES);
   const writer = new SabWriter(sab);
   const reader = new SabReader(sab);
-  writer.publish(units);
+  writer.publish(units, 0);
   reader.poll(0);
   return new SceneSync(new THREE.Scene(), reader, flat);
 }
@@ -98,7 +98,7 @@ describe('the hp bars over the men', () => {
     const scene = new THREE.Scene();
     const sab = new SharedArrayBuffer(SAB_BYTES);
     const reader = new SabReader(sab);
-    new SabWriter(sab).publish([unit(1, 30, 30, 0)]);
+    new SabWriter(sab).publish([unit(1, 30, 30, 0)], 0);
     reader.poll(0);
     new SceneSync(scene, reader, flat);
 

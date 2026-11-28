@@ -5,18 +5,8 @@ import {
   ICE_UNTIL,
   TICKS_PER_SECOND,
   YEAR_TICKS,
+  iceBears,
 } from '../sim/defs/balance';
-
-/**
- * Where the valley is in its year, as the scene shows it (Seasons.year):
- * `at` the share of the year gone, 0 at summer's first tick; `ticks` the
- * year's length; `turning` false while ?season holds one season still.
- */
-export interface YearReading {
-  at: number;
-  ticks: number;
-  turning: boolean;
-}
 
 /**
  * How far round the dial a share of the year stands, in turns from the
@@ -49,45 +39,42 @@ export function clock(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** The share of the year the lakes stop bearing at (iceBears). */
-const ICE_ENDS = ICE_UNTIL + ICE_GRACE_TICKS / YEAR_TICKS;
+/** Where in its year the sim's ice starts and stops bearing, in ticks:
+ * the very sums iceBears does, so the two cannot disagree by a hair. */
+const ICE_STARTS = ICE_FROM * YEAR_TICKS;
+const ICE_ENDS = ICE_UNTIL * YEAR_TICKS + ICE_GRACE_TICKS;
 
 /**
  * What the dial says when asked: the season, and what the lakes do next and
- * how soon. The season is the look's; the lakes are the sim's, which is
- * what decides whether a man may walk on one.
+ * how soon.
+ *
+ * Two clocks, each for what it knows. The season is the look's — `at`, the
+ * share of the year the scene has reached, so the name agrees with the
+ * dial and the snow. The lakes are the sim's — `tick`, its latest
+ * published tick (SabReader.tick) — because the sim alone decides whether
+ * a man may walk on one, and the scene's clock is allowed to run ahead of
+ * it.
  */
-export function yearTip(year: YearReading): {title: string; body?: string} {
-  // Everything in whole ticks of the year, as iceBears counts: in shares,
-  // the tick the ice stops bearing can land a hair either side of the
-  // line, and the tip says it thaws in 0:00 on ice nobody may walk.
-  const tick = (share: number): number => Math.round(share * year.ticks);
-  const now = tick(year.at);
-  const until = (share: number): string =>
-    clock((tick(share) - now) / TICKS_PER_SECOND);
-  const title = now >= tick(TURNS.winter) ? 'Winter' : 'Summer';
-  // Held still, nothing is coming.
-  if (!year.turning) return {title};
-  // ?year turns the look on a year of its own, but the lakes bear on the
-  // sim's (iceBears counts YEAR_TICKS). Then the look is all the dial can
-  // speak for: the next season, and no promise about the ice.
-  if (year.ticks !== YEAR_TICKS)
-    return {
-      title,
-      body:
-        now < tick(TURNS.winter)
-          ? `Winter in ${until(TURNS.winter)}.`
-          : `Summer in ${until(1)}.`,
-    };
-  if (now < tick(ICE_FROM))
-    return {
-      title,
-      body: `Winter in ${until(TURNS.winter)}, and the lakes freeze hard enough to walk across.`,
-    };
-  if (now < tick(ICE_ENDS))
+export function yearTip(
+  at: number,
+  tick: number,
+): {title: string; body: string} {
+  const title = at >= TURNS.winter ? 'Winter' : 'Summer';
+  const into = tick % YEAR_TICKS;
+  const until = (target: number): string =>
+    clock((target - into) / TICKS_PER_SECOND);
+  if (iceBears(tick))
     return {
       title,
       body: `The lakes are frozen hard enough to walk across. They thaw in ${until(ICE_ENDS)}.`,
     };
-  return {title, body: `The lakes have thawed. Summer in ${until(1)}.`};
+  if (into < ICE_STARTS)
+    return {
+      title,
+      body: `In ${until(ICE_STARTS)} the lakes freeze hard enough to walk across.`,
+    };
+  return {
+    title,
+    body: `The lakes have thawed. They freeze again in ${until(YEAR_TICKS + ICE_STARTS)}.`,
+  };
 }

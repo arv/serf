@@ -210,14 +210,9 @@ export class Seasons {
       Number.isFinite(year) && year > 0 ? year * TICKS_PER_SECOND : YEAR_TICKS;
     const pinned = params.get('season') as Season;
     if (SEASONS.includes(pinned)) this.#cycle = [pinned];
-    const turning = this.#cycle.length > 1;
-    this.year = {
-      // A turning year opens on summer's first tick until the first frame
-      // says where the match is.
-      at: turning ? 0 : STILL[this.#cycle[0]!],
-      ticks: this.#yearTicks,
-      turning,
-    };
+    // A turning year opens on summer's first tick until the first frame
+    // says where the match is; a pinned one stands in its season's middle.
+    if (this.#cycle.length === 1) this.#yearAt = STILL[this.#cycle[0]!];
     this.#points = this.#makeAir();
     renderer.scene.add(this.#points);
   }
@@ -335,12 +330,14 @@ export class Seasons {
    * them, as sRGB hex. One object, rewritten in place. */
   readonly chart = {snow: 0, unknown: background, water};
 
-  /** Where the view has got to in the year, for the HUD's dial, kept
-   * current by update(): `at` the share of it gone, 0 at summer's first
-   * tick, and `ticks` its length. `turning` is false while ?season holds
-   * one season still, and `at` stands in the middle of it. One object,
-   * rewritten in place. */
-  readonly year: {at: number; ticks: number; turning: boolean};
+  #yearAt = 0;
+
+  /** Where the view has got to in the year, for the HUD's dial: the share
+   * of it gone, 0 at summer's first tick, kept current by update(). While
+   * ?season holds one season still, it stands in the middle of it. */
+  get yearAt(): number {
+    return this.#yearAt;
+  }
 
   /**
    * How far the lakes have frozen over at `tick`, 0 open to 1 hard. Not the
@@ -422,7 +419,7 @@ export class Seasons {
     this.chart.snow = u.uSnow.value;
     this.chart.unknown = col(SCRATCH_OUT, 'backdrop').getHex();
     this.chart.water = col(SCRATCH_OUT, 'mid').getHex();
-    if (n > 1) this.year.at = (shown % this.#yearTicks) / this.#yearTicks;
+    if (n > 1) this.#yearAt = (shown % this.#yearTicks) / this.#yearTicks;
 
     const camera = this.#renderer.rig.camera;
     camera.getWorldDirection(air.uCentre.value);

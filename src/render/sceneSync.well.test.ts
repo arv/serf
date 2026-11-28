@@ -124,9 +124,9 @@ function rig(first: UnitSnapshot, others: {x: number; z: number}[] = []) {
   let now = 0;
   // Twice, so the second publish has a predecessor to read "standing
   // still" from.
-  writer.publish([first]);
+  writer.publish([first], 0);
   reader.poll(now);
-  writer.publish([first]);
+  writer.publish([first], 0);
   reader.poll(now);
   const out = {x: 0, y: 0};
   const where = () => {
@@ -145,7 +145,7 @@ function rig(first: UnitSnapshot, others: {x: number; z: number}[] = []) {
     frame(sim: (t: number) => UnitSnapshot): number {
       const before = where();
       now = ++frames * FRAME_MS;
-      if (frames % FRAMES_PER_PUBLISH === 0) writer.publish([sim(now)]);
+      if (frames % FRAMES_PER_PUBLISH === 0) writer.publish([sim(now)], 0);
       reader.poll(now);
       sync.update(now);
       const after = where();
@@ -309,7 +309,7 @@ describe('the hauler at the well', () => {
     let prev: {x: number; y: number} | undefined;
     for (let t = 0; t < 40 * TICKS_PER_SECOND; t++) {
       tickWorld(world, []);
-      writer.publish([...unitSnapshots(world)]);
+      writer.publish([...unitSnapshots(world)], 0);
       for (let f = 0; f < framesPerTick; f++) {
         now += FRAME_MS;
         reader.poll(now);
