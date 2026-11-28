@@ -30,6 +30,8 @@ const glsl = (n: number): string => n.toFixed(4);
 export function iceOver(depth: number, frozen: number): number {
   if (depth <= 0) return 0;
   const d01 = THREE.MathUtils.clamp((depth - DEPTH_FLOOR) / DEPTH_SPAN, 0, 1);
+  // three's smoothstep takes the value first, (x, min, max) — the other
+  // way round from GLSL's smoothstep(edge0, edge1, x) in iceAt.
   return THREE.MathUtils.smoothstep(
     frozen,
     ICE_SHALLOW + d01 * ICE_DEEP_LAG,
