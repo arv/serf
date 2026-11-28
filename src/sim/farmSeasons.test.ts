@@ -8,6 +8,7 @@ import {
   farmSeasonAt,
   farmSeasonLeft,
 } from './defs/balance.ts';
+import {BUILDING_DEFS} from './defs/buildings.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as FarmSeason from './defs/farmSeasonEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
@@ -87,6 +88,21 @@ describe('the farm follows the seasons', () => {
     tickWorld(world, []); // the last tick of the harvest starts one
     expect(farm.prodTicksLeft).toBeDefined();
     expect(farmFor(world, farm, 20 * 20)).toBe(1);
+  });
+
+  it('has the last sheaf in long before the farmer is sent off', () => {
+    // The winter release (systems/staffing.ts) leaves no batch behind it
+    // because none can still be running: the last one starts before the
+    // sowing, the sowing outlasts it many times over, and every modifier
+    // on a farm's clock (Irrigation, a festival) only shortens it.
+    const recipe = BUILDING_DEFS[BuildingTypeId.wheatFarm].recipe!;
+    if (!('durationTicks' in recipe)) throw new Error('the farm converts');
+    expect(recipe.durationTicks * 4).toBeLessThan(FALLOW - SOW);
+    const {world, farm} = staffedFarm(SOW - 1);
+    farm.inputs[GoodId.water] = 1;
+    farmFor(world, farm, FALLOW - SOW + 30); // across the first winter sweep
+    expect(farm.prodTicksLeft).toBeUndefined();
+    expect(farm.workerId).toBeUndefined();
   });
 
   it('sends the farmer off for the winter and calls him back at the thaw', () => {

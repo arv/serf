@@ -1598,7 +1598,7 @@ export function SelectionPanel(props: {
                     tip={() => (
                       <TextTip
                         title="The field's year"
-                        body="Cut through the summer, sown before the snow, asleep under it, and up green with the thaw. Only the harvest makes wheat, a whole year's of it, so the mill eats in the winter what went into the castle in the summer. The farmer goes off to haul for the winter and is called back when the snow goes."
+                        body="Cut through the summer, sown before the snow, asleep under it, and up green with the thaw. Only the harvest makes wheat, a whole year's worth of it, so the mill eats in the winter what went into the castle in the summer. The farmer goes off to haul for the winter and is called back when the snow goes."
                       />
                     )}
                   >
